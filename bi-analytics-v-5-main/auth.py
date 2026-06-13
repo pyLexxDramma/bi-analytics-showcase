@@ -851,14 +851,6 @@ def render_sidebar_menu(current_page: str = "reports", *, include_footer: bool =
         return
 
     with st.sidebar:
-        try:
-            from config import is_showcase_mode, SHOWCASE_DISPLAY_TITLE
-
-            if is_showcase_mode():
-                st.caption(f"**{SHOWCASE_DISPLAY_TITLE}** — демо-данные, без доступа к production.")
-                st.markdown("---")
-        except Exception:
-            pass
         # F2: скрываем системную мульти-страничную навигацию Streamlit
         # (streamlit app / admin / analyst params), оставляем только наше меню.
         st.markdown(

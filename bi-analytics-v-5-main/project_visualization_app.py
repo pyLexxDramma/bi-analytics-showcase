@@ -876,23 +876,6 @@ def main():
     # Боковая панель: навигация сразу; версия данных — после загрузки web/ (см. ниже).
     render_sidebar_menu(current_page="reports", include_footer=False)
 
-    try:
-        from config import is_showcase_mode
-
-        if is_showcase_mode():
-            from config import SHOWCASE_DISPLAY_TITLE
-
-            st.markdown(
-                f'<div class="showcase-demo-banner">'
-                f'<strong>{SHOWCASE_DISPLAY_TITLE}</strong> — '
-                f"демонстрационный режим с синтетическими данными. "
-                f"Реальные проекты недоступны."
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-    except Exception:
-        pass
-
     ensure_data_session_state()
 
     def _is_release_client_mode() -> bool:
