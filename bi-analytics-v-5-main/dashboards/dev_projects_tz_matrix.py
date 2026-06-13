@@ -71,6 +71,102 @@ def _iframe_chrome_palette() -> Dict[str, str]:
         }
 
 
+def _dev_tz_matrix_showcase_overrides(p: Dict[str, str]) -> str:
+    """Перекрывает тёмный _DEV_TZ_MATRIX_CSS: светлый фон и читаемый текст в iframe."""
+    try:
+        from config import is_showcase_mode
+    except Exception:
+        return ""
+    if not is_showcase_mode():
+        return ""
+    bt = p.get("body_text", "#111827")
+    ht = p.get("head_text", "#111827")
+    cell = p.get("cell_bg", "#ffffff")
+    ph = p.get("project_head_bg", "#e8f0fe")
+    pc = p.get("project_col_bg", "#f9fafb")
+    ms = p.get("surface_alt", "#f3f4f6")
+    sb = p.get("strong_border", "#111827")
+    inv_bg = "linear-gradient(180deg,#d1fae5 0%,#bbf7d0 100%)"
+    life_bg = "linear-gradient(180deg,#e5e7eb 0%,#f3f4f6 100%)"
+    return f"""
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
+  color:{bt}!important;background-color:{cell}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
+  background:{ph}!important;color:{ht}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
+  background:{pc}!important;color:{ht}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-inv-block,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-inv-block{{
+  background:{inv_bg}!important;color:#065f46!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-life-block,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-life-block{{
+  background:{life_bg}!important;color:{ht}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub{{
+  background:{ms}!important;color:{ht}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide{{
+  border-color:{sb}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{{
+  box-shadow:none!important}}
+.dev-tz-matrix-wrap::-webkit-scrollbar-track{{background:{p.get('scrollbar_track', '#e5e7eb')}!important}}
+"""
+
+
+def _control_points_showcase_overrides(p: Dict[str, str]) -> str:
+    """Светлая палитра для iframe «Контрольные точки» в showcase."""
+    try:
+        from config import is_showcase_mode
+    except Exception:
+        return ""
+    if not is_showcase_mode():
+        return ""
+    bt = p.get("body_text", "#111827")
+    ht = p.get("head_text", "#111827")
+    cell = p.get("cell_bg", "#ffffff")
+    ph = p.get("project_head_bg", "#e8f0fe")
+    pc = p.get("project_col_bg", "#f9fafb")
+    ms = p.get("surface_alt", "#f3f4f6")
+    sb = p.get("strong_border", "#111827")
+    return f"""
+.cp-table-wrap .rendered-table tbody td{{
+  color:{bt}!important;background-color:{cell}!important}}
+.cp-table-wrap .rendered-table th{{
+  background:{ms}!important;color:{ht}!important}}
+.cp-table-wrap .rendered-table th.cp-ghead{{
+  background:linear-gradient(180deg,#d1fae5 0%,#bbf7d0 100%)!important;color:#065f46!important}}
+.cp-table-wrap .rendered-table th.cp-sub{{
+  background:{ms}!important;color:{ht}!important}}
+.cp-table-wrap .rendered-table th.cp-col-project,
+.cp-table-wrap .rendered-table td.cp-col-project{{
+  background:{pc}!important;color:{ht}!important}}
+.cp-table-wrap .rendered-table thead th.cp-col-project{{
+  background:{ph}!important;color:{ht}!important}}
+.rendered-table th.cp-tophead{{
+  background:{ph}!important;color:{ht}!important}}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block,
+.cp-table-wrap .rendered-table th.cp-ms-first,
+.cp-table-wrap .rendered-table td.cp-ms-first,
+.cp-table-wrap .rendered-table th.cp-ms-last,
+.cp-table-wrap .rendered-table td.cp-ms-last,
+.cp-table-wrap .rendered-table thead th.cp-col-project,
+.cp-table-wrap .rendered-table tbody td.cp-col-project{{
+  box-shadow:none!important}}
+.cp-table-wrap .rendered-table{{
+  border-color:{sb}!important}}
+"""
+
+
 def _dearrow_object_columns(df: "pd.DataFrame") -> "pd.DataFrame":
     """pandas 3.0: строковые колонки по умолчанию arrow-backed (dtype ``str``).
 
@@ -3928,7 +4024,7 @@ html,body{{margin:0;padding:0;background:transparent;color:{_p['page_text']};ove
     _n_rows = len(blocks)
     _row_h = 56
     _iframe_h = max(220, 6 + 3 * _row_h + _n_rows * _row_h + 12)
-    _head_styles = _dev_css_raw + _sticky_css
+    _head_styles = _dev_css_raw + _sticky_css + _dev_tz_matrix_showcase_overrides(_p)
     _scroll_block = '<div class="dev-tz-matrix-wrap">' + html_tbl + "</div>"
     _iframe_html = _matrix_iframe_html_document(
         _head_styles,
@@ -5128,7 +5224,7 @@ html,body{{margin:0;padding:0;background:{_p['page_bg']};overflow-x:hidden;overf
 .cp-table-wrap .rendered-table th.cp-ms-first.cp-ms-sep,
 .cp-table-wrap .rendered-table td.cp-ms-first.cp-ms-sep{{box-shadow:inset 3px 0 0 #fff}}
 """
-    _head_styles = _cp_css_raw + _sticky_css
+    _head_styles = _cp_css_raw + _sticky_css + _control_points_showcase_overrides(_p)
 
     project_w = "width:200px;min-width:200px;max-width:200px"
     table_blocks: List[str] = []
