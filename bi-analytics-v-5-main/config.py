@@ -76,6 +76,8 @@ def switch_page_app(path: str) -> None:
     # страница дашбордов может быть зарегистрирована под корневым файлом.
     if normalized.endswith("project_visualization_app.py"):
         candidates.append("streamlit_app.py")
+        if is_showcase_mode():
+            candidates.append("showcase_app.py")
 
     # Для совместимости добавляем вариант по basename для страниц из папки pages/.
     if "/" in normalized:
@@ -196,6 +198,33 @@ def _env_falsy(name: str) -> bool:
     return _read_env_or_secret(name).lower() in ("0", "false", "no", "off")
 
 
+def is_showcase_mode() -> bool:
+    """
+    Демо-инстанс (отдельный ``showcase_app.py``): фейковые данные, без FTP и без ``web/`` клиента.
+
+    Включается только переменной ``BI_ANALYTICS_SHOWCASE_MODE=1`` (выставляется в ``showcase/bootstrap.py``
+    до загрузки основного приложения). Production ``streamlit_app.py`` эту переменную не задаёт.
+    """
+    return _env_truthy("BI_ANALYTICS_SHOWCASE_MODE")
+
+
+def get_showcase_web_dir() -> Optional[Path]:
+    """``<корень репозитория>/showcase_data/web`` — единственный источник данных в showcase."""
+    if not is_showcase_mode():
+        return None
+    return (BASE_PATH.parent / "showcase_data" / "web").resolve()
+
+
+SHOWCASE_DISPLAY_TITLE = "Демо: панель аналитики проектов"
+
+
+def get_app_display_title() -> str:
+    """Заголовок H1 на главной: нейтральное имя в showcase, иначе как раньше."""
+    if is_showcase_mode():
+        return SHOWCASE_DISPLAY_TITLE
+    return ""
+
+
 @lru_cache(maxsize=1)
 def _git_current_branch() -> str:
     """Текущая git-ветка приложения. Кешируется на процесс. На сервере без git вернёт ''."""
@@ -279,6 +308,8 @@ def show_data_ops_ui_for_role(role: Optional[str]) -> bool:
 
     Только admin / superadmin / analyst; на release (клиент) — False.
     """
+    if is_showcase_mode():
+        return False
     if is_release_client_mode():
         return False
     try:
@@ -397,6 +428,9 @@ def get_ai_assistant_open_url() -> str:
        - dev → AI_ASSISTANT_URL_DEV; release → AI_ASSISTANT_URL_PROD (один Web UI OpenCode)
        - embedded на release → тоже Web UI; embedded только на dev/local без release_mode
     """
+    if is_showcase_mode():
+        return ""
+
     for key in ("AI_ASSISTANT_URL", "XCA_AI_CHAT_URL", "AI_CHAT_PUBLIC_URL"):
         u = _read_env_or_secret(key).strip()
         if u:
@@ -460,13 +494,34 @@ def web_load_latest_snapshots_only() -> bool:
     return True
 
 
-DB_PATH: str = os.path.join(BASE_DIR, "users.db")
+DB_PATH: str = os.environ.get("BI_ANALYTICS_DB_PATH") or os.path.join(BASE_DIR, "users.db")
 ETL_DB_ENGINE: str = os.environ.get("DB_ENGINE", "sqlite").strip().lower()
 ETL_SQLITE_DB_PATH: str = os.environ.get(
     "SQLITE_DB_PATH",
     os.path.join(BASE_DIR, "data", "etl.db"),
 )
 DATA_MODE: str = os.environ.get("DATA_MODE", "auto").strip().lower()
+
+def get_msp_project_filter_exclude_names() -> FrozenSet[str]:
+    """Имена проектов, скрытые из фильтров. В showcase — пусто (нет клиентских дубликатов)."""
+    if is_showcase_mode():
+        return frozenset()
+    return MSP_PROJECT_FILTER_EXCLUDE_NAMES
+
+
+SHOWCASE_MSP_PROJECT_NAME_MAP: Dict[str, str] = {
+    "zhk_severny": "ЖК Северный",
+    "bc_gorizont": "БЦ Горизонт",
+    "kvartal_alfa": "Квартал Альфа",
+}
+
+
+def get_msp_project_name_map() -> Dict[str, str]:
+    """Маппинг кодов MSP → подпись. В showcase — демо-проекты, без клиента."""
+    if is_showcase_mode():
+        return SHOWCASE_MSP_PROJECT_NAME_MAP
+    return MSP_PROJECT_NAME_MAP
+
 
 # Точные подписи «project name», которые не показываем в фильтрах (устаревший дубликат написания).
 # Важно: сравнение по строке, не по norm-key — иначе скрывались бы и «Дмитровский 1», если в исключении «Дмитровский-1».

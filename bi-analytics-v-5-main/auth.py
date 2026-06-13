@@ -114,7 +114,17 @@ def user_can_open_report(role: str, report_name: str) -> bool:
 
 def filter_reports_for_role(role: str, report_names: List[str]) -> List[str]:
     """Список отчётов, доступных роли (меню, радиокнопки)."""
-    return [n for n in report_names if user_can_open_report(role, n)]
+    out = [n for n in report_names if user_can_open_report(role, n)]
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            from showcase.allowlist import filter_showcase_reports
+
+            return filter_showcase_reports(out)
+    except ImportError:
+        pass
+    return out
 
 
 def init_db(*, quiet: bool = True) -> None:
@@ -437,6 +447,13 @@ def user_can_edit_finance_tables(role: str | None) -> bool:
 
 def user_can_ftp_sync(role: str | None) -> bool:
     """Обновление данных с FTP: админ, суперадмин, аналитик."""
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            return False
+    except Exception:
+        pass
     return _normalize_role(role) in _FTP_DATA_SYNC_ROLES
 
 
@@ -834,6 +851,14 @@ def render_sidebar_menu(current_page: str = "reports", *, include_footer: bool =
         return
 
     with st.sidebar:
+        try:
+            from config import is_showcase_mode, SHOWCASE_DISPLAY_TITLE
+
+            if is_showcase_mode():
+                st.caption(f"**{SHOWCASE_DISPLAY_TITLE}** — демо-данные, без доступа к production.")
+                st.markdown("---")
+        except Exception:
+            pass
         # F2: скрываем системную мульти-страничную навигацию Streamlit
         # (streamlit app / admin / analyst params), оставляем только наше меню.
         st.markdown(
@@ -949,7 +974,15 @@ def render_sidebar_menu(current_page: str = "reports", *, include_footer: bool =
 
         # Административная панель: только внутри «Настройки профиля» (вторая вкладка) или прямой URL pages/_admin.py
 
-        if current_page != "analyst_params":
+        _hide_analyst_params = False
+        try:
+            from config import is_showcase_mode
+
+            _hide_analyst_params = is_showcase_mode()
+        except Exception:
+            pass
+
+        if current_page != "analyst_params" and not _hide_analyst_params:
             if st.button("Параметры отчётов", width="stretch", key="menu_go_analyst_params"):
                 switch_page_app("pages/_analyst_params.py")
 

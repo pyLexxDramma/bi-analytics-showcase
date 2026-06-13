@@ -2077,8 +2077,30 @@ def format_dataframe_as_html(
 
 
 def load_custom_css() -> None:
-    """Загружает CSS из static/css/style.css. Единственное место — импортируй отсюда."""
+    """Загружает CSS. В showcase — светлая тема (``showcase/theme.py``), иначе production."""
     from pathlib import Path
+
+    try:
+        from config import is_showcase_mode
+    except Exception:
+        is_showcase_mode = lambda: False  # type: ignore[assignment,misc]
+
+    if is_showcase_mode():
+        try:
+            from showcase.theme import load_showcase_theme
+
+            load_showcase_theme()
+        except Exception:
+            pass
+        base = Path(__file__).resolve().parent
+        for name in ("bi-responsive.css",):
+            css_path = base / "static" / "css" / name
+            if css_path.exists():
+                with open(css_path, encoding="utf-8") as f:
+                    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        st.markdown(BI_TABLE_LAYOUT_CSS + BI_RESPONSIVE_DASHBOARD_CSS, unsafe_allow_html=True)
+        return
+
     base = Path(__file__).resolve().parent
     for name in ("style.css", "bi-responsive.css"):
         css_path = base / "static" / "css" / name

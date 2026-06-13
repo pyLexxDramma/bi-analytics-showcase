@@ -32,7 +32,7 @@ import streamlit as st
 from utils import norm_partner_join_key, ensure_msp_hierarchy_columns
 
 from web_schema import (
-    WEB_DB_PATH,
+    get_web_db_path,
     get_active_version_id,
     activate_version,
 )
@@ -291,12 +291,14 @@ def _apply_msp_column_mapping(df: pd.DataFrame, project_name: str) -> pd.DataFra
             _seen[_c] = _best
         df = df.iloc[:, _keep].copy()
 
-    from config import MSP_PROJECT_NAME_MAP
+    from config import get_msp_project_name_map
+
+    _msp_name_map = get_msp_project_name_map()
 
     # Нормализованное имя проекта из имени файла (msp_<project_name>_<date>.csv).
     # Используется и как заполнитель пустых ячеек, и как fallback для непокрытых ключей.
     _file_key = (project_name or "").strip().lower()
-    ru_from_file = MSP_PROJECT_NAME_MAP.get(_file_key, project_name or "")
+    ru_from_file = _msp_name_map.get(_file_key, project_name or "")
 
     def _normalize_project_cell(x):
         if pd.isna(x):
@@ -305,7 +307,7 @@ def _apply_msp_column_mapping(df: pd.DataFrame, project_name: str) -> pd.DataFra
         if not s or s.lower() in ("nan", "none", "<na>"):
             return ru_from_file
         # Пробуем маппинг (с учётом регистра и варианта lower).
-        return MSP_PROJECT_NAME_MAP.get(s, MSP_PROJECT_NAME_MAP.get(s.lower(), ru_from_file or s))
+        return _msp_name_map.get(s, _msp_name_map.get(s.lower(), ru_from_file or s))
 
     if "project name" not in df.columns:
         df["project name"] = ru_from_file
@@ -1051,7 +1053,9 @@ def _iter_web_scan_roots() -> List[Tuple[Path, str]]:
     from config import (
         get_analytics_sibling_web_dir,
         get_extra_web_dirs_from_env,
+        get_showcase_web_dir,
         include_analytics_sibling_web_dir,
+        is_showcase_mode,
     )
 
     roots: List[Tuple[Path, str]] = []
@@ -1066,6 +1070,12 @@ def _iter_web_scan_roots() -> List[Tuple[Path, str]]:
             return
         seen.add(key)
         roots.append((root, prefix))
+
+    if is_showcase_mode():
+        _showcase = get_showcase_web_dir()
+        if _showcase is not None:
+            _add(_showcase, "showcase")
+        return roots
 
     _add(get_web_dir(), "")
 
@@ -1700,7 +1710,7 @@ def load_all_from_web() -> Dict:
     st.session_state["reference_partner_to_project"] = None
 
     import sqlite3
-    conn = sqlite3.connect(WEB_DB_PATH)
+    conn = sqlite3.connect(get_web_db_path())
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -2001,8 +2011,12 @@ def load_all_from_web() -> Dict:
                 if file_type == "msp":
                     # Извлекаем имя проекта из имени файла: msp_dmitrovsky1_... → dmitrovsky1
                     # Формат: msp_<project_name>_<date>.csv
+                    # Формат: msp_<project_slug>_<date>.csv (slug может содержать «_»)
                     parts = name.replace(".csv", "").split("_")
-                    project_name = parts[1] if len(parts) > 1 else name.replace(".csv", "")
+                    if len(parts) >= 3:
+                        project_name = "_".join(parts[1:-1])
+                    else:
+                        project_name = parts[1] if len(parts) > 1 else name.replace(".csv", "")
                     # Дата снимка: последний сегмент до расширения (02-03-2026)
                     snapshot_date = _parse_snapshot_date(parts[-1]) if len(parts) > 2 else None
                     df = _apply_msp_column_mapping(df, project_name)
@@ -2330,7 +2344,7 @@ def _infer_file_type_by_name(file_name: str) -> str:
 
 def _web_db_mtime() -> float:
     try:
-        return float(Path(WEB_DB_PATH).stat().st_mtime)
+        return float(Path(get_web_db_path()).stat().st_mtime)
     except Exception:
         return 0.0
 
@@ -2342,7 +2356,7 @@ def _load_version_data(
     """Загружает строки нужного типа из web_data для указанной версии."""
     import sqlite3
     try:
-        conn = sqlite3.connect(WEB_DB_PATH)
+        conn = sqlite3.connect(get_web_db_path())
         # Порядок строк = порядок вставки при загрузке (= порядок строк в CSV). Без ORDER BY
         # порядок не определён — ломается обход дерева и колонка section (родитель ур.2, «Ковенанты»).
         rows = conn.execute(

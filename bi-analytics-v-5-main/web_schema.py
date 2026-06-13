@@ -13,15 +13,28 @@ import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
 
-# Путь к БД
+# Путь к БД (читаем env на каждый connect — иначе showcase может «залипнуть» на prod).
 _BASE_DIR = Path(__file__).resolve().parent
-WEB_DB_PATH = str(os.environ.get("WEB_DB_PATH", _BASE_DIR / "data" / "web_data.db"))
+
+
+def get_web_db_path() -> str:
+    """Актуальный путь к web_data.db (учитывает WEB_DB_PATH из showcase bootstrap)."""
+    explicit = os.environ.get("WEB_DB_PATH", "").strip()
+    if explicit:
+        return explicit
+    return str(_BASE_DIR / "data" / "web_data.db")
+
+
+def __getattr__(name: str):
+    if name == "WEB_DB_PATH":
+        return get_web_db_path()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @contextmanager
 def get_web_connection():
     """Контекстный менеджер подключения к web_data.db."""
-    conn = sqlite3.connect(WEB_DB_PATH)
+    conn = sqlite3.connect(get_web_db_path())
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -39,7 +52,7 @@ def init_web_schema():
     Безопасно вызывать при каждом старте приложения.
     """
     # Убедимся что папка data/ существует
-    Path(WEB_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    Path(get_web_db_path()).parent.mkdir(parents=True, exist_ok=True)
 
     with get_web_connection() as conn:
         cur = conn.cursor()

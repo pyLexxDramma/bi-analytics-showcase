@@ -1,0 +1,105 @@
+/* Showcase — светлая тема для демо (Streamlit Cloud и локально :8502) */
+
+html body,
+html body .stApp,
+html body [data-testid="stAppViewContainer"],
+html body [data-testid="stMain"],
+html body [data-testid="stMainBlockContainer"],
+html body section.main {
+  background-color: #f8fafc !important;
+  color: #111827 !important;
+}
+
+html body .stApp {
+  --themeBackgroundColor: #f8fafc !important;
+  --themeDarkBackgroundColor: #e5e7eb !important;
+  --themeFontColor: #111827 !important;
+}
+
+html body [data-testid="stHeader"] {
+  background: rgba(248, 250, 252, 0.92) !important;
+}
+
+html body h1.main-header,
+html body .main-header {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+}
+
+html body .stInfo {
+  background-color: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+  color: #1e3a8a !important;
+  border-radius: 10px !important;
+}
+
+html body .stInfo p,
+html body .stInfo strong {
+  color: #1e3a8a !important;
+}
+
+html body .budget-deviation-table-wrap thead th,
+html body .bd-table-wrap thead th {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+html body .budget-deviation-table-wrap tr.bd-group-row td {
+  background-color: #e8ecf1 !important;
+  color: #111827 !important;
+}
+
+html body .main table,
+html body .main table th,
+html body .main table td {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+html body [data-testid="stDataFrame"] div[data-testid="stTable"] {
+  background-color: #ffffff !important;
+}
+
+html body .stAlert {
+  color: #111827 !important;
+}
+
+html body [data-testid="stExpander"] summary {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+}
+
+html body .stButton > button[kind="primary"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+html body .stButton > button[kind="secondary"] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+html body iframe {
+  border-radius: 8px;
+}
+
+html body .showcase-demo-banner {
+  background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  color: #1e3a8a;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  margin: 0 0 1rem 0;
+  padding: 0.75rem 1rem;
+}
+
+html body .showcase-demo-banner strong {
+  color: #1d4ed8;
+  font-weight: 600;
+}

@@ -1,0 +1,20 @@
+# Streamlit Community Cloud — демо-инстанс (main file: showcase_app.py).
+# Production-приложение (streamlit_app.py) использует bi-analytics-v-5-main/.streamlit/config.toml.
+
+[client]
+showSidebarNavigation = false
+
+[server]
+enableStaticServing = true
+headless = true
+
+[theme]
+base = "light"
+font = "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+headingFont = "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+codeFont = "Consolas, 'Courier New', monospace"
+primaryColor = "#2563eb"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#111827"
+linkColor = "#1d4ed8"

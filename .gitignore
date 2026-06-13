@@ -58,6 +58,8 @@ Thumbs.db
 # Local DB
 bi-analytics-v-5-main/data/*.db
 bi-analytics-v-5-main/*.db
+showcase_data/*.db
+showcase_data/_verify_ui/
 *.sqlite
 *.sqlite3
 

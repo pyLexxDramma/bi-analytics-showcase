@@ -24,6 +24,53 @@ from settings import SETTING_KEYS
 DEV_MATRIX_JSON_KEY = "developer_projects_matrix_json"
 
 
+def _iframe_chrome_palette() -> Dict[str, str]:
+    try:
+        from showcase.theme import matrix_iframe_palette
+
+        return matrix_iframe_palette()
+    except Exception:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            return {
+                "page_bg": "#f8fafc",
+                "page_text": "#111827",
+                "head_text": "#111827",
+                "body_text": "#111827",
+                "cell_bg": "#ffffff",
+                "project_head_bg": "#e8f0fe",
+                "project_col_bg": "#f9fafb",
+                "project_col_text": "#111827",
+                "block_bg": "#ffffff",
+                "block_border": "rgba(15,23,42,0.12)",
+                "block_shadow": "0 6px 18px rgba(15,23,42,0.08)",
+                "grid_border": "#cbd5e1",
+                "strong_border": "#111827",
+                "sep_gap": "#f8fafc",
+                "scrollbar_track": "#e5e7eb",
+                "scrollbar_thumb": "rgba(100,116,139,0.45)",
+            }
+        return {
+            "page_bg": "#0e1520",
+            "page_text": "#e6edf3",
+            "head_text": "#f0f4f8",
+            "body_text": "#fafafa",
+            "cell_bg": "#0c1219",
+            "project_head_bg": "#1a3328",
+            "project_col_bg": "#161f2b",
+            "project_col_text": "#ffffff",
+            "block_bg": "#121a24",
+            "block_border": "rgba(255,255,255,0.42)",
+            "block_shadow": "0 6px 18px rgba(0,0,0,0.42)",
+            "grid_border": "#5a6f82",
+            "strong_border": "#ffffff",
+            "sep_gap": "#121a24",
+            "scrollbar_track": "#141820",
+            "scrollbar_thumb": "rgba(121,154,192,0.42)",
+        }
+
+
 def _dearrow_object_columns(df: "pd.DataFrame") -> "pd.DataFrame":
     """pandas 3.0: строковые колонки по умолчанию arrow-backed (dtype ``str``).
 
@@ -3799,85 +3846,84 @@ def render_dev_tz_matrix(
     # Общий _TABLE_CSS из _renderers (color:#e0e0e0, col-fact с оранжевым фоном) в iframe
     # матрицы не подмешиваем — иначе на dev/release цвета блекнут и границы «оранжевят».
     _dev_css_raw = _DEV_TZ_MATRIX_CSS.replace("<style>", "").replace("</style>", "")
-    _sticky_css = """
-*{box-sizing:border-box}
-html,body{margin:0;padding:0;background:transparent;color:#e6edf3;overflow:hidden;
-  opacity:1!important;filter:none!important;isolation:isolate}
-.dev-tz-matrix-wrap{width:100%;max-width:100%;margin:0!important;padding:0!important;
+    _p = _iframe_chrome_palette()
+    _sticky_css = f"""
+*{{box-sizing:border-box}}
+html,body{{margin:0;padding:0;background:transparent;color:{_p['page_text']};overflow:hidden;
+  opacity:1!important;filter:none!important;isolation:isolate}}
+.dev-tz-matrix-wrap{{width:100%;max-width:100%;margin:0!important;padding:0!important;
   overflow-x:auto;overflow-y:hidden;
   -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
-  scrollbar-width:thin;scrollbar-color:rgba(121,154,192,0.5) transparent}
-.dev-tz-matrix-wrap::-webkit-scrollbar{height:10px}
-.dev-tz-matrix-wrap::-webkit-scrollbar-track{background:transparent;border-radius:5px}
-.dev-tz-matrix-wrap::-webkit-scrollbar-thumb{background:rgba(121,154,192,0.42);border-radius:5px;border:2px solid #141820}
-.dev-tz-matrix-wrap::-webkit-scrollbar-thumb:hover{background:rgba(121,154,192,0.65)}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide{
+  scrollbar-width:thin;scrollbar-color:{_p['scrollbar_thumb']} transparent}}
+.dev-tz-matrix-wrap::-webkit-scrollbar{{height:10px}}
+.dev-tz-matrix-wrap::-webkit-scrollbar-track{{background:transparent;border-radius:5px}}
+.dev-tz-matrix-wrap::-webkit-scrollbar-thumb{{background:{_p['scrollbar_thumb']};border-radius:5px;border:2px solid {_p['scrollbar_track']}}}
+.dev-tz-matrix-wrap::-webkit-scrollbar-thumb:hover{{background:rgba(121,154,192,0.65)}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide{{
   border-collapse:separate!important;border-spacing:0!important;
   width:max-content!important;min-width:100%!important;
   font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;
-  font-size:16px!important;font-weight:700!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{
-  font-size:16px!important;line-height:1.45!important;padding:14px 12px!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
-  font-size:17px!important;padding:12px 14px!important;color:#f0f4f8!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
-  font-size:18px!important;padding:14px 12px!important;color:#f0f4f8!important}
+  font-size:16px!important;font-weight:700!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
+  font-size:16px!important;line-height:1.45!important;padding:14px 12px!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
+  font-size:17px!important;padding:12px 14px!important;color:{_p['head_text']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
+  font-size:18px!important;padding:14px 12px!important;color:{_p['head_text']}!important}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life{
-  font-size:18px!important;padding:12px 14px!important;color:#f0f4f8!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone{
-  font-size:17px!important;padding:12px 10px!important;color:#f0f4f8!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub{
-  font-size:16px!important;padding:10px 8px!important;color:#f0f4f8!important}
-/* Сетка: только непрозрачные границы (без border-shorthand — не сбрасывает белые 3px). */
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life{{
+  font-size:18px!important;padding:12px 14px!important;color:{_p['head_text']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone{{
+  font-size:17px!important;padding:12px 10px!important;color:{_p['head_text']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub{{
+  font-size:16px!important;padding:10px 8px!important;color:{_p['head_text']}!important}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
   border-width:1px!important;border-style:solid!important;
-  border-color:#5a6f82!important;background-clip:padding-box!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{
-  background-color:#0c1219!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{
-  border-left:3px solid #ffffff!important;
-  border-right:3px solid #ffffff!important}
+  border-color:{_p['grid_border']}!important;background-clip:padding-box!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
+  background-color:{_p['cell_bg']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{{
+  border-left:3px solid {_p['strong_border']}!important;
+  border-right:3px solid {_p['strong_border']}!important}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{
-  border-left:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{{
+  border-left:3px solid {_p['strong_border']}!important}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{
-  border-right:3px solid #ffffff!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{
-  border-top:3px solid #ffffff!important;border-bottom:3px solid #ffffff!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{
-  border-right:3px solid #ffffff!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{
-  border-left:3px solid #ffffff!important;border-right:3px solid #ffffff!important}
-/* Sticky-колонка «Проект» */
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{{
+  border-right:3px solid {_p['strong_border']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{{
+  border-top:3px solid {_p['strong_border']}!important;border-bottom:3px solid {_p['strong_border']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{{
+  border-right:3px solid {_p['strong_border']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{{
+  border-left:3px solid {_p['strong_border']}!important;border-right:3px solid {_p['strong_border']}!important}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
   position:sticky!important;left:0!important;
-  border-right:3px solid #ffffff!important;
-}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
-  border-top:3px solid #ffffff!important;border-left:3px solid #ffffff!important;
-  border-bottom:3px solid #ffffff!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
-  z-index:5!important;background:#1a3328!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
-  z-index:4!important;background:#161f2b!important}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}
+  border-right:3px solid {_p['strong_border']}!important;
+}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
+  border-top:3px solid {_p['strong_border']}!important;border-left:3px solid {_p['strong_border']}!important;
+  border-bottom:3px solid {_p['strong_border']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
+  z-index:5!important;background:{_p['project_head_bg']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
+  z-index:4!important;background:{_p['project_col_bg']}!important}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{{
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{box-shadow:inset 3px 0 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{{box-shadow:inset 3px 0 0 #fff}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{box-shadow:inset -3px 0 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{{box-shadow:inset -3px 0 0 #fff}}
 .dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{box-shadow:inset -3px 0 0 #fff}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{
-  box-shadow:inset 0 3px 0 #fff,inset 0 -3px 0 #fff}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{
-  box-shadow:inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{box-shadow:inset -3px 0 0 #fff}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{{
+  box-shadow:inset 0 3px 0 #fff,inset 0 -3px 0 #fff}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{{
+  box-shadow:inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{{
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}}
 """
     _n_rows = len(blocks)
     _row_h = 56
@@ -4994,97 +5040,93 @@ def render_control_points_dashboard(st, mdf: pd.DataFrame, table_css: str) -> No
     import streamlit.components.v1 as _components
 
     _cp_css_raw = _CONTROL_POINTS_CSS.replace("<style>", "").replace("</style>", "")
-    _sticky_css = """
-*{box-sizing:border-box}
-html,body{margin:0;padding:0;background:#0e1520;overflow-x:hidden;overflow-y:auto;
+    _p = _iframe_chrome_palette()
+    _sticky_css = f"""
+*{{box-sizing:border-box}}
+html,body{{margin:0;padding:0;background:{_p['page_bg']};overflow-x:hidden;overflow-y:auto;
   font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  opacity:1!important;filter:none!important;isolation:isolate}
-/* Чтобы overflow-x:auto во внутреннем .cp-table-wrap реально срабатывал,
-   все flex-родители должны иметь min-width:0 (иначе flex-item с width:max-content
-   раздвигает родителя, и горизонтальный скролл не появляется). */
-.matrix-fs-root,.matrix-fs-body{min-width:0!important;max-width:100%!important;width:100%!important}
-.cp-tables-stack{display:flex!important;flex-direction:column!important;align-items:stretch!important;
-  gap:40px!important;width:100%!important;padding:8px 8px 18px!important;box-sizing:border-box!important}
-.cp-table-wrap.cp-table-block{background:#121a24!important;border:2px solid rgba(255,255,255,0.42)!important;
-  border-radius:10px!important;padding:12px 14px!important;box-shadow:0 6px 18px rgba(0,0,0,0.42)!important;
-  isolation:isolate!important}
-.cp-table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;
+  opacity:1!important;filter:none!important;isolation:isolate}}
+.matrix-fs-root,.matrix-fs-body{{min-width:0!important;max-width:100%!important;width:100%!important}}
+.cp-tables-stack{{display:flex!important;flex-direction:column!important;align-items:stretch!important;
+  gap:40px!important;width:100%!important;padding:8px 8px 18px!important;box-sizing:border-box!important}}
+.cp-table-wrap.cp-table-block{{background:{_p['block_bg']}!important;border:2px solid {_p['block_border']}!important;
+  border-radius:10px!important;padding:12px 14px!important;box-shadow:{_p['block_shadow']}!important;
+  isolation:isolate!important}}
+.cp-table-wrap{{width:100%!important;max-width:100%!important;min-width:0!important;
   overflow-x:auto!important;overflow-y:hidden!important;
   -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
-  scrollbar-width:thin;scrollbar-color:rgba(121,154,192,0.5) #141820}
-.cp-table-wrap::-webkit-scrollbar{height:10px}
-.cp-table-wrap::-webkit-scrollbar-track{background:#141820;border-radius:5px}
-.cp-table-wrap::-webkit-scrollbar-thumb{background:rgba(121,154,192,0.42);border-radius:5px;border:2px solid #141820}
-.cp-table-wrap::-webkit-scrollbar-thumb:hover{background:rgba(121,154,192,0.65)}
-.cp-table-wrap .rendered-table{
+  scrollbar-width:thin;scrollbar-color:{_p['scrollbar_thumb']} {_p['scrollbar_track']}}}
+.cp-table-wrap::-webkit-scrollbar{{height:10px}}
+.cp-table-wrap::-webkit-scrollbar-track{{background:{_p['scrollbar_track']};border-radius:5px}}
+.cp-table-wrap::-webkit-scrollbar-thumb{{background:{_p['scrollbar_thumb']};border-radius:5px;border:2px solid {_p['scrollbar_track']}}}
+.cp-table-wrap::-webkit-scrollbar-thumb:hover{{background:rgba(121,154,192,0.65)}}
+.cp-table-wrap .rendered-table{{
   border-collapse:separate!important;border-spacing:0!important;
   width:max-content!important;min-width:100%!important;
   font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;
-  font-size:13px!important;font-weight:700!important}
-.cp-table-wrap .rendered-table tbody td{
+  font-size:13px!important;font-weight:700!important}}
+.cp-table-wrap .rendered-table tbody td{{
   font-size:13px!important;font-weight:700!important;line-height:1.35!important;
-  color:#fafafa!important;padding:6px 8px!important;text-align:center!important}
-.cp-table-wrap .rendered-table th{
-  font-size:17px!important;font-weight:700!important;color:#f0f4f8!important;padding:10px 10px!important}
-.cp-table-wrap .rendered-table th.cp-sub{color:#f0f4f8!important;font-size:16px!important}
-.cp-table-wrap .rendered-table th.cp-ghead{font-size:17px!important;color:#f0f4f8!important}
-.cp-table-wrap .rendered-table thead th.cp-col-project{font-size:17px!important;color:#f0f4f8!important}
-.cp-table-wrap .rendered-table{border:3px solid #ffffff!important}
+  color:{_p['body_text']}!important;padding:6px 8px!important;text-align:center!important}}
+.cp-table-wrap .rendered-table th{{
+  font-size:17px!important;font-weight:700!important;color:{_p['head_text']}!important;padding:10px 10px!important}}
+.cp-table-wrap .rendered-table th.cp-sub{{color:{_p['head_text']}!important;font-size:16px!important}}
+.cp-table-wrap .rendered-table th.cp-ghead{{font-size:17px!important;color:{_p['head_text']}!important}}
+.cp-table-wrap .rendered-table thead th.cp-col-project{{font-size:17px!important;color:{_p['head_text']}!important}}
+.cp-table-wrap .rendered-table{{border:3px solid {_p['strong_border']}!important}}
 .cp-table-wrap .rendered-table th,
-.cp-table-wrap .rendered-table td{
+.cp-table-wrap .rendered-table td{{
   border-width:1px!important;border-style:solid!important;
-  border-color:#5a6f82!important;background-clip:padding-box!important}
-.cp-table-wrap .rendered-table tbody td{background-color:#0c1219!important}
+  border-color:{_p['grid_border']}!important;background-clip:padding-box!important}}
+.cp-table-wrap .rendered-table tbody td{{background-color:{_p['cell_bg']}!important}}
 .cp-table-wrap .rendered-table th.cp-col-project,
-.cp-table-wrap .rendered-table td.cp-col-project{
+.cp-table-wrap .rendered-table td.cp-col-project{{
   position:sticky!important;left:0!important;
   width:200px!important;min-width:200px!important;max-width:200px!important;
   white-space:normal!important;word-break:break-word!important;
-  border-right:3px solid #ffffff!important}
-.cp-table-wrap .rendered-table thead th.cp-col-project{
-  border-top:3px solid #ffffff!important;border-left:3px solid #ffffff!important;
-  border-bottom:3px solid #ffffff!important}
-.cp-table-wrap .rendered-table th.cp-col-project{
-  z-index:5!important;background:#161f2b!important}
-.cp-table-wrap .rendered-table td.cp-col-project{
-  z-index:4!important;background:#161f2b!important;
-  text-align:left!important;color:#ffffff!important;padding:6px 10px!important;
-  font-size:15px!important}
-.cp-table-wrap .rendered-table td.cp-td-pct-done{color:#f09355!important}
-.cp-table-wrap .rendered-table td.cp-otkl-ok{color:#28a745!important}
-.cp-table-wrap .rendered-table td.cp-otkl-late{color:#d9534f!important}
+  border-right:3px solid {_p['strong_border']}!important}}
+.cp-table-wrap .rendered-table thead th.cp-col-project{{
+  border-top:3px solid {_p['strong_border']}!important;border-left:3px solid {_p['strong_border']}!important;
+  border-bottom:3px solid {_p['strong_border']}!important}}
+.cp-table-wrap .rendered-table th.cp-col-project{{
+  z-index:5!important;background:{_p['project_col_bg']}!important}}
+.cp-table-wrap .rendered-table td.cp-col-project{{
+  z-index:4!important;background:{_p['project_col_bg']}!important;
+  text-align:left!important;color:{_p['project_col_text']}!important;padding:6px 10px!important;
+  font-size:15px!important}}
+.cp-table-wrap .rendered-table td.cp-td-pct-done{{color:#f09355!important}}
+.cp-table-wrap .rendered-table td.cp-otkl-ok{{color:#28a745!important}}
+.cp-table-wrap .rendered-table td.cp-otkl-late{{color:#d9534f!important}}
 .cp-table-wrap .rendered-table th.cp-sub-status,
-.cp-table-wrap .rendered-table td.cp-col-cell-status{
+.cp-table-wrap .rendered-table td.cp-col-cell-status{{
   width:34px!important;min-width:34px!important;
-  text-align:center!important;padding:4px 4px!important}
-/* Минимальные ширины подколонок План/Факт/Откл — гарантируют появление
-   горизонтального скролла на узких экранах (даты не сжимаются в "01.…"). */
+  text-align:center!important;padding:4px 4px!important}}
 .cp-table-wrap .rendered-table th.cp-sub,
-.cp-table-wrap .rendered-table td{
-  min-width:96px;white-space:nowrap}
+.cp-table-wrap .rendered-table td{{
+  min-width:96px;white-space:nowrap}}
 .cp-table-wrap .rendered-table th.cp-sub-status,
-.cp-table-wrap .rendered-table td.cp-col-cell-status{
-  min-width:34px!important}
+.cp-table-wrap .rendered-table td.cp-col-cell-status{{
+  min-width:34px!important}}
 .cp-table-wrap .rendered-table th.cp-col-project,
-.cp-table-wrap .rendered-table td.cp-col-project{
-  min-width:200px!important;white-space:normal!important}
-.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block{
-  border-left:3px solid #ffffff!important;border-right:3px solid #ffffff!important;
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table td.cp-col-project{{
+  min-width:200px!important;white-space:normal!important}}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block{{
+  border-left:3px solid {_p['strong_border']}!important;border-right:3px solid {_p['strong_border']}!important;
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}}
 .cp-table-wrap .rendered-table th.cp-ms-first,
-.cp-table-wrap .rendered-table td.cp-ms-first{
-  border-left:3px solid #ffffff!important;box-shadow:inset 3px 0 0 #fff}
+.cp-table-wrap .rendered-table td.cp-ms-first{{
+  border-left:3px solid {_p['strong_border']}!important;box-shadow:inset 3px 0 0 #fff}}
 .cp-table-wrap .rendered-table th.cp-ms-last,
-.cp-table-wrap .rendered-table td.cp-ms-last{
-  border-right:3px solid #ffffff!important;box-shadow:inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table td.cp-ms-last{{
+  border-right:3px solid {_p['strong_border']}!important;box-shadow:inset -3px 0 0 #fff}}
 .cp-table-wrap .rendered-table thead th.cp-col-project,
-.cp-table-wrap .rendered-table tbody td.cp-col-project{box-shadow:inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table tbody td.cp-col-project{{box-shadow:inset -3px 0 0 #fff}}
 .cp-table-wrap .rendered-table th.cp-ms-sep,
-.cp-table-wrap .rendered-table td.cp-ms-sep{border-left:16px solid #121a24!important}
-.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block.cp-ms-sep{
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table td.cp-ms-sep{{border-left:16px solid {_p['sep_gap']}!important}}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block.cp-ms-sep{{
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}}
 .cp-table-wrap .rendered-table th.cp-ms-first.cp-ms-sep,
-.cp-table-wrap .rendered-table td.cp-ms-first.cp-ms-sep{box-shadow:inset 3px 0 0 #fff}
+.cp-table-wrap .rendered-table td.cp-ms-first.cp-ms-sep{{box-shadow:inset 3px 0 0 #fff}}
 """
     _head_styles = _cp_css_raw + _sticky_css
 

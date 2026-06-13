@@ -116,9 +116,12 @@ except Exception:
 #   BI_ANALYTICS_AUTO_INGEST_PURGE_DB=1 (default)   → удалять web_data.db при смене app_version
 # Ошибки логируются в stderr; UI запустится в любом случае.
 try:
-    from auto_ingest import maybe_run_auto_ingest_on_startup
+    from config import is_showcase_mode
 
-    maybe_run_auto_ingest_on_startup()
+    if not is_showcase_mode():
+        from auto_ingest import maybe_run_auto_ingest_on_startup
+
+        maybe_run_auto_ingest_on_startup()
 except Exception as _e:  # noqa: BLE001
     try:
         from auto_ingest import safe_stderr_log
@@ -177,8 +180,15 @@ except Exception:
 # Page configuration (должно быть первым)
 _sidebar_state = "expanded" if st.session_state.get("authenticated") else "collapsed"
 
+try:
+    from config import SHOWCASE_DISPLAY_TITLE, is_showcase_mode
+
+    _page_title = SHOWCASE_DISPLAY_TITLE if is_showcase_mode() else "Панель аналитики проектов"
+except Exception:
+    _page_title = "Панель аналитики проектов"
+
 st.set_page_config(
-    page_title="Панель аналитики проектов",
+    page_title=_page_title,
     page_icon="",
     layout="wide",
     initial_sidebar_state=_sidebar_state,
@@ -319,6 +329,14 @@ def _render_data_pull_banner() -> None:
     Статус FTP пишет ``_perform_load_from_web_folder`` (ключи ``_data_pull_ftp_*``).
     """
     try:
+        try:
+            from config import is_showcase_mode
+
+            if is_showcase_mode():
+                return
+        except Exception:
+            pass
+
         # Показываем только после реальной попытки подтянуть/загрузить данные,
         # иначе на первом кадре после логина (загрузка ещё впереди) выскочит
         # ложный «loaded=0».
@@ -428,15 +446,30 @@ def main():
     # Проверка авторизации - если не авторизован, показываем форму входа
     if not check_authentication():
 
+        try:
+            from config import SHOWCASE_DISPLAY_TITLE, is_showcase_mode
+
+            _login_title = SHOWCASE_DISPLAY_TITLE if is_showcase_mode() else "BI Analytics"
+        except Exception:
+            _login_title = "BI Analytics"
+
         # Заголовок страницы входа
         st.markdown(
-            """
+            f"""
             <div style="text-align: center; margin-bottom: 2rem;">
-                <h1 style="color: #ffffff; font-size: 2rem; margin-bottom: 0.5rem;">BI Analytics</h1>
+                <h1 style="color: #ffffff; font-size: 2rem; margin-bottom: 0.5rem;">{_html_escape(_login_title)}</h1>
             </div>
         """,
             unsafe_allow_html=True,
         )
+
+        try:
+            from config import is_showcase_mode
+
+            if is_showcase_mode():
+                st.info("Демо-вход: **admin** / **admin123** (учётка создаётся автоматически при первом запуске).")
+        except Exception:
+            pass
 
         # Инициализация переменных для восстановления пароля
         if "reset_mode" not in st.session_state:
@@ -769,7 +802,14 @@ def main():
         st.stop()
 
     _ftp_notice = st.session_state.pop("_ftp_sync_notice", None)
-    if _ftp_notice:
+    _skip_ftp_banner = False
+    try:
+        from config import is_showcase_mode
+
+        _skip_ftp_banner = is_showcase_mode()
+    except Exception:
+        pass
+    if _ftp_notice and not _skip_ftp_banner:
         try:
             from auto_ingest import render_ftp_sync_download_notice
 
@@ -818,6 +858,23 @@ def main():
 
     # Боковая панель: навигация сразу; версия данных — после загрузки web/ (см. ниже).
     render_sidebar_menu(current_page="reports", include_footer=False)
+
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            from config import SHOWCASE_DISPLAY_TITLE
+
+            st.markdown(
+                f'<div class="showcase-demo-banner">'
+                f'<strong>{SHOWCASE_DISPLAY_TITLE}</strong> — '
+                f"демонстрационный режим с синтетическими данными. "
+                f"Реальные проекты недоступны."
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+    except Exception:
+        pass
 
     ensure_data_session_state()
 
@@ -924,9 +981,9 @@ def main():
             }
             try:
                 import sqlite3 as _sql
-                from web_schema import WEB_DB_PATH as _WDP
+                from web_schema import get_web_db_path as _WDP
 
-                _conn = _sql.connect(_WDP)
+                _conn = _sql.connect(_WDP())
                 _conn.row_factory = _sql.Row
                 _rows = _conn.execute(
                     "SELECT file_name, rel_path, file_type, rows_count "
@@ -968,9 +1025,9 @@ def main():
             """Нет оборотов 1С (reference_dannye) — БДДС не соберётся без пересканирования web/."""
             try:
                 import sqlite3
-                from web_schema import WEB_DB_PATH
+                from web_schema import get_web_db_path
 
-                conn = sqlite3.connect(WEB_DB_PATH)
+                conn = sqlite3.connect(get_web_db_path())
                 row = conn.execute(
                     "SELECT COALESCE(SUM(rows_count), 0) FROM web_files "
                     "WHERE version_id=? AND file_type IN ('reference_dannye', 'budget')",
@@ -1027,7 +1084,28 @@ def main():
             st.session_state.pop("_pending_web_folder_load", None)
             st.rerun()
 
-        _force_reload_when_active_db_missing_budget()
+        def _showcase_blocks_prod_hydrate() -> bool:
+            try:
+                from config import is_showcase_mode, get_showcase_web_dir
+                from web_schema import get_web_db_path
+
+                if not is_showcase_mode():
+                    return False
+                dbp = Path(get_web_db_path()).resolve()
+                showcase_root = (get_showcase_web_dir() or Path()).resolve().parent
+                try:
+                    return showcase_root not in dbp.parents and dbp != showcase_root
+                except Exception:
+                    return "showcase_data" not in str(dbp).replace("\\", "/").lower()
+            except Exception:
+                return False
+
+        if _showcase_blocks_prod_hydrate():
+            safe_stderr_log(
+                "[showcase] WEB_DB_PATH не в showcase_data — пропуск auto-hydrate из prod БД"
+            )
+        else:
+            _force_reload_when_active_db_missing_budget()
 
         # ── Auto-hydrate сессии из активной версии БД ────────────────────
         # Зачем: auto_ingest при cold start пишет данные в web_data.db, но
@@ -1045,7 +1123,7 @@ def main():
             st.session_state.get("project_data") is None
             or st.session_state.get("last_load_result") is None
         )
-        if _need_hydrate:
+        if _need_hydrate and not _showcase_blocks_prod_hydrate():
             try:
                 _hydrate_active_id = get_active_version_id()
             except Exception as _e:
@@ -1210,61 +1288,77 @@ def main():
             _ftp_ok = False
             _ftp_reason = ""
             try:
-                from auto_ingest import (
-                    maybe_ftp_sync_before_web_load,
-                    _ftp_credentials_configured,
-                )
+                from config import is_showcase_mode as _cfg_showcase
+            except Exception:
+                _cfg_showcase = lambda: False  # noqa: E731
 
+            if not _cfg_showcase():
                 try:
-                    _creds_ok = bool(_ftp_credentials_configured())
-                except Exception:
-                    _creds_ok = False
+                    from auto_ingest import (
+                        maybe_ftp_sync_before_web_load,
+                        _ftp_credentials_configured,
+                    )
 
-                if not quiet:
-                    with st.spinner(
-                        "Шаг 1/2: синхронизация с FTP (обычно 1–5 мин, ~640 файлов)…"
-                    ):
+                    try:
+                        _creds_ok = bool(_ftp_credentials_configured())
+                    except Exception:
+                        _creds_ok = False
+
+                    if not quiet:
+                        with st.spinner(
+                            "Шаг 1/2: синхронизация с FTP (обычно 1–5 мин, ~640 файлов)…"
+                        ):
+                            _ftp_res = maybe_ftp_sync_before_web_load(log_prefix="[force_reload]")
+                    else:
                         _ftp_res = maybe_ftp_sync_before_web_load(log_prefix="[force_reload]")
-                else:
-                    _ftp_res = maybe_ftp_sync_before_web_load(log_prefix="[force_reload]")
 
-                if isinstance(_ftp_res, dict):
-                    st.session_state["last_ftp_sync_result"] = _ftp_res
-                    _errs = _ftp_res.get("errors") or []
-                    if _errs:
-                        _ftp_ok = False
+                    if isinstance(_ftp_res, dict):
+                        st.session_state["last_ftp_sync_result"] = _ftp_res
+                        _errs = _ftp_res.get("errors") or []
+                        if _errs:
+                            _ftp_ok = False
+                            _ftp_reason = (
+                                f"FTP вернул ошибки ({len(_errs)}): "
+                                + "; ".join(str(e) for e in _errs[:3])
+                            )
+                        else:
+                            _ftp_ok = True
+                    elif not _creds_ok:
                         _ftp_reason = (
-                            f"FTP вернул ошибки ({len(_errs)}): "
-                            + "; ".join(str(e) for e in _errs[:3])
+                            "FTP-сервер не настроен: нет BI_FTP_HOST / BI_FTP_USER / "
+                            "BI_FTP_PASSWORD (в .env или Streamlit secrets)."
                         )
                     else:
-                        _ftp_ok = True
-                elif not _creds_ok:
-                    _ftp_reason = (
-                        "FTP-сервер не настроен: нет BI_FTP_HOST / BI_FTP_USER / "
-                        "BI_FTP_PASSWORD (в .env или Streamlit secrets)."
-                    )
-                else:
-                    _ftp_reason = (
-                        "Авто-синхронизация с FTP отключена "
-                        "(BI_ANALYTICS_AUTO_FTP_ON_START=0)."
-                    )
-            except Exception as _ftp_e:
-                safe_stderr_log(f"[web_load] ftp sync before load failed: {_ftp_e!r}")
-                _ftp_ok = False
-                _ftp_reason = f"Ошибка или таймаут FTP: {_ftp_e!r}"
-                if not quiet:
-                    st.warning(f"FTP: ошибка или таймаут — продолжаем с локальным web/. ({_ftp_e!r})")
+                        _ftp_reason = (
+                            "Авто-синхронизация с FTP отключена "
+                            "(BI_ANALYTICS_AUTO_FTP_ON_START=0)."
+                        )
+                except Exception as _ftp_e:
+                    safe_stderr_log(f"[web_load] ftp sync before load failed: {_ftp_e!r}")
+                    _ftp_ok = False
+                    _ftp_reason = f"Ошибка или таймаут FTP: {_ftp_e!r}"
+                    if not quiet:
+                        st.warning(f"FTP: ошибка или таймаут — продолжаем с локальным web/. ({_ftp_e!r})")
+            else:
+                _ftp_ok = True
+                _ftp_reason = ""
+                st.session_state.pop("last_ftp_sync_result", None)
 
             st.session_state["_data_pull_ftp_ok"] = _ftp_ok
             st.session_state["_data_pull_ftp_reason"] = _ftp_reason
 
             if not web_dir_exists():
-                st.error(
-                    "Не найден ни локальный каталог web/ рядом с приложением, "
-                    "ни папка Analitics/web (уровнем выше репозитория), "
-                    "ни пути из переменной BI_ANALYTICS_WEB_EXTRA_PATHS."
-                )
+                if _cfg_showcase():
+                    st.info(
+                        "Демо-каталог **showcase_data/web/** пуст или не найден. "
+                        "Следующий шаг — сгенерированные фейковые выгрузки (шаг 3)."
+                    )
+                else:
+                    st.error(
+                        "Не найден ни локальный каталог web/ рядом с приложением, "
+                        "ни папка Analitics/web (уровнем выше репозитория), "
+                        "ни пути из переменной BI_ANALYTICS_WEB_EXTRA_PATHS."
+                    )
                 return
 
             # «Умный» режим логина: если FTP не принёс новых/изменённых файлов —
@@ -1355,22 +1449,31 @@ def main():
                     for row in result.get("diagnostics", [])[:40]:
                         st.json(row)
 
-            if st.session_state.pop("_show_ftp_sync_notice", False) or st.session_state.pop(
-                "_pending_login_ftp_reload", False
+            if not _cfg_showcase() and (
+                st.session_state.pop("_show_ftp_sync_notice", False)
+                or st.session_state.pop("_pending_login_ftp_reload", False)
             ):
                 _ftp_n = st.session_state.get("last_ftp_sync_result")
                 if isinstance(_ftp_n, dict):
                     st.session_state["_ftp_sync_notice"] = _ftp_n
-            elif not _release_quiet and isinstance(
-                st.session_state.get("last_ftp_sync_result"), dict
+            elif (
+                not _cfg_showcase()
+                and not _release_quiet
+                and isinstance(st.session_state.get("last_ftp_sync_result"), dict)
             ):
                 st.session_state["_ftp_sync_notice"] = st.session_state["last_ftp_sync_result"]
 
             if not quiet:
                 st.rerun()
 
+        try:
+            from config import is_showcase_mode as _cfg_showcase_mode
+        except Exception:
+            _cfg_showcase_mode = lambda: False  # noqa: E731
+
         if (
             _is_release_client_mode()
+            and not _cfg_showcase_mode()
             and data_mode == "Из папки web/"
             and not st.session_state.get("_release_web_autoload_tried", False)
         ):
@@ -1380,6 +1483,16 @@ def main():
                 st.session_state["_pending_web_load_quiet"] = False
                 st.session_state["_pending_web_force_rescan"] = True
                 st.session_state["_show_ftp_sync_notice"] = True
+        elif (
+            _cfg_showcase_mode()
+            and data_mode == "Из папки web/"
+            and not st.session_state.get("_showcase_web_autoload_tried", False)
+        ):
+            st.session_state["_showcase_web_autoload_tried"] = True
+            if not st.session_state.get("_auto_hydrated_from_db") and not _session_has_loaded_data():
+                st.session_state["_pending_web_folder_load"] = True
+                st.session_state["_pending_web_load_quiet"] = True
+                st.session_state["_pending_web_force_rescan"] = False
 
         if (
             data_mode in ("Из папки web/", "FTP → web/")
@@ -1410,7 +1523,7 @@ def main():
                     except Exception as _e:
                         safe_stderr_log(f"[force_reload] read_version_to_session failed: {_e!r}")
 
-        if _admin_data_ops_sidebar or _is_release_client_mode():
+        if (_admin_data_ops_sidebar or _is_release_client_mode()) and not _cfg_showcase_mode():
             try:
                 from auth import user_can_ftp_sync
                 from data_ops_sidebar import (
