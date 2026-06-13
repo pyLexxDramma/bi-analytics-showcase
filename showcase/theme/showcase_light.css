@@ -14,6 +14,126 @@ html body .stApp {
   --themeBackgroundColor: #f8fafc !important;
   --themeDarkBackgroundColor: #e5e7eb !important;
   --themeFontColor: #111827 !important;
+  color-scheme: light !important;
+}
+
+html,
+html body,
+html body .stApp,
+html body [data-testid="stAppViewContainer"] {
+  color-scheme: light !important;
+}
+
+/* --- Виджеты Streamlit: светлая тема во всех дашбордах showcase --- */
+
+html body [data-testid="stWidgetLabel"],
+html body [data-testid="stWidgetLabel"] p,
+html body [data-testid="stCheckbox"] label,
+html body [data-testid="stCheckbox"] label p,
+html body [data-testid="stRadio"] label,
+html body [data-testid="stRadio"] label p,
+html body [data-testid="stToggle"] label,
+html body [data-testid="stToggle"] label p,
+html body [data-testid="stSlider"] label,
+html body [data-testid="stSlider"] label p {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+/* Чекбоксы — фон строки прозрачный, синий только у квадрата галочки */
+html body [data-testid="stCheckbox"],
+html body [data-testid="stCheckbox"] > label,
+html body [data-testid="stCheckbox"] label[data-baseweb="checkbox"],
+html body .bi-filters-toggles [data-testid="stCheckbox"],
+html body .bi-filters-toggles [data-testid="stCheckbox"] label {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+html body [data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:first-of-type,
+html body div[data-baseweb="checkbox"] > div:first-of-type {
+  background-color: #ffffff !important;
+  border: 2px solid #94a3b8 !important;
+  border-radius: 4px !important;
+  width: 1.125rem !important;
+  height: 1.125rem !important;
+  min-width: 1.125rem !important;
+  max-width: 1.125rem !important;
+  flex: 0 0 1.125rem !important;
+}
+
+html body [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-of-type,
+html body div[data-baseweb="checkbox"]:has(input:checked) > div:first-of-type {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+html body [data-testid="stCheckbox"] label[data-baseweb="checkbox"] svg,
+html body div[data-baseweb="checkbox"] svg {
+  fill: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* Toggle */
+html body [data-testid="stToggle"] [data-baseweb="toggle"] > div,
+html body div[data-baseweb="toggle"] > div {
+  background-color: #e5e7eb !important;
+}
+
+html body [data-testid="stToggle"] [data-baseweb="toggle"]:has(input:checked) > div,
+html body div[data-baseweb="toggle"]:has(input:checked) > div {
+  background-color: #2563eb !important;
+}
+
+/* Select / multiselect в основной области */
+html body [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+html body [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+html body [data-testid="stMultiSelect"] [data-baseweb="input"] input {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stSelectbox"] [data-baseweb="select"] span,
+html body [data-testid="stMultiSelect"] span {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+/* Текстовые поля */
+html body [data-testid="stTextInput"] input,
+html body [data-testid="stNumberInput"] input,
+html body [data-baseweb="input"] input,
+html body [data-baseweb="textarea"] textarea {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+/* Слайдер */
+html body [data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"],
+html body [data-testid="stSlider"] [data-baseweb="slider"] > div > div {
+  background-color: #2563eb !important;
+}
+
+html body [data-testid="stSlider"] [data-baseweb="slider"] > div:first-child {
+  background-color: #e5e7eb !important;
+}
+
+/* Радиокнопки */
+html body [data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+  border: 2px solid #64748b !important;
+  background-color: #ffffff !important;
+}
+
+html body [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) > div:first-child {
+  border-color: #2563eb !important;
+}
+
+html body [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) > div:first-child > div {
+  background-color: #2563eb !important;
 }
 
 html body [data-testid="stHeader"] {
@@ -129,4 +249,148 @@ html body div[data-testid="stForm"] input {
 
 html body div[data-testid="stForm"] input::placeholder {
   color: #64748b !important;
+}
+
+/* Фильтр «Период» (st.date_input) — как selectbox: белый фон, тёмный текст */
+html body [data-testid="stDateInput"] label,
+html body [data-testid="stDateInput"] [data-testid="stWidgetLabel"],
+html body [data-testid="stDateInput"] [data-testid="stWidgetLabel"] p,
+html body [data-testid="stDateInput"] label p {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stDateInput"] [data-baseweb="input"],
+html body [data-testid="stDateInput"] [data-baseweb="input"] > div,
+html body [data-testid="stDateInput"] [data-baseweb="input"] input,
+html body [data-testid="stDateInput"] input,
+html body .stDateInput > div > div,
+html body .stDateInput > div > div > input {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stDateInput"] [data-baseweb="input"]:focus-within,
+html body [data-testid="stDateInput"] input:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 1px #2563eb !important;
+}
+
+html body [data-testid="stDateInput"] button,
+html body [data-testid="stDateInput"] [data-baseweb="button"] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+}
+
+html body [data-testid="stDateInput"] svg {
+  fill: #475569 !important;
+  color: #475569 !important;
+}
+
+/* Popover календаря (st.date_input) — светлая тема */
+html body div[data-baseweb="popover"] {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14) !important;
+  color-scheme: light !important;
+}
+
+/* Шапка календаря (месяц/год) */
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] > div:first-child,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] > div:first-child,
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] [data-baseweb="month-header"],
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] header,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] header {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] > div:first-child *,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] > div:first-child *,
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] [data-baseweb="month-header"] *,
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] header *,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] header * {
+  background-color: transparent !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] > div:first-child button,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] > div:first-child button {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] > div:first-child button:hover,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] > div:first-child button:hover {
+  background-color: #e5e7eb !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"],
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"],
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] > div,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] > div,
+html body div[data-baseweb="popover"] [role="grid"],
+html body div[data-baseweb="popover"] [role="presentation"] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] span,
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] p,
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] div,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] span,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] p,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] div,
+html body div[data-baseweb="popover"] [role="columnheader"],
+html body div[data-baseweb="popover"] [role="gridcell"] {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] button,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] button,
+html body div[data-baseweb="popover"] [role="gridcell"] button {
+  background-color: transparent !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] button:hover,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] button:hover,
+html body div[data-baseweb="popover"] [role="gridcell"] button:hover {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+html body div[data-baseweb="popover"] [aria-selected="true"],
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] [aria-selected="true"],
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] button[aria-selected="true"],
+html body div[data-baseweb="popover"] button[aria-selected="true"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] [data-highlighted="true"],
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] button[data-highlighted="true"] {
+  background-color: #dbeafe !important;
+  color: #1e3a8a !important;
+  -webkit-text-fill-color: #1e3a8a !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] svg,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] svg {
+  fill: #475569 !important;
+  color: #475569 !important;
+}
+
+html body div[data-baseweb="popover"] [data-baseweb="calendar"] [data-baseweb="select"] > div,
+html body div[data-baseweb="popover"] [data-baseweb="datepicker"] [data-baseweb="select"] > div {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
 }

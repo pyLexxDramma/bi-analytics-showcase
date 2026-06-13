@@ -3242,11 +3242,28 @@ def _bdds_recalc_reserve(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _bdds_normalize_period_original(df: pd.DataFrame) -> pd.DataFrame:
-    """Нормализует period_original к Period[M] для корректной агрегации графика."""
+def _bdds_normalize_period_original(
+    df: pd.DataFrame, *, target_freq: str | None = None
+) -> pd.DataFrame:
+    """Нормализует period_original для агрегации графика (showcase: M/Q/Y; production: M)."""
     if df is None or getattr(df, "empty", True) or "period_original" not in df.columns:
         return df
     out = df.copy()
+    try:
+        from config import is_showcase_mode
+
+        _showcase = is_showcase_mode()
+    except Exception:
+        _showcase = False
+    if _showcase:
+        from dashboards.finance_from_1c import (
+            _coerce_period_value,
+            _infer_period_freq_from_series,
+        )
+
+        freq = (target_freq or _infer_period_freq_from_series(out["period_original"]) or "M").strip() or "M"
+        out["period_original"] = out["period_original"].map(lambda x: _coerce_period_value(x, freq))
+        return out
 
     def _to_m(x):
         if isinstance(x, pd.Period):
@@ -10569,6 +10586,32 @@ _BDDS_TABLE_HTML_KW = {
 _BDR_TABLE_HTML_KW = dict(_BDDS_TABLE_HTML_KW)
 
 
+def _finance_chart_bar_text_color() -> str:
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            return "#111827"
+    except Exception:
+        pass
+    return "#f0f4f8"
+
+
+def _bdds_table_html_kw(**overrides) -> dict:
+    kw = {**_BDDS_TABLE_HTML_KW, **overrides}
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            kw.update(
+                total_row_bg_color="#e5e7eb",
+                total_row_font_css="font-weight:900;font-size:1.24em;color:#111827;",
+            )
+    except Exception:
+        pass
+    return kw
+
+
 # Минимум оборотов (руб.) для месяца на графике БДДС/БДР — иначе ось забивается «пустыми» месяцами.
 _FINANCE_CHART_MIN_MONTH_RUB = 500_000.0
 _BDDS_CHART_MIN_MONTH_RUB = _FINANCE_CHART_MIN_MONTH_RUB
@@ -11430,7 +11473,17 @@ def dashboard_budget_by_period(df):
                             _bdds_min_all, _bdds_max_all = _def_start, _def_end
                         if _def_start and _def_end:
                             _bdds_scope = tuple(sorted(_bdds_sel_projects)) if _bdds_sel_projects else ("__all__",)
-                            if st.session_state.get("_bdds_period_scope") != _bdds_scope:
+                            try:
+                                from config import is_showcase_mode as _bdds_is_showcase
+                            except Exception:
+                                _bdds_is_showcase = lambda: False  # type: ignore[assignment,misc]
+                            if _bdds_is_showcase():
+                                _bdds_grouping = str(st.session_state.get("budget_period", "Месяц"))
+                                _bdds_filter_ctx = (_bdds_scope, _bdds_grouping)
+                                if st.session_state.get("_bdds_period_filter_ctx") != _bdds_filter_ctx:
+                                    st.session_state["_bdds_period_filter_ctx"] = _bdds_filter_ctx
+                                    st.session_state.pop("budget_period_range", None)
+                            elif st.session_state.get("_bdds_period_scope") != _bdds_scope:
                                 st.session_state["_bdds_period_scope"] = _bdds_scope
                                 st.session_state.pop("budget_period_range", None)
                         _period_from, _period_to = period_date_range_input(
@@ -11484,26 +11537,8 @@ def dashboard_budget_by_period(df):
                 _bdds_cal_start = _start_dt
                 _bdds_cal_end = _end_dt
 
-        with filters_toggles(st):
-            _bd_cb1, _bd_cb2, _bd_cb3, _bd_cb4, _bd_cb5 = st.columns(5, gap="small")
-            with _bd_cb1:
-                st.checkbox(
-                    "Показать отклонение",
-                    value=False,
-                    key="budget_period_show_deviation",
-                    help="По умолчанию на графике только план и факт; при включении добавляются столбцы отклонения.",
-                )
-            with _bd_cb2:
-                if period_type_en == "Month" and str(st.session_state.get("budget_period_view", "По месяцам")) == "По месяцам":
-                    st.checkbox(
-                        "Скрывать месяцы, где план и факт равны 0",
-                        value=bool(_bdds_all_projects),
-                        key="budget_period_hide_zero_months",
-                        help="Скрывает месяцы с нулевым планом и фактом на графике и в таблице ниже.",
-                    )
-
-    show_deviation = bool(st.session_state.get("budget_period_show_deviation", False))
-    hide_reserve = not show_deviation
+    show_deviation = False
+    hide_reserve = True
 
     # Единый fallback бюджета: MSP -> 1С dannye при пустых budget колонках.
     ensure_budget_columns(filtered_df)
@@ -11572,6 +11607,14 @@ def dashboard_budget_by_period(df):
     else:
         period_col = "plan_year"
         period_label = "Год"
+
+    _bdds_period_freq = {"Month": "M", "Quarter": "Q", "Year": "Y-DEC"}.get(
+        period_type_en, "M"
+    )
+    try:
+        from config import is_showcase_mode as _bdds_is_showcase
+    except Exception:
+        _bdds_is_showcase = lambda: False  # type: ignore[assignment,misc]
 
     if period_col not in filtered_df.columns:
         st.warning(f"Столбец периода '{period_col}' не найден. Убедитесь, что в данных есть колонка дат (например, «Конец План» / plan end).")
@@ -11668,7 +11711,12 @@ def dashboard_budget_by_period(df):
         )
 
     budget_summary = _bdds_recalc_reserve(budget_summary)
-    budget_summary = _bdds_normalize_period_original(budget_summary)
+    if _bdds_is_showcase():
+        budget_summary = _bdds_normalize_period_original(
+            budget_summary, target_freq=_bdds_period_freq
+        )
+    else:
+        budget_summary = _bdds_normalize_period_original(budget_summary)
 
     _bdds_grid_fill = ["budget plan", "budget fact", "reserve budget"]
     if adjusted_budget_col:
@@ -11686,7 +11734,12 @@ def dashboard_budget_by_period(df):
             group_by="project name" if "project name" in budget_summary.columns else None,
         )
         budget_summary = _bdds_recalc_reserve(budget_summary)
-        budget_summary = _bdds_normalize_period_original(budget_summary)
+        if _bdds_is_showcase():
+            budget_summary = _bdds_normalize_period_original(
+                budget_summary, target_freq=_bdds_period_freq
+            )
+        else:
+            budget_summary = _bdds_normalize_period_original(budget_summary)
 
     from dashboards.finance_from_1c import finalize_budget_summary_for_display
 
@@ -11700,7 +11753,12 @@ def dashboard_budget_by_period(df):
         reference_1c_dannye=_bdds_ref_1c,
     )
     budget_summary = _bdds_recalc_reserve(budget_summary)
-    budget_summary = _bdds_normalize_period_original(budget_summary)
+    if _bdds_is_showcase():
+        budget_summary = _bdds_normalize_period_original(
+            budget_summary, target_freq=_bdds_period_freq
+        )
+    else:
+        budget_summary = _bdds_normalize_period_original(budget_summary)
 
     # График и таблица — один источник; на графике пустые месяцы отфильтровываются отдельно.
     budget_summary_chart = budget_summary.copy()
@@ -11758,7 +11816,7 @@ def dashboard_budget_by_period(df):
         _hide_zero_months = bool(
             period_type_en == "Month"
             and view_type == "По месяцам"
-            and st.session_state.get("budget_period_hide_zero_months", _bdds_all_projects)
+            and _bdds_all_projects
         )
 
         def _bdds_chart_drop_empty_months(_df: pd.DataFrame) -> pd.DataFrame:
@@ -11796,8 +11854,7 @@ def dashboard_budget_by_period(df):
             project_data = _bdds_chart_drop_empty_months(project_data)
         if project_data.empty:
             st.info(
-                "Нет периодов для графика. Снимите «Скрывать месяцы, где план и факт равны 0» "
-                "или расширьте период/фильтры."
+                "Нет периодов для графика. Расширьте период или измените фильтры."
             )
             return
 
@@ -11834,6 +11891,7 @@ def dashboard_budget_by_period(df):
             else _finance_bar_text_mln_rub(project_data["budget fact"], min_abs_mln=_tlbl, unit_suffix=" млн. руб.")
         )
         _txt_pos = "none" if _hide_bar_value_labels else "outside"
+        _bar_lbl_color = _finance_chart_bar_text_color()
 
         fig = go.Figure()
         _bdds_show_plan = (
@@ -11849,7 +11907,7 @@ def dashboard_budget_by_period(df):
                     marker_color="#2E86AB",
                     text=_plan_txt,
                     textposition=_txt_pos,
-                    textfont=dict(size=_tfs, color="#f0f4f8"),
+                    textfont=dict(size=_tfs, color=_bar_lbl_color),
                     customdata=project_data["budget plan"].apply(format_million_rub),
                     hovertemplate="<b>%{x}</b><br>БДДС план: %{customdata}<br><extra></extra>",
                 )
@@ -11862,7 +11920,7 @@ def dashboard_budget_by_period(df):
                 marker_color="#A23B72",
                 text=_fact_txt,
                 textposition=_txt_pos,
-                textfont=dict(size=_tfs, color="#f0f4f8"),
+                textfont=dict(size=_tfs, color=_bar_lbl_color),
                 customdata=project_data["budget fact"].apply(format_million_rub),
                 hovertemplate="<b>%{x}</b><br>БДДС факт: %{customdata}<br><extra></extra>",
             )
@@ -11950,7 +12008,7 @@ def dashboard_budget_by_period(df):
                     marker_color="#F18F01",
                     text=_adj_txt,
                     textposition=_txt_pos,
-                    textfont=dict(size=_tfs, color="#f0f4f8"),
+                    textfont=dict(size=_tfs, color=_bar_lbl_color),
                     customdata=project_data[adjusted_budget_col].apply(format_million_rub),
                     hovertemplate="<b>%{x}</b><br>Скорректированный бюджет: %{customdata}<br><extra></extra>",
                 )
@@ -12063,7 +12121,7 @@ def dashboard_budget_by_period(df):
             if (
                 period_type_en == "Month"
                 and view_type == "По месяцам"
-                and bool(st.session_state.get("budget_period_hide_zero_months", _bdds_all_projects))
+                and _bdds_all_projects
             ):
                 _dp = pd.to_numeric(_src["budget plan"], errors="coerce").fillna(0.0)
                 _df = pd.to_numeric(_src["budget fact"], errors="coerce").fillna(0.0)
@@ -12316,14 +12374,14 @@ def dashboard_budget_by_period(df):
                     deviation_color_fact_vs_plan=True,
                     row_kind_column="_row_kind",
                     emphasize_row_kinds=("project", "total"),
-                    **_BDDS_TABLE_HTML_KW,
+                    **_bdds_table_html_kw(),
                 )
 
     _budget_period_chart()
 
     if not _bdds_all_projects and len(selected_projects or []) == 1:
         _pf_proj = str(selected_projects[0])
-        _pf_kw = {**_BDDS_TABLE_HTML_KW, "table_font_size_px": 14}
+        _pf_kw = {**_bdds_table_html_kw(), "table_font_size_px": 14}
         try:
             _pf_tbl = build_bdds_plan_fact_analysis_table(
                 project_name=_pf_proj,
@@ -12368,7 +12426,7 @@ def dashboard_budget_by_period(df):
         if (
             period_type_en == "Month"
             and str(st.session_state.get("budget_period_view", "По месяцам")) == "По месяцам"
-            and bool(st.session_state.get("budget_period_hide_zero_months", _bdds_all_projects))
+            and _bdds_all_projects
         ):
             _dp_pt = pd.to_numeric(_bs_proj_tbl["budget plan"], errors="coerce").fillna(0.0)
             _df_pt = pd.to_numeric(_bs_proj_tbl["budget fact"], errors="coerce").fillna(0.0)
@@ -12420,7 +12478,7 @@ def dashboard_budget_by_period(df):
                 deviation_color_fact_vs_plan=True,
                 row_kind_column="_row_kind",
                 emphasize_row_kinds=("total",),
-                **_BDDS_TABLE_HTML_KW,
+                **_bdds_table_html_kw(),
             )
 
     from dashboards.finance_from_1c import bddds_project_norm_keys_without_plan_scenario

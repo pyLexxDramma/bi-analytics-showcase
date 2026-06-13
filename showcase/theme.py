@@ -5,6 +5,7 @@ Production не импортирует при обычном ``streamlit_app.py`
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Dict
 
@@ -14,9 +15,17 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _is_showcase() -> bool:
-    from config import is_showcase_mode
+    try:
+        from config import is_showcase_mode
 
-    return is_showcase_mode()
+        return is_showcase_mode()
+    except Exception:
+        return os.environ.get("BI_ANALYTICS_SHOWCASE_MODE", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
 
 
 def apply_table_constants() -> None:
@@ -126,10 +135,34 @@ html body [data-testid="stSidebar"] span {
     )
 
 
+def apply_streamlit_light_config() -> None:
+    """Showcase: переключает встроенную тему Streamlit на light (чекбоксы, календарь и др.)."""
+    if not _is_showcase():
+        return
+    try:
+        from streamlit import config as _cfg
+
+        for key, val in (
+            ("theme.base", "light"),
+            ("theme.primaryColor", "#2563eb"),
+            ("theme.backgroundColor", "#f8fafc"),
+            ("theme.secondaryBackgroundColor", "#ffffff"),
+            ("theme.textColor", "#111827"),
+            ("theme.linkColor", "#1d4ed8"),
+        ):
+            try:
+                _cfg.set_option(key, val)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def load_showcase_theme() -> None:
     """Светлая оболочка демо: таблицы, виджеты, сайдбар (без production style.css)."""
     if not _is_showcase():
         return
+    apply_streamlit_light_config()
     apply_table_constants()
     from dashboards.gdrs_theme import inject_gdrs_light_preview_css
 

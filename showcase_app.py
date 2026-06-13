@@ -41,4 +41,8 @@ os.chdir(_APP_DIR)
 if str(_APP_DIR) not in sys.path:
     sys.path.insert(0, str(_APP_DIR))
 
+from showcase.theme import apply_streamlit_light_config
+
+apply_streamlit_light_config()
+
 runpy.run_path(str(_MAIN), run_name="__main__")

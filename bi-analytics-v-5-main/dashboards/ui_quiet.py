@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from contextlib import contextmanager
+from datetime import date, datetime
 from html import escape as html_escape
 from typing import Any, Generator, List, Optional, Sequence, Tuple
 
@@ -447,7 +448,109 @@ PERIOD_MODE_ALL_TIME = "Весь период (за всё время)"
 PERIOD_MODE_CUSTOM = "Выбор диапазона дат"
 
 
-def _clamp_date_to_bounds(value: Any, min_value: Any, max_value: Any) -> Any:
+PERIOD_MODE_CUSTOM = "Выбор диапазона дат"
+
+
+def _ui_showcase_mode() -> bool:
+    try:
+        from config import is_showcase_mode
+
+        return is_showcase_mode()
+    except Exception:
+        return False
+
+
+def _normalize_date_bound(value: Any) -> Optional[date]:
+    """Приводит значение к ``datetime.date`` для ``st.date_input``."""
+    if value is None:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    try:
+        import pandas as pd
+
+        if isinstance(value, pd.Period):
+            ts = value.to_timestamp(how="end")
+            if pd.notna(ts):
+                return ts.date()
+        if isinstance(value, pd.Timestamp):
+            if pd.notna(value):
+                return value.date()
+    except Exception:
+        pass
+    if hasattr(value, "to_pydatetime"):
+        try:
+            return value.to_pydatetime().date()
+        except Exception:
+            pass
+    if hasattr(value, "date") and callable(value.date):
+        try:
+            d = value.date()
+            if isinstance(d, date):
+                return d
+        except Exception:
+            pass
+    if isinstance(value, str):
+        s = value.strip()
+        if not s or s.lower() in ("nat", "none", "nan"):
+            return None
+        try:
+            import pandas as pd
+
+            ts = pd.to_datetime(s, dayfirst=True, errors="coerce")
+            if pd.notna(ts):
+                return ts.date()
+        except Exception:
+            pass
+    return None
+
+
+def _normalize_date_range_pair(
+    pair: Any,
+) -> Optional[Tuple[Optional[date], Optional[date]]]:
+    if isinstance(pair, (list, tuple)) and len(pair) == 2:
+        start = _normalize_date_bound(pair[0])
+        end = _normalize_date_bound(pair[1])
+        if start is None and end is None:
+            return None
+        return start, end
+    one = _normalize_date_bound(pair)
+    if one is None:
+        return None
+    return one, one
+
+
+def _clamp_date_to_bounds(value: Any, min_value: Any, max_value: Any) -> Optional[date]:
+    d = _normalize_date_bound(value)
+    if d is None:
+        return None
+    min_d = _normalize_date_bound(min_value)
+    max_d = _normalize_date_bound(max_value)
+    if min_d is not None and d < min_d:
+        return min_d
+    if max_d is not None and d > max_d:
+        return max_d
+    return d
+
+
+def _clamp_date_range_pair(
+    pair: Any,
+    min_value: Any,
+    max_value: Any,
+) -> Tuple[Optional[date], Optional[date]]:
+    norm = _normalize_date_range_pair(pair)
+    if norm is None:
+        return None, None
+    start = _clamp_date_to_bounds(norm[0], min_value, max_value)
+    end = _clamp_date_to_bounds(norm[1], min_value, max_value)
+    if start is not None and end is not None and start > end:
+        start, end = end, start
+    return start, end
+
+
+def _clamp_date_to_bounds_legacy(value: Any, min_value: Any, max_value: Any) -> Any:
     if value is None:
         return value
     d = value.date() if hasattr(value, "date") and callable(value.date) else value
@@ -458,21 +561,104 @@ def _clamp_date_to_bounds(value: Any, min_value: Any, max_value: Any) -> Any:
     return d
 
 
-def _clamp_date_range_pair(
+def _clamp_date_range_pair_legacy(
     pair: Any,
     min_value: Any,
     max_value: Any,
 ) -> Tuple[Any, Any]:
     if isinstance(pair, tuple) and len(pair) == 2:
-        start = _clamp_date_to_bounds(pair[0], min_value, max_value)
-        end = _clamp_date_to_bounds(pair[1], min_value, max_value)
+        start = _clamp_date_to_bounds_legacy(pair[0], min_value, max_value)
+        end = _clamp_date_to_bounds_legacy(pair[1], min_value, max_value)
         if start is not None and end is not None and start > end:
             start, end = end, start
         return start, end
     if hasattr(pair, "year"):
-        d = _clamp_date_to_bounds(pair, min_value, max_value)
+        d = _clamp_date_to_bounds_legacy(pair, min_value, max_value)
         return d, d
     return pair, pair
+
+
+def _period_date_range_input_showcase(
+    st: Any,
+    key: str,
+    *,
+    min_value: Any,
+    max_value: Any,
+    default: Optional[Tuple[Any, Any]] = None,
+    label: str = LABEL_PERIOD,
+    help: Optional[str] = None,
+    date_format: str = "DD.MM.YYYY",
+) -> Tuple[Optional[date], Optional[date]]:
+    min_d = _normalize_date_bound(min_value)
+    max_d = _normalize_date_bound(max_value)
+    if min_d is None or max_d is None:
+        return None, None
+    if min_d > max_d:
+        min_d, max_d = max_d, min_d
+    ss = getattr(st, "session_state", {})
+    if key in ss:
+        start, end = _clamp_date_range_pair(ss[key], min_d, max_d)
+        if start is None or end is None:
+            ss.pop(key, None)
+        else:
+            ss[key] = (start, end)
+    default_pair: Optional[Tuple[date, date]] = None
+    if default is not None:
+        ds, de = _clamp_date_range_pair(default, min_d, max_d)
+        if ds is not None and de is not None:
+            default_pair = (ds, de)
+    kw: dict = {
+        "label": label,
+        "min_value": min_d,
+        "max_value": max_d,
+        "key": key,
+        "format": date_format,
+    }
+    if default_pair is not None and key not in ss:
+        kw["value"] = default_pair
+    dr = st.date_input(**kw, help=help)
+    if isinstance(dr, tuple) and len(dr) == 2:
+        return _normalize_date_bound(dr[0]), _normalize_date_bound(dr[1])
+    one = _normalize_date_bound(dr)
+    if one is not None:
+        return one, one
+    return None, None
+
+
+def _period_date_range_input_legacy(
+    st: Any,
+    key: str,
+    *,
+    min_value: Any,
+    max_value: Any,
+    default: Optional[Tuple[Any, Any]] = None,
+    label: str = LABEL_PERIOD,
+    help: Optional[str] = None,
+    date_format: str = "DD.MM.YYYY",
+) -> Tuple[Optional[Any], Optional[Any]]:
+    if min_value is None or max_value is None:
+        return None, None
+    ss = getattr(st, "session_state", {})
+    if key in ss:
+        start, end = _clamp_date_range_pair_legacy(ss[key], min_value, max_value)
+        ss[key] = (start, end)
+    if default is not None:
+        default = _clamp_date_range_pair_legacy(default, min_value, max_value)
+    kw: dict = {
+        "label": label,
+        "min_value": min_value,
+        "max_value": max_value,
+        "key": key,
+        "format": date_format,
+    }
+    if default is not None and key not in ss:
+        kw["value"] = default
+    dr = st.date_input(**kw, help=help)
+    if isinstance(dr, tuple) and len(dr) == 2:
+        return dr[0], dr[1]
+    if hasattr(dr, "year"):
+        return dr, dr
+    return None, None
 
 
 def period_date_range_input(
@@ -490,29 +676,27 @@ def period_date_range_input(
     Единый фильтр периода: один ``st.date_input`` с календарём и выбором диапазона.
     Возвращает (start, end) или (None, None), если даты недоступны.
     """
-    if min_value is None or max_value is None:
-        return None, None
-    ss = getattr(st, "session_state", {})
-    if key in ss:
-        start, end = _clamp_date_range_pair(ss[key], min_value, max_value)
-        ss[key] = (start, end)
-    if default is not None:
-        default = _clamp_date_range_pair(default, min_value, max_value)
-    kw: dict = {
-        "label": label,
-        "min_value": min_value,
-        "max_value": max_value,
-        "key": key,
-        "format": date_format,
-    }
-    if default is not None and key not in ss:
-        kw["value"] = default
-    dr = st.date_input(**kw, help=help)
-    if isinstance(dr, tuple) and len(dr) == 2:
-        return dr[0], dr[1]
-    if hasattr(dr, "year"):
-        return dr, dr
-    return None, None
+    if _ui_showcase_mode():
+        return _period_date_range_input_showcase(
+            st,
+            key,
+            min_value=min_value,
+            max_value=max_value,
+            default=default,
+            label=label,
+            help=help,
+            date_format=date_format,
+        )
+    return _period_date_range_input_legacy(
+        st,
+        key,
+        min_value=min_value,
+        max_value=max_value,
+        default=default,
+        label=label,
+        help=help,
+        date_format=date_format,
+    )
 
 
 def period_mode_and_range(

@@ -25,6 +25,7 @@ def apply(*, repo_root: Path, app_dir: Path) -> Path:
         "BI_ANALYTICS_AUTO_INGEST_FTP": "0",
         "BI_ANALYTICS_AUTO_FTP_ON_START": "0",
         "BI_ANALYTICS_HIDE_DEV_DIAGNOSTICS": "1",
+        "BI_ANALYTICS_HIDE_QUALITY_HINTS": "1",
         "BI_ANALYTICS_RELEASE_MODE": "1",
         "BI_ANALYTICS_WEB_INCLUDE_SIBLING": "0",
         "AI_ASSISTANT_TARGET": "off",

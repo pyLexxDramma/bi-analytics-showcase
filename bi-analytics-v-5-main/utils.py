@@ -1655,16 +1655,18 @@ def budget_table_to_html(
                     _cc = table_column_css_class(col)
                     _td_css = HTML_TABLE_TD_COMPACT_CSS if _cc == "col-num" else HTML_TABLE_TD_TEXT_CSS
                     _align = "text-align:center;vertical-align:middle;" if _cc == "col-num" else "text-align:left;vertical-align:top;"
+                    _plain_color = "inherit" if is_total_row_st else TABLE_TEXT_COLOR
                     parts.append(
-                        f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {TABLE_TEXT_COLOR}; '
+                        f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {_plain_color}; '
                         f'background-color: {_cell_bg}; {_td_css} {_align} {_label_css}"{_sort_attr}>{val_esc}</td>'
                     )
             else:
                 _cc = table_column_css_class(col)
                 _td_css = HTML_TABLE_TD_COMPACT_CSS if _cc == "col-num" else HTML_TABLE_TD_TEXT_CSS
                 _align = "text-align:center;vertical-align:middle;" if _cc == "col-num" else "text-align:left;vertical-align:top;"
+                _plain_color = "inherit" if is_total_row_st else TABLE_TEXT_COLOR
                 parts.append(
-                    f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {TABLE_TEXT_COLOR}; background-color: {_cell_bg}; {_td_css} {_align} {_label_css}"{_sort_attr}>{val_esc}</td>'
+                    f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {_plain_color}; background-color: {_cell_bg}; {_td_css} {_align} {_label_css}"{_sort_attr}>{val_esc}</td>'
                 )
         parts.append("</tr>")
     parts.append("</tbody></table>")
