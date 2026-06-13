@@ -43,6 +43,9 @@ def apply_table_constants() -> None:
     u.FINANCE_TABLE_CELL_BORDER = "1px solid #94a3b8"
     u.TABLE_CELL_BORDER_CSS = f"border: {u.TABLE_CELL_BORDER};"
     u.CHART_BG_COLOR = "rgba(255, 255, 255, 0.96)"
+    u.CHART_GRID_COLOR = "rgba(148, 163, 184, 0.45)"
+    u.CHART_AXIS_LINE_COLOR = "rgba(100, 116, 139, 0.65)"
+    u.CHART_ZEROLINE_COLOR = "rgba(100, 116, 139, 0.55)"
     u.TABLE_TOTAL_ROW_FONT_CSS = (
         "font-weight:800;font-size:1.32em;text-transform:uppercase;"
         "letter-spacing:0.05em;color:#111827;"

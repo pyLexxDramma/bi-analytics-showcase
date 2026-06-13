@@ -129,6 +129,9 @@ TABLE_TOTAL_ROW_FONT_CSS = (
 )
 # Фон области графиков Plotly — как карточка контента (.main .block-container: rgba(18,56,92,0.8))
 CHART_BG_COLOR = "rgba(18, 56, 92, 0.88)"
+CHART_GRID_COLOR = "rgba(255,255,255,0.08)"
+CHART_AXIS_LINE_COLOR = "rgba(255,255,255,0.25)"
+CHART_ZEROLINE_COLOR = "rgba(255,255,255,0.2)"
 TABLE_TEXT_COLOR = "#ffffff"
 TABLE_CELL_BORDER = "1px solid #5a7a9a"
 FINANCE_TABLE_CELL_BORDER = "1px solid #7a9ec4"
@@ -912,22 +915,24 @@ def apply_chart_background(fig, *, skip_uniformtext: bool = False):
 
     # Оси X
     fig.update_xaxes(
-        gridcolor="rgba(255,255,255,0.08)",
-        linecolor="rgba(255,255,255,0.25)",
+        showgrid=True,
+        gridcolor=CHART_GRID_COLOR,
+        linecolor=CHART_AXIS_LINE_COLOR,
         tickfont=dict(color=TABLE_TEXT_COLOR, size=11),
         title=dict(font=dict(color=TABLE_TEXT_COLOR, size=12)),
-        zerolinecolor="rgba(255,255,255,0.2)",
+        zerolinecolor=CHART_ZEROLINE_COLOR,
         automargin=True,
         ticklabelstandoff=8,
     )
 
     # Оси Y
     fig.update_yaxes(
-        gridcolor="rgba(255,255,255,0.08)",
-        linecolor="rgba(255,255,255,0.25)",
+        showgrid=True,
+        gridcolor=CHART_GRID_COLOR,
+        linecolor=CHART_AXIS_LINE_COLOR,
         tickfont=dict(color=TABLE_TEXT_COLOR, size=11),
         title=dict(font=dict(color=TABLE_TEXT_COLOR, size=12)),
-        zerolinecolor="rgba(255,255,255,0.2)",
+        zerolinecolor=CHART_ZEROLINE_COLOR,
         automargin=True,
     )
 

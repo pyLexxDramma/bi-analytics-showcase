@@ -3048,6 +3048,7 @@ def _plotly_legend_horizontal_below_plot(
     У вызова render_chart задавайте height (БДДС: 560), иначе область графика может сжаться.
     """
     try:
+        _leg = _finance_chart_legend_style()
         fig.update_layout(
             showlegend=True,
             legend=dict(
@@ -3056,9 +3057,9 @@ def _plotly_legend_horizontal_below_plot(
                 xanchor="center",
                 y=legend_y,
                 yanchor="top",
-                font=dict(size=12, color="#e8eef5"),
-                bgcolor="rgba(15, 28, 45, 0.92)",
-                bordercolor="rgba(122, 158, 196, 0.55)",
+                font=dict(size=12, color=_leg["font_color"]),
+                bgcolor=_leg["bgcolor"],
+                bordercolor=_leg["bordercolor"],
                 borderwidth=1,
                 itemsizing="constant",
                 itemwidth=32,
@@ -10597,6 +10598,27 @@ def _finance_chart_bar_text_color() -> str:
     return "#f0f4f8"
 
 
+def _finance_chart_legend_style() -> dict[str, str]:
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            return {
+                "font_color": "#111827",
+                "html_color": "#111827",
+                "bgcolor": "rgba(248, 250, 252, 0.98)",
+                "bordercolor": "rgba(203, 213, 225, 0.9)",
+            }
+    except Exception:
+        pass
+    return {
+        "font_color": "#e8eef5",
+        "html_color": "#e2e8f0",
+        "bgcolor": "rgba(15, 28, 45, 0.92)",
+        "bordercolor": "rgba(122, 158, 196, 0.55)",
+    }
+
+
 def _bdds_table_html_kw(**overrides) -> dict:
     kw = {**_BDDS_TABLE_HTML_KW, **overrides}
     try:
@@ -10610,6 +10632,9 @@ def _bdds_table_html_kw(**overrides) -> dict:
     except Exception:
         pass
     return kw
+
+
+_bdr_table_html_kw = _bdds_table_html_kw
 
 
 # Минимум оборотов (руб.) для месяца на графике БДДС/БДР — иначе ось забивается «пустыми» месяцами.
@@ -10898,6 +10923,7 @@ def _render_finance_bar_chart(
             _chart_caption_below(caption_below)
         # Статичная легенда под полосой скролла
         if _leg_items:
+            _leg_style = _finance_chart_legend_style()
             _leg_html = (
                 '<div style="display:flex;flex-wrap:wrap;gap:8px 20px;'
                 'padding:10px 4px 4px 4px;font-size:12px;line-height:1.4;">'
@@ -10907,7 +10933,7 @@ def _render_finance_bar_chart(
                     f'<span style="display:flex;align-items:center;gap:5px;">'
                     f'<span style="display:inline-block;width:14px;height:14px;'
                     f'border-radius:2px;background:{_lc};flex-shrink:0;"></span>'
-                    f'<span style="color:#e2e8f0;">{_ln}</span></span>'
+                    f'<span style="color:{_leg_style["html_color"]};">{_ln}</span></span>'
                 )
             _leg_html += "</div>"
             components.html(_leg_html, height=44, scrolling=False)
@@ -10921,6 +10947,7 @@ def _render_finance_bar_chart(
             plotly_config_extra={"responsive": False},
         )
         if _leg_items:
+            _leg_style = _finance_chart_legend_style()
             _leg_html = (
                 '<div style="display:flex;flex-wrap:wrap;gap:8px 20px;'
                 'padding:10px 4px 4px 4px;font-size:12px;line-height:1.4;">'
@@ -10930,7 +10957,7 @@ def _render_finance_bar_chart(
                     f'<span style="display:flex;align-items:center;gap:5px;">'
                     f'<span style="display:inline-block;width:14px;height:14px;'
                     f'border-radius:2px;background:{_lc};flex-shrink:0;"></span>'
-                    f'<span style="color:#e2e8f0;">{_ln}</span></span>'
+                    f'<span style="color:{_leg_style["html_color"]};">{_ln}</span></span>'
                 )
             _leg_html += "</div>"
             components.html(_leg_html, height=44, scrolling=False)
@@ -13542,6 +13569,21 @@ def dashboard_bdr(df):
                                 _bdr_min_all, _bdr_max_all = _bdr_start, _bdr_end
                         except Exception:
                             _bdr_min_all, _bdr_max_all = _bdr_start, _bdr_end
+                        try:
+                            from config import is_showcase_mode as _bdr_is_showcase
+                        except Exception:
+                            _bdr_is_showcase = lambda: False  # type: ignore[assignment,misc]
+                        if _bdr_is_showcase():
+                            _bdr_scope = (
+                                (_project_filter_norm_key(selected_project),)
+                                if str(selected_project).strip() not in ("", "Все")
+                                else ("__all__",)
+                            )
+                            _bdr_grouping = str(st.session_state.get("bdr_period", "Месяц"))
+                            _bdr_filter_ctx = (_bdr_scope, _bdr_grouping)
+                            if st.session_state.get("_bdr_period_filter_ctx") != _bdr_filter_ctx:
+                                st.session_state["_bdr_period_filter_ctx"] = _bdr_filter_ctx
+                                st.session_state.pop("bdr_period_range", None)
                         _bdr_period_from, _bdr_period_to = period_date_range_input(
                             st,
                             "bdr_period_range",
@@ -13574,6 +13616,10 @@ def dashboard_bdr(df):
             period_col = "plan_year"
             period_label = "Год"
 
+        _bdr_period_freq = {"Month": "M", "Quarter": "Q", "Year": "Y-DEC"}.get(
+            period_type_en, "M"
+        )
+
         if period_col not in df_work.columns:
             st.warning(f"Столбец периода «{period_col}» не найден. Добавьте даты в данные.")
             return
@@ -13595,30 +13641,20 @@ def dashboard_bdr(df):
 
         _bdr_all_projects = str(selected_project).strip() in ("", "Все")
         _bdr_view_monthly = str(st.session_state.get("bdr_period_view", "По месяцам")) == "По месяцам"
-        with filters_toggles(st):
-            _bdr_cb1, _bdr_cb2, _bdr_cb3, _bdr_cb4, _bdr_cb5 = st.columns(5, gap="small")
-            with _bdr_cb1:
-                if bdr_tz_mode:
-                    st.checkbox(
-                        "Скрыть отклонение",
-                        value=False,
-                        key="bdr_hide_deviation_tz",
-                    )
-            with _bdr_cb2:
-                if period_type_en == "Month" and _bdr_view_monthly:
-                    if bdr_tz_mode:
-                        st.checkbox(
-                            "Скрывать месяцы, где план и факт расходов равны 0",
-                            value=bool(_bdr_all_projects),
-                            key="bdr_hide_zero_months_tz",
-                        )
-                    else:
-                        st.checkbox(
-                            "Скрывать месяцы, где доходы и расходы равны 0",
-                            value=True,
-                            key="bdr_hide_zero_months",
-                        )
-    
+
+    try:
+        from config import is_showcase_mode as _bdr_is_showcase
+    except Exception:
+        _bdr_is_showcase = lambda: False  # type: ignore[assignment,misc]
+
+    if _bdr_is_showcase() and period_col in filtered_df.columns:
+        from dashboards.finance_from_1c import _coerce_period_value
+
+        filtered_df = filtered_df.copy()
+        filtered_df[period_col] = filtered_df[period_col].map(
+            lambda x: _coerce_period_value(x, _bdr_period_freq)
+        )
+
     if bdr_tz_mode:
         filtered_df["_plan_exp"] = _coerce_bdr_amount_series(filtered_df[plan_ec]).fillna(0.0)
         filtered_df["_fact_exp"] = _coerce_bdr_amount_series(filtered_df[fact_ec]).fillna(0.0)
@@ -13674,7 +13710,7 @@ def dashboard_bdr(df):
         title_suffix = ""
 
         if bdr_tz_mode:
-            hide_deviation = bool(st.session_state.get("bdr_hide_deviation_tz", False))
+            hide_deviation = False
             if view_type == "Накопительно":
                 chart_df["План расходов"] = chart_df["План расходов"].cumsum()
                 chart_df["Факт расходов"] = chart_df["Факт расходов"].cumsum()
@@ -13699,7 +13735,7 @@ def dashboard_bdr(df):
             _bdr_hide_zero = bool(
                 period_type_en == "Month"
                 and view_type == "По месяцам"
-                and st.session_state.get("bdr_hide_zero_months_tz", _bdr_all_projects)
+                and _bdr_all_projects
             )
             if period_type_en == "Month" and view_type == "По месяцам" and not chart_df.empty:
                 chart_df = _bdr_drop_empty_months(chart_df)
@@ -13712,8 +13748,7 @@ def dashboard_bdr(df):
                 chart_df = _bdr_drop_empty_months(chart_df)
             if chart_df.empty:
                 st.info(
-                    "Нет периодов для графика. Снимите фильтр скрытия нулевых периодов "
-                    "или расширьте фильтры."
+                    "Нет периодов для графика. Расширьте период или измените фильтры."
                 )
                 return
 
@@ -13721,6 +13756,7 @@ def dashboard_bdr(df):
             _is_cumulative = view_type == "Накопительно"
             # Подписи значений на столбцах — по ТЗ/UX всегда (раньше скрывались при >6 периодов).
             _hide_bar_value_labels = False
+            _bar_lbl_color = _finance_chart_bar_text_color()
             _tlbl_b = 0.005
             _tlbl_dev = 0.01 if not _hide_bar_value_labels else _tlbl_b
             _tfs_b = 10 if _nb > 32 else 11 if _nb > 20 else 12 if _nb > 12 else 13
@@ -13779,7 +13815,7 @@ def dashboard_bdr(df):
                     marker_color="#2E86AB",
                     text=_plan_txt_b,
                     textposition=_txt_pos_b,
-                    textfont=dict(size=_tfs_b, color="#f0f4f8"),
+                    textfont=dict(size=_tfs_b, color=_bar_lbl_color),
                     customdata=chart_df["План расходов"].apply(lambda v: format_million_rub(v, decimals=1)),
                     hovertemplate="<b>%{x}</b><br>План расходов: %{customdata}<br><extra></extra>",
                 )
@@ -13792,7 +13828,7 @@ def dashboard_bdr(df):
                     marker_color="#A23B72",
                     text=_fact_txt_b,
                     textposition=_txt_pos_b,
-                    textfont=dict(size=_tfs_b, color="#f0f4f8"),
+                    textfont=dict(size=_tfs_b, color=_bar_lbl_color),
                     customdata=chart_df["Факт расходов"].apply(lambda v: format_million_rub(v, decimals=1)),
                     hovertemplate="<b>%{x}</b><br>Факт расходов: %{customdata}<br><extra></extra>",
                 )
@@ -14062,7 +14098,7 @@ def dashboard_bdr(df):
                     finance_deviation_column=_bdr_tz_dev_col,
                     deviation_color_fact_vs_plan=True,
                     emphasize_row_kinds=("project", "total"),
-                    **_BDR_TABLE_HTML_KW,
+                    **_bdr_table_html_kw(),
                 )
             return
 
@@ -14075,7 +14111,6 @@ def dashboard_bdr(df):
         _bdr_hide_zero = bool(
             period_type_en == "Month"
             and view_type == "По месяцам"
-            and st.session_state.get("bdr_hide_zero_months", True)
         )
         if (
             _bdr_hide_zero
@@ -14088,14 +14123,14 @@ def dashboard_bdr(df):
             chart_df = chart_df.loc[_di.abs() + _dx.abs() > 0.5].copy()
         if chart_df.empty:
             st.info(
-                "Нет периодов для графика. Снимите «Скрывать месяцы, где доходы и расходы равны 0» "
-                "или расширьте фильтры."
+                "Нет периодов для графика. Расширьте период или измените фильтры."
             )
             return
 
         _nb = len(chart_df)
         _is_cumulative = view_type == "Накопительно"
         _hide_bar_value_labels = False
+        _bar_lbl_color = _finance_chart_bar_text_color()
         _tlbl_b = 0.005
         _tlbl_dev = 0.01 if not _hide_bar_value_labels else _tlbl_b
         _tfs_b = 8 if _nb > 32 else 9 if _nb > 20 else 10 if _nb > 12 else 11
@@ -14144,7 +14179,7 @@ def dashboard_bdr(df):
                 marker_color="#2E86AB",
                 text=_plan_txt_b,
                 textposition=_txt_pos_b,
-                textfont=dict(size=_tfs_b, color="#f0f4f8"),
+                textfont=dict(size=_tfs_b, color=_bar_lbl_color),
                 customdata=chart_df["Доходы"].apply(format_million_rub),
                 hovertemplate="<b>%{x}</b><br>Доходы: %{customdata}<br><extra></extra>",
             )
@@ -14157,7 +14192,7 @@ def dashboard_bdr(df):
                 marker_color="#A23B72",
                 text=_fact_txt_b,
                 textposition=_txt_pos_b,
-                textfont=dict(size=_tfs_b, color="#f0f4f8"),
+                textfont=dict(size=_tfs_b, color=_bar_lbl_color),
                 customdata=chart_df["Расходы"].apply(format_million_rub),
                 hovertemplate="<b>%{x}</b><br>Расходы: %{customdata}<br><extra></extra>",
             )
@@ -14173,7 +14208,7 @@ def dashboard_bdr(df):
                 marker_color=dev_colors,
                 text=_dev_txt_b,
                 textposition=_txt_pos_b,
-                textfont=dict(size=_tfs_b, color="#f0f4f8"),
+                textfont=dict(size=_tfs_b, color=_bar_lbl_color),
                 customdata=chart_df["Сальдо"].apply(format_million_rub),
                 hovertemplate="<b>%{x}</b><br>Сальдо: %{customdata}<br><extra></extra>",
             )
@@ -14268,7 +14303,7 @@ def dashboard_bdr(df):
                 display_df,
                 finance_deviation_column="Сальдо, млн. руб.",
                 deviation_red_if_negative=True,
-                **_BDR_TABLE_HTML_KW,
+                **_bdr_table_html_kw(),
             )
 
     _bdr_chart()
@@ -14324,7 +14359,7 @@ def dashboard_bdr(df):
                     deviation_color_fact_vs_plan=True,
                     row_kind_column="_row_kind",
                     emphasize_row_kinds=("total",),
-                    **_BDR_TABLE_HTML_KW,
+                    **_bdr_table_html_kw(),
                 )
         else:
             by_p = (
@@ -14373,7 +14408,7 @@ def dashboard_bdr(df):
                     deviation_red_if_negative=True,
                     row_kind_column="_row_kind",
                     emphasize_row_kinds=("total",),
-                    **_BDR_TABLE_HTML_KW,
+                    **_bdr_table_html_kw(),
                 )
 
     render_quality_hints(_bdr_q_hints)
