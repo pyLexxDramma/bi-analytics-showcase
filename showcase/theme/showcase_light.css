@@ -103,3 +103,30 @@ html body .showcase-demo-banner strong {
   color: #1d4ed8;
   font-weight: 600;
 }
+
+html body .showcase-login-hint {
+  background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  color: #1e3a8a;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  margin: 0 auto 1.25rem auto;
+  max-width: 28rem;
+  padding: 0.75rem 1rem;
+  text-align: center;
+}
+
+html body .showcase-login-hint strong {
+  color: #1d4ed8;
+}
+
+html body div[data-testid="stForm"] input {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+}
+
+html body div[data-testid="stForm"] input::placeholder {
+  color: #64748b !important;
+}

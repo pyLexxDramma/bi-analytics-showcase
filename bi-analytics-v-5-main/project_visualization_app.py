@@ -450,14 +450,16 @@ def main():
             from config import SHOWCASE_DISPLAY_TITLE, is_showcase_mode
 
             _login_title = SHOWCASE_DISPLAY_TITLE if is_showcase_mode() else "BI Analytics"
+            _login_color = "#0f172a" if is_showcase_mode() else "#ffffff"
         except Exception:
             _login_title = "BI Analytics"
+            _login_color = "#ffffff"
 
         # Заголовок страницы входа
         st.markdown(
             f"""
             <div style="text-align: center; margin-bottom: 2rem;">
-                <h1 style="color: #ffffff; font-size: 2rem; margin-bottom: 0.5rem;">{_html_escape(_login_title)}</h1>
+                <h1 style="color: {_login_color}; font-size: 2rem; margin-bottom: 0.5rem;">{_html_escape(_login_title)}</h1>
             </div>
         """,
             unsafe_allow_html=True,
@@ -467,7 +469,12 @@ def main():
             from config import is_showcase_mode
 
             if is_showcase_mode():
-                st.info("Демо-вход: **admin** / **admin123** (учётка создаётся автоматически при первом запуске).")
+                st.markdown(
+                    '<div class="showcase-login-hint">'
+                    "Вход в демо: <strong>admin</strong> / <strong>admin123</strong>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
         except Exception:
             pass
 
@@ -659,6 +666,12 @@ def main():
             col_left, col_center, col_right = st.columns([2, 1.5, 2])
 
             with col_center:
+                try:
+                    from config import is_showcase_mode
+
+                    _showcase_login = is_showcase_mode()
+                except Exception:
+                    _showcase_login = False
 
                 with st.form("login_form", clear_on_submit=False):
 
@@ -718,7 +731,10 @@ def main():
 
                     submit_button = st.form_submit_button("Войти", type="primary", width="stretch")
 
-                    submit_reset = st.form_submit_button("Забыли пароль?", width="stretch")
+                    if not _showcase_login:
+                        submit_reset = st.form_submit_button("Забыли пароль?", width="stretch")
+                    else:
+                        submit_reset = False
 
                     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -770,14 +786,15 @@ def main():
 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                with st.container(border=True):
+                if not _showcase_login:
+                    with st.container(border=True):
 
-                    st.markdown("""
-                    **Тестовые учетные данные:**
-                    - **Имя пользователя:** `admin`
-                    - **Пароль:** `admin123`
-                    - **Роль:** Суперадминистратор
-                    """)
+                        st.markdown("""
+                        **Тестовые учетные данные:**
+                        - **Имя пользователя:** `admin`
+                        - **Пароль:** `admin123`
+                        - **Роль:** Суперадминистратор
+                        """)
 
         st.stop()
 
