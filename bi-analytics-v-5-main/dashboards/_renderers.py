@@ -3042,6 +3042,7 @@ def _plotly_legend_horizontal_below_plot(
     bottom_px: int = 300,
     top_px: int = 88,
     legend_y: float = -0.34,
+    borderless: bool = False,
 ) -> go.Figure:
     """
     Легенда под осью X (в нижнем поле, не над столбцами): отрицательный y + yanchor=top + margin b.
@@ -3058,9 +3059,9 @@ def _plotly_legend_horizontal_below_plot(
                 y=legend_y,
                 yanchor="top",
                 font=dict(size=12, color=_leg["font_color"]),
-                bgcolor=_leg["bgcolor"],
-                bordercolor=_leg["bordercolor"],
-                borderwidth=1,
+                bgcolor="rgba(0,0,0,0)" if borderless else _leg["bgcolor"],
+                bordercolor="rgba(0,0,0,0)" if borderless else _leg["bordercolor"],
+                borderwidth=0 if borderless else 1,
                 itemsizing="constant",
                 itemwidth=32,
                 tracegroupgap=4,
@@ -10596,6 +10597,45 @@ def _finance_chart_bar_text_color() -> str:
     except Exception:
         pass
     return "#f0f4f8"
+
+
+def _finance_gauge_text_palette() -> dict[str, str]:
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            return {
+                "tick": "#374151",
+                "tick_line": "#9ca3af",
+                "number": "#111827",
+                "primary": "#111827",
+                "muted": "#4b5563",
+            }
+    except Exception:
+        pass
+    return {
+        "tick": "#e8eef5",
+        "tick_line": "#c8d4e3",
+        "number": "#f8fbff",
+        "primary": "#f8fbff",
+        "muted": "#e8eef5",
+    }
+
+
+_APPROVED_BUDGET_BAR_LABEL_SIZE = 15
+_APPROVED_BUDGET_BAR_LABEL_FAMILY = "Inter, Arial Black, sans-serif"
+
+
+def _approved_budget_bold_bar_labels(labels) -> list[str]:
+    return [f"<b>{t}</b>" if t else "" for t in labels]
+
+
+def _approved_budget_bar_textfont(*, color: str) -> dict:
+    return dict(
+        size=_APPROVED_BUDGET_BAR_LABEL_SIZE,
+        color=color,
+        family=_APPROVED_BUDGET_BAR_LABEL_FAMILY,
+    )
 
 
 def _finance_chart_legend_style() -> dict[str, str]:
@@ -29673,13 +29713,14 @@ def _render_appr_pf_gauge_chart(fig: go.Figure, *, height: int, chart_key: str) 
         shell = (
             "<!DOCTYPE html><html lang='ru'><head><meta charset='utf-8'>"
             "<style>"
-            "html,body{margin:0;padding:0;overflow:hidden!important;background:transparent;}"
-            f".appr-pf-gauge-wrap{{width:100%;height:{h}px;max-height:{h}px;overflow:hidden!important;}}"
+            "html,body{margin:0;padding:0;overflow:visible!important;background:transparent;}"
+            f".appr-pf-gauge-wrap{{width:100%;min-height:{h}px;height:auto;overflow:visible!important;}}"
+            ".appr-pf-gauge-wrap .plotly-graph-div,.appr-pf-gauge-wrap svg{overflow:visible!important;}"
             "</style></head><body>"
             f'<div class="appr-pf-gauge-wrap">{plot_div}</div>'
             "</body></html>"
         )
-        components.html(shell, height=h + 2, scrolling=False)
+        components.html(shell, height=h + 24, scrolling=False)
     except Exception:
         render_chart(
             fig,
@@ -29694,16 +29735,16 @@ def _render_appr_pf_gauge_chart(fig: go.Figure, *, height: int, chart_key: str) 
 _APPR_PF_SUMMARY_GAUGE_CSS = """
 <style>
 .appr-pf-summary-anchor ~ div[data-testid="stHorizontalBlock"] {
-  overflow: hidden !important;
+  overflow: visible !important;
   max-width: 100% !important;
 }
 .appr-pf-summary-anchor ~ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
-  overflow: hidden !important;
+  overflow: visible !important;
   max-width: 100% !important;
 }
 .appr-pf-summary-anchor ~ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child div[data-testid="stHtml"],
 .appr-pf-summary-anchor ~ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child [data-testid="stHtml"] iframe {
-  overflow: hidden !important;
+  overflow: visible !important;
   max-width: 100% !important;
 }
 </style>
@@ -29760,7 +29801,8 @@ def _render_plan_fact_summary_dashboard(
     if fact_v >= plan_v:
         hi = max(fact_v, 1e-9) * 1.01
     else:
-        hi = max(plan_v, fact_v, 1e-9) * 1.05
+        # План — верх шкалы: красная дуга до правого края semicircle, без «обрезанного» хвоста.
+        hi = max(plan_v, fact_v, 1e-9)
     pct_of_plan = (100.0 * fact_rub / plan_rub) if plan_rub > 0 else float("nan")
     _gauge_plan_red = "#e74c3c"
     _gauge_fact_green = "#27ae60"
@@ -29768,6 +29810,8 @@ def _render_plan_fact_summary_dashboard(
     tickvals, ticktext = _plan_fact_gauge_axis_ticks(
         hi, plan_v, fact_v, value_format=vf, unit=unit
     )
+    ticktext = _approved_budget_bold_bar_labels(ticktext)
+    _gauge_txt = _finance_gauge_text_palette()
     _gauge_track = "rgba(255,255,255,0.08)"
     _gauge_bar_thickness = 0.72
     gauge_steps: list[dict] = []
@@ -29796,8 +29840,12 @@ def _render_plan_fact_summary_dashboard(
             "ticktext": ticktext,
             "tickwidth": 2,
             "ticklen": 12,
-            "tickcolor": "#c8d4e3",
-            "tickfont": {"size": 15, "color": "#e8eef5"},
+            "tickcolor": _gauge_txt["tick_line"],
+            "tickfont": {
+                "size": _APPROVED_BUDGET_BAR_LABEL_SIZE,
+                "color": _gauge_txt["tick"],
+                "family": _APPROVED_BUDGET_BAR_LABEL_FAMILY,
+            },
             "showticklabels": True,
         },
         "bar": {"color": _gauge_fact_green, "thickness": _gauge_bar_thickness},
@@ -29820,7 +29868,7 @@ def _render_plan_fact_summary_dashboard(
             number={
                 "suffix": f" {unit}",
                 "valueformat": vf,
-                "font": {"size": 56, "color": "#f8fbff"},
+                "font": {"size": 56, "color": _gauge_txt["number"]},
             },
             gauge=gauge_kw,
         )
@@ -29828,7 +29876,7 @@ def _render_plan_fact_summary_dashboard(
     _gauge_h = _APPR_PF_GAUGE_HEIGHT_PX
     fig.update_layout(
         height=_gauge_h,
-        margin=dict(l=16, r=16, t=12, b=40),
+        margin=dict(l=52, r=52, t=20, b=52),
         autosize=False,
     )
     fig = apply_chart_background(fig)
@@ -29858,18 +29906,18 @@ def _render_plan_fact_summary_dashboard(
             f'<div class="appr-pf-summary-kpi-col">'
             f'<p style="font-size:1.15rem;font-weight:800;margin:0 0 0.45rem 0;color:{_gauge_plan_red};'
             f'letter-spacing:0.02em;">План</p>'
-            f'<p style="font-size:1.65rem;font-weight:700;margin:0 0 0.25rem 0;color:#f8fbff;">'
+            f'<p style="font-size:1.65rem;font-weight:700;margin:0 0 0.25rem 0;color:{_gauge_txt["primary"]};">'
             f"{plan_v:{vf}} {unit}</p>"
-            f'<p style="font-size:1.05rem;font-weight:600;margin:0;color:#e8eef5;">'
+            f'<p style="font-size:1.05rem;font-weight:600;margin:0;color:{_gauge_txt["muted"]};">'
             f"{plan_mln:.1f} млн рублей</p>"
-            f'<p style="font-size:1.2rem;font-weight:700;margin:0.75rem 0 0;color:#f8fbff;">100%</p>'
+            f'<p style="font-size:1.2rem;font-weight:700;margin:0.75rem 0 0;color:{_gauge_txt["primary"]};">100%</p>'
             f"</div>"
             f'<div class="appr-pf-summary-kpi-col">'
             f'<p style="font-size:1.15rem;font-weight:800;margin:0 0 0.45rem 0;color:{_gauge_fact_green};'
             f'letter-spacing:0.02em;">Факт</p>'
-            f'<p style="font-size:1.65rem;font-weight:700;margin:0 0 0.25rem 0;color:#f8fbff;">'
+            f'<p style="font-size:1.65rem;font-weight:700;margin:0 0 0.25rem 0;color:{_gauge_txt["primary"]};">'
             f"{fact_v:{vf}} {unit}</p>"
-            f'<p style="font-size:1.05rem;font-weight:600;margin:0;color:#e8eef5;">'
+            f'<p style="font-size:1.05rem;font-weight:600;margin:0;color:{_gauge_txt["muted"]};">'
             f"{fact_mln:.1f} млн рублей</p>"
             f"{_pct_html}"
             f"</div></div>",
@@ -29889,9 +29937,7 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
     elif "adjusted budget" in filtered_df.columns:
         adjusted_budget_col = "adjusted budget"
 
-    show_reserve = st.checkbox(
-        "Показать отклонение", value=True, key="budget_show_reserve"
-    )
+    show_reserve = True
 
     hist_df = filtered_df.copy()
     if hist_df.empty:
@@ -29921,6 +29967,9 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
 
     _projects = budget_by_project["project name"].astype(str).tolist()
     _tlbl = 0.005
+    _bar_lbl_color = _finance_chart_bar_text_color()
+    _leg_style = _finance_chart_legend_style()
+    _bar_txt_font = _approved_budget_bar_textfont(color=_bar_lbl_color)
     fig_hist = go.Figure()
     fig_hist.add_trace(
         go.Bar(
@@ -29928,13 +29977,15 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
             y=budget_by_project["budget plan"].div(1e6),
             name="Бюджет План",
             marker_color="#2E86AB",
-            text=_finance_bar_text_mln_rub(
-                budget_by_project["budget plan"],
-                min_abs_mln=_tlbl,
-                unit_suffix=" млн.руб.",
+            text=_approved_budget_bold_bar_labels(
+                _finance_bar_text_mln_rub(
+                    budget_by_project["budget plan"],
+                    min_abs_mln=_tlbl,
+                    unit_suffix=" млн.руб.",
+                )
             ),
             textposition="outside",
-            textfont=dict(size=12, color="#f0f4f8"),
+            textfont=_bar_txt_font,
         )
     )
     fig_hist.add_trace(
@@ -29943,13 +29994,15 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
             y=budget_by_project["budget fact"].div(1e6),
             name="Бюджет Факт",
             marker_color="#A23B72",
-            text=_finance_bar_text_mln_rub(
-                budget_by_project["budget fact"],
-                min_abs_mln=_tlbl,
-                unit_suffix=" млн.руб.",
+            text=_approved_budget_bold_bar_labels(
+                _finance_bar_text_mln_rub(
+                    budget_by_project["budget fact"],
+                    min_abs_mln=_tlbl,
+                    unit_suffix=" млн.руб.",
+                )
             ),
             textposition="outside",
-            textfont=dict(size=12, color="#f0f4f8"),
+            textfont=_bar_txt_font,
         )
     )
     if adjusted_budget_col and float(budget_by_project["budget adjusted"].abs().sum()) > 0:
@@ -29959,13 +30012,15 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
                 y=budget_by_project["budget adjusted"].div(1e6),
                 name="Бюджет Корректировка",
                 marker_color="#F18F01",
-                text=_finance_bar_text_mln_rub(
-                    budget_by_project["budget adjusted"],
-                    min_abs_mln=_tlbl,
-                    unit_suffix=" млн.руб.",
+                text=_approved_budget_bold_bar_labels(
+                    _finance_bar_text_mln_rub(
+                        budget_by_project["budget adjusted"],
+                        min_abs_mln=_tlbl,
+                        unit_suffix=" млн.руб.",
+                    )
                 ),
                 textposition="outside",
-                textfont=dict(size=12, color="#f0f4f8"),
+                textfont=_bar_txt_font,
             )
         )
     if show_reserve:
@@ -29992,9 +30047,9 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
                     y=_y_fact_lt_plan,
                     name="Отклонение (факт < план)",
                     marker_color=_FINANCE_DEV_BAR_RED,
-                    text=_dev_txt_lt,
+                    text=_approved_budget_bold_bar_labels(_dev_txt_lt),
                     textposition="outside",
-                    textfont=dict(size=12, color=_FINANCE_DEV_LABEL_RED),
+                    textfont=_approved_budget_bar_textfont(color=_FINANCE_DEV_LABEL_RED),
                     cliponaxis=False,
                 )
             )
@@ -30005,20 +30060,38 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
                     y=_y_fact_gt_plan,
                     name="Отклонение (факт > план)",
                     marker_color=_FINANCE_DEV_BAR_GREEN,
-                    text=_dev_txt_gt,
+                    text=_approved_budget_bold_bar_labels(_dev_txt_gt),
                     textposition="outside",
-                    textfont=dict(size=12, color=_FINANCE_DEV_LABEL_GREEN),
+                    textfont=_approved_budget_bar_textfont(color=_FINANCE_DEV_LABEL_GREEN),
                     cliponaxis=False,
                 )
             )
 
     fig_hist.update_layout(
-        xaxis_title="Проект",
+        xaxis_title="",
         yaxis_title="млн.руб.",
         height=600,
         barmode="group",
-        xaxis=dict(tickangle=-45, tickfont=dict(size=12)),
-        legend=dict(title="Тип бюджета", orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+        xaxis=dict(
+            tickangle=0,
+            tickfont=dict(
+                size=_APPROVED_BUDGET_BAR_LABEL_SIZE,
+                color=_leg_style["font_color"],
+                family=_APPROVED_BUDGET_BAR_LABEL_FAMILY,
+            ),
+            automargin=True,
+        ),
+        legend=dict(
+            title="Тип бюджета",
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            font=dict(color=_leg_style["font_color"], size=12),
+            bgcolor=_leg_style["bgcolor"],
+            bordercolor=_leg_style["bordercolor"],
+        ),
         margin=dict(l=56, r=220, t=72, b=120),
     )
     _ymax = float(
@@ -30411,11 +30484,6 @@ def _render_approved_budget_monthly_block(
     render_table_subheader(st, "Утверждённый бюджет (план/факт) по месяцам")
     if reporting_label:
         st.caption(f"Помесячные обороты до {reporting_label} (тот же срез, что спидометр).")
-    _appr_hide_zero = st.checkbox(
-        "Скрывать месяцы, где план и факт равны 0",
-        value=True,
-        key="approved_budget_planfact_hide_zero_months",
-    )
     monthly_rows = (
         src.groupby("plan_month")
         .agg({"budget plan": "sum", "budget fact": "sum"})
@@ -30429,10 +30497,9 @@ def _render_approved_budget_monthly_block(
     monthly_rows["Месяц"] = monthly_rows["plan_month"].apply(format_period_ru)
     monthly_rows["reserve budget"] = monthly_rows["budget fact"] - monthly_rows["budget plan"]
 
-    if _appr_hide_zero:
-        _pl0 = monthly_rows["budget plan"].fillna(0.0)
-        _fc0 = monthly_rows["budget fact"].fillna(0.0)
-        monthly_rows = monthly_rows.loc[_pl0.abs() + _fc0.abs() > 0.5].copy()
+    _pl0 = monthly_rows["budget plan"].fillna(0.0)
+    _fc0 = monthly_rows["budget fact"].fillna(0.0)
+    monthly_rows = monthly_rows.loc[_pl0.abs() + _fc0.abs() > 0.5].copy()
     if monthly_rows.empty:
         st.info("Нет месяцев с данными для графика.")
         return
@@ -30440,16 +30507,10 @@ def _render_approved_budget_monthly_block(
     fig = go.Figure()
     _n_m = len(monthly_rows)
     _text_min_mln = 0.005
-    _tf_size = 8 if _n_m > 32 else 9 if _n_m > 20 else 10 if _n_m > 12 else 11
-    if _n_m > 32:
-        _bg, _bgg = 0.04, 0.01
-    elif _n_m > 18:
-        _bg, _bgg = 0.06, 0.02
-    else:
-        _bg, _bgg = 0.1, 0.04
-    _chart_h = 600 if _n_m <= 20 else int(min(900, 520 + int(_n_m * 1.4)))
-    _tick_angle = -45 if _n_m <= 18 else -50 if _n_m <= 36 else -55
-    _tick_fs = 8 if _n_m > 28 else 9 if _n_m > 18 else 10
+    _bar_lbl_color = _finance_chart_bar_text_color()
+    _bar_txt_font = _approved_budget_bar_textfont(color=_bar_lbl_color)
+    _chart_h = max(720, int(min(1050, 680 + _n_m * 4)))
+    _month_cats = monthly_rows["Месяц"].astype(str).tolist()
 
     fig.add_trace(
         go.Bar(
@@ -30457,13 +30518,15 @@ def _render_approved_budget_monthly_block(
             y=monthly_rows["budget plan"].div(1e6),
             name="БДДС план",
             marker_color="#2E86AB",
-            text=_finance_bar_text_mln_rub(
-                monthly_rows["budget plan"],
-                min_abs_mln=_text_min_mln,
-                unit_suffix=" млн рублей",
+            text=_approved_budget_bold_bar_labels(
+                _finance_bar_text_mln_rub(
+                    monthly_rows["budget plan"],
+                    min_abs_mln=_text_min_mln,
+                    unit_suffix=" млн.руб",
+                )
             ),
             textposition="outside",
-            textfont=dict(size=_tf_size, color="#f0f4f8"),
+            textfont=_bar_txt_font,
             hovertemplate="<b>%{x}</b><br>БДДС план: %{customdata}<extra></extra>",
             customdata=monthly_rows["budget plan"].apply(format_million_rub),
         )
@@ -30474,39 +30537,31 @@ def _render_approved_budget_monthly_block(
             y=monthly_rows["budget fact"].div(1e6),
             name="БДДС факт",
             marker_color="#A23B72",
-            text=_finance_bar_text_mln_rub(
-                monthly_rows["budget fact"],
-                min_abs_mln=_text_min_mln,
-                unit_suffix=" млн рублей",
+            text=_approved_budget_bold_bar_labels(
+                _finance_bar_text_mln_rub(
+                    monthly_rows["budget fact"],
+                    min_abs_mln=_text_min_mln,
+                    unit_suffix=" млн.руб",
+                )
             ),
             textposition="outside",
-            textfont=dict(size=_tf_size, color="#f0f4f8"),
+            textfont=_bar_txt_font,
             hovertemplate="<b>%{x}</b><br>БДДС факт: %{customdata}<extra></extra>",
             customdata=monthly_rows["budget fact"].apply(format_million_rub),
         )
     )
     fig.update_layout(
         title_text="",
-        yaxis_title="млн рублей",
+        yaxis_title="млн.руб",
         barmode="group",
-        bargap=_bg,
-        bargroupgap=_bgg,
         hovermode="x unified",
         height=_chart_h,
-        xaxis=dict(
-            title=dict(text="Месяц", standoff=26),
-            tickangle=_tick_angle,
-            tickfont=dict(size=_tick_fs),
-            nticks=min(64, max(12, _n_m)),
-        ),
     )
     fig = _apply_finance_bar_label_layout(fig)
-    if _n_m > 10:
-        try:
-            fig.update_layout(uniformtext=dict(minsize=5, mode="hide"))
-        except Exception:
-            pass
-    fig = _plotly_legend_horizontal_below_plot(fig)
+    try:
+        fig.update_layout(uniformtext=dict(minsize=10, mode="show"))
+    except Exception:
+        pass
     if not monthly_rows.empty:
         _ymax = float(
             np.nanmax(
@@ -30519,11 +30574,20 @@ def _render_approved_budget_monthly_block(
             )
         )
         if np.isfinite(_ymax) and _ymax > 0:
-            fig.update_layout(yaxis=dict(range=[0, _ymax * 1.22], tickformat=".1f"))
+            fig.update_layout(yaxis=dict(range=[0, _ymax * 1.32], tickformat=".1f"))
         else:
             fig.update_layout(yaxis=dict(tickformat=".1f"))
     fig = apply_chart_background(fig)
-    render_chart(fig, caption_below="План/факт по месяцам.", height=_chart_h)
+    _render_finance_bar_chart(
+        fig,
+        n_periods=_n_m,
+        categories=_month_cats,
+        height=_chart_h,
+        caption_below="План/факт по месяцам.",
+        px_per_month=178,
+        force_hscroll=True,
+        n_bar_slots=2,
+    )
 
     render_table_subheader(st, "Сводная таблица по месяцам")
     summary_table = monthly_rows[

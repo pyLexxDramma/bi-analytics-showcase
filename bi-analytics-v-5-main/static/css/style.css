@@ -1286,15 +1286,15 @@ div[data-baseweb="menu"] li span {
 
 .appr-pf-summary-anchor ~ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child, div[data-testid="stColumn"]:first-child div[data-testid="stHtml"] {
     min-height: var(--appr-pf-gauge-h) !important;
-    max-height: var(--appr-pf-gauge-h) !important;
-    height: var(--appr-pf-gauge-h) !important;
-    overflow: hidden !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
 }
 .appr-pf-summary-anchor ~ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child, div[data-testid="stColumn"]:first-child [data-testid="stHtml"] iframe {
     min-height: var(--appr-pf-gauge-h) !important;
-    max-height: var(--appr-pf-gauge-h) !important;
-    height: var(--appr-pf-gauge-h) !important;
-    overflow: hidden !important;
+    height: calc(var(--appr-pf-gauge-h) + 24px) !important;
+    max-height: none !important;
+    overflow: visible !important;
 }
 
 
