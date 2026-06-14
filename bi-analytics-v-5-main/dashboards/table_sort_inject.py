@@ -651,6 +651,7 @@ _COMPACT_FRAME_FIT_JS = r"""
   }
   fit();
   window.addEventListener("load", fit);
+  window.addEventListener("resize", function () { setTimeout(fit, 80); });
   [0, 40, 120, 300, 800, 1200, 1800].forEach(function (ms) { setTimeout(fit, ms); });
 })();
 """
@@ -742,6 +743,35 @@ html:has(.budget-table-scroll),body:has(.budget-table-scroll){
 .budget-deviation-table-wrap{
   display:flex!important;flex-direction:column!important;height:100%!important;min-height:0!important;
   overflow:hidden!important;width:100%!important;max-width:100%!important;box-sizing:border-box;
+}
+.budget-deviation-table-wrap:not(:has(.budget-table-scroll)){
+  display:block!important;height:auto!important;max-width:100%!important;
+  overflow-x:auto!important;overflow-y:visible!important;
+  -webkit-overflow-scrolling:touch!important;scrollbar-gutter:stable;
+}
+.budget-deviation-table-wrap:not(:has(.budget-table-scroll)) table{
+  width:max-content!important;min-width:100%!important;table-layout:auto!important;
+}
+@media (max-width:1100px){
+  .budget-deviation-table-wrap:not(:has(.budget-table-scroll)){
+    overflow-y:auto!important;max-height:min(70vh,640px)!important;
+  }
+  .budget-deviation-table-wrap:not(:has(.budget-table-scroll)) thead th{
+    position:sticky!important;top:0!important;z-index:5!important;
+  }
+  .rendered-table-wrap,.pf-dates-table-wrap,.pf-dates-scroll-wrap,.exec-doc-table-wrap,
+  .bi-styled-table-wrap,.dev-reasons-wrap,.gantt-schedule-scroll-wrap{
+    overflow-x:auto!important;overflow-y:auto!important;
+    max-height:min(70vh,640px)!important;-webkit-overflow-scrolling:touch!important;scrollbar-gutter:stable;
+  }
+  .rendered-table-wrap table,.pf-dates-table-wrap table,.exec-doc-table-wrap table,
+  .bi-styled-table-wrap table,.dev-reasons-wrap table{
+    width:max-content!important;min-width:100%!important;
+  }
+  .rendered-table-wrap thead th,.pf-dates-table-wrap thead th,.exec-doc-table-wrap thead th,
+  .bi-styled-table-wrap thead th,.dev-reasons-wrap thead th,.gantt-schedule-scroll-wrap thead th{
+    position:sticky!important;top:0!important;z-index:5!important;
+  }
 }
 .budget-table-scroll{
   display:block!important;width:100%!important;height:100%!important;max-height:100%!important;
@@ -868,7 +898,18 @@ html, body {
   color: #111827;
   font-family: Inter, system-ui, sans-serif;
 }
-.bi-sortable-html-root { width: 100%; max-width: 100%; color: #111827; }
+.bi-sortable-html-root { width: 100%; max-width: 100%; color: #111827; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.bi-sortable-html-root .budget-deviation-table-wrap:not(:has(.budget-table-scroll)){
+  overflow-x:auto!important;overflow-y:visible!important;max-width:100%!important;
+}
+@media (max-width:1100px){
+  .bi-sortable-html-root .budget-deviation-table-wrap:not(:has(.budget-table-scroll)){
+    overflow-y:auto!important;max-height:min(70vh,640px)!important;
+  }
+  .bi-sortable-html-root .budget-deviation-table-wrap:not(:has(.budget-table-scroll)) thead th{
+    position:sticky!important;top:0!important;z-index:5!important;
+  }
+}
 .bi-sortable-html-root h3.bi-table-caption,
 .bi-sortable-html-root .bi-table-caption {
   color: #111827 !important;

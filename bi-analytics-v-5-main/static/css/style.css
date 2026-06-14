@@ -850,6 +850,25 @@ table tbody tr:nth-child(even) td{
         padding-right: 0.75rem !important;
     }
 
+    /* Таблицы: прокрутка по обеим осям при переполнении */
+    .rendered-table-wrap,
+    .budget-deviation-table-wrap,
+    .budget-table-scroll,
+    .pf-dates-table-wrap,
+    .pf-dates-scroll-wrap,
+    .bd-table-wrap,
+    .exec-doc-table-wrap,
+    .bi-styled-table-wrap,
+    .dev-reasons-wrap,
+    .fc-table-scroll-wrap,
+    .pred-detail-wrap {
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        max-height: min(70vh, 640px) !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-gutter: stable;
+    }
+
     /* Заголовки меньше на мобилке */
     .main h1 { font-size: 1.5rem !important; }
     .main h2 { font-size: 1.25rem !important; }

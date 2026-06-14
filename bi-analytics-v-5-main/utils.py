@@ -243,11 +243,12 @@ BI_RESPONSIVE_DASHBOARD_CSS = """
 /* BI Analytics: узкие экраны — таблицы и графики (все дашборды) */
 .rendered-table-wrap,.bi-styled-table-wrap,.exec-doc-table-wrap,.pf-dates-table-wrap,
 .budget-deviation-table-wrap,.budget-table-scroll,.dev-reasons-wrap,.pred-detail-wrap,
-.gdrs-table-wrap,.gdrs-summary-table-wrap,.bi-sortable-html-root,
+.gdrs-table-wrap,.gdrs-summary-table-wrap,.fc-table-scroll-wrap,.bi-sortable-html-root,
 div[data-testid="stElementContainer"]:has(iframe[title="streamlit_components_v1"]),
 div[data-testid="stHtml"]{max-width:100%!important;min-width:0!important;box-sizing:border-box!important}
 .rendered-table-wrap,.pf-dates-table-wrap,.exec-doc-table-wrap,.bi-styled-table-wrap,
-.dev-reasons-wrap,.gdrs-table-wrap,.gdrs-summary-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
+.budget-deviation-table-wrap,.budget-table-scroll,.dev-reasons-wrap,.pred-detail-wrap,
+.fc-table-scroll-wrap,.gdrs-table-wrap,.gdrs-summary-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
 table.bi-sortable-table th,.bi-sortable-html-root table.bi-sortable-table th{
   text-align:center!important;vertical-align:middle!important}
 table.bi-sortable-table thead th>div,.bi-sortable-html-root table.bi-sortable-table thead th>div{
@@ -256,7 +257,29 @@ table.bi-sortable-table thead th .bi-sort-label{text-align:center!important}
 [data-testid="stPlotlyChart"],[data-testid="stPlotlyChart"]>div,[data-testid="stPlotlyChart"] iframe{
   max-width:100%!important;width:100%!important;box-sizing:border-box!important}
 .pf-fbar-wrap,.pf-gantt-view{overflow-x:auto!important;max-width:100%!important;-webkit-overflow-scrolling:touch!important}
+div[data-testid="stElementContainer"]:has(iframe[title="streamlit_components_v1"]){
+  overflow:visible!important;width:100%!important;max-width:100%!important}
 @media (max-width:1100px){
+  .rendered-table-wrap,.budget-deviation-table-wrap,.budget-table-scroll,
+  .pf-dates-table-wrap,.pf-dates-scroll-wrap,.exec-doc-table-wrap,.bi-styled-table-wrap,
+  .dev-reasons-wrap,.gdrs-table-wrap,.gdrs-summary-table-wrap,.fc-table-scroll-wrap,
+  .pred-detail-wrap,.bi-sortable-html-root:has(table.bi-sortable-table){
+    overflow-x:auto!important;overflow-y:auto!important;
+    max-height:min(70vh,640px)!important;
+    -webkit-overflow-scrolling:touch!important;scrollbar-gutter:stable}
+  .rendered-table-wrap .rendered-table,.rendered-table-wrap table,
+  .budget-deviation-table-wrap table,.budget-table-scroll table,
+  .pf-dates-table-wrap .pf-dates-table,.pf-dates-table-wrap table,
+  .exec-doc-table-wrap table,.bi-styled-table-wrap table,.dev-reasons-wrap table,
+  .gdrs-table-wrap table,.gdrs-summary-table-wrap table,.fc-table-scroll-wrap table,
+  .pred-detail-wrap table{
+    width:max-content!important;min-width:100%!important;table-layout:auto!important}
+  .rendered-table-wrap thead th,.budget-deviation-table-wrap thead th,
+  .budget-table-scroll thead th,.pf-dates-table-wrap thead th,.pf-dates-scroll-wrap thead th,
+  .exec-doc-table-wrap thead th,.bi-styled-table-wrap thead th,.dev-reasons-wrap thead th,
+  .gdrs-table-wrap thead th,.fc-table-scroll-wrap thead th,.pred-detail-wrap thead th,
+  table.bi-sortable-table thead th,.bi-sortable-html-root table.bi-sortable-table thead th{
+    position:sticky!important;top:0!important;z-index:5!important}
   table.bi-sortable-table th,.bi-sortable-html-root table.bi-sortable-table th{
     font-size:9px!important;padding:6px 4px!important;white-space:normal!important;word-wrap:break-word!important;max-width:none!important}
   table.bi-sortable-table td{font-size:11px!important;padding:5px 6px!important}
@@ -1499,9 +1522,14 @@ def budget_table_to_html(
             f'{{ min-width: 10.5em; max-width: 12em; {HTML_TABLE_TD_COMPACT_CSS} isolation: isolate; }}'
         )
     )
+    _wrap_style = (
+        "overflow: hidden; min-width: 0; max-width: 100%; margin: 0; padding: 0; height: 100%;"
+        if _scroll_vh
+        else "overflow-x: auto; overflow-y: visible; min-width: 0; max-width: 100%; margin: 0; padding: 0;"
+    )
     parts = [
         _html_table_caption(table_caption),
-        f'<div id="{wrap_id}" class="budget-deviation-table-wrap" data-bi-rows="{len(df)}" style="overflow: hidden; min-width: 0; margin: 0; padding: 0; height: 100%;">',
+        f'<div id="{wrap_id}" class="budget-deviation-table-wrap" data-bi-rows="{len(df)}" style="{_wrap_style}">',
         f"<style>{_style_css}</style>",
         (
             f'<div class="budget-table-scroll" data-scroll-vh="{_scroll_vh:.1f}">' if _scroll_vh else ""
