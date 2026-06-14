@@ -1055,6 +1055,7 @@ def _iter_web_scan_roots() -> List[Tuple[Path, str]]:
         get_extra_web_dirs_from_env,
         get_showcase_web_dir,
         include_analytics_sibling_web_dir,
+        is_prohibited_production_data_path,
         is_showcase_mode,
     )
 
@@ -1118,6 +1119,8 @@ def _is_demo_file(rel_path: str, name: str) -> bool:
 
 def scan_web_files(extensions: tuple = (".csv", ".json")) -> List[Dict]:
     """Рекурсивно сканирует все настроенные корни данных и возвращает список файлов."""
+    from config import is_prohibited_production_data_path, is_showcase_mode
+
     files: List[Dict] = []
     for root, prefix in _iter_web_scan_roots():
         if not root.exists():
@@ -1129,6 +1132,11 @@ def scan_web_files(extensions: tuple = (".csv", ".json")) -> List[Dict]:
                     rel_path = str(rel).replace("\\", "/")
                     if prefix:
                         rel_path = f"{prefix}/{rel_path}"
+                    if not is_showcase_mode() and (
+                        is_prohibited_production_data_path(rel_path)
+                        or is_prohibited_production_data_path(filepath)
+                    ):
+                        continue
                     if ignore_demo_data_files() and _is_demo_file(rel_path, filepath.name):
                         continue
                     files.append({

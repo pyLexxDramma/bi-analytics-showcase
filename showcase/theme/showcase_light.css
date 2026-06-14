@@ -170,6 +170,64 @@ html body .budget-deviation-table-wrap tr.bd-group-row td {
   color: #111827 !important;
 }
 
+/* Отклонение от базового плана: KPI-плашки и таблицы pf-dates */
+html body [data-testid="stMain"] .pf-kpi-wrap {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+html body [data-testid="stMain"] .pf-kpi-row {
+  border-bottom-color: #e2e8f0 !important;
+}
+html body [data-testid="stMain"] .pf-kpi-lbl {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+html body [data-testid="stMain"] .pf-kpi-val {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+html body [data-testid="stMain"] .pf-kpi-val-late {
+  color: #dc2626 !important;
+  -webkit-text-fill-color: #dc2626 !important;
+}
+html body [data-testid="stMain"] .pf-kpi-val-early {
+  color: #16a34a !important;
+  -webkit-text-fill-color: #16a34a !important;
+}
+
+html body [data-testid="stMain"] .rendered-table th,
+html body [data-testid="stMain"] .pf-dates-table th,
+html body [data-testid="stMain"] .pf-dates-scroll-wrap .pf-dates-table thead th,
+html body [data-testid="stMain"] .gantt-schedule-scroll-wrap thead th {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+html body [data-testid="stMain"] .rendered-table th .bi-sort-label,
+html body [data-testid="stMain"] .rendered-table th .bi-sort-label:hover,
+html body [data-testid="stMain"] .pf-dates-table th .bi-sort-label,
+html body [data-testid="stMain"] .pf-dates-table th .bi-sort-label:hover {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stMain"] .rendered-table td,
+html body [data-testid="stMain"] .pf-dates-table td {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  border-bottom-color: #e5e7eb !important;
+}
+
+html body [data-testid="stMain"] .rendered-table tr:hover td {
+  background-color: #f8fafc !important;
+}
+
+html body [data-testid="stMain"] .rendered-table tr:nth-child(even) td {
+  background-color: #fafbfc !important;
+}
+
 html body .main table,
 html body .main table th,
 html body .main table td {
@@ -192,16 +250,36 @@ html body [data-testid="stExpander"] summary {
   border-radius: 8px !important;
 }
 
-html body .stButton > button[kind="primary"] {
-  background-color: #2563eb !important;
+html body .stButton > button[kind="primary"],
+html body .stButton > button[kind="primaryFormSubmit"],
+html body [data-testid="stBaseButton-primary"],
+html body [data-testid="baseButton-primary"],
+html body [data-testid="stFormSubmitButton"] button,
+html body [data-testid="stForm"] [data-testid="stBaseButton-primary"],
+html body [data-testid="stForm"] [data-testid="baseButton-primary"] {
+  background-color: var(--showcase-accent, #2563eb) !important;
   color: #ffffff !important;
-  border-color: #2563eb !important;
+  border-color: var(--showcase-accent, #2563eb) !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 html body .stButton > button[kind="secondary"] {
   background-color: #ffffff !important;
   color: #111827 !important;
   border: 1px solid #cbd5e1 !important;
+}
+
+/* Sidebar: одиночные категории отчётов — жирность текста как у expander summary */
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"],
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"] p,
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"] span,
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"],
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"] * {
+  font-weight: 700 !important;
+}
+html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"],
+html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"] * {
+  font-weight: 500 !important;
 }
 
 html body iframe {

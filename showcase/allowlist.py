@@ -5,7 +5,7 @@ Production не импортирует этот модуль. Сырые/нег�
 """
 from __future__ import annotations
 
-from typing import FrozenSet, List, Sequence
+from typing import Dict, FrozenSet, List, Sequence
 
 # Канонические имена как в ``dashboards.REPORT_CATEGORIES``.
 SHOWCASE_REPORT_ALLOWLIST: FrozenSet[str] = frozenset(
@@ -23,6 +23,17 @@ SHOWCASE_REPORT_ALLOWLIST: FrozenSet[str] = frozenset(
         "Дебиторская и кредиторская задолженность подрядчиков",
     }
 )
+
+# Короткие подписи в меню showcase (ключ — каноническое имя из REPORT_CATEGORIES).
+SHOWCASE_REPORT_LABELS: Dict[str, str] = {
+    "ГДРС (превью — светлая, люди)": "ГДРС (люди)",
+    "ГДРС (превью — светлая, техника)": "ГДРС (техника)",
+}
+
+
+def showcase_report_label(report_name: str) -> str:
+    """Подпись отчёта в sidebar showcase; production-имена не меняет."""
+    return SHOWCASE_REPORT_LABELS.get(report_name, report_name)
 
 
 def filter_showcase_reports(report_names: Sequence[str]) -> List[str]:

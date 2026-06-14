@@ -524,6 +524,23 @@ html body [data-testid="stSidebar"] [data-testid="stLinkButton"] button {{
   border: 1px solid {g_border} !important;
   font-weight: 600 !important;
 }}
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] .stButton > button,
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid="stButton"] button,
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid="stBaseButton-primary"],
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid="stBaseButton-secondary"],
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"],
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"] *,
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"],
+html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"] * {{
+  font-weight: 700 !important;
+}}
+html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] .stButton > button,
+html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] [data-testid="stButton"] button,
+html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"],
+html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"],
+html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"] * {{
+  font-weight: 500 !important;
+}}
 html body [data-testid="stSidebar"] .stButton > button:hover,
 html body [data-testid="stSidebar"] [data-testid="stButton"] button:hover,
 html body [data-testid="stSidebar"] [data-testid="stLinkButton"] a:hover,

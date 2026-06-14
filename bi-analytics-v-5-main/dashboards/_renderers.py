@@ -3162,6 +3162,53 @@ _FINANCE_DEV_LABEL_RED = "hsl(348,100%,63%)"
 _FINANCE_DEV_LABEL_GREEN = "hsl(148,100%,63%)"
 _FINANCE_DEV_BAR_RED = "#e74c3c"
 _FINANCE_DEV_BAR_GREEN = "#27ae60"
+_FINANCE_DEV_GREEN_LABEL_SVG_STROKE_CSS = (
+    ".js-plotly-plot text[fill='hsl(148,100%,63%)'],"
+    ".js-plotly-plot text[fill='hsl(148, 100%, 63%)'],"
+    ".js-plotly-plot text[fill='rgb(66, 254, 154)'],"
+    ".js-plotly-plot text[fill='rgb(66,254,154)']{"
+    "paint-order:stroke fill;stroke:#111827;stroke-width:0.35px;stroke-linejoin:round;}"
+)
+
+
+def _finance_bar_dev_green_label_svg_css() -> str:
+    """Showcase: чёрная обводка зелёных подписей отклонения на светлом фоне (SVG bar labels)."""
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            return (
+                _FINANCE_DEV_GREEN_LABEL_SVG_STROKE_CSS
+                + ".js-plotly-plot text[fill='hsl(148, 72%, 36%)'],"
+                + ".js-plotly-plot text[fill='hsl(148,72%,36%)'],"
+                + ".js-plotly-plot text[fill='rgb(25, 157, 87)'],"
+                + ".js-plotly-plot text[fill='rgb(25,157,87)']{"
+                "paint-order:stroke fill;stroke:#111827;stroke-width:0.35px;stroke-linejoin:round;}"
+            )
+    except Exception:
+        pass
+    return ""
+
+
+def _finance_dev_green_bar_label_color() -> str:
+    """Цвет подписи отклонения (факт < план): на showcase — тёмно-зелёный для светлого фона."""
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            from utils import BD_CELL_GREEN_COLOR_LIGHT
+
+            return BD_CELL_GREEN_COLOR_LIGHT
+    except Exception:
+        pass
+    return _FINANCE_DEV_LABEL_GREEN
+
+
+def _finance_dev_green_bar_textfont(*, approved: bool = False) -> dict:
+    color = _finance_dev_green_bar_label_color()
+    if approved:
+        return _approved_budget_bar_textfont(color=color)
+    return _finance_bar_label_textfont(color=color)
 
 
 def _finance_bdr_expense_deviation_chart_parts(
@@ -3214,7 +3261,7 @@ def _finance_bdr_expense_deviation_chart_parts(
                 clr_neg.append("#f0f4f8")
             elif fv < pv:
                 txt_neg.append(f"-{abs(diff_rub) / 1e6:.{d}f}{suf}")
-                clr_neg.append(_FINANCE_DEV_LABEL_GREEN)
+                clr_neg.append(_finance_dev_green_bar_label_color())
             else:
                 txt_neg.append("")
                 clr_neg.append("#f0f4f8")
@@ -4971,12 +5018,7 @@ def _render_deviations_combined_shared_filters(df):
             st.session_state["devcombo_report_period"] = "Весь период"
             st.session_state["dynamics_time_axis_combo"] = _DEV_TIME_AXIS_PLAN
             st.session_state["reasons_view_type"] = "По причинам"
-        with filters_toggles(st):
-            st.checkbox(
-                "ТОП 5 причин отклонений",
-                value=False,
-                key="reason_top5",
-            )
+            st.session_state["reason_top5"] = False
         # Линия тренда убрана по ТЗ (скриншот) — фиксируем выключенной.
         st.session_state["reasons_dynamics_show_trend_line"] = False
     filtered_df = _apply_deviations_combined_filters(df, building_col=building_col)
@@ -7095,18 +7137,6 @@ div[class*="st-key-gantt_project_schedule"] [data-testid="stElementContainer"]:h
 </style>
 """
 
-_PLAN_FACT_DISPLAY_OPTS_CSS = """
-<style>
-.pf-dates-opts-block{margin:0.5rem 0 0;padding:0.5rem 0 0;border-top:1px solid rgba(148,163,184,.18);}
-.pf-dates-opts-block [data-testid="stCheckbox"]{min-height:2.75rem;display:flex;align-items:flex-start;}
-.pf-dates-opts-block [data-testid="stCheckbox"] label{align-items:flex-start;width:100%;}
-.pf-dates-opts-block [data-testid="stCheckbox"] label p{font-size:0.92rem;line-height:1.35;margin:0;}
-.pf-dates-opts-block [data-testid="stRadio"] label p{font-size:0.92rem;line-height:1.35;}
-.pf-dates-opts-block [data-testid="column"]{min-height:2.75rem;}
-</style>
-"""
-
-
 def _plan_fact_pick_metric_task_row(
     frame: pd.DataFrame,
     *,
@@ -7398,8 +7428,6 @@ def dashboard_plan_fact_dates(df):
     with filters_panel(st, reset_keys=[
         "dates_project", "dates_block_l2", "dates_block_section", "dates_block",
         "dates_building_l3", "dates_building", "dates_level",
-        "dates_show_reason_notes", "dates_hide_done", "dates_only_covenants",
-        "dates_only_neg_end", "dates_tbl_dur", "dates_task_label_mode",
         "dates_reason_bucket_filter",
     ]):
         with filters_selectors(st):
@@ -7867,58 +7895,15 @@ def dashboard_plan_fact_dates(df):
                         disabled=True,
                     )
 
-        st.markdown(_PLAN_FACT_DISPLAY_OPTS_CSS, unsafe_allow_html=True)
-        with filters_toggles(st):
-
-            _cb1, _cb2, _cb3, _cb4, _cb5 = st.columns(5, gap="small")
-            with _cb1:
-                dates_show_reason_notes = st.checkbox(
-                    "Показать причины отклонений",
-                    value=True,
-                    key="dates_show_reason_notes",
-                    help=(
-                        "При включении: таблица по макету «Причины отклонений» — только задачи MSP уровня 5 "
-                        "с заполненной причиной и отклонением окончания < 0. Селектор «Детализация» игнорируется."
-                    ),
-                )
-            with _cb2:
-                hide_completed_dates = st.checkbox(
-                    "Скрыть завершённые (100%)",
-                    value=False,
-                    key="dates_hide_done",
-                )
-            with _cb3:
-                force_covenant_ui = st.checkbox(
-                    "Только ковенанты",
-                    value=False,
-                    key="dates_only_covenants",
-                )
-            with _cb4:
-                only_negative_dev_dates = st.checkbox(
-                    "Отображать только диаграммы, где отклонение окончания < 0",
-                    value=False,
-                    key="dates_only_neg_end",
-                )
-            with _cb5:
-                tbl_show_dur = st.checkbox(
-                    "Показать «Отклонение длительности» в таблице",
-                    value=True,
-                    key="dates_tbl_dur",
-                )
-
-            if dates_lot_col:
-                task_label_mode = st.radio(
-                    "Подписи на графике и в таблице",
-                    ("По наименованию MSP", "По лоту"),
-                    horizontal=True,
-                    key="dates_task_label_mode",
-                )
-            else:
-                task_label_mode = "По наименованию MSP"
-
-            dates_value_type = "Даты (план/факт)"
-            tbl_show_start = True
-            tbl_show_end = True
+        dates_show_reason_notes = False
+        hide_completed_dates = False
+        force_covenant_ui = False
+        only_negative_dev_dates = False
+        tbl_show_dur = True
+        task_label_mode = "По наименованию MSP"
+        dates_value_type = "Даты (план/факт)"
+        tbl_show_start = True
+        tbl_show_end = True
 
 
     # По ТЗ в таблице показываем только строки, где есть отклонение (|дней| > 0) по началу или окончанию.
@@ -10659,6 +10644,8 @@ _APPROVED_BUDGET_BAR_LABEL_FAMILY = "Inter, Arial Black, sans-serif"
 
 
 def _approved_budget_bold_bar_labels(labels) -> list[str]:
+    if labels is None:
+        return []
     return [f"<b>{t}</b>" if t else "" for t in labels]
 
 
@@ -10704,6 +10691,15 @@ def _finance_chart_legend_style() -> dict[str, str]:
         "bgcolor": "rgba(15, 28, 45, 0.92)",
         "bordercolor": "rgba(122, 158, 196, 0.55)",
     }
+
+
+def _chart_plotly_tick_color() -> str:
+    """Цвет подписей осей Plotly (светлая тема showcase — тёмный текст)."""
+    return _finance_chart_legend_style()["font_color"]
+
+
+def _chart_plotly_bar_label_color() -> str:
+    return _chart_plotly_tick_color()
 
 
 def _bdds_table_html_kw(**overrides) -> dict:
@@ -11059,6 +11055,7 @@ def _render_finance_bar_chart(
             f".pf-fbar-{uid}-wrap::-webkit-scrollbar{{height:12px;}}"
             f".pf-fbar-{uid}-wrap::-webkit-scrollbar-thumb{{background:rgba(148,163,184,0.55);border-radius:6px;}}"
             f".pf-fbar-{uid}-wrap::-webkit-scrollbar-track{{background:rgba(15,23,42,0.35);border-radius:6px;}}"
+            f"{_finance_bar_dev_green_label_svg_css()}"
             f"</style></head><body>"
             f'<div class="pf-fbar-{uid}-wrap"><div class="pf-fbar-{uid}-inner">{plot_div}</div></div>'
             "</body></html>"
@@ -11172,9 +11169,10 @@ def _dk_chart_yaxis_layout(
         _y_rng = [-(_y_bot_fc + _pad_bot), _y_top_fc]
     else:
         _y_rng = [0, _y_top_fc]
+    _axis_color = _chart_plotly_tick_color()
     return dict(
-        title=dict(text="млн руб.", font=dict(size=15, color="#f0f4f8")),
-        tickfont=dict(size=13, color="#f0f4f8"),
+        title=dict(text="млн руб.", font=dict(size=15, color=_axis_color)),
+        tickfont=dict(size=13, color=_axis_color),
         range=_y_rng,
         dtick=_dtick_fc,
         tick0=0,
@@ -11227,7 +11225,7 @@ def _dk_make_stack_bar_figure(
         textposition="outside",
         textangle=0,
         cliponaxis=False,
-        textfont=dict(size=11, color="#e8eef5"),
+        textfont=dict(size=11, color=_chart_plotly_bar_label_color()),
         **_grp,
     )
     _series: list[tuple[str, np.ndarray, str, str]] = []
@@ -11303,7 +11301,7 @@ def _render_dk_chart_html_legend(_leg_items: list[tuple[str, str]]) -> None:
                 f'<span style="display:flex;align-items:center;gap:5px;">'
                 f'<span style="display:inline-block;width:14px;height:14px;'
                 f'border-radius:2px;background:{_lc};flex-shrink:0;"></span>'
-                f'<span style="color:#e2e8f0;">{_ln}</span></span>'
+                f'<span style="color:{_finance_chart_legend_style()["html_color"]};">{_ln}</span></span>'
             )
         _lh += "</div>"
         _leg_h = int(max(44, 28 + 22 * max(1, (len(_leg_items) + 1) // 2)))
@@ -11381,6 +11379,7 @@ def _render_debit_credit_bar_chart(
         pass
 
     _tick_size = 11 if need_hscroll else 12
+    _tick_color = _chart_plotly_tick_color()
     try:
         if cats:
             fig.update_xaxes(
@@ -11392,16 +11391,16 @@ def _render_debit_credit_bar_chart(
                 ticktext=ticktext,
                 tickangle=0,
                 ticklabelstandoff=28 if need_hscroll else 20,
-                tickfont=dict(size=_tick_size, color="#f0f4f8"),
+                tickfont=dict(size=_tick_size, color=_tick_color),
                 automargin=True,
             )
         else:
             fig.update_xaxes(
                 tickangle=0 if need_hscroll else -42,
-                tickfont=dict(size=_tick_size, color="#f0f4f8"),
+                tickfont=dict(size=_tick_size, color=_tick_color),
                 automargin=True,
             )
-        fig.update_yaxes(tickfont=dict(size=14, color="#f0f4f8"))
+        fig.update_yaxes(tickfont=dict(size=14, color=_tick_color))
     except Exception:
         pass
 
@@ -12073,7 +12072,7 @@ def dashboard_budget_by_period(df):
         _bar_lbl_color = _finance_chart_bar_text_color()
         _bar_txt_font = _finance_bar_label_textfont(color=_bar_lbl_color)
         _dev_txt_font_red = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_RED)
-        _dev_txt_font_green = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_GREEN)
+        _dev_txt_font_green = _finance_dev_green_bar_textfont()
 
         fig = go.Figure()
         _bdds_show_plan = (
@@ -13938,7 +13937,7 @@ def dashboard_bdr(df):
             _bar_lbl_color = _finance_chart_bar_text_color()
             _bar_txt_font = _finance_bar_label_textfont(color=_bar_lbl_color)
             _dev_txt_font_red = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_RED)
-            _dev_txt_font_green = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_GREEN)
+            _dev_txt_font_green = _finance_dev_green_bar_textfont()
             _tlbl_b = 0.005
             _bg, _bgg, _bar_w = _bdds_plotly_bar_layout(_nb)
             _leg_b_pre = 300
@@ -22321,7 +22320,9 @@ def dashboard_gdrs(df, vid_locked: str | None = None, *, theme: str = "dark"):
         gdrs_contractor_filter_options,
     )
 
-    web_dir = _Path(_root) / "web"
+    from config import get_runtime_web_dir
+
+    web_dir = get_runtime_web_dir()
     ai_dir = web_dir / "AI"
 
     resursi_files = sorted(ai_dir.glob("*resursi*.csv"))
@@ -22472,13 +22473,7 @@ def dashboard_gdrs(df, vid_locked: str | None = None, *, theme: str = "dark"):
                     "N неделя — среднее факт/день только в выбранной неделе",
                 )
 
-        with filters_toggles(st):
-            only_with_plan = st.checkbox(
-                "Только с планом",
-                value=True,
-                key=f"gdrs_filter_only_plan_{_gdrs_key_suffix}",
-                help="Скрыть подрядчиков без плана в активном договоре",
-            )
+        only_with_plan = True
 
 
     _sel_periods, _month_stale = gdrs_resolve_month_periods(_month_options, sel_month_labels)
@@ -22976,7 +22971,9 @@ def _load_project_id_to_name_lookup() -> dict[str, str]:
 
     out: dict[str, str] = {}
     try:
-        web_dir = _Path(__file__).resolve().parent.parent / "web"
+        from config import get_runtime_web_dir
+
+        web_dir = get_runtime_web_dir()
         files = sorted(web_dir.glob("1[сc]_*_Projekts.json"), key=lambda x: x.stat().st_mtime)
     except Exception:
         return out
@@ -23516,9 +23513,24 @@ def dashboard_debit_credit(df):
         pass
 
     data = st.session_state.get("debit_credit_data", None)
-    if (data is None or data.empty) and (df is not None and not df.empty):
-        data = df
-    if data is None or data.empty:
+    if data is None or getattr(data, "empty", True):
+        if df is not None and not getattr(df, "empty", True):
+            _looks_dk = bool(
+                _find_col(
+                    df,
+                    [
+                        "Номер договора",
+                        "Договор",
+                        "Название контрагента",
+                        "Выплачено",
+                        "ВсегоОплат",
+                        "Остаток на конец периода",
+                    ],
+                )
+            )
+            if _looks_dk:
+                data = df
+    if data is None or getattr(data, "empty", True):
         st.warning(
             "Для отчёта загрузите файл с данными по дебиторской/кредиторской задолженности. "
             "Ожидаемые колонки: подрядчик (название организации), тип подрядчика, договор, сумма в договоре, выплачено, аванс, остаток на конец периода."
@@ -24355,7 +24367,7 @@ def dashboard_debit_credit(df):
             textposition="outside",
             textangle=0,
             cliponaxis=False,
-            textfont=dict(size=11, color="#e8eef5"),
+            textfont=dict(size=11, color=_chart_plotly_bar_label_color()),
         )
         if _dk_is_stack:
             fig = _dk_make_stack_bar_figure(
@@ -24405,7 +24417,7 @@ def dashboard_debit_credit(df):
                         textposition="outside",
                         textangle=0,
                         cliponaxis=False,
-                        textfont=dict(size=16, color="#f0f4f8"),
+                        textfont=dict(size=16, color=_chart_plotly_bar_label_color()),
                         customdata=_dev_pos.apply(
                             lambda v: f"{v:.1f} млн" if pd.notna(v) else "0,0 млн"
                         ),
@@ -24423,7 +24435,7 @@ def dashboard_debit_credit(df):
                         textposition="outside",
                         textangle=0,
                         cliponaxis=False,
-                        textfont=dict(size=16, color="#f0f4f8"),
+                        textfont=dict(size=16, color=_chart_plotly_bar_label_color()),
                         customdata=_dev_neg.apply(
                             lambda v: f"{v:.1f} млн" if pd.notna(v) else "0,0 млн"
                         ),
@@ -29802,14 +29814,14 @@ def _render_plan_fact_detail_table(
         display,
         finance_deviation_column="Отклонение, млн руб.",
         deviation_color_fact_vs_plan=True,
-        color_fact_column=False,
         expense_overrun_style=False,
-        header_font_css="font-weight:700;font-size:1.15em;",
-        label_columns_font_css="font-weight:700;font-size:1.08em;",
-        table_font_size_px=16,
         file_stem="approved_budget_plan_fact_detail",
         key_prefix=f"appr_budget_detail_{key_suffix}",
-        **_bdds_table_html_kw(),
+        **_bdds_table_html_kw(
+            header_font_css="font-weight:700;font-size:1.15em;",
+            label_columns_font_css="font-weight:700;font-size:1.08em;",
+            table_font_size_px=16,
+        ),
     )
 
 
@@ -29891,17 +29903,14 @@ def _plan_fact_gauge_axis_ticks(
     value_format: str,
     unit: str,
 ) -> tuple[list[float], list[str]]:
-    """Деления шкалы: 0, план (фиолетовая линия), факт (если отличается)."""
+    """Деления шкалы: 0 и план (красная линия); факт — только в центре gauge, не на дуге."""
     hi = float(hi or 0.0)
     if hi <= 0:
         return [0.0], ["0"]
     plan_v = float(plan_v or 0.0)
-    fact_v = float(fact_v or 0.0)
     raw = [0.0]
     if plan_v > 0:
         raw.append(plan_v)
-    if fact_v > 0 and abs(fact_v - plan_v) > 1e-6 and fact_v <= hi + 1e-9:
-        raw.append(fact_v)
     ticks = sorted({round(v, 4) for v in raw if 0.0 <= v <= hi + 1e-9})
     if not ticks or ticks[0] != 0.0:
         ticks.insert(0, 0.0)
@@ -30179,7 +30188,7 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
                     marker_color=_FINANCE_DEV_BAR_GREEN,
                     text=_approved_budget_bold_bar_labels(_dev_txt_lt),
                     textposition="outside",
-                    textfont=_approved_budget_bar_textfont(color=_FINANCE_DEV_LABEL_GREEN),
+                    textfont=_finance_dev_green_bar_textfont(approved=True),
                     cliponaxis=False,
                 )
             )
@@ -30197,10 +30206,11 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
                 )
             )
 
+    _hist_h = 900
     fig_hist.update_layout(
         xaxis_title="",
         yaxis_title="млн.руб.",
-        height=600,
+        height=_hist_h,
         barmode="group",
         xaxis=dict(
             tickangle=0,
@@ -30253,7 +30263,16 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
         fig_hist.update_layout(yaxis=dict(tickformat=".1f"))
     fig_hist = _apply_finance_bar_label_layout(fig_hist)
     fig_hist = apply_chart_background(fig_hist)
-    render_chart(fig_hist, caption_below="Бюджет план/факт/корректировка/отклонение по проектам")
+    _render_finance_bar_chart(
+        fig_hist,
+        n_periods=len(_projects),
+        categories=_projects,
+        height=_hist_h,
+        caption_below="Бюджет план/факт/корректировка/отклонение по проектам",
+        px_per_month=420,
+        force_hscroll=True,
+        n_bar_slots=_finance_figure_bar_slot_count(fig_hist),
+    )
 
     render_table_subheader(st, "Сводная таблица по проектам")
     _sum_rows: list[dict] = []
@@ -30285,14 +30304,14 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
         pd.DataFrame(_sum_rows),
         finance_deviation_column="Отклонение, млн руб.",
         deviation_color_fact_vs_plan=True,
-        color_fact_column=False,
         expense_overrun_style=False,
-        header_font_css="font-weight:700;font-size:1.15em;",
-        label_columns_font_css="font-weight:700;font-size:1.08em;",
-        table_font_size_px=16,
         file_stem="budget_summary",
         key_prefix="budget_summary",
-        **_bdds_table_html_kw(),
+        **_bdds_table_html_kw(
+            header_font_css="font-weight:700;font-size:1.15em;",
+            label_columns_font_css="font-weight:700;font-size:1.08em;",
+            table_font_size_px=16,
+        ),
     )
 
 def _approved_budget_get_monthly_slice(
@@ -30644,7 +30663,7 @@ def _render_approved_budget_monthly_block(
     _bar_lbl_color = _finance_chart_bar_text_color()
     _bar_txt_font = _approved_budget_bar_textfont(color=_bar_lbl_color)
     _dev_txt_font_red = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_RED)
-    _dev_txt_font_green = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_GREEN)
+    _dev_txt_font_green = _finance_dev_green_bar_textfont(approved=True)
     _chart_h = max(720, int(min(1050, 680 + _n_m * 4)))
     _month_cats = monthly_rows["Месяц"].astype(str).tolist()
 
@@ -30764,9 +30783,9 @@ def _render_approved_budget_monthly_block(
         categories=_month_cats,
         height=_chart_h,
         caption_below="План/факт по месяцам.",
-        px_per_month=178,
+        px_per_month=280,
         force_hscroll=True,
-        n_bar_slots=2,
+        n_bar_slots=_finance_figure_bar_slot_count(fig),
     )
 
     render_table_subheader(st, "Сводная таблица по месяцам")
@@ -30789,12 +30808,13 @@ def _render_approved_budget_monthly_block(
         summary_table,
         finance_deviation_column="Отклонение, млн руб.",
         deviation_color_fact_vs_plan=True,
-        header_font_css="font-weight:700;font-size:1.15em;",
-        label_columns_font_css="font-weight:700;font-size:1.08em;",
-        table_font_size_px=16,
         file_stem="approved_budget_by_month",
         key_prefix="appr_budget_planfact_summary",
-        **_bdds_table_html_kw(),
+        **_bdds_table_html_kw(
+            header_font_css="font-weight:700;font-size:1.15em;",
+            label_columns_font_css="font-weight:700;font-size:1.08em;",
+            table_font_size_px=16,
+        ),
     )
 
 
@@ -32249,7 +32269,6 @@ def dashboard_approved_budget(df):
                 _tz_out,
                 finance_deviation_column="Отклонение, млн руб.",
                 deviation_color_fact_vs_plan=True,
-                color_fact_column=False,
                 **_bdds_table_html_kw(),
             )
         render_quality_hints(_approved_q_hints)
@@ -32370,7 +32389,7 @@ def dashboard_approved_budget(df):
     _bar_lbl_color = _finance_chart_bar_text_color()
     _tf_size = 8 if _n_m > 32 else 9 if _n_m > 20 else 10 if _n_m > 12 else 11
     _dev_txt_font_red = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_RED)
-    _dev_txt_font_green = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_GREEN)
+    _dev_txt_font_green = _finance_dev_green_bar_textfont()
     if _n_m > 32:
         _bg, _bgg = 0.04, 0.01
     elif _n_m > 18:
@@ -33525,33 +33544,34 @@ def _forecast_financier_status_table_html(df: pd.DataFrame) -> str:
         return "<p>Нет данных для статуса.</p>"
     import utils as _u
 
-    _bg = _u.TABLE_BG_COLOR
-    _hdr_bg = _u.TABLE_HEADER_BG_COLOR
-    _txt = _u.TABLE_TEXT_COLOR
+    _light = _u._budget_table_use_light_theme()
+    _bg = _u.SHOWCASE_TABLE_BG_COLOR if _light else _u.TABLE_BG_COLOR
+    _hdr_bg = _u.SHOWCASE_TABLE_HEADER_BG_COLOR if _light else _u.TABLE_HEADER_BG_COLOR
+    _txt = _u.SHOWCASE_TABLE_TEXT_COLOR if _light else _u.TABLE_TEXT_COLOR
     _hdr_css = _u.TABLE_HEADER_FONT_CSS
-    _cell_border = _u.FINANCE_TABLE_CELL_BORDER
+    _cell_border = _u.SHOWCASE_TABLE_CELL_BORDER if _light else _u.FINANCE_TABLE_CELL_BORDER
     _tbl_px = 16
-    try:
-        from config import is_showcase_mode
-
-        if is_showcase_mode():
-            _hdr_css = "font-weight:900;font-size:1.20em;"
-            _tbl_px = 16
-    except Exception:
-        pass
+    if _light:
+        _hdr_css = "font-weight:900;font-size:1.20em;"
     _col_dev = "Отклонение по сумме, млн"
     _col_stat = "Статус для финансиста"
-    green = "hsl(148,100%,63%)"
-    red = "hsl(348,100%,63%)"
+    _dev_bg_green = "rgba(34, 197, 94, 0.20)" if _light else "rgba(70, 214, 138, 0.28)"
+    _dev_bg_red = "rgba(239, 68, 68, 0.20)" if _light else "rgba(255, 84, 84, 0.28)"
+    _dot_green = "#16a34a" if _light else "hsl(148,100%,63%)"
+    _dot_red = "#dc2626" if _light else "hsl(348,100%,63%)"
+    _dev_txt_green = "#15803d" if _light else "hsl(148,100%,63%)"
+    _dev_txt_red = "#b91c1c" if _light else "hsl(348,100%,63%)"
     neutral_bullet = "#64748b"
     wrap_id = "fcst_" + str(abs(id(df)))
     parts = [
         "<style>"
-        f"#{wrap_id} .fc-st-cell-red, #{wrap_id} .fc-st-cell-red * {{ color: hsl(348,100%,63%) !important; }}"
-        f"#{wrap_id} .fc-st-cell-green, #{wrap_id} .fc-st-cell-green * {{ color: hsl(148,100%,63%) !important; }}"
         f"#{wrap_id} thead th {{ position: sticky; top: 0; z-index: 5; "
         f"background-color: {_hdr_bg} !important; color: {_txt}; {_hdr_css} }}"
         f"#{wrap_id} td, #{wrap_id} th {{ border: {_cell_border} !important; }}"
+        f"#{wrap_id} .fc-st-dot-green {{ color: {_dot_green} !important; "
+        f"-webkit-text-fill-color: {_dot_green} !important; }}"
+        f"#{wrap_id} .fc-st-dot-red {{ color: {_dot_red} !important; "
+        f"-webkit-text-fill-color: {_dot_red} !important; }}"
         "</style>",
         f'<div id="{wrap_id}" class="fc-table-scroll-wrap bi-styled-table-wrap budget-deviation-table-wrap" data-bi-rows="{len(df)}">',
         f'<table class="rendered-table bi-sortable-table bi-sort-click-only" '
@@ -33587,10 +33607,15 @@ def _forecast_financier_status_table_html(df: pd.DataFrame) -> str:
                 else:
                     txt = f"{float(num):+.2f}"
                     txt_esc = html_module.escape(txt)
-                    _cls = "fc-st-cell-green" if float(num) < 0 else "fc-st-cell-red"
+                    if float(num) < 0:
+                        _cell_bg = _dev_bg_green
+                        _cell_txt = _dev_txt_green
+                    else:
+                        _cell_bg = _dev_bg_red
+                        _cell_txt = _dev_txt_red
                     parts.append(
-                        f'<td class="{_cls}" style="padding:7px 10px;background-color:{_bg};'
-                        f'font-weight:700;"><span>{txt_esc}</span></td>'
+                        f'<td style="padding:7px 10px;background-color:{_cell_bg};'
+                        f'color:{_cell_txt};font-weight:700;">{txt_esc}</td>'
                     )
             elif col == _col_stat:
                 try:
@@ -33598,14 +33623,22 @@ def _forecast_financier_status_table_html(df: pd.DataFrame) -> str:
                 except (TypeError, ValueError):
                     dv = float("nan")
                 if pd.isna(dv) or abs(float(dv)) < 1e-9:
-                    bullet = neutral_bullet
+                    _dot_cls = ""
+                    _dot_style = f"color:{neutral_bullet};"
                 elif dv < 0:
-                    bullet = green
+                    _dot_cls = "fc-st-dot-green"
+                    _dot_style = ""
                 else:
-                    bullet = red
+                    _dot_cls = "fc-st-dot-red"
+                    _dot_style = ""
+                _dot_attr = (
+                    f'class="{_dot_cls}" style="font-weight:700;font-size:1.12em;margin-right:6px;{_dot_style}"'
+                    if _dot_cls
+                    else f'style="font-weight:700;font-size:1.12em;margin-right:6px;{_dot_style}"'
+                )
                 parts.append(
                     f'<td style="padding:7px 10px;background-color:{_bg};color:{_txt};">'
-                    f'<span style="color:{bullet};font-weight:700;font-size:1.12em;margin-right:6px">●</span>'
+                    f"<span {_dot_attr}>●</span>"
                     f'<span style="color:{_txt};font-weight:600">{val_esc}</span>'
                     "</td>"
                 )
@@ -34933,7 +34966,9 @@ def _load_dogovor_lookup() -> dict[str, dict]:
     from pathlib import Path as _Path
     out: dict[str, dict] = {}
     try:
-        web_dir = _Path(__file__).resolve().parent.parent / "web"
+        from config import get_runtime_web_dir
+
+        web_dir = get_runtime_web_dir()
         files = sorted(web_dir.glob("1[сc]_*_Dogovor.json"), key=lambda p: p.stat().st_mtime)
     except Exception:
         return out

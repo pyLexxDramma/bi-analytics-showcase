@@ -1,0 +1,184 @@
+/* Showcase — альтернативные темы (data-showcase-theme на body) */
+
+html body[data-showcase-theme="warm"],
+html body[data-showcase-theme="warm"] .stApp {
+  --showcase-bg: #faf6f1;
+  --showcase-surface: #fffdfb;
+  --showcase-text: #292524;
+  --showcase-accent: #b45309;
+  --showcase-accent-soft: #fff7ed;
+  background-color: #faf6f1 !important;
+  color: #292524 !important;
+}
+
+html body[data-showcase-theme="cool"],
+html body[data-showcase-theme="cool"] .stApp {
+  --showcase-bg: #f0fdfa;
+  --showcase-surface: #ffffff;
+  --showcase-text: #134e4a;
+  --showcase-accent: #0d9488;
+  --showcase-accent-soft: #ecfeff;
+  background-color: #f0fdfa !important;
+  color: #134e4a !important;
+}
+
+html body[data-showcase-theme="slate"],
+html body[data-showcase-theme="slate"] .stApp {
+  --showcase-bg: #e2e8f0;
+  --showcase-surface: #f8fafc;
+  --showcase-text: #0f172a;
+  --showcase-accent: #475569;
+  --showcase-accent-soft: #e2e8f0;
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+html body[data-showcase-theme="contrast"],
+html body[data-showcase-theme="contrast"] .stApp {
+  --showcase-bg: #0f172a;
+  --showcase-surface: #1e293b;
+  --showcase-text: #f8fafc;
+  --showcase-accent: #38bdf8;
+  --showcase-accent-soft: rgba(56, 189, 248, 0.15);
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  color-scheme: dark !important;
+}
+
+html body[data-showcase-theme="contrast"] [data-testid="stMain"],
+html body[data-showcase-theme="contrast"] section.main {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+html body[data-showcase-theme="contrast"] .main-header,
+html body[data-showcase-theme="contrast"] h1,
+html body[data-showcase-theme="contrast"] p,
+html body[data-showcase-theme="contrast"] label {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+/* KPI-карточки */
+html body .showcase-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin: 0 0 1.25rem 0;
+}
+
+html body .showcase-kpi {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, #ffffff 70%, var(--showcase-accent-soft, #dbeafe)) 0%,
+    #ffffff 100%
+  );
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+html body .showcase-kpi-label {
+  color: #6b7280;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+html body .showcase-kpi-value {
+  color: #111827;
+  font-size: clamp(1.25rem, 2.4vw, 1.55rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+html body .showcase-kpi-hint {
+  color: #6b7280;
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+
+/* Цветные вкладки Streamlit (st.tabs) */
+html body [data-testid="stTabs"] [data-baseweb="tab-list"] {
+  background: color-mix(in srgb, #ffffff 88%, #e5e7eb) !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 14px !important;
+  gap: 6px !important;
+  padding: 6px !important;
+}
+
+html body [data-testid="stTabs"] [data-baseweb="tab"] {
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: var(--showcase-text, #111827) !important;
+  -webkit-text-fill-color: var(--showcase-text, #111827) !important;
+  border: 1px solid color-mix(in srgb, var(--showcase-accent, #2563eb) 32%, #e5e7eb) !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+html body [data-testid="stTabs"] [data-baseweb="tab"] p,
+html body [data-testid="stTabs"] [data-baseweb="tab"] span {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+}
+
+html body [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
+html body [data-testid="stTabs"] [aria-selected="true"] {
+  background: var(--showcase-accent-soft, #eff6ff) !important;
+  color: var(--showcase-text, #111827) !important;
+  -webkit-text-fill-color: var(--showcase-text, #111827) !important;
+  border-color: var(--showcase-accent, #2563eb) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+}
+
+html body [data-testid="stTabs"] [data-baseweb="tab"]:hover {
+  background: color-mix(in srgb, var(--showcase-accent-soft, #eff6ff) 72%, #ffffff) !important;
+  border-color: var(--showcase-accent, #2563eb) !important;
+}
+
+html body[data-showcase-theme="contrast"] [data-testid="stTabs"] [data-baseweb="tab"] {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+html body[data-showcase-theme="contrast"] [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
+html body[data-showcase-theme="contrast"] [data-testid="stTabs"] [aria-selected="true"] {
+  background: var(--showcase-accent-soft, rgba(56, 189, 248, 0.15)) !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: var(--showcase-accent, #38bdf8) !important;
+}
+
+/* Статус-пилюли (pill) для таблиц showcase */
+html body .showcase-pill {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 700;
+  gap: 6px;
+  padding: 4px 10px;
+}
+
+html body .showcase-pill--ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+html body .showcase-pill--warn {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+html body .showcase-pill--bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}

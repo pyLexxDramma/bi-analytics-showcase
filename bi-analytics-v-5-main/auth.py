@@ -127,6 +127,19 @@ def filter_reports_for_role(role: str, report_names: List[str]) -> List[str]:
     return out
 
 
+def _sidebar_report_label(report_name: str) -> str:
+    try:
+        from config import is_showcase_mode
+
+        if is_showcase_mode():
+            from showcase.allowlist import showcase_report_label
+
+            return showcase_report_label(report_name)
+    except ImportError:
+        pass
+    return report_name
+
+
 def init_db(*, quiet: bool = True) -> None:
     """Инициализация базы данных: создание всех таблиц (делегируется в db)."""
     from db import init_all_tables
@@ -927,7 +940,7 @@ def render_sidebar_menu(current_page: str = "reports", *, include_footer: bool =
                         "primary" if current_dashboard == report else "secondary"
                     )
                     if st.button(
-                        report,
+                        _sidebar_report_label(report),
                         width="stretch",
                         key=f"menu_report_{report}",
                         type=button_type,
@@ -941,7 +954,7 @@ def render_sidebar_menu(current_page: str = "reports", *, include_footer: bool =
                                 "primary" if current_dashboard == report else "secondary"
                             )
                             if st.button(
-                                report,
+                                _sidebar_report_label(report),
                                 width="stretch",
                                 key=f"menu_report_{report}",
                                 type=button_type,

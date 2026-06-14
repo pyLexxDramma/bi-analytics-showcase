@@ -33,6 +33,9 @@ def apply(*, repo_root: Path, app_dir: Path) -> Path:
     for key, val in _flags.items():
         os.environ[key] = val
 
+    # Повторно после dotenv: production-флаги из .env не должны включать FTP/ingest в showcase.
+    os.environ["BI_ANALYTICS_SHOWCASE_MODE"] = "1"
+
     # Отдельные SQLite — не смешивать сессии/версии данных с основным дашбордом.
     showcase_data = (repo_root / "showcase_data").resolve()
     showcase_data.mkdir(parents=True, exist_ok=True)
@@ -41,5 +44,13 @@ def apply(*, repo_root: Path, app_dir: Path) -> Path:
 
     # Не сканируем клиентский web/ — только showcase_data (см. web_loader._iter_web_scan_roots).
     os.environ.pop("BI_ANALYTICS_WEB_EXTRA_PATHS", None)
+
+    try:
+        from showcase.seed_dk import ensure_showcase_dk_json, invalidate_showcase_web_db
+
+        if ensure_showcase_dk_json(showcase_web):
+            invalidate_showcase_web_db(repo_root)
+    except Exception:
+        pass
 
     return showcase_web

@@ -1,0 +1,132 @@
+/* Контраст: светлые панели данных на тёмной оболочке (таблицы, iframe, графики) */
+
+html body [data-testid="stMain"] .budget-deviation-table-wrap,
+html body [data-testid="stMain"] .bd-table-wrap,
+html body [data-testid="stMain"] .bi-sortable-html-root,
+html body [data-testid="stMain"] .rendered-table-wrap,
+html body [data-testid="stMain"] .pred-detail-wrap,
+html body [data-testid="stMain"] .dev-maket-table-wrap,
+html body [data-testid="stMain"] .pf-dates-table-wrap,
+html body [data-testid="stMain"] .pf-kpi-wrap,
+html body [data-testid="stMain"] .main table,
+html body [data-testid="stMain"] [data-testid="stHtml"],
+html body [data-testid="stMain"] [data-testid="stHtml"] > div,
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"],
+html body [data-testid="stMain"] [data-testid="stVegaLiteChart"],
+html body [data-testid="stMain"] [data-testid="stDataFrame"] div[data-testid="stTable"] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+}
+
+html body [data-testid="stMain"] .budget-deviation-table-wrap thead th,
+html body [data-testid="stMain"] .bd-table-wrap thead th,
+html body [data-testid="stMain"] .bi-sortable-html-root th,
+html body [data-testid="stMain"] .rendered-table th,
+html body [data-testid="stMain"] .dev-maket-table th,
+html body [data-testid="stMain"] .pf-dates-table th,
+html body [data-testid="stMain"] .pf-dates-scroll-wrap .pf-dates-table thead th,
+html body [data-testid="stMain"] .main table th {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stMain"] .pf-kpi-wrap {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+html body [data-testid="stMain"] .pf-kpi-lbl {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+html body [data-testid="stMain"] .pf-kpi-val {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+html body [data-testid="stMain"] .pf-kpi-val-late {
+  color: #dc2626 !important;
+  -webkit-text-fill-color: #dc2626 !important;
+}
+html body [data-testid="stMain"] .pf-kpi-val-early {
+  color: #16a34a !important;
+  -webkit-text-fill-color: #16a34a !important;
+}
+
+html body [data-testid="stMain"] .budget-deviation-table-wrap td,
+html body [data-testid="stMain"] .bd-table-wrap td,
+html body [data-testid="stMain"] .bi-sortable-html-root td,
+html body [data-testid="stMain"] .rendered-table td,
+html body [data-testid="stMain"] .dev-maket-table td,
+html body [data-testid="stMain"] .pf-dates-table td,
+html body [data-testid="stMain"] .main table td,
+html body [data-testid="stMain"] .budget-deviation-table-wrap span,
+html body [data-testid="stMain"] .bi-sortable-html-root span,
+html body [data-testid="stMain"] .rendered-table span,
+html body [data-testid="stMain"] .dev-maket-table span {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stMain"] .budget-deviation-table-wrap tr.bd-group-row td {
+  background-color: #e8ecf1 !important;
+  color: #111827 !important;
+}
+
+html body [data-testid="stMain"] iframe {
+  background-color: #f8fafc !important;
+  border-radius: 8px;
+}
+
+html body [data-testid="stMain"] .pred-detail-wrap.dev-maket-table-wrap td,
+html body [data-testid="stMain"] .dev-maket-table td,
+html body [data-testid="stMain"] .pf-dates-table td.col-gantt-reason,
+html body [data-testid="stMain"] .pf-dates-table td.col-gantt-notes,
+html body [data-testid="stMain"] .rendered-table td.col-gantt-reason,
+html body [data-testid="stMain"] .rendered-table td.col-gantt-notes {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stMain"] td.bd-cell-green,
+html body [data-testid="stMain"] td.bd-cell-green *,
+html body [data-testid="stMain"] .bi-sortable-html-root td.bd-cell-green,
+html body [data-testid="stMain"] .bi-sortable-html-root td.bd-cell-green * {
+  color: hsl(148, 72%, 36%) !important;
+  -webkit-text-fill-color: hsl(148, 72%, 36%) !important;
+  -webkit-text-stroke: 0.28px #111827 !important;
+  text-shadow: -0.28px 0 #111827, 0.28px 0 #111827, 0 -0.28px #111827, 0 0.28px #111827 !important;
+}
+
+html body [data-testid="stMain"] .gdrs-light-heading,
+html body [data-testid="stMain"] .gdrs-light-heading *,
+html body [data-testid="stMain"] .bi-table-caption,
+html body [data-testid="stMain"] h3.bi-table-caption {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .plotly,
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot,
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .plot-container {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+}
+
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='hsl(148,100%,63%)'],
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='hsl(148, 100%, 63%)'],
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='rgb(66, 254, 154)'],
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='rgb(66,254,154)'],
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='hsl(148, 72%, 36%)'],
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='hsl(148,72%,36%)'],
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='rgb(25, 157, 87)'],
+html body [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot text[fill='rgb(25,157,87)'] {
+  paint-order: stroke fill;
+  stroke: #111827;
+  stroke-width: 0.35px;
+  stroke-linejoin: round;
+}
+
+html body [data-testid="stMain"] .bi-filters-section-title {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}

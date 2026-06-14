@@ -23,30 +23,6 @@ while _p != _p.parent:
     
 sys.path.insert(0, str(_app_root))
 
-# ┌──────────────────────────────────────────────────────────────────────────┐ #
-# │ ⊗ CSS CONNECT ¤ Start                                                    │ #
-# └──────────────────────────────────────────────────────────────────────────┘ #
-
-def load_custom_css():
-
-    css_path = _app_root / "static" / "css" / "style.css"
-
-    if css_path.exists():
-
-        with open(css_path, encoding="utf-8") as f:
-
-            css_content = f.read()
-
-        st.markdown(f"<style>{css_content}</style>", unsafe_allow_html=True)
-
-    else:
-
-        st.warning(f"CSS файл не найден: {css_path}")
-
-# ┌──────────────────────────────────────────────────────────────────────────┐ #
-# │ ⊗ CSS CONNECT ¤ End                                                      │ #
-# └──────────────────────────────────────────────────────────────────────────┘ #
-
 import streamlit as st
 
 from auth import (
@@ -62,6 +38,7 @@ from auth import (
 )
 
 from logger import log_action
+from utils import load_custom_css
 
 
 def _profile_settings_ui(user) -> None:

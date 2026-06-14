@@ -1637,6 +1637,16 @@ def main():
     )
 
     if has_any_data:
+        try:
+            from config import is_showcase_mode as _scm_kpi
+
+            if _scm_kpi():
+                from showcase.kpi import render_showcase_chrome
+
+                render_showcase_chrome()
+        except Exception:
+            pass
+
         # Выбор отчёта только из бокового меню (блок «Выбор панели» в основной области снят).
         from dashboards import get_dashboards, get_main_panel_report_lists
 

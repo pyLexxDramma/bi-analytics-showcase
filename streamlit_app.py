@@ -38,4 +38,9 @@ os.chdir(_APP_DIR)
 if str(_APP_DIR) not in sys.path:
     sys.path.insert(0, str(_APP_DIR))
 
+# Production (8501, main, release, Streamlit Cloud): только FTP/web/, не showcase_data.
+from config import enforce_production_data_isolation
+
+enforce_production_data_isolation()
+
 runpy.run_path(str(_MAIN), run_name="__main__")

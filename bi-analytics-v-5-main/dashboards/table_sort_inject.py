@@ -949,6 +949,32 @@ html, body {
 .bi-sortable-html-root td.bd-cell-red * {
   color: hsl(348, 82%, 42%) !important;
 }
+.bi-sortable-html-root .rendered-table th,
+.bi-sortable-html-root .pf-dates-table th,
+.bi-sortable-html-root .pf-dates-scroll-wrap .pf-dates-table thead th,
+.bi-sortable-html-root .rendered-table thead th {
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+.bi-sortable-html-root .rendered-table th .bi-sort-label,
+.bi-sortable-html-root .pf-dates-table th .bi-sort-label {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+.bi-sortable-html-root .rendered-table td,
+.bi-sortable-html-root .pf-dates-table td {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  border-bottom-color: #e5e7eb !important;
+}
+.bi-sortable-html-root .rendered-table tr:hover td {
+  background-color: #f8fafc !important;
+}
+.bi-sortable-html-root .rendered-table tr:nth-child(even) td {
+  background-color: #fafbfc !important;
+}
 </style>
 """
 + BI_TABLE_LAYOUT_CSS
@@ -997,11 +1023,21 @@ html, body {
 def _iframe_shell_css(html: str) -> str:
     html_l = html or ""
     use_light = "gdrs-light-table" in html_l
-    if not use_light and "budget-deviation-table-wrap" in html_l:
+    if not use_light:
         try:
             from config import is_showcase_mode
 
-            use_light = bool(is_showcase_mode())
+            if is_showcase_mode():
+                use_light = any(
+                    m in html_l
+                    for m in (
+                        "budget-deviation-table-wrap",
+                        "pf-dates-table-wrap",
+                        "pf-zos-table-wrap",
+                        "pf-dates-table",
+                        "rendered-table-wrap",
+                    )
+                )
         except Exception:
             pass
     base = _IFRAME_SHELL_CSS_LIGHT if use_light else _IFRAME_SHELL_CSS

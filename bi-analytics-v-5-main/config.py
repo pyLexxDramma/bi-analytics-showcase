@@ -155,6 +155,8 @@ def get_extra_web_dirs_from_env() -> List[Path]:
             else:
                 path = path.resolve()
             if path.is_dir():
+                if not is_showcase_mode() and is_prohibited_production_data_path(path):
+                    continue
                 key = str(path)
                 if key not in seen:
                     seen.add(key)
@@ -213,6 +215,48 @@ def get_showcase_web_dir() -> Optional[Path]:
     if not is_showcase_mode():
         return None
     return (BASE_PATH.parent / "showcase_data" / "web").resolve()
+
+
+def is_prohibited_production_data_path(path: str | Path) -> bool:
+    """
+    Пути демо-данных showcase: production (8501, main, release, FTP) их не читает.
+
+    - ``showcase_data/`` — каталог демо-выгрузок
+    - ``web/showcase/`` — черновики demo внутри клиентского web/ (не FTP)
+    """
+    s = str(path).replace("\\", "/").lower()
+    if "showcase_data" in s:
+        return True
+    if "/showcase/" in s or s.endswith("/showcase") or s.startswith("showcase/"):
+        return True
+    return False
+
+
+def get_runtime_web_dir() -> Path:
+    """
+    Каталог CSV/JSON для runtime-чтений (GDRS, Projekts.json и т.п.).
+
+    Showcase → только ``showcase_data/web``; production → ``bi-analytics-v-5-main/web/``.
+    """
+    if is_showcase_mode():
+        sd = get_showcase_web_dir()
+        if sd is not None and sd.is_dir():
+            return sd
+    return (BASE_PATH / "web").resolve()
+
+
+def enforce_production_data_isolation() -> None:
+    """
+    Вызывается из ``streamlit_app.py`` до загрузки приложения.
+
+    Сбрасывает случайный ``BI_ANALYTICS_SHOWCASE_MODE=1`` из shell/.env и пути БД
+    из ``showcase_data/``, чтобы демо не попало на 8501 / main / release.
+    """
+    os.environ["BI_ANALYTICS_SHOWCASE_MODE"] = "0"
+    for env_key in ("WEB_DB_PATH", "BI_ANALYTICS_DB_PATH"):
+        val = os.environ.get(env_key, "")
+        if val and is_prohibited_production_data_path(val):
+            os.environ.pop(env_key, None)
 
 
 SHOWCASE_DISPLAY_TITLE = "Демо: панель аналитики проектов"

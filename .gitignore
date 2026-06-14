@@ -1,4 +1,4 @@
-﻿# Local Playwright / UI audit
+# Local Playwright / UI audit
 _visual_check_playwright.py
 _visual_check_out/
 
@@ -58,8 +58,9 @@ Thumbs.db
 # Local DB
 bi-analytics-v-5-main/data/*.db
 bi-analytics-v-5-main/*.db
-showcase_data/*.db
-showcase_data/_verify_ui/
+# Демо-данные showcase — только через showcase_app.py (:8502), не через production web/.
+bi-analytics-v-5-main/web/showcase/
+showcase_data/*.dbshowcase_data/_verify_ui/
 *.sqlite
 *.sqlite3
 
