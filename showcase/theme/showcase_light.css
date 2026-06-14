@@ -394,3 +394,37 @@ html body div[data-baseweb="popover"] [data-baseweb="datepicker"] [data-baseweb=
   color: #111827 !important;
   border-color: #cbd5e1 !important;
 }
+
+/* Таблицы отклонений (iframe): причины и заметки — тёмный текст на светлом фоне */
+html body .pred-detail-wrap.dev-maket-table-wrap td,
+html body .dev-maket-table td,
+html body .pf-dates-table td.col-gantt-reason,
+html body .pf-dates-table td.col-gantt-notes,
+html body .rendered-table td.col-gantt-reason,
+html body .rendered-table td.col-gantt-notes {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+html body .pf-dates-table td.col-gantt-reason span,
+html body .pf-dates-table td.col-gantt-notes span,
+html body .rendered-table td.col-gantt-reason span,
+html body .rendered-table td.col-gantt-notes span {
+  background-color: #dcfce7 !important;
+  color: #14532d !important;
+  -webkit-text-fill-color: #14532d !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+}
+
+/* БДДС/БДР: зелёные отклонения — контур для читаемости на белом фоне */
+html body td.bd-cell-green,
+html body td.bd-cell-green *,
+html body .bi-sortable-html-root td.bd-cell-green,
+html body .bi-sortable-html-root td.bd-cell-green * {
+  color: hsl(148, 72%, 36%) !important;
+  -webkit-text-fill-color: hsl(148, 72%, 36%) !important;
+  -webkit-text-stroke: 0.28px #111827 !important;
+  paint-order: stroke fill;
+  text-shadow: -0.28px 0 #111827, 0.28px 0 #111827, 0 -0.28px #111827, 0 0.28px #111827 !important;
+}

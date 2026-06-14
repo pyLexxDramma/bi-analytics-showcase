@@ -1372,10 +1372,126 @@ def finalize_budget_summary_for_display(
         out,
         period_col=period_col,
     )
-    return zero_budget_plan_for_projects_without_1c_plan(
+    out = zero_budget_plan_for_projects_without_1c_plan(
         out,
         reference_1c_dannye=reference_1c_dannye,
     )
+    if _finance_showcase_mode():
+        out = _showcase_mix_bdds_plan_fact(out)
+    return out
+
+
+def _showcase_mix_bdds_plan_fact(
+    summary: pd.DataFrame,
+    *,
+    seed_tag: str = "bdds",
+) -> pd.DataFrame:
+    """Showcase: чередуем факт ниже/выше плана по периодам (детерминированно)."""
+    import hashlib
+
+    if summary is None or getattr(summary, "empty", True):
+        return summary
+    if "budget plan" not in summary.columns or "budget fact" not in summary.columns:
+        return summary
+
+    out = summary.copy()
+    plan = pd.to_numeric(out["budget plan"], errors="coerce").fillna(0.0)
+    fact = pd.to_numeric(out["budget fact"], errors="coerce").fillna(0.0)
+    new_fact = fact.copy()
+
+    for idx in out.index:
+        p = float(plan.at[idx])
+        if p <= 50_000.0:
+            continue
+        proj = str(out.at[idx, "project name"]) if "project name" in out.columns else ""
+        if "period_original" in out.columns:
+            per = str(out.at[idx, "period_original"])
+        elif "plan_month" in out.columns:
+            per = str(out.at[idx, "plan_month"])
+        elif "month" in out.columns:
+            per = str(out.at[idx, "month"])
+        else:
+            per = str(idx)
+        seed = f"{proj}|{per}|{seed_tag}"
+        h = int(hashlib.md5(seed.encode("utf-8")).hexdigest()[:8], 16)
+        pct = 0.06 + (h % 23) / 100.0
+        if (h // 23) % 2 == 0:
+            new_fact.at[idx] = p * (1.0 - pct)
+        else:
+            new_fact.at[idx] = p * (1.0 + pct)
+
+    out["budget fact"] = new_fact
+    if "reserve budget" in out.columns:
+        out["reserve budget"] = new_fact - plan
+    return out
+
+
+def _showcase_mix_bdr_tz_expenses(
+    df: pd.DataFrame,
+    *,
+    period_col: str = "plan end",
+) -> pd.DataFrame:
+    """Showcase БДР: чередуем факт ниже/выше плана расходов по строкам."""
+    import hashlib
+
+    if df is None or getattr(df, "empty", True):
+        return df
+    if "_plan_exp" not in df.columns or "_fact_exp" not in df.columns:
+        return df
+
+    out = df.copy()
+    plan = pd.to_numeric(out["_plan_exp"], errors="coerce").fillna(0.0)
+    fact = pd.to_numeric(out["_fact_exp"], errors="coerce").fillna(0.0)
+    new_fact = fact.copy()
+
+    for idx in out.index:
+        p = float(plan.at[idx])
+        if p <= 50_000.0:
+            continue
+        proj = str(out.at[idx, "project name"]) if "project name" in out.columns else ""
+        per = ""
+        if period_col in out.columns:
+            per = str(out.at[idx, period_col])
+        seed = f"{proj}|{per}|bdr"
+        h = int(hashlib.md5(seed.encode("utf-8")).hexdigest()[:8], 16)
+        pct = 0.06 + (h % 23) / 100.0
+        if (h // 23) % 2 == 0:
+            new_fact.at[idx] = p * (1.0 - pct)
+        else:
+            new_fact.at[idx] = p * (1.0 + pct)
+
+    out["_fact_exp"] = new_fact
+    if "_dev" in out.columns:
+        out["_dev"] = new_fact - plan
+    return out
+
+
+def _showcase_mix_forecast_bddcs_monthly(df: pd.DataFrame) -> pd.DataFrame:
+    """Showcase «Прогнозный бюджет»: разнообразим факт и прогноз относительно плана."""
+    if df is None or getattr(df, "empty", True):
+        return df
+    if not _finance_showcase_mode():
+        return df
+    need = {"bdds_plan_msp", "bdds_fact", "bdds_forecast"}
+    if not need.issubset(set(df.columns)):
+        return df
+
+    out = df.copy()
+    if "period_original" not in out.columns:
+        out["period_original"] = out["month"].astype(str) if "month" in out.columns else out.index.astype(str)
+
+    fact_mix = out.rename(
+        columns={"bdds_plan_msp": "budget plan", "bdds_fact": "budget fact"}
+    )
+    fact_mix = _showcase_mix_bdds_plan_fact(fact_mix, seed_tag="fc_fact")
+    out["bdds_fact"] = fact_mix["budget fact"]
+
+    frc_mix = out.rename(
+        columns={"bdds_plan_msp": "budget plan", "bdds_forecast": "budget fact"}
+    )
+    frc_mix = _showcase_mix_bdds_plan_fact(frc_mix, seed_tag="fc_forecast")
+    out["bdds_forecast"] = frc_mix["budget fact"]
+    return out.drop(columns=["period_original"], errors="ignore")
 
 
 def resolve_reference_1c_dannye(

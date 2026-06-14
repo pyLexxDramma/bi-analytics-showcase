@@ -937,6 +937,18 @@ html, body {
   border-left: 1px solid #cbd5e1 !important;
 }
 .bi-sortable-html-root .bi-sort-label { color: #111827 !important; }
+.bi-sortable-html-root td.bd-cell-green,
+.bi-sortable-html-root td.bd-cell-green * {
+  color: hsl(148, 72%, 36%) !important;
+  -webkit-text-fill-color: hsl(148, 72%, 36%) !important;
+  -webkit-text-stroke: 0.28px #111827 !important;
+  paint-order: stroke fill;
+  text-shadow: -0.28px 0 #111827, 0.28px 0 #111827, 0 -0.28px #111827, 0 0.28px #111827 !important;
+}
+.bi-sortable-html-root td.bd-cell-red,
+.bi-sortable-html-root td.bd-cell-red * {
+  color: hsl(348, 82%, 42%) !important;
+}
 </style>
 """
 + BI_TABLE_LAYOUT_CSS
@@ -984,7 +996,15 @@ html, body {
 
 def _iframe_shell_css(html: str) -> str:
     html_l = html or ""
-    base = _IFRAME_SHELL_CSS_LIGHT if "gdrs-light-table" in html_l else _IFRAME_SHELL_CSS
+    use_light = "gdrs-light-table" in html_l
+    if not use_light and "budget-deviation-table-wrap" in html_l:
+        try:
+            from config import is_showcase_mode
+
+            use_light = bool(is_showcase_mode())
+        except Exception:
+            pass
+    base = _IFRAME_SHELL_CSS_LIGHT if use_light else _IFRAME_SHELL_CSS
     if "gdrs-table-wrap" in html_l:
         return base + _GDRS_TABLE_WRAP_IFRAME_CSS
     return base

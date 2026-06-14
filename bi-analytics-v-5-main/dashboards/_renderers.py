@@ -786,7 +786,7 @@ def _render_plan_fact_dates_main_table(
     }
     _num_cols = {"Баз. длит.", "Длительность", "Базовая длительность"}
     _date_cols = {"Базовое начало", "Базовое окончание", "Начало", "Окончание"}
-    _reason_cols = {"Причины отклонений", "Заметки"}
+    _reason_cols = {"Причины отклонений", "Причина отклонения", "Заметки"}
     _wrap_extra = (wrap_class or "").strip()
     _wrap_cls = "rendered-table-wrap pf-dates-table-wrap"
     if _wrap_extra:
@@ -2336,6 +2336,13 @@ def _render_deviations_maket_table(
     _date_bg_m = _DEV_MAKET_COL_BG
     _date_cell_st = f' style="background:{_date_bg_m};color:#0b1f33;"'
     _maket_wrap_id = f"dev_reason_maket_{abs(id(maket_df))}"
+    try:
+        from config import is_showcase_mode as _is_showcase_mode
+    except ImportError:
+        _is_showcase_mode = lambda: False  # type: ignore[assignment,misc]
+    _showcase_tbl = _is_showcase_mode()
+    _reason_txt = "#111827" if _showcase_tbl else "#e8eaed"
+    _notes_txt = "#111827" if _showcase_tbl else "#e0e0e0"
     _hdrs = [
         "ID задачи",
         "Проект",
@@ -2412,27 +2419,43 @@ def _render_deviations_maket_table(
         _rs_esc = html_module.escape(rs)
         if _clr_tbl:
             _tbl_m.append(
-                f'<td style="border-left:4px solid {_clr_tbl};padding-left:6px;color:#e8eaed;font-weight:600">{_rs_esc}</td>'
+                f'<td style="border-left:4px solid {_clr_tbl};padding-left:6px;color:{_reason_txt};font-weight:600">{_rs_esc}</td>'
             )
         else:
-            _tbl_m.append(f"<td>{_rs_esc}</td>")
-        _tbl_m.append(f"<td>{html_module.escape(nt)}</td>")
+            _tbl_m.append(f'<td style="color:{_reason_txt};font-weight:600">{_rs_esc}</td>')
+        _tbl_m.append(f'<td style="color:{_notes_txt}">{html_module.escape(nt)}</td>')
         _tbl_m.append("</tr>")
 
     _tbl_m.append("</tbody></table></div>")
-    _maket_iframe_css = (
-        "<style>"
-        "html,body{margin:0;padding:6px 8px;background:#0e1117;color:#e0e0e0;"
-        "font-family:Inter,system-ui,sans-serif;font-size:13px;}"
-        f"#{_maket_wrap_id} .dev-mak-col-proj,"
-        f"#{_maket_wrap_id} th.dev-mak-col-proj"
-        "{white-space:nowrap!important;min-width:9em;max-width:none!important;word-break:keep-all;}"
-        f"#{_maket_wrap_id} thead th{{position:sticky;top:0;z-index:5;background:#0e1117;}}"
-        f"#{_maket_wrap_id} th.dev-mak-col-date{{color:#f5f5f5!important;}}"
-        f"#{_maket_wrap_id} td[style*='{_date_bg_m}']"
-        "{{color:#0b1f33!important;}}"
-        "</style>"
-    )
+    if _showcase_tbl:
+        _maket_iframe_css = (
+            "<style>"
+            "html,body{margin:0;padding:6px 8px;background:#ffffff;color:#111827;"
+            "font-family:Inter,system-ui,sans-serif;font-size:13px;}"
+            f"#{_maket_wrap_id} .dev-mak-col-proj,"
+            f"#{_maket_wrap_id} th.dev-mak-col-proj"
+            "{white-space:nowrap!important;min-width:9em;max-width:none!important;word-break:keep-all;}"
+            f"#{_maket_wrap_id} thead th{{position:sticky;top:0;z-index:5;background:#f3f4f6;color:#111827!important;}}"
+            f"#{_maket_wrap_id} th.dev-mak-col-date{{color:#111827!important;}}"
+            f"#{_maket_wrap_id} td[style*='{_date_bg_m}']"
+            "{{color:#0b1f33!important;}}"
+            f"#{_maket_wrap_id} td:not([style*='{_date_bg_m}']){{color:#111827!important;}}"
+            "</style>"
+        )
+    else:
+        _maket_iframe_css = (
+            "<style>"
+            "html,body{margin:0;padding:6px 8px;background:#0e1117;color:#e0e0e0;"
+            "font-family:Inter,system-ui,sans-serif;font-size:13px;}"
+            f"#{_maket_wrap_id} .dev-mak-col-proj,"
+            f"#{_maket_wrap_id} th.dev-mak-col-proj"
+            "{white-space:nowrap!important;min-width:9em;max-width:none!important;word-break:keep-all;}"
+            f"#{_maket_wrap_id} thead th{{position:sticky;top:0;z-index:5;background:#0e1117;}}"
+            f"#{_maket_wrap_id} th.dev-mak-col-date{{color:#f5f5f5!important;}}"
+            f"#{_maket_wrap_id} td[style*='{_date_bg_m}']"
+            "{{color:#0b1f33!important;}}"
+            "</style>"
+        )
     st.markdown(f"**Записей (по макету):** {len(maket_df)}")
     maket_csv_df = build_deviations_maket_export_df(table_reason_df, building_col, notes_col_m)
     render_report_html_table(
@@ -3150,9 +3173,9 @@ def _finance_bdr_expense_deviation_chart_parts(
     decimals: int = 1,
     unit_suffix: str = " млн рублей",
 ) -> tuple[pd.Series, pd.Series, list[str], list[str], list[str], list[str]]:
-    """БДР/БДДС расходы: факт−план; >0 выше нуля (зелёный), <0 ниже (красный).
+    """БДР/БДДС расходы: факт−план; >0 выше нуля (красный), <0 ниже (зелёный).
 
-    Подписи: факт<план → «−…» красным, факт>план → «+…» зелёным (как таблица БДДС).
+    Подписи: факт<план → «−…» зелёным, факт>план → «+…» красным (как таблица БДДС).
     """
     dev_mln = (fact_rub.astype(float) - plan_rub.astype(float)) / 1e6
     thr = float(threshold_mln)
@@ -3178,7 +3201,7 @@ def _finance_bdr_expense_deviation_chart_parts(
                 clr_pos.append("#f0f4f8")
             elif fv > pv:
                 txt_pos.append(f"+{abs(diff_rub) / 1e6:.{d}f}{suf}")
-                clr_pos.append(_FINANCE_DEV_LABEL_GREEN)
+                clr_pos.append(_FINANCE_DEV_LABEL_RED)
             else:
                 txt_pos.append("")
                 clr_pos.append("#f0f4f8")
@@ -3191,7 +3214,7 @@ def _finance_bdr_expense_deviation_chart_parts(
                 clr_neg.append("#f0f4f8")
             elif fv < pv:
                 txt_neg.append(f"-{abs(diff_rub) / 1e6:.{d}f}{suf}")
-                clr_neg.append(_FINANCE_DEV_LABEL_RED)
+                clr_neg.append(_FINANCE_DEV_LABEL_GREEN)
             else:
                 txt_neg.append("")
                 clr_neg.append("#f0f4f8")
@@ -8659,7 +8682,12 @@ def dashboard_plan_fact_dates(df):
             lh = float(max(13.0, _PF_GANTT_TASK_FONT * 1.42))
             bars_block = 20.0
             row_h = int(max(36, max_lines * lh + bars_block))
-            chart_h = max(160, int(n_rows_local * row_h + 20))
+            try:
+                from config import is_showcase_mode as _pf_showcase
+                _pf_min_chart_h = 480 if _pf_showcase() else 160
+            except ImportError:
+                _pf_min_chart_h = 160
+            chart_h = max(_pf_min_chart_h, int(n_rows_local * row_h + 20))
             return chart_h, max_lines
 
         def _pf_apply_gantt_y_labels(fig_obj, y_order_local: list[str]) -> int:
@@ -8689,7 +8717,11 @@ def dashboard_plan_fact_dates(df):
             )
             return int(left_m)
 
-        _PF_GANTT_VIEWPORT = 1720  # видимая высота блока графика (×2 от 860)
+        try:
+            from config import is_showcase_mode as _pf_showcase_vp
+            _PF_GANTT_VIEWPORT = 2400 if _pf_showcase_vp() else 1720
+        except ImportError:
+            _PF_GANTT_VIEWPORT = 1720  # видимая высота блока графика (×2 от 860)
         _PF_GANTT_BAR_WIDTH = 0.12  # ~в 4 раза уже стандартной полосы Plotly
         _PF_GANTT_LEGEND = dict(
             orientation="h",
@@ -10683,6 +10715,9 @@ def _bdds_table_html_kw(**overrides) -> dict:
             kw.update(
                 total_row_bg_color="#e5e7eb",
                 total_row_font_css="font-weight:900;font-size:1.24em;color:#111827;",
+                header_font_css="font-weight:900;font-size:1.20em;color:#111827;",
+                group_row_font_css="font-weight:800;font-size:1.12em;color:#111827;",
+                label_columns_font_css="font-weight:800;font-size:1.08em;color:#111827;",
             )
     except Exception:
         pass
@@ -10690,6 +10725,48 @@ def _bdds_table_html_kw(**overrides) -> dict:
 
 
 _bdr_table_html_kw = _bdds_table_html_kw
+
+
+def _maybe_showcase_mix_budget_plan_fact(
+    df: pd.DataFrame,
+    *,
+    seed_tag: str = "approved",
+) -> pd.DataFrame:
+    try:
+        from dashboards.finance_from_1c import _finance_showcase_mode, _showcase_mix_bdds_plan_fact
+
+        if not _finance_showcase_mode() or df is None or getattr(df, "empty", True):
+            return df
+        if "budget plan" not in df.columns or "budget fact" not in df.columns:
+            return df
+        return _showcase_mix_bdds_plan_fact(df.copy(), seed_tag=seed_tag)
+    except Exception:
+        return df
+
+
+def _maybe_showcase_mix_budget_monthly(
+    monthly_rows: pd.DataFrame,
+    *,
+    seed_tag: str = "approved_m",
+) -> pd.DataFrame:
+    try:
+        from dashboards.finance_from_1c import _finance_showcase_mode, _showcase_mix_bdds_plan_fact
+
+        if not _finance_showcase_mode() or monthly_rows is None or getattr(monthly_rows, "empty", True):
+            return monthly_rows
+        tmp = monthly_rows.copy()
+        if "project name" not in tmp.columns:
+            tmp["project name"] = ""
+        if "plan_month" in tmp.columns:
+            tmp["period_original"] = tmp["plan_month"].astype(str)
+        mixed = _showcase_mix_bdds_plan_fact(tmp, seed_tag=seed_tag)
+        out = monthly_rows.copy()
+        out["budget fact"] = mixed["budget fact"]
+        if "reserve budget" in out.columns:
+            out["reserve budget"] = mixed["budget fact"] - mixed["budget plan"]
+        return out
+    except Exception:
+        return monthly_rows
 
 
 # Минимум оборотов (руб.) для месяца на графике БДДС/БДР — иначе ось забивается «пустыми» месяцами.
@@ -12033,7 +12110,7 @@ def dashboard_budget_by_period(df):
         if not hide_reserve:
             _dev_mln = project_data["reserve budget"].div(1e6)
             _dev_x = project_data[period_col]
-            # БДДС: reserve = факт − план; < 0 — факт < план (красный), > 0 — факт > план (зелёный).
+            # БДДС: reserve = факт − план; < 0 — факт < план (зелёный), > 0 — факт > план (красный).
             _dev_thr_mln = 0.01
             _y_fact_lt_plan = _dev_mln.where(_dev_mln < -_dev_thr_mln)
             _y_fact_gt_plan = _dev_mln.where(_dev_mln > _dev_thr_mln)
@@ -12060,10 +12137,10 @@ def dashboard_budget_by_period(df):
                         x=_dev_x,
                         y=_y_fact_lt_plan,
                         name="Отклонение (факт < план)",
-                        marker_color=_FINANCE_DEV_BAR_RED,
+                        marker_color=_FINANCE_DEV_BAR_GREEN,
                         text=_txt_under,
                         textposition="outside" if not _hide_bar_value_labels else "none",
-                        textfont=_dev_txt_font_red,
+                        textfont=_dev_txt_font_green,
                         cliponaxis=False,
                         customdata=_y_fact_lt_plan.map(
                             lambda v: format_million_rub(float(v) * 1e6) if pd.notna(v) else ""
@@ -12082,10 +12159,10 @@ def dashboard_budget_by_period(df):
                         x=_dev_x,
                         y=_y_fact_gt_plan,
                         name="Отклонение (факт > план)",
-                        marker_color=_FINANCE_DEV_BAR_GREEN,
+                        marker_color=_FINANCE_DEV_BAR_RED,
                         text=_txt_over,
                         textposition="outside" if not _hide_bar_value_labels else "none",
-                        textfont=_dev_txt_font_green,
+                        textfont=_dev_txt_font_red,
                         cliponaxis=False,
                         customdata=_y_fact_gt_plan.map(
                             lambda v: format_million_rub(float(v) * 1e6) if pd.notna(v) else ""
@@ -12256,7 +12333,10 @@ def dashboard_budget_by_period(df):
                 else []
             ):
                 if _cn in _bdc_fmt.columns:
-                    _bdc_fmt[_cn] = _bdc_fmt[_cn].map(_bdds_fmt_cell_rub)
+                    if _cn == "reserve budget":
+                        _bdc_fmt[_cn] = _bdc[_cn].map(_finance_fmt_signed_million_deviation)
+                    else:
+                        _bdc_fmt[_cn] = _bdc[_cn].map(_bdds_fmt_cell_rub)
             _bdc_fmt["_row_kind"] = ""
             _tot_block: dict = {}
             if view_type == "Накопительно":
@@ -12450,7 +12530,10 @@ def dashboard_budget_by_period(df):
                 "_row_kind": "total",
             }
             for _k, _v in _tot_raw.items():
-                _tot_vals_fmt[_k] = _bdds_fmt_cell_rub(_v)
+                if _k == "reserve budget":
+                    _tot_vals_fmt[_k] = _finance_fmt_signed_million_deviation(_v)
+                else:
+                    _tot_vals_fmt[_k] = _bdds_fmt_cell_rub(_v)
 
             _bdc_fmt = pd.concat([_bdc_fmt, pd.DataFrame([_tot_vals_fmt])], ignore_index=True)
 
@@ -12554,7 +12637,7 @@ def dashboard_budget_by_period(df):
                 "Проект": _bp["project name"].astype(str),
                 "План, млн. руб.": _bp["budget plan"].map(lambda v: format_million_rub(v, decimals=1)),
                 "Факт, млн. руб.": _bp["budget fact"].map(lambda v: format_million_rub(v, decimals=1)),
-                "Отклонение, млн. руб.": _bp["_dev"].map(lambda v: format_million_rub(v, decimals=1)),
+                "Отклонение, млн. руб.": _bp["_dev"].map(_finance_fmt_signed_million_deviation),
                 "_row_kind": "",
             }
         )
@@ -12567,7 +12650,7 @@ def dashboard_budget_by_period(df):
                         "Проект": "ИТОГО",
                         "План, млн. руб.": format_million_rub(_plan_sum, decimals=1),
                         "Факт, млн. руб.": format_million_rub(_fact_sum, decimals=1),
-                        "Отклонение, млн. руб.": format_million_rub(_fact_sum - _plan_sum, decimals=1),
+                        "Отклонение, млн. руб.": _finance_fmt_signed_million_deviation(_fact_sum - _plan_sum),
                         "_row_kind": "total",
                     }
                 ]
@@ -13319,7 +13402,11 @@ def dashboard_bdr(df):
     if df is None or not hasattr(df, "columns") or df.empty:
         st.warning("⚠️ Нет данных для отображения. Загрузите данные проекта.")
         return
-    from dashboards.finance_from_1c import ensure_bdr_frame_with_fallback
+    from dashboards.finance_from_1c import (
+        ensure_bdr_frame_with_fallback,
+        _finance_showcase_mode,
+        _showcase_mix_bdr_tz_expenses,
+    )
 
     df_src = df.copy()
 
@@ -13750,6 +13837,10 @@ def dashboard_bdr(df):
             filtered_df["_dev"] = _coerce_bdr_amount_series(filtered_df[dev_ec]).fillna(0.0)
         else:
             filtered_df["_dev"] = filtered_df["_fact_exp"] - filtered_df["_plan_exp"]
+        if _finance_showcase_mode():
+            filtered_df = _showcase_mix_bdr_tz_expenses(
+                filtered_df, period_col=period_col if period_col in filtered_df.columns else "plan end"
+            )
         bdr_summary = (
             filtered_df.groupby(period_col, dropna=False)
             .agg({"_plan_exp": "sum", "_fact_exp": "sum"})
@@ -13917,7 +14008,7 @@ def dashboard_bdr(df):
             )
             if not hide_deviation:
                 _dev_thr_b = 0.01
-                # БДДС-конвенция: отклонение = факт − план; <0 (факт<план) — красный и ниже нуля, >0 (факт>план) — зелёный и выше нуля.
+                # БДДС-конвенция: отклонение = факт − план; <0 (факт<план) — зелёный, >0 (факт>план) — красный.
                 _dev_mln_b = chart_df["Отклонение"].div(1e6)
                 _y_b_fact_lt = _dev_mln_b.where(_dev_mln_b < -_dev_thr_b)
                 _y_b_fact_gt = _dev_mln_b.where(_dev_mln_b > _dev_thr_b)
@@ -13939,10 +14030,10 @@ def dashboard_bdr(df):
                             x=x_vals,
                             y=_y_b_fact_lt,
                             name="Отклонение (факт < план)",
-                            marker_color=_FINANCE_DEV_BAR_RED,
+                            marker_color=_FINANCE_DEV_BAR_GREEN,
                             text=None if _hide_bar_value_labels else _finance_bold_bar_labels(_dev_txt_lt),
                             textposition="outside" if not _hide_bar_value_labels else "none",
-                            textfont=_dev_txt_font_red,
+                            textfont=_dev_txt_font_green,
                             cliponaxis=False,
                             customdata=_y_b_fact_lt.map(
                                 lambda v: format_million_rub(float(v) * 1e6) if pd.notna(v) else ""
@@ -13956,10 +14047,10 @@ def dashboard_bdr(df):
                             x=x_vals,
                             y=_y_b_fact_gt,
                             name="Отклонение (факт > план)",
-                            marker_color=_FINANCE_DEV_BAR_GREEN,
+                            marker_color=_FINANCE_DEV_BAR_RED,
                             text=None if _hide_bar_value_labels else _finance_bold_bar_labels(_dev_txt_gt),
                             textposition="outside" if not _hide_bar_value_labels else "none",
-                            textfont=_dev_txt_font_green,
+                            textfont=_dev_txt_font_red,
                             cliponaxis=False,
                             customdata=_y_b_fact_gt.map(
                                 lambda v: format_million_rub(float(v) * 1e6) if pd.notna(v) else ""
@@ -29718,6 +29809,7 @@ def _render_plan_fact_detail_table(
         table_font_size_px=16,
         file_stem="approved_budget_plan_fact_detail",
         key_prefix=f"appr_budget_detail_{key_suffix}",
+        **_bdds_table_html_kw(),
     )
 
 
@@ -30084,10 +30176,10 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
                     x=_projects,
                     y=_y_fact_lt_plan,
                     name="Отклонение (факт < план)",
-                    marker_color=_FINANCE_DEV_BAR_RED,
+                    marker_color=_FINANCE_DEV_BAR_GREEN,
                     text=_approved_budget_bold_bar_labels(_dev_txt_lt),
                     textposition="outside",
-                    textfont=_approved_budget_bar_textfont(color=_FINANCE_DEV_LABEL_RED),
+                    textfont=_approved_budget_bar_textfont(color=_FINANCE_DEV_LABEL_GREEN),
                     cliponaxis=False,
                 )
             )
@@ -30097,10 +30189,10 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
                     x=_projects,
                     y=_y_fact_gt_plan,
                     name="Отклонение (факт > план)",
-                    marker_color=_FINANCE_DEV_BAR_GREEN,
+                    marker_color=_FINANCE_DEV_BAR_RED,
                     text=_approved_budget_bold_bar_labels(_dev_txt_gt),
                     textposition="outside",
-                    textfont=_approved_budget_bar_textfont(color=_FINANCE_DEV_LABEL_GREEN),
+                    textfont=_approved_budget_bar_textfont(color=_FINANCE_DEV_LABEL_RED),
                     cliponaxis=False,
                 )
             )
@@ -30200,6 +30292,7 @@ def _render_budget_histogram_plan_fact_by_projects(filtered_df: pd.DataFrame) ->
         table_font_size_px=16,
         file_stem="budget_summary",
         key_prefix="budget_summary",
+        **_bdds_table_html_kw(),
     )
 
 def _approved_budget_get_monthly_slice(
@@ -30398,6 +30491,7 @@ def _render_approved_budget_plan_fact(df: pd.DataFrame) -> None:
 
     filtered_df["budget plan"] = pd.to_numeric(filtered_df["budget plan"], errors="coerce").fillna(0.0)
     filtered_df["budget fact"] = pd.to_numeric(filtered_df["budget fact"], errors="coerce").fillna(0.0)
+    filtered_df = _maybe_showcase_mix_budget_plan_fact(filtered_df)
 
     if "project name" in filtered_df.columns:
         agg = (
@@ -30427,6 +30521,7 @@ def _render_approved_budget_plan_fact(df: pd.DataFrame) -> None:
     )
     used_cumulative = monthly_slice is not None and not monthly_slice.empty
     if used_cumulative:
+        monthly_slice = _maybe_showcase_mix_budget_plan_fact(monthly_slice)
         display_df = _approved_budget_cumulative_by_project(monthly_slice)
         cum_plan = float(display_df["budget plan"].sum())
         cum_fact = float(display_df["budget fact"].sum())
@@ -30534,6 +30629,7 @@ def _render_approved_budget_monthly_block(
 
     monthly_rows["Месяц"] = monthly_rows["plan_month"].apply(format_period_ru)
     monthly_rows["reserve budget"] = monthly_rows["budget fact"] - monthly_rows["budget plan"]
+    monthly_rows = _maybe_showcase_mix_budget_monthly(monthly_rows)
 
     _pl0 = monthly_rows["budget plan"].fillna(0.0)
     _fc0 = monthly_rows["budget fact"].fillna(0.0)
@@ -30547,6 +30643,8 @@ def _render_approved_budget_monthly_block(
     _text_min_mln = 0.005
     _bar_lbl_color = _finance_chart_bar_text_color()
     _bar_txt_font = _approved_budget_bar_textfont(color=_bar_lbl_color)
+    _dev_txt_font_red = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_RED)
+    _dev_txt_font_green = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_GREEN)
     _chart_h = max(720, int(min(1050, 680 + _n_m * 4)))
     _month_cats = monthly_rows["Месяц"].astype(str).tolist()
 
@@ -30588,6 +30686,50 @@ def _render_approved_budget_monthly_block(
             customdata=monthly_rows["budget fact"].apply(format_million_rub),
         )
     )
+    _dev_mln_m = monthly_rows["reserve budget"].div(1e6)
+    _dev_thr_m = 0.01
+    _y_m_lt = _dev_mln_m.where(_dev_mln_m < -_dev_thr_m)
+    _y_m_gt = _dev_mln_m.where(_dev_mln_m > _dev_thr_m)
+    _dev_txt_m_lt = _finance_deviation_bar_text_signed_mln(
+        _y_m_lt, min_abs_mln=_text_min_mln, decimals=1, unit_suffix=" млн.руб"
+    )
+    _dev_txt_m_gt = _finance_deviation_bar_text_signed_mln(
+        _y_m_gt, min_abs_mln=_text_min_mln, decimals=1, unit_suffix=" млн.руб"
+    )
+    if _y_m_lt.notna().any():
+        fig.add_trace(
+            go.Bar(
+                x=monthly_rows["Месяц"],
+                y=_y_m_lt,
+                name="Отклонение (факт < план)",
+                marker_color=_FINANCE_DEV_BAR_GREEN,
+                text=_approved_budget_bold_bar_labels(_dev_txt_m_lt),
+                textposition="outside",
+                textfont=_dev_txt_font_green,
+                cliponaxis=False,
+                customdata=_y_m_lt.map(
+                    lambda v: format_million_rub(float(v) * 1e6) if pd.notna(v) else ""
+                ),
+                hovertemplate="<b>%{x}</b><br>Отклонение: %{customdata}<extra></extra>",
+            )
+        )
+    if _y_m_gt.notna().any():
+        fig.add_trace(
+            go.Bar(
+                x=monthly_rows["Месяц"],
+                y=_y_m_gt,
+                name="Отклонение (факт > план)",
+                marker_color=_FINANCE_DEV_BAR_RED,
+                text=_approved_budget_bold_bar_labels(_dev_txt_m_gt),
+                textposition="outside",
+                textfont=_dev_txt_font_red,
+                cliponaxis=False,
+                customdata=_y_m_gt.map(
+                    lambda v: format_million_rub(float(v) * 1e6) if pd.notna(v) else ""
+                ),
+                hovertemplate="<b>%{x}</b><br>Отклонение: %{customdata}<extra></extra>",
+            )
+        )
     fig.update_layout(
         title_text="",
         yaxis_title="млн.руб",
@@ -30652,6 +30794,7 @@ def _render_approved_budget_monthly_block(
         table_font_size_px=16,
         file_stem="approved_budget_by_month",
         key_prefix="appr_budget_planfact_summary",
+        **_bdds_table_html_kw(),
     )
 
 
@@ -32062,6 +32205,9 @@ def dashboard_approved_budget(df):
         filtered_df = _project_column_apply_canonical(filtered_df, project_col)
 
     ensure_budget_columns(filtered_df)
+    filtered_df["budget plan"] = pd.to_numeric(filtered_df["budget plan"], errors="coerce").fillna(0.0)
+    filtered_df["budget fact"] = pd.to_numeric(filtered_df["budget fact"], errors="coerce").fillna(0.0)
+    filtered_df = _maybe_showcase_mix_budget_plan_fact(filtered_df)
     from dashboards.data_quality_hints import collect_budget_1c_hints, render_quality_hints
 
     _approved_q_hints = collect_budget_1c_hints(
@@ -32076,15 +32222,14 @@ def dashboard_approved_budget(df):
     ):
         render_table_subheader(st, "Детальные данные (таблица)")
         suppress_caption(
-            "По ТЗ: утверждённый бюджет и факт из оборотов; отклонение = план − факт "
-            "(красный шрифт при отклонении < 0, зелёный при ≥ 0)."
+            "По ТЗ: утверждённый бюджет и факт из оборотов; отклонение = факт − план "
+            "(зелёный при факте ниже плана, красный при превышении)."
         )
         _tz = (
             filtered_df.groupby(_proj_key)
             .agg({"budget plan": "sum", "budget fact": "sum"})
             .reset_index()
         )
-        _tz["_dev"] = _tz["budget plan"] - _tz["budget fact"]
         _tz_out = pd.DataFrame(
             {
                 "Проект": _tz[_proj_key].astype(str),
@@ -32094,15 +32239,18 @@ def dashboard_approved_budget(df):
                 "Фактические расходы, млн руб.": (_tz["budget fact"] / 1e6).round(2).apply(
                     lambda x: f"{float(x):.2f}" if pd.notna(x) else ""
                 ),
-                "Отклонение, млн руб.": (_tz["_dev"] / 1e6).round(2).apply(
-                    lambda x: f"{float(x):.2f}" if pd.notna(x) else ""
-                ),
+                "Отклонение, млн руб.": [
+                    _finance_fmt_signed_million_deviation(f - p)
+                    for f, p in zip(_tz["budget fact"], _tz["budget plan"])
+                ],
             }
         )
         _render_budget_table_html(
                 _tz_out,
                 finance_deviation_column="Отклонение, млн руб.",
-                deviation_red_if_negative=True,
+                deviation_color_fact_vs_plan=True,
+                color_fact_column=False,
+                **_bdds_table_html_kw(),
             )
         render_quality_hints(_approved_q_hints)
 
@@ -32201,7 +32349,8 @@ def dashboard_approved_budget(df):
         return
 
     monthly_rows["Месяц"] = monthly_rows["plan_month"].apply(format_period_ru)
-    monthly_rows["reserve budget"] = monthly_rows["budget plan"] - monthly_rows["budget fact"]
+    monthly_rows["reserve budget"] = monthly_rows["budget fact"] - monthly_rows["budget plan"]
+    monthly_rows = _maybe_showcase_mix_budget_monthly(monthly_rows)
 
     if _appr_hide_zero:
         _pl0 = monthly_rows["budget plan"].fillna(0.0)
@@ -32218,7 +32367,10 @@ def dashboard_approved_budget(df):
     _n_m = len(monthly_rows)
     # Не дублировать «0.00 млн»; подписи — как в БДДС (min_abs_mln).
     _text_min_mln = 0.005
+    _bar_lbl_color = _finance_chart_bar_text_color()
     _tf_size = 8 if _n_m > 32 else 9 if _n_m > 20 else 10 if _n_m > 12 else 11
+    _dev_txt_font_red = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_RED)
+    _dev_txt_font_green = _finance_bar_label_textfont(color=_FINANCE_DEV_LABEL_GREEN)
     if _n_m > 32:
         _bg, _bgg = 0.04, 0.01
     elif _n_m > 18:
@@ -32239,7 +32391,7 @@ def dashboard_approved_budget(df):
                 monthly_rows["budget plan"], min_abs_mln=_text_min_mln
             ),
             textposition="outside",
-            textfont=dict(size=_tf_size, color="#f0f4f8"),
+            textfont=dict(size=_tf_size, color=_bar_lbl_color),
             hovertemplate="<b>%{x}</b><br>БДДС план: %{customdata}<extra></extra>",
             customdata=monthly_rows["budget plan"].apply(format_million_rub),
         )
@@ -32254,11 +32406,47 @@ def dashboard_approved_budget(df):
                 monthly_rows["budget fact"], min_abs_mln=_text_min_mln
             ),
             textposition="outside",
-            textfont=dict(size=_tf_size, color="#f0f4f8"),
+            textfont=dict(size=_tf_size, color=_bar_lbl_color),
             hovertemplate="<b>%{x}</b><br>БДДС факт: %{customdata}<extra></extra>",
             customdata=monthly_rows["budget fact"].apply(format_million_rub),
         )
     )
+    _dev_mln_ap = monthly_rows["reserve budget"].div(1e6)
+    _dev_thr_ap = 0.01
+    _y_ap_lt = _dev_mln_ap.where(_dev_mln_ap < -_dev_thr_ap)
+    _y_ap_gt = _dev_mln_ap.where(_dev_mln_ap > _dev_thr_ap)
+    _dev_txt_ap_lt = _finance_deviation_bar_text_signed_mln(
+        _y_ap_lt, min_abs_mln=_text_min_mln, decimals=1, unit_suffix=" млн. руб."
+    )
+    _dev_txt_ap_gt = _finance_deviation_bar_text_signed_mln(
+        _y_ap_gt, min_abs_mln=_text_min_mln, decimals=1, unit_suffix=" млн. руб."
+    )
+    if _y_ap_lt.notna().any():
+        fig.add_trace(
+            go.Bar(
+                x=monthly_rows["Месяц"],
+                y=_y_ap_lt,
+                name="Отклонение (факт < план)",
+                marker_color=_FINANCE_DEV_BAR_GREEN,
+                text=_dev_txt_ap_lt,
+                textposition="outside",
+                textfont=_dev_txt_font_green,
+                cliponaxis=False,
+            )
+        )
+    if _y_ap_gt.notna().any():
+        fig.add_trace(
+            go.Bar(
+                x=monthly_rows["Месяц"],
+                y=_y_ap_gt,
+                name="Отклонение (факт > план)",
+                marker_color=_FINANCE_DEV_BAR_RED,
+                text=_dev_txt_ap_gt,
+                textposition="outside",
+                textfont=_dev_txt_font_red,
+                cliponaxis=False,
+            )
+        )
     fig.update_layout(
         title_text="",
         yaxis_title="млн. руб.",
@@ -32308,20 +32496,23 @@ def dashboard_approved_budget(df):
     summary_table = monthly_rows[
         ["Месяц", "budget plan", "budget fact", "reserve budget"]
     ].copy()
-    for c in ("budget plan", "budget fact", "reserve budget"):
-        summary_table[c] = (summary_table[c] / 1e6).round(2).apply(
-            lambda x: f"{float(x):.2f}" if pd.notna(x) else ""
-        )
-    summary_table = summary_table.rename(
-        columns={
-            "budget plan": "БДДС план, млн руб.",
-            "budget fact": "БДДС факт, млн руб.",
-            "reserve budget": "Отклонение, млн руб.",
-        }
+    summary_table["БДДС план, млн руб."] = summary_table["budget plan"].apply(
+        lambda x: f"{float(x) / 1e6:.1f}" if pd.notna(x) else ""
     )
+    summary_table["БДДС факт, млн руб."] = summary_table["budget fact"].apply(
+        lambda x: f"{float(x) / 1e6:.1f}" if pd.notna(x) else ""
+    )
+    summary_table["Отклонение, млн руб."] = summary_table["reserve budget"].apply(
+        _finance_fmt_signed_million_deviation
+    )
+    summary_table = summary_table[
+        ["Месяц", "БДДС план, млн руб.", "БДДС факт, млн руб.", "Отклонение, млн руб."]
+    ]
     _render_budget_table_html(
             summary_table,
             finance_deviation_column="Отклонение, млн руб.",
+            deviation_color_fact_vs_plan=True,
+            **_bdds_table_html_kw(),
         )
     render_quality_hints(_approved_q_hints)
 
@@ -34120,6 +34311,10 @@ def dashboard_forecast_budget(df):
         st.info("Нет данных после агрегирования по выбранному периоду.")
         return
 
+    from dashboards.finance_from_1c import _showcase_mix_forecast_bddcs_monthly
+
+    mf_fc = _showcase_mix_forecast_bddcs_monthly(mf_fc)
+
     if _many_projects_fc:
         _labs_turn_main = sorted(
             {_clean_display_str(x) for x in filtered_scope[project_col].dropna().unique() if str(x).strip()},
@@ -34367,10 +34562,11 @@ def dashboard_forecast_budget(df):
         "БДДС план, млн. руб.",
         "БДДС факт, млн. руб.",
         "БДДС прогноз, млн. руб.",
-        *([] if _hide_dev_fc else [_dev_col_fc]),
     ):
         if _cn_fc in tbl_fc.columns:
             tbl_fc[_cn_fc] = tbl_fc[_cn_fc].map(format_million_rub)
+    if not _hide_dev_fc and _dev_col_fc in tbl_fc.columns:
+        tbl_fc[_dev_col_fc] = tbl_fc[_dev_col_fc].map(_finance_fmt_signed_million_deviation)
     _render_budget_table_html(
         tbl_fc,
         finance_deviation_column=None if _hide_dev_fc else _dev_col_fc,

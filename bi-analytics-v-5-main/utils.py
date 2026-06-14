@@ -149,6 +149,33 @@ DEVIATION_NEUTRAL_PCT = 0.10
 DEVIATION_CLASS_RED = "bd-cell-red"
 DEVIATION_CLASS_GREEN = "bd-cell-green"
 DEVIATION_CLASS_YELLOW = "bd-cell-yellow"
+BD_CELL_GREEN_COLOR = "hsl(148,100%,63%)"
+BD_CELL_GREEN_COLOR_LIGHT = "hsl(148, 72%, 36%)"
+BD_CELL_GREEN_READABILITY_CSS = (
+    "-webkit-text-stroke: 0.28px #111827; paint-order: stroke fill; "
+    "text-shadow: -0.28px 0 #111827, 0.28px 0 #111827, 0 -0.28px #111827, 0 0.28px #111827;"
+)
+BD_CELL_RED_COLOR_LIGHT = "hsl(348, 82%, 42%)"
+SHOWCASE_TABLE_BG_COLOR = "#ffffff"
+SHOWCASE_TABLE_TEXT_COLOR = "#111827"
+SHOWCASE_TABLE_HEADER_BG_COLOR = "#f3f4f6"
+SHOWCASE_TABLE_GROUP_ROW_BG_COLOR = "#e8ecf1"
+SHOWCASE_TABLE_CELL_BORDER = "1px solid #cbd5e1"
+
+
+def _budget_table_use_light_theme() -> bool:
+    try:
+        from config import is_showcase_mode
+
+        return bool(is_showcase_mode())
+    except Exception:
+        return False
+
+
+def _bd_cell_green_css(*, light_bg: bool) -> str:
+    color = BD_CELL_GREEN_COLOR_LIGHT if light_bg else BD_CELL_GREEN_COLOR
+    stroke = BD_CELL_GREEN_READABILITY_CSS if light_bg else ""
+    return f"color: {color} !important; -webkit-text-fill-color: {color} !important; {stroke}"
 
 # Единый размер колонок HTML-таблиц (format_dataframe_as_html, plan_fact_dates и т.д.)
 HTML_TABLE_TH_MAX_EM = 24
@@ -1468,6 +1495,11 @@ def budget_table_to_html(
     if df is None or df.empty:
         return "<p>Нет данных для отображения.</p>"
 
+    _light_tbl = _budget_table_use_light_theme()
+    _tbl_bg = SHOWCASE_TABLE_BG_COLOR if _light_tbl else TABLE_BG_COLOR
+    _tbl_text = SHOWCASE_TABLE_TEXT_COLOR if _light_tbl else TABLE_TEXT_COLOR
+    _hdr_bg = SHOWCASE_TABLE_HEADER_BG_COLOR if _light_tbl else TABLE_HEADER_BG_COLOR
+    _grp_bg = SHOWCASE_TABLE_GROUP_ROW_BG_COLOR if _light_tbl else TABLE_GROUP_ROW_BG_COLOR
     _hdr_css = header_font_css or TABLE_HEADER_FONT_CSS
     _grp_css = group_row_font_css or f"font-weight:700;font-size:{float(emphasize_row_font_em or 1.12):.2f}em;"
     _tot_bg = total_row_bg_color or TABLE_TOTAL_ROW_BG_COLOR
@@ -1479,7 +1511,9 @@ def budget_table_to_html(
     _lbl_col_css = label_columns_font_css or ""
     _scroll_vh = float(table_scroll_max_height_vh) if table_scroll_max_height_vh else None
     wrap_id = "bdt_" + str(id(df))
-    _cell_border = FINANCE_TABLE_CELL_BORDER
+    _cell_border = SHOWCASE_TABLE_CELL_BORDER if _light_tbl else FINANCE_TABLE_CELL_BORDER
+    _green_css = _bd_cell_green_css(light_bg=_light_tbl)
+    _red_color = BD_CELL_RED_COLOR_LIGHT if _light_tbl else "hsl(348,100%,63%)"
     _style_css = (
         f'#{wrap_id} table {{ table-layout: auto; font-size: {_tbl_px}px; width: max-content; min-width: 100%; '
         f'border-collapse: separate !important; border-spacing: 0 !important; border: {_cell_border} !important; }}'
@@ -1490,13 +1524,13 @@ def budget_table_to_html(
         f'#{wrap_id} tr th:first-child, #{wrap_id} tr td:first-child {{ border-left: {_cell_border} !important; }}'
         f'#{wrap_id} th:first-child, #{wrap_id} td:first-child {{ min-width: 14em; max-width: 32em; }}'
         f'#{wrap_id} th:not(:first-child), #{wrap_id} td:not(:first-child) {{ min-width: 9em; max-width: 16em; }}'
-        f'#{wrap_id} td.bd-cell-red, #{wrap_id} td.bd-cell-red * {{ color: hsl(348,100%,63%) !important; }} '
-        f'#{wrap_id} td.bd-cell-green, #{wrap_id} td.bd-cell-green * {{ color: hsl(148,100%,63%) !important; }}'
+        f'#{wrap_id} td.bd-cell-red, #{wrap_id} td.bd-cell-red * {{ color: {_red_color} !important; }} '
+        f'#{wrap_id} td.bd-cell-green, #{wrap_id} td.bd-cell-green * {{ {_green_css} }}'
         f'#{wrap_id} td.bd-cell-yellow, #{wrap_id} td.bd-cell-yellow * {{ color: hsl(48,95%,62%) !important; }}'
-        f'#{wrap_id} thead th {{ background-color: {TABLE_HEADER_BG_COLOR} !important; {_hdr_css}; {HTML_TABLE_TH_WRAP_CSS} max-width:11em; }}'
-        f'#{wrap_id} tbody td {{ {HTML_TABLE_TD_TEXT_CSS} max-width:28em; }}'
+        f'#{wrap_id} thead th {{ background-color: {_hdr_bg} !important; color: {_tbl_text} !important; {_hdr_css}; {HTML_TABLE_TH_WRAP_CSS} max-width:11em; }}'
+        f'#{wrap_id} tr.bd-group-row td {{ background-color: {_grp_bg} !important; color: {_tbl_text} !important; }}'
+        f'#{wrap_id} tbody td {{ {HTML_TABLE_TD_TEXT_CSS} max-width:28em; color: {_tbl_text}; }}'
         f'{f"#{wrap_id} tbody td:first-child, #{wrap_id} tbody td:nth-child(2) {{ {_lbl_col_css} }}" if _lbl_col_css else ""}'
-        f'#{wrap_id} tr.bd-group-row td {{ background-color: {TABLE_GROUP_ROW_BG_COLOR} !important; }}'
         f'#{wrap_id} tr.bd-total-row td {{ background-color: {_tot_bg} !important; {_tot_font} }}'
         f'#{wrap_id} tr.bd-total-row td, #{wrap_id} tr.bd-total-row td * {{ {_tot_font} }}'
         + (
@@ -1534,7 +1568,7 @@ def budget_table_to_html(
         (
             f'<div class="budget-table-scroll" data-scroll-vh="{_scroll_vh:.1f}">' if _scroll_vh else ""
         ),
-        f'<table class="bi-sortable-table bi-sort-click-only" style="width:100%; border-collapse: collapse; background-color: {TABLE_BG_COLOR}; color: {TABLE_TEXT_COLOR}; font-size: {_tbl_px}px;">',
+        f'<table class="bi-sortable-table bi-sort-click-only" style="width:100%; border-collapse: collapse; background-color: {_tbl_bg}; color: {_tbl_text}; font-size: {_tbl_px}px;">',
         "<thead><tr>",
     ]
     header_cols = [c for c in df.columns if c != row_kind_column]
@@ -1548,7 +1582,7 @@ def budget_table_to_html(
         _cc = table_column_css_class(col)
         _col_cls = f"{_col_cls} {_cc}".strip()
         parts.append(
-            f'<th class="{_col_cls}" style="padding: {_pad_y}px {_pad_x}px; background-color: {TABLE_HEADER_BG_COLOR}; {_hdr_css} text-align:center;vertical-align:bottom;" data-sort-label="{col_esc}">'
+            f'<th class="{_col_cls}" style="padding: {_pad_y}px {_pad_x}px; background-color: {_hdr_bg}; color: {_tbl_text}; {_hdr_css} text-align:center;vertical-align:bottom;" data-sort-label="{col_esc}">'
             f'<span class="bi-sort-label">{col_esc} \u21c5</span></th>'
         )
     parts.append("</tr></thead><tbody>")
@@ -1613,9 +1647,9 @@ def budget_table_to_html(
                     if abs(float(_fact_n) - float(_plan_n)) < float(deviation_abs_min_mln):
                         cell_class = None
                     elif float(_fact_n) < float(_plan_n):
-                        cell_class = DEVIATION_CLASS_RED
-                    elif float(_fact_n) > float(_plan_n):
                         cell_class = DEVIATION_CLASS_GREEN
+                    elif float(_fact_n) > float(_plan_n):
+                        cell_class = DEVIATION_CLASS_RED
                     else:
                         cell_class = None
                 elif (
