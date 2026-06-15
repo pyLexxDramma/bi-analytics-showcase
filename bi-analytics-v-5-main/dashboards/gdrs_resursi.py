@@ -3595,6 +3595,7 @@ def render_gdrs_matrix_table_html(
         thead_parts.append("</tr>")
 
     body = "".join(_row_html(r) for _, r in view.iterrows())
+    n_body_rows = len(view)
     from dashboards.gdrs_theme import get_gdrs_theme, gdrs_matrix_table_css
 
     _th = get_gdrs_theme(theme)
@@ -3604,7 +3605,7 @@ f'<div id="{wid}" class="{_wrap_cls}">'
         + gdrs_matrix_table_css(wid, _th)
         + '<table class="gdrs-matrix-table bi-sortable-table bi-sort-click-only"><thead>'
         + "".join(thead_parts)
-        + "</thead><tbody>"
+        + f'</thead><tbody data-bi-rows="{n_body_rows}">'
         + body
         + "</tbody></table></div>"
     )

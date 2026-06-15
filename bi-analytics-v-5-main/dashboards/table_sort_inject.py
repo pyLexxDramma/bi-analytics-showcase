@@ -625,6 +625,30 @@ _COMPACT_FRAME_FIT_JS = r"""
           return;
         }
       }
+      var gdrsWrap = document.querySelector(".gdrs-table-wrap");
+      if (gdrsWrap) {
+        var fsRoot = document.getElementById("matrix-fs-root");
+        var topbar = fsRoot ? fsRoot.querySelector(".matrix-fs-topbar") : null;
+        var tbH = topbar ? Math.ceil(topbar.getBoundingClientRect().height) : 0;
+        var gTbl = gdrsWrap.querySelector("table");
+        var gContent = gTbl
+          ? Math.max(Math.ceil(gTbl.offsetHeight || 0), Math.ceil(gTbl.scrollHeight || 0))
+          : Math.ceil(gdrsWrap.scrollHeight || 0);
+        var gh = tbH + gContent + 20;
+        if (gh > 0) {
+          try {
+            var feG = window.frameElement;
+            if (feG) {
+              feG.style.height = gh + "px";
+              feG.style.minHeight = "0";
+              feG.style.maxHeight = "none";
+              feG.style.overflow = "hidden";
+            }
+          } catch (e) {}
+          window.parent.postMessage({ type: "streamlit:setFrameHeight", height: gh }, "*");
+          return;
+        }
+      }
       var root = document.querySelector(".budget-deviation-table-wrap")
         || document.querySelector(".pf-covenant-table-wrap")
         || document.querySelector(".pf-dates-table-wrap")
@@ -1083,10 +1107,16 @@ def _estimate_html_block_height(html: str) -> int:
         extra = 40
         cap = 1400
     elif "gdrs-matrix-table" in html_l or "gdrs-table-wrap" in html_l:
-        thead_h = 132
-        row_h = 38
-        extra = 56
-        cap = 2600
+        thead_h = 88
+        if "gdrs-h-title" in html_l:
+            thead_h += 40
+        if "gdrs-h-period" in html_l:
+            thead_h += 36
+        if "gdrs-h-week" in html_l:
+            thead_h += 44
+        row_h = 42
+        extra = 80
+        cap = 3600
     elif "budget-deviation-table-wrap" in html_l:
         thead_h = 64
         row_h = 32
@@ -1165,6 +1195,8 @@ def _estimate_html_block_height(html: str) -> int:
         return int(max(420, min(820, est + 24)))
     if "fc-table-scroll-wrap" in html_l:
         return int(max(840, min(1640, est + 24)))
+    if "gdrs-matrix-table" in html_l or "gdrs-table-wrap" in html_l:
+        return int(min(cap, max(240, est)))
     return int(min(cap, max(120, est)))
 
 
@@ -1231,6 +1263,7 @@ def _build_sortable_html_document(html: str) -> str:
                 or "dev-reasons-wrap" in html_l
                 or "fc-table-scroll-wrap" in html_l
                 or "pf-dates-scroll-wrap" in html_l
+                or "gdrs-table-wrap" in html_l
                 )
             )
             else ""
@@ -1364,6 +1397,8 @@ def render_sortable_html_block(html: str, *, compact_iframe: bool | None = None)
             _pad_h = 4
         elif _wide_tbl:
             _pad_h = 18
+        elif "gdrs-table-wrap" in _b:
+            _pad_h = 24
         else:
             _pad_h = 10
         components.html(

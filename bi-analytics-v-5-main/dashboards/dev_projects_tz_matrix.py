@@ -3646,11 +3646,17 @@ _MATRIX_IFRAME_FIT_HEIGHT_SCRIPT = """
   function measure(){
     var root=document.getElementById("matrix-fs-root");
     if(!root) return 0;
-    var wrap=root.querySelector(".dev-tz-matrix-wrap,.cp-tables-stack,.cp-table-wrap");
+    var wrap=root.querySelector(".dev-tz-matrix-wrap,.cp-tables-stack,.cp-table-wrap,.gdrs-table-wrap");
     if(wrap){
+      var tbl=wrap.querySelector("table");
+      var topbar=root.querySelector(".matrix-fs-topbar");
+      var tb=topbar?Math.ceil(topbar.getBoundingClientRect().height):0;
+      var th=tbl
+        ? Math.max(Math.ceil(tbl.offsetHeight||0),Math.ceil(tbl.scrollHeight||0))
+        : Math.ceil(wrap.scrollHeight||0);
       var rr=wrap.getBoundingClientRect();
       var rt=root.getBoundingClientRect();
-      return Math.ceil(rr.bottom-rt.top+2);
+      return Math.max(tb+th+4, Math.ceil(rr.bottom-rt.top+2));
     }
     return Math.ceil(root.getBoundingClientRect().height);
   }
@@ -3688,7 +3694,7 @@ _MATRIX_IFRAME_FIT_HEIGHT_SCRIPT = """
   else schedule();
   window.addEventListener("load",schedule);
   try{
-    var w=document.querySelector(".dev-tz-matrix-wrap,.cp-tables-stack");
+    var w=document.querySelector(".dev-tz-matrix-wrap,.cp-tables-stack,.gdrs-table-wrap");
     if(w&&typeof ResizeObserver!=="undefined") new ResizeObserver(schedule).observe(w);
   }catch(e){}
   window.__devTzMatrixRemeasure=apply;
