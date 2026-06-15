@@ -60,13 +60,15 @@ bi-analytics-v-5-main/data/*.db
 bi-analytics-v-5-main/*.db
 # Демо-данные showcase — только через showcase_app.py (:8502), не через production web/.
 bi-analytics-v-5-main/web/showcase/
-showcase_data/*.dbshowcase_data/_verify_ui/
+showcase_data/*.db
+showcase_data/_verify_ui/
 *.sqlite
 *.sqlite3
 
-# --- Not for GitHub: CI/deploy/scripts at repo root ---
-.github/
-scripts/
+# Local dev / audit output
+output/
+_*.py
+_test_out.html
 
 # App-level dev junk (see also bi-analytics-v-5-main/.gitignore)
 bi-analytics-v-5-main/docs/
