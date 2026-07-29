@@ -323,3 +323,72 @@ export async function fetchDeveloperProjects(
   }
   return res.json();
 }
+
+export type ControlPointsPayload = {
+  meta: {
+    rows: number;
+    source: string;
+    data_mode: string;
+    files: number;
+    rule?: string;
+  };
+  filters: {
+    projects: string[];
+    applied: { project: string };
+  };
+  kpis: {
+    projects: number;
+    milestones_found: number;
+    completed_pct: number;
+    overdue: number;
+    missing_fact: number;
+  };
+  tremor: {
+    completion_by_project: Array<{
+      project: string;
+      completed: number;
+      total: number;
+      pct: number;
+    }>;
+    status_mix: Array<{ name: string; value: number }>;
+  };
+  matrix: {
+    milestones: Array<{ slug: string; title: string }>;
+    projects: Array<{
+      project: string;
+      cells: Record<
+        string,
+        {
+          plan: string | null;
+          fact: string | null;
+          otkl: string;
+          otkl_days: number | null;
+          status: "missing" | "done" | "overdue" | "on_track";
+        }
+      >;
+    }>;
+  };
+  rows: Array<{
+    project: string;
+    milestone: string;
+    slug: string;
+    plan: string | null;
+    fact: string | null;
+    otkl_days: number | null;
+    otkl: string;
+    pct_complete: number | null;
+    status: "missing" | "done" | "overdue" | "on_track";
+  }>;
+};
+
+export async function fetchControlPoints(
+  project?: string,
+): Promise<ControlPointsPayload> {
+  const qs = project && project !== "Все" ? `?project=${encodeURIComponent(project)}` : "";
+  const url = apiUrl(`/api/control-points${qs}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

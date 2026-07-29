@@ -59,6 +59,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "control-points",
         href: "/timeline/control-points",
         label: "Контрольные точки",
+        ready: true,
       },
       {
         id: "project-schedule",

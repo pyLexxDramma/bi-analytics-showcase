@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { ControlPointsView } from "@/components/control-points-view";
 
 export default function Page() {
-  return <PlaceholderScreen title="Контрольные точки" section="Сроки" />;
+  return <ControlPointsView />;
 }

@@ -10,6 +10,7 @@ from app.routers import (
     bdds,
     bdds_plan_fact,
     bdr,
+    control_points,
     debit_credit,
     developer_projects,
 )
@@ -29,6 +30,7 @@ app.include_router(bdds.router)
 app.include_router(bdr.router)
 app.include_router(approved_budget.router)
 app.include_router(bdds_plan_fact.router)
+app.include_router(control_points.router)
 app.include_router(admin.router)
 
 
@@ -97,6 +99,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/finance/bdds-plan-fact",
                 "api": "/api/bdds-plan-fact",
+            },
+            {
+                "id": "control-points",
+                "title": "Контрольные точки",
+                "section": "Сроки",
+                "status": "ready",
+                "path": "/timeline/control-points",
+                "api": "/api/control-points",
             },
             {
                 "id": "menu",
