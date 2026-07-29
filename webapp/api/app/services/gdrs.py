@@ -100,6 +100,7 @@ def _discover_files() -> dict[str, list]:
     resursi = sorted(ai.glob("*resursi*.csv")) if ai.is_dir() else []
     if not resursi and web.is_dir():
         resursi = sorted(web.glob("*resursi*.csv"))
+    resursi = _keep_recent_by_name_date(resursi, limit=3)
     dogovor = sorted(web.glob("*_Dogovor.json")) if web.is_dir() else []
     sprav = sorted(web.glob("*_spravochniki.json")) if web.is_dir() else []
     kontr = sorted(web.glob("*_Kontr.json")) if web.is_dir() else []
@@ -111,10 +112,10 @@ def _discover_files() -> dict[str, list]:
     dannye = sorted({p.resolve() for p in dannye if p.is_file()})
     # Docker/VPS: полный набор 1С JSON слишком тяжёлый для синхронного API —
     # оставляем недавние снапшоты (семантика среза плана сохраняется).
-    dogovor = _keep_recent_by_name_date(dogovor, limit=3)
-    sprav = _keep_recent_by_name_date(sprav, limit=2)
-    kontr = _keep_recent_by_name_date(kontr, limit=2)
-    dannye = _keep_recent_by_name_date(list(dannye), limit=0)
+    dogovor = _keep_recent_by_name_date(dogovor, limit=2)
+    sprav = _keep_recent_by_name_date(sprav, limit=1)
+    kontr = _keep_recent_by_name_date(kontr, limit=1)
+    dannye = []
     return {
         "resursi": resursi,
         "dogovor": dogovor,
@@ -128,6 +129,8 @@ def _keep_recent_by_name_date(paths: list, *, limit: int) -> list:
     """Оставить последние `limit` файлов по дате в имени (DD-MM-YYYY), иначе по mtime."""
     import re
 
+    if limit <= 0:
+        return []
     if len(paths) <= limit:
         return list(paths)
     date_re = re.compile(r"(\d{2})-(\d{2})-(\d{4})")
@@ -149,14 +152,24 @@ def _cached_long_fact(res_sig: tuple) -> pd.DataFrame:
     from pathlib import Path as P
 
     g = _gdrs()
-    # Fuzzy clustering подрядчиков на VPS — минуты CPU; для webapp не нужен.
-    g._canonicalize_project_names = lambda df: df  # type: ignore[assignment]
-    g._canonicalize_contractor_names = lambda df: df  # type: ignore[assignment]
     labels = _labels()
-    df = g.load_resursi_files([P(p[0]) for p in res_sig])
-    if df is None or df.empty:
+    frames: list[pd.DataFrame] = []
+    for item in res_sig:
+        try:
+            df = g.load_resursi_file(P(item[0]))
+        except Exception:
+            continue
+        if df is not None and not df.empty:
+            frames.append(df)
+    if not frames:
         return pd.DataFrame()
-    return labels.apply_unified_project_column(df, "project_name")
+    out = pd.concat(frames, ignore_index=True)
+    # Без fuzzy-canonicalize (на VPS это минуты CPU).
+    out = out.drop_duplicates(
+        subset=["project_name", "contractor_name", "vid_resursa", "date"],
+        keep="last",
+    )
+    return labels.apply_unified_project_column(out, "project_name")
 
 
 @lru_cache(maxsize=32)
@@ -327,16 +340,16 @@ def build_gdrs_payload(
         else []
     )
 
-    filter_plan_snap = (
-        pd.Timestamp(month_options[-1][1].end_time).normalize() if month_options else None
-    )
-    contractor_options = g.gdrs_contractor_filter_options(
-        long_fact,
-        files["dogovor"],
-        files["sprav"],
-        projects=sel_projects or None,
-        snapshot_date=filter_plan_snap,
-    )
+    # Не вызывать gdrs_contractor_filter_options — внутри load_plan_aggregate (минуты на VPS).
+    contractor_options: list[str] = []
+    if "contractor_name" in long_fact.columns:
+        contractor_options = sorted(
+            {
+                str(x).strip()
+                for x in long_fact["contractor_name"].dropna().unique()
+                if str(x).strip()
+            }
+        )
 
     sel_periods, _stale = g.gdrs_resolve_month_periods(month_options, sel_month_labels)
     date_from, date_to = g.gdrs_months_date_range(sel_periods)
