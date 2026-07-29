@@ -161,7 +161,7 @@ export function DebitCreditView() {
       {error ? (
         <Card className="mb-6 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">
           <Text className="text-rose-700 dark:text-rose-300">
-            API недоступен (нужен FastAPI на :8000). {error}
+            API недоступен. {error}
           </Text>
         </Card>
       ) : null}

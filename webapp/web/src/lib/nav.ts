@@ -26,6 +26,7 @@ export const REPORT_TOP_TAB: ReportLeaf = {
   id: "developer-projects",
   href: "/developer-projects",
   label: "Девелоперские проекты",
+  ready: true,
   kind: "tab",
 };
 

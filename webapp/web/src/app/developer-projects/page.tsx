@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { DeveloperProjectsView } from "@/components/developer-projects-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen
-      title="Девелоперские проекты"
-      section="Девелоперские проекты"
-    />
-  );
+  return <DeveloperProjectsView />;
 }
