@@ -165,13 +165,6 @@ export function AppSidebar() {
                 }`}
               >
                 {item.label}
-                {item.ready ? (
-                  <span className="ml-1 text-[11px] text-emerald-600">
-                    · готово
-                  </span>
-                ) : (
-                  <span className="ml-1 text-[11px] text-gray-400">· скоро</span>
-                )}
               </Link>
             ))}
           </div>

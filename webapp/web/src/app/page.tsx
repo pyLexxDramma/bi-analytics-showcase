@@ -45,7 +45,6 @@ export default function HomePage() {
               <li key={i.id}>
                 <Link href={i.href} className="text-tremor-brand hover:underline">
                   {i.label}
-                  {i.ready ? " · готово" : ""}
                 </Link>
               </li>
             ))}
