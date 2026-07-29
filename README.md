@@ -36,6 +36,7 @@ npm run dev
 
 - UI: http://localhost:3000  
 - API docs: http://127.0.0.1:8000/docs  
+- Публичный VPS (Next pilot): https://insipidly-carefree-husky.cloudpub.ru  
 - Подробности / FTP / Docker / VPS: [webapp/README.md](webapp/README.md)
 
 Публичный Streamlit Cloud остаётся на фейковых данных. Клиентский FTP — только в режиме `WEBAPP_DATA_MODE=ftp` на VPS с секретами.

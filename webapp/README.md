@@ -39,9 +39,22 @@ Authorization: Bearer <WEBAPP_ADMIN_TOKEN>
 
 Секреты как на проде: `BI_FTP_HOST`, `BI_FTP_USER`, `BI_FTP_PASSWORD`, `BI_FTP_REMOTE_DIR=/web`.
 
-## Docker / VPS
+## Публичный деплой (VPS)
 
-Edge (Caddy) слушает **:3080** — `/` → Next, `/api` → FastAPI.
+Сейчас запущено на VPS:
+
+- Docker: `api` + `web` + Caddy edge **:3080**
+- Туннель CloudPub: https://insipidly-carefree-husky.cloudpub.ru  
+  - UI: https://insipidly-carefree-husky.cloudpub.ru/debit-credit  
+  - API: https://insipidly-carefree-husky.cloudpub.ru/api/health  
+
+Каталог на сервере: `~/apps/bi-analytics-showcase`  
+Деплой: push в `main` → GitHub Actions (`WEBAPP_VPS_*`) или `bash webapp/scripts/server_deploy.sh`
+
+Данные по умолчанию: **synthetic** (`showcase_data/web`).  
+FTP как на ai.conall.ru: на VPS в `webapp/.env` задать `WEBAPP_DATA_MODE=ftp` + `BI_FTP_*`, затем `POST /api/admin/sync`.
+
+## Docker / VPS (локально / сервер)
 
 ```powershell
 cd webapp
