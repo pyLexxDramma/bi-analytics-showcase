@@ -4,7 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import API_TITLE, API_VERSION, CORS_ORIGINS, DATA_MODE, WEB_DATA_DIR
-from app.routers import admin, approved_budget, bdds, bdr, debit_credit, developer_projects
+from app.routers import (
+    admin,
+    approved_budget,
+    bdds,
+    bdds_plan_fact,
+    bdr,
+    debit_credit,
+    developer_projects,
+)
 from app.services.ftp_ingest import sync_status
 
 app = FastAPI(title=API_TITLE, version=API_VERSION)
@@ -20,6 +28,7 @@ app.include_router(developer_projects.router)
 app.include_router(bdds.router)
 app.include_router(bdr.router)
 app.include_router(approved_budget.router)
+app.include_router(bdds_plan_fact.router)
 app.include_router(admin.router)
 
 
@@ -80,6 +89,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/finance/approved-budget",
                 "api": "/api/approved-budget",
+            },
+            {
+                "id": "bdds-plan-fact",
+                "title": "БДДС расходы (план, факт, уточненный план)",
+                "section": "Финансы",
+                "status": "ready",
+                "path": "/finance/bdds-plan-fact",
+                "api": "/api/bdds-plan-fact",
             },
             {
                 "id": "menu",

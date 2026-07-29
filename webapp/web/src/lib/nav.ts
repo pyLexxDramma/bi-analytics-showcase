@@ -47,6 +47,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "bdds-plan-fact",
         href: "/finance/bdds-plan-fact",
         label: "БДДС расходы (план, факт, уточненный план)",
+        ready: true,
       },
     ],
   },

@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { BddsPlanFactView } from "@/components/bdds-plan-fact-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen
-      title="БДДС расходы (план, факт, уточненный план)"
-      section="Финансы"
-    />
-  );
+  return <BddsPlanFactView />;
 }
