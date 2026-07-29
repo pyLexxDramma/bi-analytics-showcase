@@ -1,7 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { BaselineDeviationView } from "@/components/baseline-deviation-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen title="Отклонение от базового плана" section="Сроки" />
-  );
+  return <BaselineDeviationView />;
 }

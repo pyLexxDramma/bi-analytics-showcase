@@ -77,6 +77,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "baseline-deviation",
         href: "/timeline/baseline-deviation",
         label: "Отклонение от базового плана",
+        ready: true,
       },
     ],
   },

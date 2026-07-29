@@ -9,6 +9,8 @@ export const CHART_RU = {
   contractSum: "Стоимость договора",
   advance: "Аванс выдан",
   reasonCount: "Количество",
+  baseEnd: "Базовое окончание",
+  planEnd: "Окончание",
 } as const;
 
 export const PLAN_FACT_DEVIATION_CATEGORIES = [

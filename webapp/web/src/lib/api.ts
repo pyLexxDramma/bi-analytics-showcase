@@ -562,3 +562,100 @@ export async function fetchDeviationReasons(
   }
   return res.json();
 }
+
+export type BaselineDeviationPayload = {
+  meta: {
+    rows: number;
+    chart_rows: number;
+    source: string;
+    data_mode: string;
+    files: number;
+    rule?: string;
+  };
+  filters: {
+    projects: string[];
+    blocks: string[];
+    buildings: string[];
+    levels: Array<{ id: string; label: string }>;
+    applied: {
+      project: string;
+      block: string;
+      building: string;
+      level: string;
+      level_skipped?: boolean;
+    };
+  };
+  kpis: {
+    max_abs_dev_days: number;
+    zos_rows: Array<{
+      project: string;
+      task: string;
+      base_end: string | null;
+      plan_end: string | null;
+      dev_end_days: number;
+      dev_end: string;
+    }>;
+  };
+  chart: {
+    range_start: string | null;
+    range_end: string | null;
+    capped: boolean;
+    rows: Array<{
+      project: string;
+      task: string;
+      label: string;
+      base_end: string | null;
+      plan_end: string | null;
+      dev_end_days: number | null;
+    }>;
+  };
+  rows: Array<{
+    project: string;
+    task_id: string | null;
+    task: string;
+    block: string | null;
+    building: string | null;
+    base_start: string | null;
+    plan_start: string | null;
+    dev_start: string;
+    dev_start_days: number | null;
+    base_end: string | null;
+    plan_end: string | null;
+    dev_end: string;
+    dev_end_days: number | null;
+    base_dur_days: number | null;
+    plan_dur_days: number | null;
+    dev_dur: string;
+    dev_dur_days: number | null;
+  }>;
+};
+
+export type BaselineDeviationQuery = {
+  project?: string;
+  block?: string;
+  building?: string;
+  level?: string;
+};
+
+export async function fetchBaselineDeviation(
+  query: BaselineDeviationQuery = {},
+): Promise<BaselineDeviationPayload> {
+  const params = new URLSearchParams();
+  if (query.project && query.project !== "Все") {
+    params.set("project", query.project);
+  }
+  if (query.block && query.block !== "Все") {
+    params.set("block", query.block);
+  }
+  if (query.building && query.building !== "Все") {
+    params.set("building", query.building);
+  }
+  if (query.level) params.set("level", query.level);
+  const qs = params.toString();
+  const url = apiUrl(`/api/baseline-deviation${qs ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

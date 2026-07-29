@@ -7,6 +7,7 @@ from app.config import API_TITLE, API_VERSION, CORS_ORIGINS, DATA_MODE, WEB_DATA
 from app.routers import (
     admin,
     approved_budget,
+    baseline_deviation,
     bdds,
     bdds_plan_fact,
     bdr,
@@ -35,6 +36,7 @@ app.include_router(bdds_plan_fact.router)
 app.include_router(control_points.router)
 app.include_router(project_schedule.router)
 app.include_router(deviation_reasons.router)
+app.include_router(baseline_deviation.router)
 app.include_router(admin.router)
 
 
@@ -127,6 +129,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/timeline/deviation-reasons",
                 "api": "/api/deviation-reasons",
+            },
+            {
+                "id": "baseline-deviation",
+                "title": "Отклонение от базового плана",
+                "section": "Сроки",
+                "status": "ready",
+                "path": "/timeline/baseline-deviation",
+                "api": "/api/baseline-deviation",
             },
             {
                 "id": "menu",
