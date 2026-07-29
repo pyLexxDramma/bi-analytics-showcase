@@ -8,6 +8,7 @@ export const CHART_RU = {
   pctComplete: "Выполнено, %",
   contractSum: "Стоимость договора",
   advance: "Аванс выдан",
+  reasonCount: "Количество",
 } as const;
 
 export const PLAN_FACT_DEVIATION_CATEGORIES = [
@@ -59,5 +60,14 @@ export function withRuPctComplete<
   return rows.map((row) => ({
     ...row,
     [CHART_RU.pctComplete]: row.pct,
+  }));
+}
+
+export function withRuReasonCount<
+  T extends { count: number } & Record<string, string | number>,
+>(rows: T[]) {
+  return rows.map((row) => ({
+    ...row,
+    [CHART_RU.reasonCount]: row.count,
   }));
 }

@@ -71,6 +71,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "deviation-reasons",
         href: "/timeline/deviation-reasons",
         label: "Причины отклонений",
+        ready: true,
       },
       {
         id: "baseline-deviation",

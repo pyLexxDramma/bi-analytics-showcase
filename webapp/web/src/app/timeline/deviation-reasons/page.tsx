@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { DeviationReasonsView } from "@/components/deviation-reasons-view";
 
 export default function Page() {
-  return <PlaceholderScreen title="Причины отклонений" section="Сроки" />;
+  return <DeviationReasonsView />;
 }

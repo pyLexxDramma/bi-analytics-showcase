@@ -13,6 +13,7 @@ from app.routers import (
     control_points,
     debit_credit,
     developer_projects,
+    deviation_reasons,
     project_schedule,
 )
 from app.services.ftp_ingest import sync_status
@@ -33,6 +34,7 @@ app.include_router(approved_budget.router)
 app.include_router(bdds_plan_fact.router)
 app.include_router(control_points.router)
 app.include_router(project_schedule.router)
+app.include_router(deviation_reasons.router)
 app.include_router(admin.router)
 
 
@@ -117,6 +119,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/timeline/project-schedule",
                 "api": "/api/project-schedule",
+            },
+            {
+                "id": "deviation-reasons",
+                "title": "Причины отклонений",
+                "section": "Сроки",
+                "status": "ready",
+                "path": "/timeline/deviation-reasons",
+                "api": "/api/deviation-reasons",
             },
             {
                 "id": "menu",

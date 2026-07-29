@@ -479,3 +479,86 @@ export async function fetchProjectSchedule(
   }
   return res.json();
 }
+
+export type DeviationReasonsPayload = {
+  meta: {
+    rows: number;
+    source: string;
+    data_mode: string;
+    files: number;
+    rule?: string;
+  };
+  filters: {
+    projects: string[];
+    blocks: string[];
+    reasons: string[];
+    period: { min: string | null; max: string | null };
+    applied: {
+      project: string;
+      block: string;
+      reason: string;
+      date_from: string | null;
+      date_to: string | null;
+    };
+  };
+  kpis: {
+    main_reason: string;
+    main_reason_share_pct: number;
+    main_reason_count: number;
+    tasks: number;
+  };
+  tremor: {
+    by_reason: Array<{
+      reason: string;
+      reason_full: string;
+      count: number;
+      pct: number;
+    }>;
+    reason_mix: Array<{ name: string; value: number }>;
+  };
+  rows: Array<{
+    task_id: string | null;
+    project: string;
+    block: string | null;
+    building: string | null;
+    base_end: string | null;
+    plan_end: string | null;
+    end_diff_days: number;
+    reason: string;
+    bucket: string;
+    bucket_color: string;
+    notes: string | null;
+  }>;
+};
+
+export type DeviationReasonsQuery = {
+  project?: string;
+  block?: string;
+  reason?: string;
+  date_from?: string;
+  date_to?: string;
+};
+
+export async function fetchDeviationReasons(
+  query: DeviationReasonsQuery = {},
+): Promise<DeviationReasonsPayload> {
+  const params = new URLSearchParams();
+  if (query.project && query.project !== "Все") {
+    params.set("project", query.project);
+  }
+  if (query.block && query.block !== "Все") {
+    params.set("block", query.block);
+  }
+  if (query.reason && query.reason !== "Все") {
+    params.set("reason", query.reason);
+  }
+  if (query.date_from) params.set("date_from", query.date_from);
+  if (query.date_to) params.set("date_to", query.date_to);
+  const qs = params.toString();
+  const url = apiUrl(`/api/deviation-reasons${qs ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}
