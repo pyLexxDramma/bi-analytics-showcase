@@ -6,13 +6,18 @@ export const metadata: Metadata = {
   description: "Пилот миграции Streamlit → Next.js + FastAPI",
 };
 
+const themeInitScript = `(function(){try{var t=localStorage.getItem('bi_showcase_theme');if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );

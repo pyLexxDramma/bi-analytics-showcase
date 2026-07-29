@@ -1,7 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { ProfileView } from "@/components/profile-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen title="Настройки профиля" section="Настройки" />
-  );
+  return <ProfileView />;
 }

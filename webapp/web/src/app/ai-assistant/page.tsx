@@ -1,7 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { AiAssistantView } from "@/components/ai-assistant-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen title="ИИ помощник" section="Меню" />
-  );
+  return <AiAssistantView />;
 }

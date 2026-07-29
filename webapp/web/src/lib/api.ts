@@ -1036,3 +1036,68 @@ export async function fetchExecutiveDocs(
   }
   return res.json();
 }
+
+export type AdminDataStatus = {
+  data_mode: string;
+  web_dir: string;
+  files: number;
+  latest_mtime: number | null;
+  ftp_configured: boolean;
+};
+
+export async function fetchAdminDataStatus(): Promise<AdminDataStatus> {
+  const url = apiUrl("/api/admin/data-status");
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}
+
+export type AdminSyncResult = {
+  ok: boolean;
+  downloaded?: number;
+  skipped_same_size?: number;
+  files?: number;
+  errors?: string[];
+  detail?: string;
+  [key: string]: unknown;
+};
+
+export async function postAdminSync(
+  token: string,
+  force = false,
+): Promise<AdminSyncResult> {
+  const qs = force ? "?force=true" : "";
+  const url = apiUrl(`/api/admin/sync${qs}`);
+  const res = await fetch(url, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "X-Admin-Token": token,
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail =
+      typeof body?.detail === "string"
+        ? body.detail
+        : `API ${res.status}: ${url}`;
+    throw new Error(detail);
+  }
+  return body as AdminSyncResult;
+}
+
+export async function fetchHealth(): Promise<{
+  ok: boolean;
+  version?: string;
+  data_mode?: string;
+  files?: number;
+}> {
+  const url = apiUrl("/api/health");
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

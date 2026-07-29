@@ -1,7 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { AdminView } from "@/components/admin-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen title="Административная панель" section="Настройки" />
-  );
+  return <AdminView />;
 }

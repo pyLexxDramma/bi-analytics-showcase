@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { isAuthenticated } from "@/lib/auth";
+import {
+  applyThemeClass,
+  readTheme,
+  writeTheme,
+  type ThemeMode,
+} from "@/lib/theme";
 
 export function AppShell({
   title,
@@ -23,18 +29,21 @@ export function AppShell({
       router.replace("/login");
       return;
     }
+    const mode = readTheme();
+    setDark(mode === "dark");
+    applyThemeClass(mode);
     setReady(true);
   }, [router]);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    if (dark) root.classList.add("dark");
-    else root.classList.remove("dark");
-  }, [dark]);
+  const setTheme = (mode: ThemeMode) => {
+    setDark(mode === "dark");
+    writeTheme(mode);
+    applyThemeClass(mode);
+  };
 
   if (!ready) {
     return (
-      <div className="flex min-h-full items-center justify-center bg-slate-50 text-slate-500">
+      <div className="flex min-h-full items-center justify-center bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
         Проверка сессии…
       </div>
     );
@@ -58,7 +67,7 @@ export function AppShell({
             </div>
             <button
               type="button"
-              onClick={() => setDark((v) => !v)}
+              onClick={() => setTheme(dark ? "light" : "dark")}
               className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
             >
               {dark ? "☀ Светлая" : "🌙 Тёмная"}
