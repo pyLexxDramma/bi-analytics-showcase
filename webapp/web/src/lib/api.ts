@@ -77,6 +77,43 @@ export async function fetchDebitCredit(
   return res.json();
 }
 
+export type BddsPayload = {
+  meta: { rows: number; source: string; data_mode: string; files: number };
+  filters: {
+    projects: string[];
+    date_min: string | null;
+    date_max: string | null;
+    applied: {
+      project: string;
+      date_from: string | null;
+      date_to: string | null;
+      view: "monthly" | "cumulative";
+    };
+  };
+  kpis: { plan_mln: number; fact_mln: number; deviation_mln: number };
+  tremor: {
+    by_period: Array<{ period: string; plan: number; fact: number; deviation: number }>;
+    by_project: Array<{ project: string; plan: number; fact: number; deviation: number }>;
+  };
+  period_rows: Array<{ period: string; plan: number; fact: number; deviation: number }>;
+  project_rows: Array<{ project: string; plan: number; fact: number; deviation: number }>;
+};
+
+export async function fetchBdds(
+  params: Record<string, string | undefined> = {},
+): Promise<BddsPayload> {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value && value !== "Все") qs.set(key, value);
+  });
+  const url = apiUrl(`/api/bdds${qs.toString() ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}
+
 export type DeveloperProjectsPayload = {
   meta: {
     rows: number;

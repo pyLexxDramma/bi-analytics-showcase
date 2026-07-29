@@ -1,7 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { BddsView } from "@/components/bdds-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen title="БДДС (расходы)" section="Финансы" />
-  );
+  return <BddsView />;
 }
