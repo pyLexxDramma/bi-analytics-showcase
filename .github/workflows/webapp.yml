@@ -1,0 +1,67 @@
+name: Webapp CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "webapp/**"
+      - ".github/workflows/webapp.yml"
+  pull_request:
+    paths:
+      - "webapp/**"
+
+jobs:
+  api-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: |
+          python -c "from app.services.debit_credit import build_debit_credit_payload; p=build_debit_credit_payload(); assert 'kpis' in p; print(p['meta'], p['kpis'])"
+
+  web-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webapp/web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE: http://127.0.0.1:8000
+
+  # Optional VPS deploy — runs only when secrets are configured
+  deploy-vps:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [api-smoke, web-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH (if secrets present)
+        env:
+          VPS_HOST: ${{ secrets.WEBAPP_VPS_HOST }}
+          VPS_USER: ${{ secrets.WEBAPP_VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          VPS_PATH: ${{ secrets.WEBAPP_VPS_PATH }}
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$VPS_USER" ] || [ -z "$VPS_SSH_KEY" ]; then
+            echo "VPS secrets not set — skip deploy. Set WEBAPP_VPS_HOST/USER/SSH_KEY/PATH to enable."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "$VPS_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          TARGET="${VPS_PATH:-/opt/bi-analytics-showcase}"
+          ssh "$VPS_USER@$VPS_HOST" "cd '$TARGET' && git pull && cd webapp && docker compose up -d --build"

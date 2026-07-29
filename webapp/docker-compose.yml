@@ -1,0 +1,36 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      WEBAPP_DATA_MODE: ${WEBAPP_DATA_MODE:-synthetic}
+      WEBAPP_ADMIN_TOKEN: ${WEBAPP_ADMIN_TOKEN:-}
+      WEBAPP_CORS_ORIGINS: ${WEBAPP_CORS_ORIGINS:-http://localhost:3000}
+      SHOWCASE_WEB_DIR: /data/web
+      WEBAPP_ROOT: /app
+      SHOWCASE_ROOT: /showcase
+      BI_CORE_APP_DIR: /core
+      BI_FTP_HOST: ${BI_FTP_HOST:-}
+      BI_FTP_USER: ${BI_FTP_USER:-}
+      BI_FTP_PASSWORD: ${BI_FTP_PASSWORD:-}
+      BI_FTP_REMOTE_DIR: ${BI_FTP_REMOTE_DIR:-/web}
+      BI_FTP_PORT: ${BI_FTP_PORT:-21}
+      BI_FTP_TLS: ${BI_FTP_TLS:-0}
+    volumes:
+      - ./data/web:/data/web
+      - ../showcase_data:/showcase/showcase_data:ro
+      - ../bi-analytics-v-5-main:/core:ro
+      - ../showcase_app.py:/showcase/showcase_app.py:ro
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}

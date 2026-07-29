@@ -15,7 +15,30 @@ pip install -r requirements.txt
 streamlit run showcase_app.py
 ```
 
-Приложение откроется на http://localhost:8501
+Порт **8502** (основной дашборд обычно на 8501) — задан в `.streamlit/config.toml`.
+Явно: `streamlit run showcase_app.py --server.port 8502`
+
+Приложение: http://localhost:8502
+
+## Next.js + FastAPI (пилот миграции)
+
+Каркас в `webapp/` — UI по Tremor data-spec, данные synthetic или FTP (как ai.conall.ru).
+
+```powershell
+cd webapp\api
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+cd webapp\web
+npm install
+npm run dev
+```
+
+- UI: http://localhost:3000  
+- API docs: http://127.0.0.1:8000/docs  
+- Подробности / FTP / Docker / VPS: [webapp/README.md](webapp/README.md)
+
+Публичный Streamlit Cloud остаётся на фейковых данных. Клиентский FTP — только в режиме `WEBAPP_DATA_MODE=ftp` на VPS с секретами.
 
 ## Структура
 

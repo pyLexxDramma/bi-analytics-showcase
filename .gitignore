@@ -65,6 +65,14 @@ showcase_data/_verify_ui/
 *.sqlite
 *.sqlite3
 
+# Next.js + FastAPI webapp
+webapp/web/node_modules/
+webapp/web/.next/
+webapp/web/out/
+webapp/web/.env.local
+webapp/api/.venv/
+webapp/**/__pycache__/
+
 # Local dev / audit output
 output/
 _*.py

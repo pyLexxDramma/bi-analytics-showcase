@@ -5,6 +5,7 @@
 showSidebarNavigation = false
 
 [server]
+port = 8502
 enableStaticServing = true
 headless = true
 
