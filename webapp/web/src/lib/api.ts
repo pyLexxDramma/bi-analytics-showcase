@@ -131,6 +131,56 @@ export async function fetchBdr(
   return res.json();
 }
 
+export type ApprovedBudgetPayload = {
+  meta: {
+    rows: number;
+    source: string;
+    data_mode: string;
+    files: number;
+    rule?: string;
+  };
+  filters: {
+    projects: string[];
+    applied: { project: string };
+  };
+  kpis: {
+    plan_mln: number;
+    fact_mln: number;
+    deviation_mln: number;
+    remainder_mln: number;
+  };
+  tremor: {
+    by_project: Array<{
+      project: string;
+      plan: number;
+      fact: number;
+      deviation: number;
+    }>;
+  };
+  project_rows: Array<{
+    project: string;
+    plan: number;
+    fact: number;
+    deviation: number;
+    remainder: number;
+  }>;
+};
+
+export async function fetchApprovedBudget(
+  params: Record<string, string | undefined> = {},
+): Promise<ApprovedBudgetPayload> {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value && value !== "Все") qs.set(key, value);
+  });
+  const url = apiUrl(`/api/approved-budget${qs.toString() ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}
+
 export type DeveloperProjectsPayload = {
   meta: {
     rows: number;

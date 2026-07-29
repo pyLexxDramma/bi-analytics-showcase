@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { ApprovedBudgetView } from "@/components/approved-budget-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen
-      title="Утверждённый бюджет план/факт"
-      section="Финансы"
-    />
-  );
+  return <ApprovedBudgetView />;
 }

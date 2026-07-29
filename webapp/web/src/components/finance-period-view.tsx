@@ -5,6 +5,10 @@ import { BarChart, Card, Grid, Metric, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import type { BddsPayload } from "@/lib/api";
 import { formatMln } from "@/lib/format";
+import {
+  PLAN_FACT_DEVIATION_CATEGORIES,
+  withRuPlanFactDeviation,
+} from "@/lib/chart-ru";
 
 type Filters = {
   project: string;
@@ -159,9 +163,9 @@ export function FinancePeriodView({
           <Text className="mt-1">По периодам, млн ₽</Text>
           <BarChart
             className="mt-6 h-80"
-            data={data?.tremor.by_period ?? []}
+            data={withRuPlanFactDeviation(data?.tremor.by_period ?? [])}
             index="period"
-            categories={["plan", "fact", "deviation"]}
+            categories={[...PLAN_FACT_DEVIATION_CATEGORIES]}
             colors={["blue", "emerald", "amber"]}
             valueFormatter={(value) => formatMln(Number(value))}
             yAxisWidth={64}

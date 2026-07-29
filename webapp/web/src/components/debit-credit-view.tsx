@@ -15,6 +15,7 @@ import {
 import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
 import { formatMln, formatRub } from "@/lib/format";
 import { AppShell } from "@/components/app-shell";
+import { CHART_RU } from "@/lib/chart-ru";
 
 type Filters = {
   project: string;
@@ -194,7 +195,7 @@ export function DebitCreditView() {
               className="mt-6 h-80"
               data={tremor?.contract_vs_advance || []}
               index="label"
-              categories={["Стоимость договора", "Аванс выдан"]}
+              categories={[CHART_RU.contractSum, CHART_RU.advance]}
               colors={["cyan", "amber"]}
               valueFormatter={(v) => formatMln(Number(v))}
               yAxisWidth={56}

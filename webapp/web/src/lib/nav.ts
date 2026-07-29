@@ -41,6 +41,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "approved-budget",
         href: "/finance/approved-budget",
         label: "Утверждённый бюджет план/факт",
+        ready: true,
       },
       {
         id: "bdds-plan-fact",

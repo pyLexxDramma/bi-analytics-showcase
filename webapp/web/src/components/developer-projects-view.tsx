@@ -15,6 +15,7 @@ import {
   type DeveloperProjectsPayload,
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
+import { CHART_RU, withRuPctComplete } from "@/lib/chart-ru";
 
 export function DeveloperProjectsView() {
   const [project, setProject] = useState("Все");
@@ -109,13 +110,13 @@ export function DeveloperProjectsView() {
             <Text className="mt-1">Доля завершённых точек по проектам</Text>
             <BarChart
               className="mt-6 h-80"
-              data={data?.tremor.completion_by_project ?? []}
+              data={withRuPctComplete(data?.tremor.completion_by_project ?? [])}
               index="project"
-              categories={["pct"]}
+              categories={[CHART_RU.pctComplete]}
               colors={["emerald"]}
               valueFormatter={(value) => `${Number(value).toFixed(1)}%`}
               yAxisWidth={52}
-              showLegend={false}
+              showLegend
               showAnimation
               showGridLines
             />
