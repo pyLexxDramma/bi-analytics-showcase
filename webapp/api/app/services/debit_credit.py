@@ -299,7 +299,7 @@ def _apply_filters(
 
 
 def _mln(v: float) -> float:
-    return round(float(v or 0.0) / 1_000_000.0, 3)
+    return _finite(float(v or 0.0) / 1_000_000.0, 3)
 
 
 def build_debit_credit_payload(
@@ -459,19 +459,24 @@ def build_debit_credit_payload(
 
     rows = []
     for _, r in filtered.iterrows():
+        cd = r["contract_date"]
+        if cd is None or (isinstance(cd, float) and not math.isfinite(cd)) or pd.isna(cd):
+            cd_out = None
+        else:
+            cd_out = str(cd)
         rows.append(
             {
                 "project": r["project"],
                 "contractor": r["contractor"],
                 "contract": r["contract"],
-                "contract_date": r["contract_date"],
-                "contract_sum": round(float(r["contract_sum"]), 2),
-                "advance": round(float(r["advance"]), 2),
-                "ks2": round(float(r["ks2"]), 2),
-                "fulfilled": round(float(r["fulfilled"]), 2),
-                "paid": round(float(r["paid"]), 2),
-                "balance": round(float(r["balance"]), 2),
-                "deviation": round(float(r["deviation"]), 2),
+                "contract_date": cd_out,
+                "contract_sum": _finite(r["contract_sum"], 2),
+                "advance": _finite(r["advance"], 2),
+                "ks2": _finite(r["ks2"], 2),
+                "fulfilled": _finite(r["fulfilled"], 2),
+                "paid": _finite(r["paid"], 2),
+                "balance": _finite(r["balance"], 2),
+                "deviation": _finite(r["deviation"], 2),
             }
         )
 
