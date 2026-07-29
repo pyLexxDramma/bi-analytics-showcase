@@ -111,10 +111,10 @@ def _discover_files() -> dict[str, list]:
     dannye = sorted({p.resolve() for p in dannye if p.is_file()})
     # Docker/VPS: полный набор 1С JSON слишком тяжёлый для синхронного API —
     # оставляем недавние снапшоты (семантика среза плана сохраняется).
-    dogovor = _keep_recent_by_name_date(dogovor, limit=45)
-    sprav = _keep_recent_by_name_date(sprav, limit=20)
-    kontr = _keep_recent_by_name_date(kontr, limit=20)
-    dannye = _keep_recent_by_name_date(list(dannye), limit=40)
+    dogovor = _keep_recent_by_name_date(dogovor, limit=20)
+    sprav = _keep_recent_by_name_date(sprav, limit=10)
+    kontr = _keep_recent_by_name_date(kontr, limit=10)
+    dannye = _keep_recent_by_name_date(list(dannye), limit=15)
     return {
         "resursi": resursi,
         "dogovor": dogovor,

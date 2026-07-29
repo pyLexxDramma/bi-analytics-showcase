@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -46,6 +48,22 @@ app.include_router(working_documentation.router)
 app.include_router(gdrs_people.router)
 app.include_router(gdrs_equipment.router)
 app.include_router(admin.router)
+
+
+def _warm_gdrs_caches() -> None:
+    """Прогрев plan/fact ГДРС в фоне — первый HTTP-запрос иначе минуты на VPS."""
+    try:
+        from app.services.gdrs import build_gdrs_payload
+
+        build_gdrs_payload(resource_kind="people")
+        build_gdrs_payload(resource_kind="equipment")
+    except Exception:
+        pass
+
+
+@app.on_event("startup")
+def _on_startup_warm_gdrs() -> None:
+    threading.Thread(target=_warm_gdrs_caches, name="gdrs-warm", daemon=True).start()
 
 
 @app.get("/api/health")

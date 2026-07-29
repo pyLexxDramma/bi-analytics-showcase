@@ -1021,6 +1021,19 @@ def _snapshot_history(history: object, target_date: Optional[pd.Timestamp]) -> O
     return None
 
 
+def _parse_contract_date_series(series: pd.Series) -> pd.Series:
+    """Быстрый разбор дат договоров (ISO) без поэлементного dateutil fallback."""
+    if series is None or len(series) == 0:
+        return pd.to_datetime(series, errors="coerce")
+    out = pd.to_datetime(series, errors="coerce", utc=True, format="ISO8601")
+    if out.isna().mean() > 0.4:
+        out = pd.to_datetime(series, errors="coerce", utc=True, format="mixed")
+    try:
+        return out.dt.tz_localize(None)
+    except TypeError:
+        return out
+
+
 def load_plan_from_dogovor(
     path: Path,
     *,
@@ -1064,9 +1077,9 @@ def load_plan_from_dogovor(
     if df.empty:
         return df
     df = _dearrow_object_columns(df)
-    df["date_start"] = pd.to_datetime(df["date_start"], errors="coerce", utc=True).dt.tz_localize(None)
-    df["date_end"] = pd.to_datetime(df["date_end"], errors="coerce", utc=True).dt.tz_localize(None)
-    df["date_termination"] = pd.to_datetime(df["date_termination"], errors="coerce", utc=True).dt.tz_localize(None)
+    df["date_start"] = _parse_contract_date_series(df["date_start"])
+    df["date_end"] = _parse_contract_date_series(df["date_end"])
+    df["date_termination"] = _parse_contract_date_series(df["date_termination"])
     if snapshot_date is not None:
         # Договоры с реальной Дата_Окончания, истёкшей до даты снапшота, не действуют:
         # их «Количество_Людей» нередко обрывается без закрывающего 0, и snapshot тянет

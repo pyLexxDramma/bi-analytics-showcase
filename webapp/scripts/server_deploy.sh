@@ -10,7 +10,7 @@ mkdir -p data/web
 
 echo "==> docker compose build/up in $WEBAPP"
 docker compose pull edge || true
-docker compose up -d --build --remove-orphans
+docker compose up -d --build --remove-orphans --force-recreate
 
 echo "==> ensure CloudPub publish for :3080"
 if docker ps -a --format '{{.Names}}' | grep -qx cloudpub-webapp; then
