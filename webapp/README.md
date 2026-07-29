@@ -39,25 +39,17 @@ Authorization: Bearer <WEBAPP_ADMIN_TOKEN>
 
 Секреты как на проде: `BI_FTP_HOST`, `BI_FTP_USER`, `BI_FTP_PASSWORD`, `BI_FTP_REMOTE_DIR=/web`.
 
-## Docker
+## Docker / VPS
+
+Edge (Caddy) слушает **:3080** — `/` → Next, `/api` → FastAPI.
 
 ```powershell
 cd webapp
-copy api\.env.example .env   # при необходимости
-docker compose up --build
+docker compose up -d --build
+# http://127.0.0.1:3080
 ```
 
-## Деплой (GitHub → VPS)
+На VPS: `bash webapp/scripts/server_deploy.sh`  
+CI: push в `main` → `.github/workflows/webapp.yml` (secrets `WEBAPP_VPS_*`).
 
-Workflow: `.github/workflows/webapp.yml`
-
-1. CI всегда: smoke API + build Next  
-2. Deploy на VPS — если заданы secrets:
-   - `WEBAPP_VPS_HOST`
-   - `WEBAPP_VPS_USER`
-   - `WEBAPP_VPS_SSH_KEY`
-   - `WEBAPP_VPS_PATH` (например `/opt/bi-analytics-showcase`)
-
-На VPS в `.env` webapp: `WEBAPP_DATA_MODE=ftp` + FTP-секреты (не в git).
-
-Публичный Streamlit Cloud (`bi-analytics-demo.streamlit.app`) остаётся на синтетике.
+Публичный Streamlit Cloud остаётся на синтетике. Клиентский FTP — только `WEBAPP_DATA_MODE=ftp` + `BI_FTP_*` на VPS.

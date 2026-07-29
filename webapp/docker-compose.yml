@@ -1,13 +1,12 @@
 services:
   api:
     build: ./api
-    ports:
-      - "8000:8000"
+    restart: unless-stopped
     environment:
       WEBAPP_DATA_MODE: ${WEBAPP_DATA_MODE:-synthetic}
       WEBAPP_ADMIN_TOKEN: ${WEBAPP_ADMIN_TOKEN:-}
-      WEBAPP_CORS_ORIGINS: ${WEBAPP_CORS_ORIGINS:-http://localhost:3000}
-      SHOWCASE_WEB_DIR: /data/web
+      WEBAPP_CORS_ORIGINS: ${WEBAPP_CORS_ORIGINS:-*}
+      SHOWCASE_WEB_DIR: ${SHOWCASE_WEB_DIR:-/showcase/showcase_data/web}
       WEBAPP_ROOT: /app
       SHOWCASE_ROOT: /showcase
       BI_CORE_APP_DIR: /core
@@ -22,15 +21,31 @@ services:
       - ../showcase_data:/showcase/showcase_data:ro
       - ../bi-analytics-v-5-main:/core:ro
       - ../showcase_app.py:/showcase/showcase_app.py:ro
+    # internal only — edge proxies /api
+    expose:
+      - "8000"
 
   web:
     build:
       context: ./web
       args:
-        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}
-    ports:
-      - "3000:3000"
+        # same-origin via Caddy edge
+        NEXT_PUBLIC_API_BASE: ""
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE: ""
+    expose:
+      - "3000"
     depends_on:
       - api
-    environment:
-      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}
+
+  edge:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "3080:3080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - api
+      - web

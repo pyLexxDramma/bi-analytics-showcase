@@ -1,6 +1,11 @@
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ||
-  "http://127.0.0.1:8000";
+export const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE ?? ""
+).replace(/\/$/, "");
+
+function apiUrl(path: string): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return API_BASE ? `${API_BASE}${p}` : p;
+}
 
 export type DebitCreditPayload = {
   meta: {
@@ -64,7 +69,7 @@ export async function fetchDebitCredit(
   Object.entries(params).forEach(([k, v]) => {
     if (v && v !== "Все") qs.set(k, v);
   });
-  const url = `${API_BASE}/api/debit-credit${qs.toString() ? `?${qs}` : ""}`;
+  const url = apiUrl(`/api/debit-credit${qs.toString() ? `?${qs}` : ""}`);
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`API ${res.status}: ${url}`);
