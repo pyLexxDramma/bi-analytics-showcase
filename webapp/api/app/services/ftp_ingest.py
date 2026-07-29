@@ -11,6 +11,12 @@ from app.services.debit_credit import load_debit_credit_frame, _source_mtime_key
 def clear_data_caches() -> None:
     load_debit_credit_frame.cache_clear()
     _source_mtime_key.cache_clear()
+    try:
+        from app.services.gdrs import clear_gdrs_caches
+
+        clear_gdrs_caches()
+    except Exception:
+        pass
 
 
 def sync_status() -> dict[str, Any]:

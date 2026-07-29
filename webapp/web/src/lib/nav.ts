@@ -103,7 +103,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
     id: "gdrs",
     label: "ГДРС",
     items: [
-      { id: "gdrs-people", href: "/gdrs/people", label: "ГДРС (люди)" },
+      { id: "gdrs-people", href: "/gdrs/people", label: "ГДРС (люди)", ready: true },
       {
         id: "gdrs-equipment",
         href: "/gdrs/equipment",

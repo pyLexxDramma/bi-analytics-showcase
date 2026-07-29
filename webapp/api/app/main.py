@@ -15,6 +15,7 @@ from app.routers import (
     debit_credit,
     developer_projects,
     deviation_reasons,
+    gdrs_people,
     project_documentation,
     project_schedule,
     working_documentation,
@@ -41,6 +42,7 @@ app.include_router(deviation_reasons.router)
 app.include_router(baseline_deviation.router)
 app.include_router(project_documentation.router)
 app.include_router(working_documentation.router)
+app.include_router(gdrs_people.router)
 app.include_router(admin.router)
 
 
@@ -157,6 +159,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/docs/working-documentation",
                 "api": "/api/working-documentation",
+            },
+            {
+                "id": "gdrs-people",
+                "title": "ГДРС (люди)",
+                "section": "ГДРС",
+                "status": "ready",
+                "path": "/gdrs/people",
+                "api": "/api/gdrs-people",
             },
             {
                 "id": "menu",

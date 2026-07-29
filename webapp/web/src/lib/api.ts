@@ -759,3 +759,100 @@ export async function fetchWorkingDocumentation(
   }
   return res.json();
 }
+
+export type GdrsPayload = {
+  meta: {
+    data_mode: string;
+    resource_kind: "people" | "equipment";
+    unit: string;
+    period_label: string;
+    rows: number;
+    resursi_files: number;
+    warning: string | null;
+  };
+  filters: {
+    projects: string[];
+    contractors: string[];
+    months: string[];
+    default_months: string[];
+    agg_options: string[];
+    selected: {
+      projects: string[];
+      contractors: string[];
+      months: string[];
+      plan_agg: string;
+      skud_agg: string;
+    };
+  };
+  kpis: {
+    plan: number;
+    fact: number;
+    deviation: number;
+    delta_pct: number | null;
+  };
+  tremor: {
+    by_project: Array<{
+      name: string;
+      plan: number;
+      fact: number;
+      deviation: number;
+    }>;
+    by_contractor: Array<{
+      name: string;
+      plan: number;
+      fact: number;
+      deviation: number;
+    }>;
+  };
+  project_rows: Array<{
+    project: string;
+    plan: number;
+    fact: number;
+    deviation: number;
+    delta_pct: number | null;
+  }>;
+  contractor_rows: Array<{
+    contractor: string;
+    plan: number;
+    fact: number;
+    deviation: number;
+    share_pct: number;
+  }>;
+  matrix_rows: Array<{
+    kind: string;
+    label: string;
+    vid_raboty: string;
+    plan: number;
+    skud: number;
+    deviation: number;
+    delta_pct: number | null;
+  }>;
+};
+
+export type GdrsQuery = {
+  projects?: string[];
+  contractors?: string[];
+  months?: string[];
+  plan_agg?: string;
+  skud_agg?: string;
+};
+
+export async function fetchGdrsPeople(
+  query: GdrsQuery = {},
+): Promise<GdrsPayload> {
+  const params = new URLSearchParams();
+  if (query.projects?.length) params.set("projects", query.projects.join(","));
+  if (query.contractors?.length) {
+    params.set("contractors", query.contractors.join(","));
+  }
+  if (query.months?.length) params.set("months", query.months.join(","));
+  if (query.plan_agg) params.set("plan_agg", query.plan_agg);
+  if (query.skud_agg) params.set("skud_agg", query.skud_agg);
+  const qs = params.toString();
+  const url = apiUrl(`/api/gdrs-people${qs ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

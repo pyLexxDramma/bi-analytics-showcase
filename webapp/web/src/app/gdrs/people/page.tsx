@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { GdrsPeopleView } from "@/components/gdrs-people-view";
 
 export default function Page() {
-  return <PlaceholderScreen title="ГДРС (люди)" section="ГДРС" />;
+  return <GdrsPeopleView />;
 }
