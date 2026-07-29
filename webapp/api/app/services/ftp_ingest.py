@@ -60,6 +60,7 @@ def run_ftp_sync(*, force: bool = False) -> dict[str, Any]:
         sys.path.insert(0, str(core))
 
     from ftp_sync import sync_ftp_to_web  # type: ignore
+    import inspect
 
     WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)
     # Safety: never sync into showcase_data/web (public synthetic)
@@ -73,11 +74,13 @@ def run_ftp_sync(*, force: bool = False) -> dict[str, Any]:
             ],
         }
 
-    result = sync_ftp_to_web(
-        WEB_DATA_DIR,
-        force_redownload=force,
-        use_interprocess_lock=True,
-    )
+    kwargs: dict[str, Any] = {}
+    params = inspect.signature(sync_ftp_to_web).parameters
+    if "force_redownload" in params:
+        kwargs["force_redownload"] = force
+    if "use_interprocess_lock" in params:
+        kwargs["use_interprocess_lock"] = True
+    result = sync_ftp_to_web(WEB_DATA_DIR, **kwargs)
     clear_data_caches()
     result["web_dir"] = str(WEB_DATA_DIR)
     result["status"] = sync_status()
