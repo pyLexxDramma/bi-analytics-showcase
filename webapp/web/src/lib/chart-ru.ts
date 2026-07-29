@@ -11,6 +11,8 @@ export const CHART_RU = {
   reasonCount: "Количество",
   baseEnd: "Базовое окончание",
   planEnd: "Окончание",
+  planBp: "План по проекту (БП)",
+  forecast: "Прогноз по проекту",
 } as const;
 
 export const PLAN_FACT_DEVIATION_CATEGORIES = [
@@ -71,5 +73,15 @@ export function withRuReasonCount<
   return rows.map((row) => ({
     ...row,
     [CHART_RU.reasonCount]: row.count,
+  }));
+}
+
+export function withRuDocDynamics<
+  T extends { plan_bp: number; forecast: number } & Record<string, string | number>,
+>(rows: T[]) {
+  return rows.map((row) => ({
+    ...row,
+    [CHART_RU.planBp]: row.plan_bp,
+    [CHART_RU.forecast]: row.forecast,
   }));
 }

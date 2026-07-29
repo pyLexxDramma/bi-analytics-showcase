@@ -659,3 +659,82 @@ export async function fetchBaselineDeviation(
   }
   return res.json();
 }
+
+export type ProjectDocumentationPayload = {
+  meta: {
+    rows: number;
+    source: string;
+    data_mode: string;
+    files: number;
+    doc_kind: string;
+    title: string;
+    rule?: string;
+  };
+  filters: {
+    projects: string[];
+    sections: string[];
+    granularities: Array<{ id: string; label: string }>;
+    applied: {
+      project: string;
+      section: string;
+      granularity: string;
+      report_date: string;
+    };
+  };
+  kpis: {
+    plan_total: number;
+    plan_to_date: number;
+    fact_to_date: number;
+    deviation_to_date: number;
+    current_productivity: number;
+    required_productivity: number;
+  };
+  tremor: {
+    status_mix: Array<{ name: string; value: number }>;
+    dynamics: Array<{
+      period: string;
+      period_label: string;
+      plan_bp: number;
+      forecast: number;
+    }>;
+  };
+  rows: Array<{
+    project: string;
+    section: string;
+    task: string;
+    base_end: string | null;
+    plan_end: string | null;
+    dev_end: string;
+    dev_end_days: number | null;
+    pct_complete: number | null;
+    status: string;
+  }>;
+};
+
+export type ProjectDocumentationQuery = {
+  project?: string;
+  section?: string;
+  granularity?: string;
+  report_date?: string;
+};
+
+export async function fetchProjectDocumentation(
+  query: ProjectDocumentationQuery = {},
+): Promise<ProjectDocumentationPayload> {
+  const params = new URLSearchParams();
+  if (query.project && query.project !== "Все") {
+    params.set("project", query.project);
+  }
+  if (query.section && query.section !== "Все") {
+    params.set("section", query.section);
+  }
+  if (query.granularity) params.set("granularity", query.granularity);
+  if (query.report_date) params.set("report_date", query.report_date);
+  const qs = params.toString();
+  const url = apiUrl(`/api/project-documentation${qs ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

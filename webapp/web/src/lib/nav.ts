@@ -89,6 +89,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "project-documentation",
         href: "/docs/project-documentation",
         label: "Проектная документация",
+        ready: true,
       },
       {
         id: "working-documentation",
