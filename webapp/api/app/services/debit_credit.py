@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import date, datetime
 from functools import lru_cache
@@ -20,11 +21,23 @@ _KS2_MARKERS = (
 )
 
 
+def _finite(v: Any, nd: int | None = None) -> float:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(x):
+        return 0.0
+    if nd is None:
+        return x
+    return round(x, nd)
+
+
 def _parse_money(v: Any) -> float:
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return 0.0
     if isinstance(v, (int, float)):
-        return float(v)
+        return _finite(v)
     s = str(v).strip().replace("\u00a0", " ").replace(" ", "")
     if not s:
         return 0.0
@@ -38,7 +51,7 @@ def _parse_money(v: Any) -> float:
         else:
             s = s.replace(",", "")
     try:
-        return float(s)
+        return _finite(float(s))
     except ValueError:
         return 0.0
 
