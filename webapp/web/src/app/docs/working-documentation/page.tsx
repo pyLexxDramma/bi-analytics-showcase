@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { WorkingDocumentationView } from "@/components/project-documentation-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen
-      title="Рабочая документация"
-      section="Проектные работы"
-    />
-  );
+  return <WorkingDocumentationView />;
 }

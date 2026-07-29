@@ -12,7 +12,9 @@ import {
 } from "@tremor/react";
 import {
   fetchProjectDocumentation,
+  fetchWorkingDocumentation,
   type ProjectDocumentationPayload,
+  type ProjectDocumentationQuery,
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import { CHART_RU, withRuDocDynamics } from "@/lib/chart-ru";
@@ -26,7 +28,25 @@ function deviationClass(value: number | null | undefined): string {
     : "font-semibold text-emerald-700 dark:text-emerald-300";
 }
 
-export function ProjectDocumentationView() {
+type DocumentationViewProps = {
+  title: string;
+  subtitle: string;
+  tableTitle: string;
+  statusTitle: string;
+  dynamicsTitle: string;
+  fetchPayload: (
+    query?: ProjectDocumentationQuery,
+  ) => Promise<ProjectDocumentationPayload>;
+};
+
+function DocumentationView({
+  title,
+  subtitle,
+  tableTitle,
+  statusTitle,
+  dynamicsTitle,
+  fetchPayload,
+}: DocumentationViewProps) {
   const [project, setProject] = useState("Все");
   const [section, setSection] = useState("Все");
   const [granularity, setGranularity] = useState("week");
@@ -39,7 +59,7 @@ export function ProjectDocumentationView() {
     setError(null);
     try {
       setData(
-        await fetchProjectDocumentation({
+        await fetchPayload({
           project,
           section,
           granularity,
@@ -51,7 +71,7 @@ export function ProjectDocumentationView() {
     } finally {
       setLoading(false);
     }
-  }, [project, section, granularity]);
+  }, [project, section, granularity, fetchPayload]);
 
   useEffect(() => {
     void load();
@@ -62,10 +82,7 @@ export function ProjectDocumentationView() {
     "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
 
   return (
-    <AppShell
-      title="Проектная документация"
-      subtitle="Разделы ПД по MSP: шифр, базовое/плановое окончание, исполнение"
-    >
+    <AppShell title={title} subtitle={subtitle}>
       <Card className="mb-6 rounded-xl">
         <div className="grid gap-3 md:grid-cols-3">
           <label className="block text-sm">
@@ -176,7 +193,7 @@ export function ProjectDocumentationView() {
         <Grid numItemsLg={3} className="gap-6">
           <Card className="rounded-xl">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Исполнение ПД
+              {statusTitle}
             </Title>
             <Text className="mt-1">По статусу разделов</Text>
             <DonutChart
@@ -190,7 +207,7 @@ export function ProjectDocumentationView() {
           </Card>
           <Card className="rounded-xl lg:col-span-2">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Динамика выдачи ПД
+              {dynamicsTitle}
             </Title>
             <Text className="mt-1">Накопительно: БП vs прогноз (текущий план)</Text>
             <LineChart
@@ -210,13 +227,13 @@ export function ProjectDocumentationView() {
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Таблица по проектной документации
+              {tableTitle}
             </Title>
           </div>
           <div className="max-h-[28rem] overflow-auto">
             {(data?.rows.length ?? 0) === 0 ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                Нет разделов ПД по выбранным фильтрам.
+                Нет разделов по выбранным фильтрам.
               </div>
             ) : (
               <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
@@ -272,5 +289,31 @@ export function ProjectDocumentationView() {
         </Card>
       </div>
     </AppShell>
+  );
+}
+
+export function ProjectDocumentationView() {
+  return (
+    <DocumentationView
+      title="Проектная документация"
+      subtitle="Разделы ПД по MSP: шифр, базовое/плановое окончание, исполнение"
+      tableTitle="Таблица по проектной документации"
+      statusTitle="Исполнение ПД"
+      dynamicsTitle="Динамика выдачи ПД"
+      fetchPayload={fetchProjectDocumentation}
+    />
+  );
+}
+
+export function WorkingDocumentationView() {
+  return (
+    <DocumentationView
+      title="Рабочая документация"
+      subtitle="Разделы РД по MSP: шифр, базовое/плановое окончание, исполнение"
+      tableTitle="Таблица по рабочей документации"
+      statusTitle="Исполнение РД"
+      dynamicsTitle="Динамика выдачи РД"
+      fetchPayload={fetchWorkingDocumentation}
+    />
   );
 }

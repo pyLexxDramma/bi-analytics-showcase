@@ -738,3 +738,24 @@ export async function fetchProjectDocumentation(
   }
   return res.json();
 }
+
+export async function fetchWorkingDocumentation(
+  query: ProjectDocumentationQuery = {},
+): Promise<ProjectDocumentationPayload> {
+  const params = new URLSearchParams();
+  if (query.project && query.project !== "Все") {
+    params.set("project", query.project);
+  }
+  if (query.section && query.section !== "Все") {
+    params.set("section", query.section);
+  }
+  if (query.granularity) params.set("granularity", query.granularity);
+  if (query.report_date) params.set("report_date", query.report_date);
+  const qs = params.toString();
+  const url = apiUrl(`/api/working-documentation${qs ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

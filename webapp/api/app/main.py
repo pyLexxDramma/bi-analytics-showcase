@@ -17,6 +17,7 @@ from app.routers import (
     deviation_reasons,
     project_documentation,
     project_schedule,
+    working_documentation,
 )
 from app.services.ftp_ingest import sync_status
 
@@ -39,6 +40,7 @@ app.include_router(project_schedule.router)
 app.include_router(deviation_reasons.router)
 app.include_router(baseline_deviation.router)
 app.include_router(project_documentation.router)
+app.include_router(working_documentation.router)
 app.include_router(admin.router)
 
 
@@ -147,6 +149,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/docs/project-documentation",
                 "api": "/api/project-documentation",
+            },
+            {
+                "id": "working-documentation",
+                "title": "Рабочая документация",
+                "section": "Проектные работы",
+                "status": "ready",
+                "path": "/docs/working-documentation",
+                "api": "/api/working-documentation",
             },
             {
                 "id": "menu",

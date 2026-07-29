@@ -117,7 +117,7 @@ def _empty_payload(doc_kind: DocKind) -> dict[str, Any]:
             "files": 0,
             "doc_kind": doc_kind,
             "title": title,
-            "rule": "MSP разделы с шифром в ветке ПД/РД",
+            "rule": "MSP разделы с шифром в ветке документации",
         },
         "filters": {
             "projects": ["Все"],
@@ -421,6 +421,11 @@ def build_documentation_payload(
     )
 
     title = "Проектная документация" if doc_kind == "pd" else "Рабочая документация"
+    rule = (
+        "Разделы с шифром в ветке ПД (ур.структуры 4 или 3+ур.5)"
+        if doc_kind == "pd"
+        else "Разделы с шифром в ветке РД (ур.структуры 4 или 3+ур.5)"
+    )
     return {
         "meta": {
             "rows": len(table_rows),
@@ -429,7 +434,7 @@ def build_documentation_payload(
             "files": len(files),
             "doc_kind": doc_kind,
             "title": title,
-            "rule": "Разделы с шифром в ветке ПД (ур.структуры 4 или 3+ур.5)",
+            "rule": rule,
         },
         "filters": {
             "projects": available_projects,
@@ -485,3 +490,7 @@ def build_documentation_payload(
 
 def build_project_documentation_payload(**kwargs: Any) -> dict[str, Any]:
     return build_documentation_payload(doc_kind="pd", **kwargs)
+
+
+def build_working_documentation_payload(**kwargs: Any) -> dict[str, Any]:
+    return build_documentation_payload(doc_kind="rd", **kwargs)
