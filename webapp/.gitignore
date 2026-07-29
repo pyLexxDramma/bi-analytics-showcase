@@ -1,9 +1,10 @@
 # Webapp runtime data (FTP downloads — never commit client files)
-webapp/data/
-webapp/api/.venv/
-webapp/web/node_modules/
-webapp/web/.next/
-webapp/web/out/
-webapp/web/.env.local
-webapp/web/.env*.local
-webapp/**/__pycache__/
+data/
+api/.venv/
+api/.env
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+web/.env*.local
+**/__pycache__/

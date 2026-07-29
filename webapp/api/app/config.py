@@ -3,6 +3,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# webapp/api/.env (local FTP etc.) — before reading os.environ
+_API_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(_API_DIR / ".env", override=False)
+
 _APP_FILE = Path(__file__).resolve()
 
 

@@ -49,6 +49,8 @@ Thumbs.db
 .env
 .env.*
 *.env
+!.env.example
+!**/.env.example
 
 # Logs / temp
 *.log
@@ -71,6 +73,8 @@ webapp/web/.next/
 webapp/web/out/
 webapp/web/.env.local
 webapp/api/.venv/
+webapp/api/.env
+webapp/data/
 webapp/**/__pycache__/
 
 # Local dev / audit output

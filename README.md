@@ -24,22 +24,34 @@ streamlit run showcase_app.py
 
 Каркас в `webapp/` — UI по Tremor data-spec, данные synthetic или FTP (как ai.conall.ru).
 
+**Стек для коллег:** [webapp/STACK.md](webapp/STACK.md)
+
 ```powershell
+# FTP локально (секреты из основного .streamlit/secrets.toml)
+python webapp\scripts\setup_local_ftp_env.py
+
 cd webapp\api
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
+
+# синк FTP (один раз / по необходимости)
+Invoke-RestMethod -Method POST -Uri http://127.0.0.1:8000/api/admin/sync -Headers @{ Authorization = "Bearer local-dev-sync" }
 
 cd webapp\web
 npm install
 npm run dev
 ```
 
-- UI: http://localhost:3000  
-- API docs: http://127.0.0.1:8000/docs  
-- Публичный VPS (Next pilot): https://insipidly-carefree-husky.cloudpub.ru  
-- Подробности / FTP / Docker / VPS: [webapp/README.md](webapp/README.md)
+На Windows, если `:8000` недоступен — API на **8010**, в `webapp/web/.env.local`:
+`NEXT_PUBLIC_API_BASE=http://127.0.0.1:8010`
 
-Публичный Streamlit Cloud остаётся на фейковых данных. Клиентский FTP — только в режиме `WEBAPP_DATA_MODE=ftp` на VPS с секретами.
+- UI: http://localhost:3000  
+- API docs: http://127.0.0.1:8000/docs (или `:8010`)  
+- Публичный VPS (Next pilot): https://insipidly-carefree-husky.cloudpub.ru  
+- Подробности: [webapp/README.md](webapp/README.md)
+- **Стек для коллег:** [webapp/STACK.md](webapp/STACK.md)
+
+Streamlit Cloud остаётся на синтетике. FTP — только при `WEBAPP_DATA_MODE=ftp` (локально или VPS).
 
 ## Структура
 
