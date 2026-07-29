@@ -36,7 +36,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
     label: "Финансы",
     items: [
       { id: "bdds", href: "/finance/bdds", label: "БДДС (расходы)", ready: true },
-      { id: "bdr", href: "/finance/bdr", label: "БДР (расходы)" },
+      { id: "bdr", href: "/finance/bdr", label: "БДР (расходы)", ready: true },
       {
         id: "approved-budget",
         href: "/finance/approved-budget",

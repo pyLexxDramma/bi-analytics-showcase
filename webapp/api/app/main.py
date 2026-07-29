@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import API_TITLE, API_VERSION, CORS_ORIGINS, DATA_MODE, WEB_DATA_DIR
-from app.routers import admin, bdds, debit_credit, developer_projects
+from app.routers import admin, bdds, bdr, debit_credit, developer_projects
 from app.services.ftp_ingest import sync_status
 
 app = FastAPI(title=API_TITLE, version=API_VERSION)
@@ -18,6 +18,7 @@ app.add_middleware(
 app.include_router(debit_credit.router)
 app.include_router(developer_projects.router)
 app.include_router(bdds.router)
+app.include_router(bdr.router)
 app.include_router(admin.router)
 
 
@@ -62,6 +63,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/finance/bdds",
                 "api": "/api/bdds",
+            },
+            {
+                "id": "bdr",
+                "title": "БДР (расходы)",
+                "section": "Финансы",
+                "status": "ready",
+                "path": "/finance/bdr",
+                "api": "/api/bdr",
             },
             {
                 "id": "menu",

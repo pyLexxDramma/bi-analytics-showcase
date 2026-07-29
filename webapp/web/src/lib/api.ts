@@ -114,6 +114,23 @@ export async function fetchBdds(
   return res.json();
 }
 
+export type BdrPayload = BddsPayload;
+
+export async function fetchBdr(
+  params: Record<string, string | undefined> = {},
+): Promise<BdrPayload> {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value && value !== "Все") qs.set(key, value);
+  });
+  const url = apiUrl(`/api/bdr${qs.toString() ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}
+
 export type DeveloperProjectsPayload = {
   meta: {
     rows: number;
