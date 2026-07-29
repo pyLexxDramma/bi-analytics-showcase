@@ -57,7 +57,7 @@ CORS_ORIGINS = [
     if o.strip()
 ]
 API_TITLE = "BI Analytics Showcase API"
-API_VERSION = "0.15.0"
+API_VERSION = "0.15.1"
 ADMIN_SYNC_TOKEN = (os.environ.get("WEBAPP_ADMIN_TOKEN") or "").strip()
 CORE_APP_DIR = Path(
     os.environ.get(

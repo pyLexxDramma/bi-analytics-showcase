@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import importlib.util
 import math
 import sys
 from functools import lru_cache
+from types import ModuleType
 from typing import Any, Literal
 
 import pandas as pd
@@ -19,6 +21,63 @@ def _ensure_core_path() -> None:
     core = str(CORE_APP_DIR.resolve())
     if core not in sys.path:
         sys.path.insert(0, core)
+
+
+def _ensure_streamlit_stub() -> None:
+    """API-образ без Streamlit: gdrs_resursi тянет st.cache_data на уровне модуля."""
+    existing = sys.modules.get("streamlit")
+    if existing is not None and getattr(existing, "cache_data", None) is not None:
+        return
+    try:
+        if importlib.util.find_spec("streamlit") is not None:
+            import streamlit  # noqa: F401
+
+            return
+    except ModuleNotFoundError:
+        pass
+
+    st = ModuleType("streamlit")
+
+    def cache_data(*args, **kwargs):
+        def decorator(fn):
+            return fn
+
+        if len(args) == 1 and callable(args[0]) and not kwargs:
+            return args[0]
+        return decorator
+
+    st.cache_data = cache_data  # type: ignore[attr-defined]
+    sys.modules["streamlit"] = st
+
+
+def _import_dashboard_module(name: str):
+    """Загрузка dashboards.<name> без выполнения dashboards/__init__.py (streamlit)."""
+    _ensure_streamlit_stub()
+    _ensure_core_path()
+    full = f"dashboards.{name}"
+    existing = sys.modules.get(full)
+    if existing is not None:
+        return existing
+    if "dashboards" not in sys.modules:
+        pkg = ModuleType("dashboards")
+        pkg.__path__ = [str((CORE_APP_DIR / "dashboards").resolve())]  # type: ignore[attr-defined]
+        sys.modules["dashboards"] = pkg
+    path = CORE_APP_DIR / "dashboards" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(full, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[full] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _gdrs():
+    return _import_dashboard_module("gdrs_resursi")
+
+
+def _labels():
+    return _import_dashboard_module("project_labels")
 
 
 def _paths_mtime_sig(paths: list) -> tuple:
@@ -61,25 +120,23 @@ def _discover_files() -> dict[str, list]:
 
 @lru_cache(maxsize=4)
 def _cached_long_fact(res_sig: tuple) -> pd.DataFrame:
-    _ensure_core_path()
-    from dashboards.gdrs_resursi import load_resursi_files
-    from dashboards.project_labels import apply_unified_project_column
     from pathlib import Path as P
 
-    df = load_resursi_files([P(p[0]) for p in res_sig])
+    g = _gdrs()
+    labels = _labels()
+    df = g.load_resursi_files([P(p[0]) for p in res_sig])
     if df is None or df.empty:
         return pd.DataFrame()
-    return apply_unified_project_column(df, "project_name")
+    return labels.apply_unified_project_column(df, "project_name")
 
 
 @lru_cache(maxsize=32)
 def _cached_plan(dog_sig: tuple, spr_sig: tuple, snapshot_iso: str) -> pd.DataFrame:
-    _ensure_core_path()
-    from dashboards.gdrs_resursi import load_plan_aggregate
     from pathlib import Path as P
 
+    g = _gdrs()
     snap = pd.Timestamp(snapshot_iso) if snapshot_iso else None
-    return load_plan_aggregate(
+    return g.load_plan_aggregate(
         [P(p[0]) for p in dog_sig],
         [P(p[0]) for p in spr_sig],
         snapshot_date=snap,
@@ -88,13 +145,11 @@ def _cached_plan(dog_sig: tuple, spr_sig: tuple, snapshot_iso: str) -> pd.DataFr
 
 @lru_cache(maxsize=4)
 def _cached_dannye(dannye_sig: tuple):
-    _ensure_core_path()
-    from dashboards.gdrs_resursi import load_1c_dannye_article_maps
     from pathlib import Path as P
 
     if not dannye_sig:
         return {}, {}, {}, {}, {}
-    return load_1c_dannye_article_maps([P(p[0]) for p in dannye_sig])
+    return _gdrs().load_1c_dannye_article_maps([P(p[0]) for p in dannye_sig])
 
 
 def clear_gdrs_caches() -> None:
@@ -120,29 +175,20 @@ def _split_csv(raw: str | None) -> list[str]:
 
 
 def _enrich_fact(long_fact: pd.DataFrame, files: dict[str, list]):
-    _ensure_core_path()
-    from dashboards.gdrs_resursi import (
-        enrich_gdrs_fact_contractor_ids,
-        enrich_gdrs_fact_project_ids,
-        gdrs_filter_fact_by_termination,
-        gdrs_filter_fact_kontr_intersection,
-        load_1c_kontr_index,
-        load_gdrs_termination_index,
-    )
-
-    kontr_index = load_1c_kontr_index(files["kontr"]) if files["kontr"] else None
-    long_fact = enrich_gdrs_fact_contractor_ids(
+    g = _gdrs()
+    kontr_index = g.load_1c_kontr_index(files["kontr"]) if files["kontr"] else None
+    long_fact = g.enrich_gdrs_fact_contractor_ids(
         long_fact,
         dogovor_paths=files["dogovor"],
         kontr=kontr_index,
     )
-    long_fact = enrich_gdrs_fact_project_ids(
+    long_fact = g.enrich_gdrs_fact_project_ids(
         long_fact,
         dogovor_paths=files["dogovor"],
     )
-    long_fact = gdrs_filter_fact_kontr_intersection(long_fact, kontr_index)
-    term_index = load_gdrs_termination_index(files["dogovor"])
-    long_fact = gdrs_filter_fact_by_termination(long_fact, term_index)
+    long_fact = g.gdrs_filter_fact_kontr_intersection(long_fact, kontr_index)
+    term_index = g.load_gdrs_termination_index(files["dogovor"])
+    long_fact = g.gdrs_filter_fact_by_termination(long_fact, term_index)
     return long_fact, kontr_index, term_index
 
 
@@ -155,20 +201,8 @@ def build_gdrs_payload(
     plan_agg: str | None = None,
     skud_agg: str | None = None,
 ) -> dict[str, Any]:
-    _ensure_core_path()
-    from dashboards.gdrs_resursi import (
-        build_main_table,
-        gdrs_agg_label_to_key,
-        gdrs_agg_select_options,
-        gdrs_contractor_filter_options,
-        gdrs_default_month_labels,
-        gdrs_filter_fact_by_months,
-        gdrs_month_select_options,
-        gdrs_months_date_range,
-        gdrs_plan_snapshot_date,
-        gdrs_resolve_month_periods,
-    )
-    from dashboards.project_labels import project_labels_for_filter
+    g = _gdrs()
+    labels = _labels()
 
     vid = _VID.get(resource_kind, "Рабочие")
     unit = _UNIT.get(resource_kind, "люди")
@@ -189,7 +223,7 @@ def build_gdrs_payload(
             "contractors": [],
             "months": [],
             "default_months": [],
-            "agg_options": gdrs_agg_select_options(),
+            "agg_options": g.gdrs_agg_select_options(),
             "selected": {
                 "projects": [],
                 "contractors": [],
@@ -198,6 +232,7 @@ def build_gdrs_payload(
                 "skud_agg": "Среднее за месяц",
             },
         },
+
         "kpis": {"plan": 0, "fact": 0, "deviation": 0, "delta_pct": None},
         "tremor": {"by_project": [], "by_contractor": []},
         "project_rows": [],
@@ -222,12 +257,12 @@ def build_gdrs_payload(
 
     long_fact, kontr_index, term_index = _enrich_fact(long_fact.copy(), files)
 
-    month_options = gdrs_month_select_options(
+    month_options = g.gdrs_month_select_options(
         long_fact,
         extra_paths=list(files["resursi"]) + list(files["dogovor"]),
     )
     month_labels = [lbl for lbl, _ in month_options]
-    default_months = gdrs_default_month_labels(month_options, long_fact)
+    default_months = g.gdrs_default_month_labels(month_options, long_fact)
 
     sel_projects = _split_csv(projects)
     sel_contractors = _split_csv(contractors)
@@ -235,22 +270,26 @@ def build_gdrs_payload(
     if not sel_month_labels:
         sel_month_labels = list(default_months)
 
-    agg_opts = gdrs_agg_select_options()
+    agg_opts = g.gdrs_agg_select_options()
     plan_lbl = (plan_agg or "").strip() or "Среднее за месяц"
     skud_lbl = (skud_agg or "").strip() or "Среднее за месяц"
     if plan_lbl not in agg_opts:
         plan_lbl = "Среднее за месяц"
     if skud_lbl not in agg_opts:
         skud_lbl = "Среднее за месяц"
-    _plan_agg = gdrs_agg_label_to_key(plan_lbl)
-    _skud_agg = gdrs_agg_label_to_key(skud_lbl)
+    _plan_agg = g.gdrs_agg_label_to_key(plan_lbl)
+    _skud_agg = g.gdrs_agg_label_to_key(skud_lbl)
 
-    project_options = project_labels_for_filter(long_fact["project_name"]) if "project_name" in long_fact.columns else []
+    project_options = (
+        labels.project_labels_for_filter(long_fact["project_name"])
+        if "project_name" in long_fact.columns
+        else []
+    )
 
     filter_plan_snap = (
         pd.Timestamp(month_options[-1][1].end_time).normalize() if month_options else None
     )
-    contractor_options = gdrs_contractor_filter_options(
+    contractor_options = g.gdrs_contractor_filter_options(
         long_fact,
         files["dogovor"],
         files["sprav"],
@@ -258,11 +297,11 @@ def build_gdrs_payload(
         snapshot_date=filter_plan_snap,
     )
 
-    sel_periods, _stale = gdrs_resolve_month_periods(month_options, sel_month_labels)
-    date_from, date_to = gdrs_months_date_range(sel_periods)
+    sel_periods, _stale = g.gdrs_resolve_month_periods(month_options, sel_month_labels)
+    date_from, date_to = g.gdrs_months_date_range(sel_periods)
     date_from = pd.to_datetime(date_from)
     date_to = pd.to_datetime(date_to)
-    long_fact_period = gdrs_filter_fact_by_months(long_fact, sel_periods)
+    long_fact_period = g.gdrs_filter_fact_by_months(long_fact, sel_periods)
 
     warning = None
     if _stale:
@@ -274,7 +313,7 @@ def build_gdrs_payload(
     ):
         warning = "За выбранный месяц нет фактических данных СКУД"
 
-    _plan_snap = gdrs_plan_snapshot_date(
+    _plan_snap = g.gdrs_plan_snapshot_date(
         long_fact_period,
         vid=vid,
         date_from=date_from,
@@ -292,7 +331,7 @@ def build_gdrs_payload(
         iso = pd.Timestamp(snap).normalize().isoformat()
         return _cached_plan(dog_sig, spr_sig, iso)
 
-    main_t = build_main_table(
+    main_t = g.build_main_table(
         long_fact_period,
         plan,
         vid=vid,
