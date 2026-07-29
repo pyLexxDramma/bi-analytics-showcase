@@ -152,7 +152,6 @@ def _cached_long_fact(res_sig: tuple) -> pd.DataFrame:
     from pathlib import Path as P
 
     g = _gdrs()
-    labels = _labels()
     frames: list[pd.DataFrame] = []
     for item in res_sig:
         try:
@@ -164,12 +163,11 @@ def _cached_long_fact(res_sig: tuple) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame()
     out = pd.concat(frames, ignore_index=True)
-    # Без fuzzy-canonicalize (на VPS это минуты CPU).
-    out = out.drop_duplicates(
+    # Без fuzzy-canonicalize и unified project labels (на VPS — десятки секунд CPU).
+    return out.drop_duplicates(
         subset=["project_name", "contractor_name", "vid_resursa", "date"],
         keep="last",
     )
-    return labels.apply_unified_project_column(out, "project_name")
 
 
 @lru_cache(maxsize=32)
@@ -256,7 +254,6 @@ def build_gdrs_payload(
     skud_agg: str | None = None,
 ) -> dict[str, Any]:
     g = _gdrs()
-    labels = _labels()
 
     vid = _VID.get(resource_kind, "Рабочие")
     unit = _UNIT.get(resource_kind, "люди")
@@ -334,11 +331,13 @@ def build_gdrs_payload(
     _plan_agg = g.gdrs_agg_label_to_key(plan_lbl)
     _skud_agg = g.gdrs_agg_label_to_key(skud_lbl)
 
-    project_options = (
-        labels.project_labels_for_filter(long_fact["project_name"])
-        if "project_name" in long_fact.columns
-        else []
-    )
+    project_options = sorted(
+        {
+            str(x).strip()
+            for x in long_fact["project_name"].dropna().unique()
+            if str(x).strip()
+        }
+    ) if "project_name" in long_fact.columns else []
 
     # Не вызывать gdrs_contractor_filter_options — внутри load_plan_aggregate (минуты на VPS).
     contractor_options: list[str] = []
