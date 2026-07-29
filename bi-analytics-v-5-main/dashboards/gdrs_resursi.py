@@ -1025,13 +1025,22 @@ def _parse_contract_date_series(series: pd.Series) -> pd.Series:
     """Быстрый разбор дат договоров (ISO) без поэлементного dateutil fallback."""
     if series is None or len(series) == 0:
         return pd.to_datetime(series, errors="coerce")
-    out = pd.to_datetime(series, errors="coerce", utc=True, format="ISO8601")
-    if out.isna().mean() > 0.4:
-        out = pd.to_datetime(series, errors="coerce", utc=True, format="mixed")
-    try:
-        return out.dt.tz_localize(None)
-    except TypeError:
-        return out
+
+    def _localize(out: pd.Series) -> pd.Series:
+        try:
+            return out.dt.tz_localize(None)
+        except TypeError:
+            return out
+
+    for fmt in ("ISO8601", "mixed"):
+        try:
+            out = pd.to_datetime(series, errors="coerce", utc=True, format=fmt)
+        except (ValueError, TypeError):
+            continue
+        if out.notna().any() and out.isna().mean() <= 0.4:
+            return _localize(out)
+    out = pd.to_datetime(series, errors="coerce", utc=True)
+    return _localize(out)
 
 
 def load_plan_from_dogovor(
