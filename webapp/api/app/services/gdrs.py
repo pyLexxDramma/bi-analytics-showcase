@@ -111,10 +111,10 @@ def _discover_files() -> dict[str, list]:
     dannye = sorted({p.resolve() for p in dannye if p.is_file()})
     # Docker/VPS: полный набор 1С JSON слишком тяжёлый для синхронного API —
     # оставляем недавние снапшоты (семантика среза плана сохраняется).
-    dogovor = _keep_recent_by_name_date(dogovor, limit=8)
-    sprav = _keep_recent_by_name_date(sprav, limit=5)
-    kontr = _keep_recent_by_name_date(kontr, limit=5)
-    dannye = _keep_recent_by_name_date(list(dannye), limit=5)
+    dogovor = _keep_recent_by_name_date(dogovor, limit=3)
+    sprav = _keep_recent_by_name_date(sprav, limit=2)
+    kontr = _keep_recent_by_name_date(kontr, limit=2)
+    dannye = _keep_recent_by_name_date(list(dannye), limit=0)
     return {
         "resursi": resursi,
         "dogovor": dogovor,
@@ -149,6 +149,9 @@ def _cached_long_fact(res_sig: tuple) -> pd.DataFrame:
     from pathlib import Path as P
 
     g = _gdrs()
+    # Fuzzy clustering подрядчиков на VPS — минуты CPU; для webapp не нужен.
+    g._canonicalize_project_names = lambda df: df  # type: ignore[assignment]
+    g._canonicalize_contractor_names = lambda df: df  # type: ignore[assignment]
     labels = _labels()
     df = g.load_resursi_files([P(p[0]) for p in res_sig])
     if df is None or df.empty:
@@ -158,24 +161,49 @@ def _cached_long_fact(res_sig: tuple) -> pd.DataFrame:
 
 @lru_cache(maxsize=32)
 def _cached_plan(dog_sig: tuple, spr_sig: tuple, snapshot_iso: str) -> pd.DataFrame:
+    """План из 1–2 последних Dogovor (без полного load_plan_aggregate по десяткам файлов)."""
     from pathlib import Path as P
 
     g = _gdrs()
     snap = pd.Timestamp(snapshot_iso) if snapshot_iso else None
-    return g.load_plan_aggregate(
-        [P(p[0]) for p in dog_sig],
-        [P(p[0]) for p in spr_sig],
-        snapshot_date=snap,
+    paths = [P(p[0]) for p in dog_sig][-1:]
+    frames: list[pd.DataFrame] = []
+    for path in paths:
+        try:
+            df = g.load_plan_from_dogovor(path, snapshot_date=snap)
+        except Exception:
+            continue
+        if df is not None and not df.empty:
+            frames.append(df)
+    if not frames:
+        return pd.DataFrame(
+            columns=[
+                "project_id",
+                "contractor_id",
+                "project_name",
+                "contractor_name",
+                "contract_name",
+                "plan_workers",
+                "plan_equipment",
+            ]
+        )
+    plan = pd.concat(frames, ignore_index=True)
+    return (
+        plan.groupby(["project_id", "contractor_id"], dropna=False, as_index=False)
+        .agg(
+            project_name=("project_name", "first"),
+            contractor_name=("contractor_name", "first"),
+            contract_name=("contract_name", "first"),
+            plan_workers=("plan_workers", "sum"),
+            plan_equipment=("plan_equipment", "sum"),
+        )
     )
 
 
 @lru_cache(maxsize=4)
 def _cached_dannye(dannye_sig: tuple):
-    from pathlib import Path as P
-
-    if not dannye_sig:
-        return {}, {}, {}, {}, {}
-    return _gdrs().load_1c_dannye_article_maps([P(p[0]) for p in dannye_sig])
+    # Вид работ из dannye на VPS слишком дорог — пропускаем.
+    return {}, {}, {}, {}, {}
 
 
 def clear_gdrs_caches() -> None:
@@ -201,21 +229,8 @@ def _split_csv(raw: str | None) -> list[str]:
 
 
 def _enrich_fact(long_fact: pd.DataFrame, files: dict[str, list]):
-    g = _gdrs()
-    kontr_index = g.load_1c_kontr_index(files["kontr"]) if files["kontr"] else None
-    long_fact = g.enrich_gdrs_fact_contractor_ids(
-        long_fact,
-        dogovor_paths=files["dogovor"],
-        kontr=kontr_index,
-    )
-    long_fact = g.enrich_gdrs_fact_project_ids(
-        long_fact,
-        dogovor_paths=files["dogovor"],
-    )
-    long_fact = g.gdrs_filter_fact_kontr_intersection(long_fact, kontr_index)
-    term_index = g.load_gdrs_termination_index(files["dogovor"])
-    long_fact = g.gdrs_filter_fact_by_termination(long_fact, term_index)
-    return long_fact, kontr_index, term_index
+    # Полный gate Kontr/termination на VPS — минуты; для showcase MVP не применяем.
+    return long_fact, None, None
 
 
 def build_gdrs_payload(
