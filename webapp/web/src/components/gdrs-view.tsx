@@ -3,11 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, Card, Grid, Metric, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
-import { fetchGdrsPeople, type GdrsPayload } from "@/lib/api";
+import {
+  fetchGdrsEquipment,
+  fetchGdrsPeople,
+  type GdrsPayload,
+  type GdrsQuery,
+} from "@/lib/api";
 import {
   PLAN_FACT_DEVIATION_CATEGORIES,
   withRuPlanFactDeviation,
 } from "@/lib/chart-ru";
+
+type ResourceKind = "people" | "equipment";
 
 type Filters = {
   projects: string[];
@@ -15,7 +22,6 @@ type Filters = {
   months: string[];
   plan_agg: string;
   skud_agg: string;
-  /** false until first API response sets defaults */
   ready: boolean;
 };
 
@@ -34,7 +40,35 @@ function fmtPct(n: number | null | undefined): string {
   return `${n.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`;
 }
 
-export function GdrsPeopleView() {
+const COPY: Record<
+  ResourceKind,
+  { title: string; subtitle: string; unitDay: string; matrixTitle: string }
+> = {
+  people: {
+    title: "ГДРС (люди)",
+    subtitle: "План из 1С (договоры) и факт СКУД — среднее число людей в день",
+    unitDay: "Среднее число людей в день",
+    matrixTitle: "График движения рабочей силы (люди)",
+  },
+  equipment: {
+    title: "ГДРС (техника)",
+    subtitle: "План из 1С (договоры) и факт СКУД — среднее число единиц техники в день",
+    unitDay: "Среднее число единиц техники в день",
+    matrixTitle: "График движения рабочей силы (техника)",
+  },
+};
+
+async function fetchGdrs(
+  kind: ResourceKind,
+  query: GdrsQuery,
+): Promise<GdrsPayload> {
+  return kind === "equipment"
+    ? fetchGdrsEquipment(query)
+    : fetchGdrsPeople(query);
+}
+
+export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
+  const copy = COPY[resourceKind];
   const [filters, setFilters] = useState<Filters>({
     projects: [],
     contractors: [],
@@ -47,38 +81,41 @@ export function GdrsPeopleView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async (next: Filters) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const payload = await fetchGdrsPeople({
-        projects: next.projects,
-        contractors: next.contractors,
-        months: next.months,
-        plan_agg: next.plan_agg,
-        skud_agg: next.skud_agg,
-      });
-      setData(payload);
-      if (!next.ready) {
-        const sel = payload.filters.selected;
-        setFilters({
-          projects: sel.projects ?? [],
-          contractors: sel.contractors ?? [],
-          months: sel.months?.length
-            ? sel.months
-            : payload.filters.default_months,
-          plan_agg: sel.plan_agg || "Среднее за месяц",
-          skud_agg: sel.skud_agg || "Среднее за месяц",
-          ready: true,
+  const load = useCallback(
+    async (next: Filters) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const payload = await fetchGdrs(resourceKind, {
+          projects: next.projects,
+          contractors: next.contractors,
+          months: next.months,
+          plan_agg: next.plan_agg,
+          skud_agg: next.skud_agg,
         });
+        setData(payload);
+        if (!next.ready) {
+          const sel = payload.filters.selected;
+          setFilters({
+            projects: sel.projects ?? [],
+            contractors: sel.contractors ?? [],
+            months: sel.months?.length
+              ? sel.months
+              : payload.filters.default_months,
+            plan_agg: sel.plan_agg || "Среднее за месяц",
+            skud_agg: sel.skud_agg || "Среднее за месяц",
+            ready: true,
+          });
+        }
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        setData(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [resourceKind],
+  );
 
   useEffect(() => {
     void load(filters);
@@ -139,10 +176,7 @@ export function GdrsPeopleView() {
   };
 
   return (
-    <AppShell
-      title="ГДРС (люди)"
-      subtitle="План из 1С (договоры) и факт СКУД — среднее число людей в день"
-    >
+    <AppShell title={copy.title} subtitle={copy.subtitle}>
       <Card className="mb-6 rounded-xl">
         <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
           <MultiSelect
@@ -249,7 +283,7 @@ export function GdrsPeopleView() {
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
             План / Факт / Отклонение по проектам
           </Title>
-          <Text className="mt-1">Среднее число людей в день</Text>
+          <Text className="mt-1">{copy.unitDay}</Text>
           <BarChart
             className="mt-6 h-80"
             data={projectChart}
@@ -297,7 +331,7 @@ export function GdrsPeopleView() {
 
         <Card className="rounded-xl overflow-x-auto">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong mb-3">
-            График движения рабочей силы (люди)
+            {copy.matrixTitle}
             {data?.meta.period_label ? `, ${data.meta.period_label}` : ""}
           </Title>
           <table className="min-w-full text-sm">
@@ -396,6 +430,14 @@ export function GdrsPeopleView() {
       </div>
     </AppShell>
   );
+}
+
+export function GdrsPeopleView() {
+  return <GdrsView resourceKind="people" />;
+}
+
+export function GdrsEquipmentView() {
+  return <GdrsView resourceKind="equipment" />;
 }
 
 function MultiSelect({

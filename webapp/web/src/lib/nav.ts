@@ -108,6 +108,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "gdrs-equipment",
         href: "/gdrs/equipment",
         label: "ГДРС (техника)",
+        ready: true,
       },
     ],
   },

@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { GdrsEquipmentView } from "@/components/gdrs-view";
 
 export default function Page() {
-  return <PlaceholderScreen title="ГДРС (техника)" section="ГДРС" />;
+  return <GdrsEquipmentView />;
 }

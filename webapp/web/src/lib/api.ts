@@ -856,3 +856,23 @@ export async function fetchGdrsPeople(
   }
   return res.json();
 }
+
+export async function fetchGdrsEquipment(
+  query: GdrsQuery = {},
+): Promise<GdrsPayload> {
+  const params = new URLSearchParams();
+  if (query.projects?.length) params.set("projects", query.projects.join(","));
+  if (query.contractors?.length) {
+    params.set("contractors", query.contractors.join(","));
+  }
+  if (query.months?.length) params.set("months", query.months.join(","));
+  if (query.plan_agg) params.set("plan_agg", query.plan_agg);
+  if (query.skud_agg) params.set("skud_agg", query.skud_agg);
+  const qs = params.toString();
+  const url = apiUrl(`/api/gdrs-equipment${qs ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}
