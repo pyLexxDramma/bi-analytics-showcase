@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { ProjectScheduleView } from "@/components/project-schedule-view";
 
 export default function Page() {
-  return <PlaceholderScreen title="График проекта" section="Сроки" />;
+  return <ProjectScheduleView />;
 }

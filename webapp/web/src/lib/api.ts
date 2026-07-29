@@ -392,3 +392,90 @@ export async function fetchControlPoints(
   }
   return res.json();
 }
+
+export type ProjectSchedulePayload = {
+  meta: {
+    rows: number;
+    gantt_rows: number;
+    source: string;
+    data_mode: string;
+    files: number;
+    rule?: string;
+  };
+  filters: {
+    projects: string[];
+    levels: Array<{ id: string; label: string }>;
+    blocks: string[];
+    applied: {
+      project: string;
+      level: string;
+      block: string;
+      hide_completed: boolean;
+      only_delay: boolean;
+      level_skipped?: boolean;
+    };
+  };
+  kpis: {
+    tasks: number;
+    avg_pct: number;
+    delayed: number;
+    completed: number;
+  };
+  gantt: {
+    range_start: string | null;
+    range_end: string | null;
+    capped: boolean;
+    rows: Array<{
+      project: string;
+      task: string;
+      label: string;
+      pct_complete: number | null;
+      baseline: { start: string | null; end: string | null };
+      current: { start: string | null; end: string | null };
+      dev_end_days: number | null;
+    }>;
+  };
+  rows: Array<{
+    project: string;
+    task_id: string | null;
+    level: number | null;
+    task: string;
+    pct_complete: number | null;
+    plan_start: string | null;
+    base_start: string | null;
+    dev_start: string;
+    dev_start_days: number | null;
+    plan_end: string | null;
+    base_end: string | null;
+    dev_end: string;
+    dev_end_days: number | null;
+  }>;
+};
+
+export type ProjectScheduleQuery = {
+  project?: string;
+  level?: string;
+  block?: string;
+  hide_completed?: boolean;
+  only_delay?: boolean;
+};
+
+export async function fetchProjectSchedule(
+  query: ProjectScheduleQuery = {},
+): Promise<ProjectSchedulePayload> {
+  const params = new URLSearchParams();
+  if (query.project && query.project !== "Все") {
+    params.set("project", query.project);
+  }
+  if (query.level) params.set("level", query.level);
+  if (query.block && query.block !== "Все") params.set("block", query.block);
+  if (query.hide_completed) params.set("hide_completed", "true");
+  if (query.only_delay) params.set("only_delay", "true");
+  const qs = params.toString();
+  const url = apiUrl(`/api/project-schedule${qs ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

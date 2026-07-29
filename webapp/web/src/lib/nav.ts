@@ -65,6 +65,7 @@ export const REPORT_ACCORDIONS: ReportAccordion[] = [
         id: "project-schedule",
         href: "/timeline/project-schedule",
         label: "График проекта",
+        ready: true,
       },
       {
         id: "deviation-reasons",
