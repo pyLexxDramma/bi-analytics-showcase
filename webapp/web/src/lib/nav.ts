@@ -126,6 +126,7 @@ export const REPORT_STANDALONE: ReportLeaf[] = [
     id: "executive-docs",
     href: "/executive-docs",
     label: "Исполнительная документация",
+    ready: true,
     kind: "link",
   },
   {

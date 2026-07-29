@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { ExecutiveDocsView } from "@/components/executive-docs-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen
-      title="Исполнительная документация"
-      section="Исполнительная документация"
-    />
-  );
+  return <ExecutiveDocsView />;
 }

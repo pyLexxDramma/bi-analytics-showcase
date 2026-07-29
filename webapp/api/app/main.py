@@ -15,6 +15,7 @@ from app.routers import (
     debit_credit,
     developer_projects,
     deviation_reasons,
+    executive_docs,
     gdrs_equipment,
     gdrs_people,
     prescriptions,
@@ -47,6 +48,7 @@ app.include_router(working_documentation.router)
 app.include_router(gdrs_people.router)
 app.include_router(gdrs_equipment.router)
 app.include_router(prescriptions.router)
+app.include_router(executive_docs.router)
 app.include_router(admin.router)
 
 
@@ -187,6 +189,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/prescriptions",
                 "api": "/api/prescriptions",
+            },
+            {
+                "id": "executive-docs",
+                "title": "Исполнительная документация",
+                "section": "Исполнительная документация",
+                "status": "ready",
+                "path": "/executive-docs",
+                "api": "/api/executive-docs",
             },
             {
                 "id": "menu",

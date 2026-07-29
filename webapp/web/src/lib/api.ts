@@ -953,3 +953,86 @@ export async function fetchPrescriptions(
   }
   return res.json();
 }
+
+export type ExecutiveDocsPayload = {
+  meta: {
+    rows: number;
+    table_rows?: number;
+    data_mode: string;
+    source: string | null;
+    task_source?: string | null;
+    warning: string | null;
+    generated_at?: string;
+  };
+  filters: {
+    projects: string[];
+    contractors: string[];
+    date_min: string | null;
+    date_max: string | null;
+    granularities: Array<{ id: string; label: string }>;
+    applied: {
+      project?: string;
+      contractor?: string;
+      date_from?: string | null;
+      date_to?: string | null;
+      granularity?: string;
+      hide_overdue_if_signed?: boolean;
+    };
+  };
+  kpis: {
+    total_docs: number;
+    declined: number;
+    on_agree: number;
+    signed: number;
+    on_rework: number;
+    overdue_total: number;
+    contractor_overdue: {
+      count: number;
+      bucket_0_7: number;
+      bucket_8_30: number;
+      bucket_30_plus: number;
+    };
+    customer_overdue: {
+      count: number;
+      bucket_0_7: number;
+      bucket_8_30: number;
+      bucket_30_plus: number;
+    };
+  };
+  tremor: {
+    by_status: Array<{ status: string; count: number; share_pct: number }>;
+    by_object: Array<{ object: string; count: number }>;
+    overdue_contractor: Array<{ contractor: string; count: number }>;
+    overdue_customer: Array<{ contractor: string; count: number }>;
+    dynamics: Array<{ period: string; new_docs: number }>;
+  };
+  rows: Array<{
+    contractor: string;
+    project: string;
+    doc_number: string;
+    kind: string;
+    plan_date: string | null;
+    fact_date: string | null;
+    submit_late_days: number | null;
+    transfer_date: string | null;
+    agree_date: string | null;
+    agree_late_days: number | null;
+    status: string;
+    creation_date: string | null;
+  }>;
+};
+
+export async function fetchExecutiveDocs(
+  params: Record<string, string | undefined> = {},
+): Promise<ExecutiveDocsPayload> {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v && v !== "Все") qs.set(k, v);
+  });
+  const url = apiUrl(`/api/executive-docs${qs.toString() ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

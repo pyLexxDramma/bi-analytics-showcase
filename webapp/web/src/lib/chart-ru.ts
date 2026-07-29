@@ -15,6 +15,8 @@ export const CHART_RU = {
   forecast: "Прогноз по проекту",
   total: "Всего",
   overdue: "Просрочено",
+  newDocs: "Новых документов",
+  docsCount: "Документов",
 } as const;
 
 export const PLAN_FACT_DEVIATION_CATEGORIES = [

@@ -23,6 +23,12 @@ def clear_data_caches() -> None:
         clear_prescriptions_caches()
     except Exception:
         pass
+    try:
+        from app.services.executive_docs import clear_executive_docs_caches
+
+        clear_executive_docs_caches()
+    except Exception:
+        pass
 
 
 def sync_status() -> dict[str, Any]:
