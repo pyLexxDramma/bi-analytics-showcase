@@ -230,14 +230,14 @@ export function DebitCreditView() {
           </Card>
         </Grid>
 
-        <Card className="overflow-hidden rounded-xl p-0">
+        <Card className="overflow-hidden rounded-xl p-0 text-tremor-content-strong dark:text-dark-tremor-content-strong">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               Таблица договоров
             </Title>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-tremor-default">
+            <table className="min-w-full text-left text-tremor-default text-tremor-content-strong dark:text-dark-tremor-content-strong">
               <thead className="bg-tremor-background-subtle text-tremor-label uppercase text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
                 <tr>
                   <th className="px-3 py-2">Проект</th>
@@ -250,28 +250,34 @@ export function DebitCreditView() {
                   <th className="px-3 py-2 text-right">Остаток</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-tremor-background dark:bg-dark-tremor-background">
                 {(data?.rows || []).map((r, idx) => (
                   <tr
                     key={`${r.contract}-${idx}`}
                     className="border-t border-tremor-border dark:border-dark-tremor-border"
                   >
-                    <td className="px-3 py-2">{r.project}</td>
-                    <td className="px-3 py-2">{r.contractor}</td>
-                    <td className="px-3 py-2 font-medium">{r.contract}</td>
-                    <td className="px-3 py-2 text-tremor-content">
+                    <td className="px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                      {r.project}
+                    </td>
+                    <td className="px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                      {r.contractor}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                      {r.contract}
+                    </td>
+                    <td className="px-3 py-2 text-tremor-content dark:text-dark-tremor-content">
                       {r.contract_date || "—"}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
                       {formatRub(r.contract_sum)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
                       {formatRub(r.advance)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
                       {formatRub(r.ks2)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
                       {formatRub(r.balance)}
                     </td>
                   </tr>

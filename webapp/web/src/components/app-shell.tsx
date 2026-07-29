@@ -21,9 +21,9 @@ export function AppShell({
   }, [dark]);
 
   return (
-    <div className="min-h-full bg-tremor-background-muted dark:bg-dark-tremor-background-muted lg:flex">
+    <div className="min-h-full bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
       <AppSidebar />
-      <div className="flex-1 overflow-x-hidden">
+      <div className="flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <header className="mb-8 flex items-center justify-between gap-4">
             <div>

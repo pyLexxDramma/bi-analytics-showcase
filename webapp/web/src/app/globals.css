@@ -5,7 +5,13 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+  color: #111827;
+}
+
+html.dark {
+  color-scheme: dark;
+  color: #f9fafb;
 }
 
 html,
@@ -17,4 +23,11 @@ body {
   margin: 0;
   font-family: "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  color: inherit;
+}
+
+/* Tremor Card/table: force readable text in both themes */
+.tremor-Card-root,
+[class*="tremor-Card"] {
+  color: inherit;
 }
