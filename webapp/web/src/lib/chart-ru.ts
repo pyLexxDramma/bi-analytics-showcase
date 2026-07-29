@@ -13,6 +13,8 @@ export const CHART_RU = {
   planEnd: "Окончание",
   planBp: "План по проекту (БП)",
   forecast: "Прогноз по проекту",
+  total: "Всего",
+  overdue: "Просрочено",
 } as const;
 
 export const PLAN_FACT_DEVIATION_CATEGORIES = [

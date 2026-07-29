@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from "@/components/placeholder-screen";
+import { PrescriptionsView } from "@/components/prescriptions-view";
 
 export default function Page() {
-  return (
-    <PlaceholderScreen
-      title="Предписания по подрядчикам"
-      section="Предписания"
-    />
-  );
+  return <PrescriptionsView />;
 }

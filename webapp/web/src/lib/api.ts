@@ -876,3 +876,80 @@ export async function fetchGdrsEquipment(
   }
   return res.json();
 }
+
+export type PrescriptionsPayload = {
+  meta: {
+    rows: number;
+    data_mode: string;
+    source: string | null;
+    task_source?: string | null;
+    warning: string | null;
+    generated_at?: string;
+  };
+  filters: {
+    projects: string[];
+    contractors: string[];
+    date_min: string | null;
+    date_max: string | null;
+    applied: {
+      project?: string;
+      contractor?: string;
+      contract_q?: string;
+      date_from?: string | null;
+      date_to?: string | null;
+      hide_resolved?: boolean;
+    };
+  };
+  kpis: {
+    total: number;
+    resolved: number;
+    unresolved: number;
+    non_overdue: number;
+    overdue_unresolved: number;
+    critical: number;
+    stop_work: number;
+  };
+  tremor: {
+    by_contractor: Array<{
+      contractor: string;
+      total: number;
+      overdue: number;
+    }>;
+    by_status: Array<{
+      status: string;
+      count: number;
+      share_pct: number;
+    }>;
+  };
+  rows: Array<{
+    status: string;
+    contractor: string;
+    project: string;
+    contract_no: string;
+    doc_number: string;
+    pred_number: string;
+    name: string;
+    issue_date: string | null;
+    issue_block: string;
+    due_date: string | null;
+    completion_date: string | null;
+    overdue_days: number;
+    critical: boolean;
+    stop_work: boolean;
+  }>;
+};
+
+export async function fetchPrescriptions(
+  params: Record<string, string | undefined> = {},
+): Promise<PrescriptionsPayload> {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v && v !== "Все") qs.set(k, v);
+  });
+  const url = apiUrl(`/api/prescriptions${qs.toString() ? `?${qs}` : ""}`);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${url}`);
+  }
+  return res.json();
+}

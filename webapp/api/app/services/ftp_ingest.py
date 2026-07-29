@@ -17,6 +17,12 @@ def clear_data_caches() -> None:
         clear_gdrs_caches()
     except Exception:
         pass
+    try:
+        from app.services.prescriptions import clear_prescriptions_caches
+
+        clear_prescriptions_caches()
+    except Exception:
+        pass
 
 
 def sync_status() -> dict[str, Any]:

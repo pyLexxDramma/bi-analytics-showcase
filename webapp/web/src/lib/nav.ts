@@ -119,6 +119,7 @@ export const REPORT_STANDALONE: ReportLeaf[] = [
     id: "prescriptions",
     href: "/prescriptions",
     label: "Предписания по подрядчикам",
+    ready: true,
     kind: "link",
   },
   {
