@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   REPORT_ACCORDIONS,
   REPORT_STANDALONE,
   REPORT_TOP_TAB,
   accordionIdForPath,
 } from "@/lib/nav";
+import { logout } from "@/lib/auth";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -33,6 +34,7 @@ function Chevron({ open }: { open: boolean }) {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const activeAccordion = accordionIdForPath(pathname);
   const [openId, setOpenId] = useState<string | null>(activeAccordion);
 
@@ -205,9 +207,11 @@ export function AppSidebar() {
       <div className="shrink-0 border-t border-gray-200 p-3 dark:border-dark-tremor-border">
         <button
           type="button"
-          disabled
-          className="w-full rounded-md bg-[#fdecea] px-3 py-2 font-medium text-[#c62828] opacity-80"
-          title="Auth появится позже"
+          className="w-full rounded-md bg-[#fdecea] px-3 py-2 font-medium text-[#c62828] transition hover:bg-[#f8d7d3]"
+          onClick={() => {
+            logout();
+            router.push("/login");
+          }}
         >
           Выйти
         </button>

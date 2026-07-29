@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -31,3 +31,283 @@ body {
 [class*="tremor-Card"] {
   color: inherit;
 }
+
+/* ===== Login: construction analytics scene ===== */
+.login-page {
+  background: #f4f7fb;
+}
+
+.login-brand {
+  font-family: "Manrope", Inter, system-ui, sans-serif;
+}
+
+.login-scene {
+  z-index: 0;
+}
+
+.login-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 20%, rgba(56, 189, 248, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 15%, rgba(251, 146, 60, 0.32), transparent 50%),
+    radial-gradient(ellipse 60% 45% at 50% 90%, rgba(20, 184, 166, 0.28), transparent 55%),
+    linear-gradient(160deg, #e8f4ff 0%, #fff7ed 45%, #ecfdf5 100%);
+  animation: login-sky-shift 14s ease-in-out infinite alternate;
+}
+
+.login-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(15, 39, 68, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 39, 68, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black, transparent 75%);
+  animation: login-grid-drift 22s linear infinite;
+}
+
+.login-crane {
+  position: absolute;
+  right: 4%;
+  bottom: 8%;
+  width: min(420px, 48vw);
+  opacity: 0.9;
+  filter: drop-shadow(0 12px 24px rgba(15, 39, 68, 0.15));
+}
+
+.crane-hook {
+  transform-origin: 300px 40px;
+  animation: crane-swing 4.5s ease-in-out infinite;
+}
+
+.login-skyline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28vh;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 4vw 0;
+  opacity: 0.55;
+}
+
+.login-skyline span {
+  flex: 1;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #38bdf8 0%, #0f2744 100%);
+  transform-origin: bottom;
+  animation: building-rise 3.2s ease-out both;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.login-skyline span:nth-child(odd) {
+  background: linear-gradient(180deg, #fb923c 0%, #1e3a5f 100%);
+}
+
+.login-skyline span:nth-child(3n) {
+  background: linear-gradient(180deg, #2dd4bf 0%, #134e4a 100%);
+}
+
+.login-chart {
+  position: absolute;
+  width: 180px;
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 16px 40px rgba(15, 39, 68, 0.12);
+  animation: float-card 6s ease-in-out infinite;
+}
+
+.login-chart em {
+  display: block;
+  margin-top: 8px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f2744;
+}
+
+.login-chart-a {
+  left: 6%;
+  top: 18%;
+}
+
+.login-chart-b {
+  right: 8%;
+  top: 28%;
+  animation-delay: -2s;
+}
+
+.login-chart .bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 72px;
+}
+
+.login-chart .bars i {
+  flex: 1;
+  display: block;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #34d399, #0f766e);
+  transform-origin: bottom;
+  animation: bar-grow 2.4s ease-out both;
+}
+
+.login-chart .bars i:nth-child(even) {
+  background: linear-gradient(180deg, #60a5fa, #1d4ed8);
+}
+
+.login-chart .spark {
+  width: 100%;
+  height: 70px;
+}
+
+.spark-line {
+  stroke-dasharray: 220;
+  stroke-dashoffset: 220;
+  animation: draw-line 2.8s ease forwards infinite alternate;
+}
+
+.login-chip {
+  position: absolute;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f2744;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(15, 39, 68, 0.08);
+  box-shadow: 0 10px 24px rgba(15, 39, 68, 0.12);
+  animation: chip-pop 5s ease-in-out infinite;
+}
+
+.login-chip-1 {
+  left: 12%;
+  bottom: 34%;
+  background: #d1fae5;
+}
+
+.login-chip-2 {
+  left: 28%;
+  top: 14%;
+  background: #ffedd5;
+  animation-delay: -1.5s;
+}
+
+.login-chip-3 {
+  right: 18%;
+  bottom: 40%;
+  background: #e0f2fe;
+  animation-delay: -3s;
+}
+
+.login-ring {
+  position: absolute;
+  left: 42%;
+  top: 12%;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 6px solid rgba(251, 146, 60, 0.25);
+  border-top-color: #fb923c;
+  border-right-color: #14b8a6;
+  animation: spin-ring 8s linear infinite;
+}
+
+.login-dust span {
+  position: absolute;
+  bottom: 20%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fbbf24;
+  opacity: 0;
+  animation: dust-up 5s ease-in-out infinite;
+}
+
+.login-dust span:nth-child(odd) {
+  background: #2dd4bf;
+}
+
+.login-dust span:nth-child(3n) {
+  background: #38bdf8;
+}
+
+.login-card {
+  animation: card-in 0.7s ease both;
+}
+
+@keyframes login-sky-shift {
+  from { filter: hue-rotate(0deg) saturate(1); }
+  to { filter: hue-rotate(12deg) saturate(1.15); }
+}
+
+@keyframes login-grid-drift {
+  from { background-position: 0 0; }
+  to { background-position: 48px 48px; }
+}
+
+@keyframes crane-swing {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(6deg); }
+}
+
+@keyframes building-rise {
+  from { transform: scaleY(0.15); opacity: 0; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes float-card {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes bar-grow {
+  from { transform: scaleY(0.1); opacity: 0.3; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes draw-line {
+  from { stroke-dashoffset: 220; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes chip-pop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-8px) scale(1.04); }
+}
+
+@keyframes spin-ring {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dust-up {
+  0% { transform: translateY(40px); opacity: 0; }
+  20% { opacity: 0.9; }
+  100% { transform: translateY(-180px); opacity: 0; }
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 900px) {
+  .login-crane,
+  .login-chart-b,
+  .login-ring {
+    display: none;
+  }
+  .login-chart-a {
+    left: 4%;
+    top: 8%;
+    transform: scale(0.85);
+  }
+}
+

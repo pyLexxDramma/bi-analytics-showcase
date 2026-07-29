@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
+import { isAuthenticated } from "@/lib/auth";
 
 export function AppShell({
   title,
@@ -12,13 +14,31 @@ export function AppShell({
   subtitle?: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [dark, setDark] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.replace("/login");
+      return;
+    }
+    setReady(true);
+  }, [router]);
 
   useEffect(() => {
     const root = document.documentElement;
     if (dark) root.classList.add("dark");
     else root.classList.remove("dark");
   }, [dark]);
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-slate-50 text-slate-500">
+        Проверка сессии…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
