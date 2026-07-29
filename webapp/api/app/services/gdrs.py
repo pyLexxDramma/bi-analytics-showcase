@@ -126,19 +126,19 @@ def _discover_files() -> dict[str, list]:
 
 def _keep_recent_by_name_date(paths: list, *, limit: int) -> list:
     """Оставить последние `limit` файлов по дате в имени (DD-MM-YYYY), иначе по mtime."""
+    import re
+
     if len(paths) <= limit:
         return list(paths)
-    _ensure_core_path()
-    g = _gdrs()
+    date_re = re.compile(r"(\d{2})-(\d{2})-(\d{4})")
     dated: list[tuple] = []
     for p in paths:
-        ts = None
-        try:
-            ts = g._source_file_date(p)  # noqa: SLF001 — та же эвристика, что в Streamlit
-        except Exception:
-            ts = None
-        mtime = p.stat().st_mtime if p.is_file() else 0.0
-        key = (ts.value if ts is not None and hasattr(ts, "value") else 0, mtime)
+        m = date_re.search(p.name)
+        if m:
+            dd, mm, yy = m.groups()
+            key = (int(yy), int(mm), int(dd), p.stat().st_mtime if p.is_file() else 0.0)
+        else:
+            key = (0, 0, 0, p.stat().st_mtime if p.is_file() else 0.0)
         dated.append((key, p))
     dated.sort(key=lambda x: x[0])
     return [p for _, p in dated[-limit:]]
