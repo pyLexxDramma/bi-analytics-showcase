@@ -2,32 +2,37 @@ export type NavItem = {
   id: string;
   href: string;
   label: string;
-  /** Ready page vs placeholder */
   ready?: boolean;
 };
 
-export type NavSection = {
+/** Группа-аккордеон в блоке «Отчёты» (как на ai.conall.ru). */
+export type ReportAccordion = {
   id: string;
-  title: string;
+  label: string;
   items: NavItem[];
 };
 
-/** Блоки меню как на ai.conall.ru (REPORT_CATEGORIES). */
-export const NAV_SECTIONS: NavSection[] = [
-  {
-    id: "developer",
-    title: "Девелоперские проекты",
-    items: [
-      {
-        id: "developer-projects",
-        href: "/developer-projects",
-        label: "Девелоперские проекты",
-      },
-    ],
-  },
+/** Одиночный отчёт без вложенности. */
+export type ReportLeaf = {
+  id: string;
+  href: string;
+  label: string;
+  ready?: boolean;
+  /** Подсветка как активная вкладка (зелёная). */
+  kind?: "tab" | "link";
+};
+
+export const REPORT_TOP_TAB: ReportLeaf = {
+  id: "developer-projects",
+  href: "/developer-projects",
+  label: "Девелоперские проекты",
+  kind: "tab",
+};
+
+export const REPORT_ACCORDIONS: ReportAccordion[] = [
   {
     id: "finance",
-    title: "Финансы",
+    label: "Финансы",
     items: [
       { id: "bdds", href: "/finance/bdds", label: "БДДС (расходы)" },
       { id: "bdr", href: "/finance/bdr", label: "БДР (расходы)" },
@@ -45,7 +50,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "timeline",
-    title: "Сроки",
+    label: "Сроки",
     items: [
       {
         id: "control-points",
@@ -71,7 +76,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "project-docs",
-    title: "Проектные работы",
+    label: "Проектные работы",
     items: [
       {
         id: "project-documentation",
@@ -87,7 +92,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "gdrs",
-    title: "ГДРС",
+    label: "ГДРС",
     items: [
       { id: "gdrs-people", href: "/gdrs/people", label: "ГДРС (люди)" },
       {
@@ -97,55 +102,82 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+];
+
+export const REPORT_STANDALONE: ReportLeaf[] = [
   {
     id: "prescriptions",
-    title: "Предписания",
-    items: [
-      {
-        id: "prescriptions-contractors",
-        href: "/prescriptions",
-        label: "Предписания по подрядчикам",
-      },
-    ],
+    href: "/prescriptions",
+    label: "Предписания по подрядчикам",
+    kind: "link",
   },
   {
-    id: "executive",
-    title: "Исполнительная документация",
-    items: [
-      {
-        id: "executive-docs",
-        href: "/executive-docs",
-        label: "Исполнительная документация",
-      },
-    ],
+    id: "executive-docs",
+    href: "/executive-docs",
+    label: "Исполнительная документация",
+    kind: "link",
   },
   {
     id: "debit-credit",
-    title: "Дебиторская и кредиторская задолженность",
-    items: [
-      {
-        id: "debit-credit",
-        href: "/debit-credit",
-        label: "Дебиторская и кредиторская задолженность подрядчиков",
-        ready: true,
-      },
-    ],
+    href: "/debit-credit",
+    label: "Дебиторская и кредиторская задолженность подрядчиков",
+    ready: true,
+    kind: "link",
   },
 ];
 
-export function findNavItem(
-  pathname: string,
-): { section: NavSection; item: NavItem } | null {
-  for (const section of NAV_SECTIONS) {
-    for (const item of section.items) {
-      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
-        return { section, item };
-      }
+/** @deprecated use REPORT_* — оставлено для home page */
+export type NavSection = {
+  id: string;
+  title: string;
+  items: NavItem[];
+};
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    id: "developer",
+    title: "Девелоперские проекты",
+    items: [REPORT_TOP_TAB],
+  },
+  ...REPORT_ACCORDIONS.map((a) => ({
+    id: a.id,
+    title: a.label,
+    items: a.items,
+  })),
+  {
+    id: "standalone",
+    title: "Прочее",
+    items: REPORT_STANDALONE,
+  },
+];
+
+export function accordionIdForPath(pathname: string): string | null {
+  for (const acc of REPORT_ACCORDIONS) {
+    if (acc.items.some((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))) {
+      return acc.id;
     }
   }
   return null;
 }
 
-export function allNavItems(): NavItem[] {
-  return NAV_SECTIONS.flatMap((s) => s.items);
+export function findNavItem(pathname: string): NavItem | ReportLeaf | null {
+  if (
+    pathname === REPORT_TOP_TAB.href ||
+    pathname.startsWith(`${REPORT_TOP_TAB.href}/`)
+  ) {
+    return REPORT_TOP_TAB;
+  }
+  for (const acc of REPORT_ACCORDIONS) {
+    for (const item of acc.items) {
+      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+        return item;
+      }
+    }
+  }
+  for (const item of REPORT_STANDALONE) {
+    if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+      return item;
+    }
+  }
+  return null;
 }
