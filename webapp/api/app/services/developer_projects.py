@@ -12,7 +12,48 @@ import pandas as pd
 from app.services.data_paths import latest_web_files_by_project
 
 MILESTONES = [
-    ("ГПЗУ", "gpzu", ["гпзу"]),
+    (
+        "Аренда ЗУ",
+        "land_lease",
+        [
+            "регистрация договора субаренды",
+            "подготовка договора аренды",
+            "договор субаренды",
+            "субаренд",
+            "аренда зу",
+            "инвестиционная. аренда",
+        ],
+        "invest",
+    ),
+    (
+        "Готовый Продукт",
+        "ready_product",
+        [
+            "рассмотрение и утверждение на инвестиционном комитете",
+            "инвестиционном комитете",
+            "готовый продукт",
+            "этап готовый продукт",
+            "этап готовый",
+            "инвестиционная. готовый",
+        ],
+        "invest",
+    ),
+    (
+        "ГПЗУ",
+        "gpzu",
+        [
+            "гпзу",
+            "градплан",
+            "градостроительн",
+            "план территории",
+            "градостроительного плана",
+            "зонирования",
+            "согласование гп",
+            "планировочных решений",
+            "эскизный проект",
+        ],
+        "invest",
+    ),
     (
         "Экспертиза стадии П",
         "exp_pd",
@@ -23,6 +64,22 @@ MILESTONES = [
             "экспертиза проектной документации",
             "экспертиза",
         ],
+        "life",
+    ),
+    (
+        "КОМАНДА РП",
+        "rp_team",
+        [
+            "подбор команды",
+            "команда рп",
+            "распоряжение руководителя холдинга",
+            "руководителя холдинга об утверждении",
+            "назначен руководител",
+            "проектную группу",
+            "руководител проекта",
+            "назначени руководител",
+        ],
+        "life",
     ),
     (
         "РС",
@@ -36,6 +93,7 @@ MILESTONES = [
             "(рс)",
             "рзу рс",
         ],
+        "life",
     ),
     (
         "Стадия РД",
@@ -45,6 +103,7 @@ MILESTONES = [
             "стадия рабочая документация (рд)",
             "рабочая документация (рд)",
         ],
+        "life",
     ),
     (
         "Начало финансирования",
@@ -59,8 +118,9 @@ MILESTONES = [
             "(начало финансирования)",
             "начало финансирования",
         ],
+        "life",
     ),
-    ("Завершение СМР", "smr_finish", ["завершение смр"]),
+    ("Завершение СМР", "smr_finish", ["завершение смр"], "life"),
     (
         "ЗОС",
         "zos",
@@ -72,6 +132,7 @@ MILESTONES = [
             "зос - 1 этап",
             "зос - 2 этап",
         ],
+        "life",
     ),
     (
         "РВ",
@@ -86,6 +147,7 @@ MILESTONES = [
             "рв - 2 этап",
             "рв",
         ],
+        "life",
     ),
 ]
 
@@ -186,6 +248,17 @@ def _empty_payload() -> dict[str, Any]:
             ],
         },
         "rows": [],
+        "matrix": {
+            "phases": [
+                {"id": "invest", "label": "Инвестиционная фаза"},
+                {"id": "life", "label": "Жизнь проекта"},
+            ],
+            "milestones": [
+                {"slug": slug, "title": title, "phase": phase}
+                for title, slug, _, phase in MILESTONES
+            ],
+            "projects": [],
+        },
     }
 
 
@@ -211,7 +284,7 @@ def build_developer_projects_payload(*, project: str | None = None) -> dict[str,
             project_name = str(record.get(columns.get("project", ""), "") or "").strip()
             project_name = project_name or fallback_project
             projects.add(project_name)
-            for milestone, slug, needles in MILESTONES:
+            for milestone, slug, needles, _ in MILESTONES:
                 if not any(needle.casefold() in haystack for needle in needles):
                     continue
                 plan = _as_date(record.get(columns.get("plan", "")))
@@ -226,7 +299,7 @@ def build_developer_projects_payload(*, project: str | None = None) -> dict[str,
                         "plan": _format_date(plan),
                         "fact": _format_date(fact),
                         "otkl_days": delta,
-                        "otkl": f"{delta:+d}" if delta is not None else "Н/Д",
+                        "otkl": f"{delta:+d} дн." if delta else "0 дн." if delta == 0 else "Н/Д",
                         "pct_complete": round(pct, 1) if pct is not None and math.isfinite(pct) else None,
                         "status": _status(plan, fact, pct),
                     }
@@ -243,7 +316,7 @@ def build_developer_projects_payload(*, project: str | None = None) -> dict[str,
 
     rows = []
     for project_name in projects:
-        for milestone, slug, _ in MILESTONES:
+        for milestone, slug, _, _ in MILESTONES:
             rows.append(
                 matched_by_key.get(
                     (project_name, slug),
@@ -265,6 +338,35 @@ def build_developer_projects_payload(*, project: str | None = None) -> dict[str,
     applied_project = project if project in available_projects else "Все"
     filtered = [row for row in rows if applied_project == "Все" or row["project"] == applied_project]
     filtered_projects = {row["project"] for row in filtered}
+    matrix_projects = []
+    for project_name in sorted(filtered_projects, key=str.casefold):
+        project_rows = [row for row in filtered if row["project"] == project_name]
+        matrix_projects.append(
+            {
+                "project": project_name,
+                "cells": {
+                    row["slug"]: {
+                        "plan": row["plan"],
+                        "fact": row["fact"],
+                        "otkl": row["otkl"],
+                        "otkl_days": row["otkl_days"],
+                        "status": row["status"],
+                    }
+                    for row in project_rows
+                },
+            }
+        )
+    matrix = {
+        "phases": [
+            {"id": "invest", "label": "Инвестиционная фаза"},
+            {"id": "life", "label": "Жизнь проекта"},
+        ],
+        "milestones": [
+            {"slug": slug, "title": title, "phase": phase}
+            for title, slug, _, phase in MILESTONES
+        ],
+        "projects": matrix_projects,
+    }
     completed = sum(row["status"] == "done" for row in filtered)
     overdue = sum(row["status"] == "overdue" for row in filtered)
     missing = sum(row["status"] == "missing" for row in filtered)
@@ -305,4 +407,5 @@ def build_developer_projects_payload(*, project: str | None = None) -> dict[str,
             ],
         },
         "rows": sorted(filtered, key=lambda row: (row["project"].casefold(), row["slug"])),
+        "matrix": matrix,
     }

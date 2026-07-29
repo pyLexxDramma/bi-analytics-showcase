@@ -104,6 +104,27 @@ export type DeveloperProjectsPayload = {
     }>;
     status_mix: Array<{ name: string; value: number }>;
   };
+  matrix: {
+    phases: Array<{ id: "invest" | "life"; label: string }>;
+    milestones: Array<{
+      slug: string;
+      title: string;
+      phase: "invest" | "life";
+    }>;
+    projects: Array<{
+      project: string;
+      cells: Record<
+        string,
+        {
+          plan: string | null;
+          fact: string | null;
+          otkl: string;
+          otkl_days: number | null;
+          status: "missing" | "done" | "overdue" | "on_track";
+        }
+      >;
+    }>;
+  };
   rows: Array<{
     project: string;
     milestone: string;

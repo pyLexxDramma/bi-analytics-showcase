@@ -16,20 +16,6 @@ import {
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 
-const statusLabel = {
-  missing: "Нет данных",
-  done: "Выполнено",
-  overdue: "Просрочено",
-  on_track: "В срок",
-};
-
-const statusClass = {
-  missing: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
-  done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  overdue: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-  on_track: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
-};
-
 export function DeveloperProjectsView() {
   const [project, setProject] = useState("Все");
   const [data, setData] = useState<DeveloperProjectsPayload | null>(null);
@@ -156,45 +142,110 @@ export function DeveloperProjectsView() {
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Контрольные точки
+              Матрица контрольных точек
             </Title>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-tremor-default text-tremor-content-strong dark:text-dark-tremor-content-strong">
-              <thead className="bg-tremor-background-subtle text-tremor-label uppercase text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
-                <tr>
-                  <th className="px-3 py-2">Проект</th>
-                  <th className="px-3 py-2">Контрольная точка</th>
-                  <th className="px-3 py-2">План</th>
-                  <th className="px-3 py-2">Факт</th>
-                  <th className="px-3 py-2 text-right">Откл., дн.</th>
-                  <th className="px-3 py-2 text-right">Готовность</th>
-                  <th className="px-3 py-2">Статус</th>
-                </tr>
-              </thead>
-              <tbody className="bg-tremor-background dark:bg-dark-tremor-background">
-                {(data?.rows ?? []).map((row) => (
-                  <tr
-                    key={`${row.project}-${row.slug}`}
-                    className="border-t border-tremor-border dark:border-dark-tremor-border"
-                  >
-                    <td className="px-3 py-2 font-medium">{row.project}</td>
-                    <td className="px-3 py-2">{row.milestone}</td>
-                    <td className="px-3 py-2">{row.plan ?? "—"}</td>
-                    <td className="px-3 py-2">{row.fact ?? "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.otkl}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {row.pct_complete === null ? "—" : `${row.pct_complete}%`}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusClass[row.status]}`}>
-                        {statusLabel[row.status]}
-                      </span>
-                    </td>
+            {(data?.matrix.projects.length ?? 0) === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                Нет данных по контрольным точкам.
+              </div>
+            ) : (
+              <table className="min-w-max border-separate border-spacing-0 text-center text-xs text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                <thead>
+                  <tr className="text-tremor-content dark:text-dark-tremor-content">
+                    <th
+                      rowSpan={3}
+                      className="sticky left-0 z-30 min-w-52 border-b-2 border-r-2 border-white bg-slate-100 px-4 py-3 text-left font-bold dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      Проект
+                    </th>
+                    {(data?.matrix.phases ?? []).map((phase) => {
+                      const milestoneCount = data?.matrix.milestones.filter(
+                        (milestone) => milestone.phase === phase.id,
+                      ).length ?? 0;
+                      return (
+                        <th
+                          key={phase.id}
+                          colSpan={milestoneCount * 3}
+                          className={`border-b-2 border-r-2 border-white px-3 py-2 font-bold dark:border-slate-700 ${
+                            phase.id === "invest"
+                              ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-200"
+                              : "bg-sky-100 text-sky-950 dark:bg-sky-950/50 dark:text-sky-200"
+                          }`}
+                        >
+                          {phase.label}
+                        </th>
+                      );
+                    })}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  <tr className="bg-tremor-background-subtle text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
+                    {(data?.matrix.milestones ?? []).map((milestone) => (
+                      <th
+                        key={milestone.slug}
+                        colSpan={3}
+                        className="border-b border-r-2 border-white px-2 py-2 font-semibold dark:border-slate-700"
+                      >
+                        {milestone.title}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="bg-tremor-background-subtle text-[10px] uppercase text-tremor-label dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
+                    {(data?.matrix.milestones ?? []).flatMap((milestone) =>
+                      ["План", "Факт", "Откл."].map((label, index) => (
+                        <th
+                          key={`${milestone.slug}-${label}`}
+                          className={`border-b px-2 py-2 ${index === 2 ? "border-r-2 border-white dark:border-r-slate-700" : "border-r border-tremor-border dark:border-dark-tremor-border"}`}
+                        >
+                          {label}
+                        </th>
+                      )),
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="bg-tremor-background dark:bg-dark-tremor-background">
+                  {(data?.matrix.projects ?? []).map((matrixProject) => (
+                    <tr
+                      key={matrixProject.project}
+                      className="border-b border-tremor-border dark:border-dark-tremor-border"
+                    >
+                      <td className="sticky left-0 z-10 border-b border-r-2 border-white bg-slate-100 px-4 py-3 text-left font-bold dark:border-slate-700 dark:bg-slate-800">
+                        {matrixProject.project}
+                      </td>
+                      {(data?.matrix.milestones ?? []).flatMap((milestone) => {
+                        const cell = matrixProject.cells[milestone.slug];
+                        const deviationClass =
+                          cell?.otkl_days === null || cell?.otkl_days === undefined
+                            ? "text-tremor-content dark:text-dark-tremor-content"
+                            : cell.otkl_days >= 0
+                              ? "font-semibold text-emerald-700 dark:text-emerald-300"
+                              : "font-semibold text-rose-800 dark:text-rose-300";
+                        return [
+                          <td
+                            key={`${milestone.slug}-plan`}
+                            className="border-b border-r border-tremor-border px-2 py-3 font-bold tabular-nums dark:border-dark-tremor-border"
+                          >
+                            {cell?.plan ?? "—"}
+                          </td>,
+                          <td
+                            key={`${milestone.slug}-fact`}
+                            className="border-b border-r border-tremor-border px-2 py-3 font-bold tabular-nums dark:border-dark-tremor-border"
+                          >
+                            {cell?.fact ?? "—"}
+                          </td>,
+                          <td
+                            key={`${milestone.slug}-otkl`}
+                            className={`border-b border-r-2 border-white px-2 py-3 tabular-nums dark:border-r-slate-700 ${deviationClass}`}
+                          >
+                            {cell?.otkl ?? "Н/Д"}
+                          </td>,
+                        ];
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </Card>
       </div>
