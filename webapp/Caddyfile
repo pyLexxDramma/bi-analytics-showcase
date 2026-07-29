@@ -2,7 +2,13 @@
 	encode gzip
 
 	handle /api* {
-		reverse_proxy api:8000
+		reverse_proxy api:8000 {
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+				dial_timeout 10s
+			}
+		}
 	}
 
 	handle {

@@ -109,6 +109,12 @@ def _discover_files() -> dict[str, list]:
             for pat in ("*dannye*.json", "*Dannye*.json"):
                 dannye.extend(base.glob(pat))
     dannye = sorted({p.resolve() for p in dannye if p.is_file()})
+    # Docker/VPS: полный набор 1С JSON слишком тяжёлый для синхронного API —
+    # оставляем недавние снапшоты (семантика среза плана сохраняется).
+    dogovor = _keep_recent_by_name_date(dogovor, limit=45)
+    sprav = _keep_recent_by_name_date(sprav, limit=20)
+    kontr = _keep_recent_by_name_date(kontr, limit=20)
+    dannye = _keep_recent_by_name_date(list(dannye), limit=40)
     return {
         "resursi": resursi,
         "dogovor": dogovor,
@@ -116,6 +122,26 @@ def _discover_files() -> dict[str, list]:
         "kontr": kontr,
         "dannye": dannye,
     }
+
+
+def _keep_recent_by_name_date(paths: list, *, limit: int) -> list:
+    """Оставить последние `limit` файлов по дате в имени (DD-MM-YYYY), иначе по mtime."""
+    if len(paths) <= limit:
+        return list(paths)
+    _ensure_core_path()
+    g = _gdrs()
+    dated: list[tuple] = []
+    for p in paths:
+        ts = None
+        try:
+            ts = g._source_file_date(p)  # noqa: SLF001 — та же эвристика, что в Streamlit
+        except Exception:
+            ts = None
+        mtime = p.stat().st_mtime if p.is_file() else 0.0
+        key = (ts.value if ts is not None and hasattr(ts, "value") else 0, mtime)
+        dated.append((key, p))
+    dated.sort(key=lambda x: x[0])
+    return [p for _, p in dated[-limit:]]
 
 
 @lru_cache(maxsize=4)
