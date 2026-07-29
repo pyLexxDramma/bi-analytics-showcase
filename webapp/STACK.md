@@ -64,6 +64,7 @@ FastAPI (:8000)
 Секреты FTP: те же, что у Streamlit — `[ftp]` в `.streamlit/secrets.toml` основного приложения (`host` / `user` / `password` / `remote_dir`).
 
 Пилот-экран: **дебиторка подрядчиков** (`/debit-credit` ← `/api/debit-credit`).
+Меню сайдбара = блоки `REPORT_CATEGORIES` с ai.conall.ru (`web/src/lib/nav.ts`); остальные экраны — заглушки.
 
 ### Инфра / деплой
 

@@ -3,32 +3,50 @@
 import Link from "next/link";
 import { Card, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
+import { NAV_SECTIONS } from "@/lib/nav";
 
 export default function HomePage() {
   return (
     <AppShell
       title="BI · Аналитика"
-      subtitle="Showcase Next.js + FastAPI · внешний вид по data-spec (Tremor)"
+      subtitle="Меню как на ai.conall.ru · пилот Next.js + FastAPI"
     >
       <div className="grid gap-4">
-        <Card className="rounded-xl">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <Title>Дебиторка подрядчиков</Title>
-              <Text className="mt-1">Пилот · FTP-режим опционально (как ai.conall.ru)</Text>
-            </div>
-            <Link
-              href="/debit-credit"
-              className="rounded-tremor-default bg-tremor-brand px-4 py-2 text-tremor-default font-medium text-white"
-            >
-              Открыть
-            </Link>
-          </div>
-        </Card>
-        <Card className="rounded-xl opacity-70">
-          <Title>Следующие экраны</Title>
-          <Text className="mt-1">БДДС, БДР, ГДРС — по одному после приёмки пилота.</Text>
-        </Card>
+        {NAV_SECTIONS.map((section) => (
+          <Card key={section.id} className="rounded-xl">
+            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+              {section.title}
+            </Title>
+            <ul className="mt-3 space-y-2">
+              {section.items.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={item.href}
+                    className="text-tremor-default text-tremor-brand hover:underline dark:text-dark-tremor-brand"
+                  >
+                    {item.label}
+                    {item.ready ? (
+                      <span className="ml-2 text-tremor-label text-emerald-600 dark:text-emerald-400">
+                        готово
+                      </span>
+                    ) : (
+                      <span className="ml-2 text-tremor-label text-tremor-content dark:text-dark-tremor-content">
+                        скоро
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+        <Text>
+          Готовый экран с данными:{" "}
+          <Link href="/debit-credit" className="font-medium text-tremor-brand">
+            дебиторка / кредиторка
+          </Link>
+          .
+        </Text>
       </div>
     </AppShell>
   );

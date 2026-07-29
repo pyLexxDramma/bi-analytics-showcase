@@ -40,9 +40,16 @@ def list_dashboards():
             {
                 "id": "debit-credit",
                 "title": "Дебиторская и кредиторская задолженность подрядчиков",
-                "status": "pilot",
+                "section": "Дебиторская и кредиторская задолженность",
+                "status": "ready",
                 "path": "/debit-credit",
                 "api": "/api/debit-credit",
-            }
+            },
+            {
+                "id": "menu",
+                "title": "Меню как на ai.conall.ru",
+                "status": "nav",
+                "note": "Остальные экраны — заглушки, контент по одному",
+            },
         ]
     }
