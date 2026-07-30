@@ -48,6 +48,20 @@ _default_web = (
 )
 WEB_DATA_DIR = Path(os.environ.get("SHOWCASE_WEB_DIR", str(_default_web)))
 
+# SQLite как в [main]: после FTP/web → load_all_from_web()
+WEB_DB_PATH = Path(
+    os.environ.get(
+        "WEB_DB_PATH",
+        str(WEBAPP_ROOT / "data" / "web_data.db"),
+    )
+)
+REPORT_CACHE_DIR = Path(
+    os.environ.get(
+        "WEBAPP_REPORT_CACHE_DIR",
+        str(WEBAPP_ROOT / "data" / "report_cache"),
+    )
+)
+
 CORS_ORIGINS = [
     o.strip()
     for o in os.environ.get(
@@ -57,11 +71,23 @@ CORS_ORIGINS = [
     if o.strip()
 ]
 API_TITLE = "BI Analytics Showcase API"
-API_VERSION = "0.18.0"
+API_VERSION = "0.19.0"
 ADMIN_SYNC_TOKEN = (os.environ.get("WEBAPP_ADMIN_TOKEN") or "").strip()
-CORE_APP_DIR = Path(
-    os.environ.get(
-        "BI_CORE_APP_DIR",
-        str(SHOWCASE_ROOT / "bi-analytics-v-5-main"),
-    )
-)
+def _detect_core_app_dir() -> Path:
+    env = (os.environ.get("BI_CORE_APP_DIR") or "").strip()
+    if env:
+        return Path(env)
+    candidates = [
+        SHOWCASE_ROOT.parent / "bi-analytics-v-5-main" / "bi-analytics-v-5-main",
+        SHOWCASE_ROOT / "bi-analytics-v-5-main",
+    ]
+    for c in candidates:
+        if (c / "web_loader.py").is_file() and (c / "web_db_read.py").is_file():
+            return c
+    for c in candidates:
+        if (c / "web_loader.py").is_file():
+            return c
+    return candidates[-1]
+
+
+CORE_APP_DIR = _detect_core_app_dir()

@@ -6,6 +6,8 @@ from typing import Any
 
 from app.config import CORE_APP_DIR, DATA_MODE, WEB_DATA_DIR
 from app.services.debit_credit import load_debit_credit_frame, _source_mtime_key
+from app.services.db_ingest import db_status, run_db_ingest
+from app.services.report_cache import cache_clear
 
 
 def clear_data_caches() -> None:
@@ -27,6 +29,10 @@ def clear_data_caches() -> None:
         from app.services.executive_docs import clear_executive_docs_caches
 
         clear_executive_docs_caches()
+    except Exception:
+        pass
+    try:
+        cache_clear()
     except Exception:
         pass
 
@@ -51,6 +57,7 @@ def sync_status() -> dict[str, Any]:
                 or __import__("os").environ.get("FTP_AI_USER")
             )
         ),
+        "db": db_status(),
     }
 
 
@@ -102,4 +109,34 @@ def run_ftp_sync(*, force: bool = False) -> dict[str, Any]:
     clear_data_caches()
     result["web_dir"] = str(WEB_DATA_DIR)
     result["status"] = sync_status()
+    # ftp_sync может вернуть ok=True без ключа; нормализуем
+    if "ok" not in result:
+        result["ok"] = not bool(result.get("errors"))
     return result
+
+
+def run_ftp_then_db_ingest(*, force: bool = False) -> dict[str, Any]:
+    """Как кнопка admin в [main]: FTP → web/ → load_all_from_web() → web_data.db."""
+    ftp = run_ftp_sync(force=force)
+    if not ftp.get("ok", False) and DATA_MODE == "ftp":
+        # если FTP упал — не продолжаем
+        return {
+            "ok": False,
+            "stage": "ftp",
+            "ftp": ftp,
+            "ingest": None,
+            "status": sync_status(),
+            "errors": list(ftp.get("errors") or ["FTP sync failed"]),
+        }
+
+    ingest = run_db_ingest()
+    clear_data_caches()
+    ok = bool(ingest.get("ok"))
+    return {
+        "ok": ok,
+        "stage": "ingest" if ok else ("ingest" if ftp.get("ok", True) else "ftp"),
+        "ftp": ftp if DATA_MODE == "ftp" else {"ok": True, "skipped": True, "reason": "not ftp mode"},
+        "ingest": ingest,
+        "status": sync_status(),
+        "errors": list(ingest.get("errors") or []),
+    }

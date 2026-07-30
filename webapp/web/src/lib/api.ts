@@ -251,25 +251,45 @@ export async function fetchBddsPlanFact(
   return res.json();
 }
 
+export type DeveloperProjectsCell = {
+  plan: string | null;
+  fact: string | null;
+  otkl: string | null;
+  pct_complete_100?: boolean;
+  warn?: boolean;
+  otkl_fact_lt_plan?: boolean;
+  subcolumn_labels?: { plan?: string; fact?: string; otkl?: string } | null;
+};
+
 export type DeveloperProjectsPayload = {
   meta: {
     rows: number;
     source: string;
     data_mode: string;
-    files: number;
+    parity?: string;
+    version_id?: number | null;
+    columns?: number;
+    cells?: number;
+    error?: string | null;
+    files?: number;
+    db?: { active_version_id?: number | null; exists?: boolean };
   };
   filters: {
     projects: string[];
-    applied: { project: string };
+    applied: { projects: string[]; project?: string };
+    mode?: string;
+    empty_means_all?: boolean;
   };
-  kpis: {
+  hints?: string[];
+  legend?: { pct100?: string; pos?: string; neg?: string };
+  kpis?: {
     projects: number;
     milestones_found: number;
     completed_pct: number;
     overdue: number;
     missing_fact: number;
   };
-  tremor: {
+  tremor?: {
     completion_by_project: Array<{
       project: string;
       completed: number;
@@ -279,43 +299,35 @@ export type DeveloperProjectsPayload = {
     status_mix: Array<{ name: string; value: number }>;
   };
   matrix: {
-    phases: Array<{ id: "invest" | "life"; label: string }>;
-    milestones: Array<{
+    phases: Array<{ id: "invest" | "life" | string; label: string }>;
+    columns: Array<{
+      key: string;
+      label: string;
+      phase: "invest" | "life" | string;
+      group?: string;
+      subcolumn_labels?: { plan?: string; fact?: string; otkl?: string } | null;
+    }>;
+    /** @deprecated old simplified payload */
+    milestones?: Array<{
       slug: string;
       title: string;
       phase: "invest" | "life";
     }>;
     projects: Array<{
       project: string;
-      cells: Record<
-        string,
-        {
-          plan: string | null;
-          fact: string | null;
-          otkl: string;
-          otkl_days: number | null;
-          status: "missing" | "done" | "overdue" | "on_track";
-        }
-      >;
+      cells: Record<string, DeveloperProjectsCell>;
     }>;
   };
-  rows: Array<{
-    project: string;
-    milestone: string;
-    slug: string;
-    plan: string | null;
-    fact: string | null;
-    otkl_days: number | null;
-    otkl: string;
-    pct_complete: number | null;
-    status: "missing" | "done" | "overdue" | "on_track";
-  }>;
 };
 
 export async function fetchDeveloperProjects(
-  project?: string,
+  projects: string[] = [],
 ): Promise<DeveloperProjectsPayload> {
-  const qs = project && project !== "Все" ? `?project=${encodeURIComponent(project)}` : "";
+  const params = new URLSearchParams();
+  for (const p of projects) {
+    if (p && p !== "Все") params.append("projects", p);
+  }
+  const qs = params.toString() ? `?${params.toString()}` : "";
   const url = apiUrl(`/api/developer-projects${qs}`);
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
@@ -1037,12 +1049,22 @@ export async function fetchExecutiveDocs(
   return res.json();
 }
 
+export type AdminDbStatus = {
+  web_db_path?: string;
+  exists?: boolean;
+  size_bytes?: number;
+  mtime?: number | null;
+  active_version_id?: number | null;
+  error?: string;
+};
+
 export type AdminDataStatus = {
   data_mode: string;
   web_dir: string;
   files: number;
   latest_mtime: number | null;
   ftp_configured: boolean;
+  db?: AdminDbStatus;
 };
 
 export async function fetchAdminDataStatus(): Promise<AdminDataStatus> {
@@ -1056,6 +1078,8 @@ export async function fetchAdminDataStatus(): Promise<AdminDataStatus> {
 
 export type AdminSyncResult = {
   ok: boolean;
+  async?: boolean;
+  job_id?: string;
   downloaded?: number;
   skipped_same_size?: number;
   files?: number;
@@ -1064,12 +1088,22 @@ export type AdminSyncResult = {
   [key: string]: unknown;
 };
 
-export async function postAdminSync(
+export type AdminJob = {
+  id: string;
+  kind: string;
+  status: string;
+  created_at?: number;
+  started_at?: number | null;
+  finished_at?: number | null;
+  result?: unknown;
+  error?: string | null;
+};
+
+async function postAdminAction(
+  path: string,
   token: string,
-  force = false,
 ): Promise<AdminSyncResult> {
-  const qs = force ? "?force=true" : "";
-  const url = apiUrl(`/api/admin/sync${qs}`);
+  const url = apiUrl(path);
   const res = await fetch(url, {
     method: "POST",
     cache: "no-store",
@@ -1088,11 +1122,46 @@ export async function postAdminSync(
   return body as AdminSyncResult;
 }
 
+export async function postAdminSync(
+  token: string,
+  force = false,
+): Promise<AdminSyncResult> {
+  const qs = force ? "?force=true" : "";
+  return postAdminAction(`/api/admin/sync${qs}`, token);
+}
+
+/** web/ → web_data.db (без FTP; synthetic и ftp). */
+export async function postAdminIngest(token: string): Promise<AdminSyncResult> {
+  return postAdminAction("/api/admin/ingest", token);
+}
+
+export async function fetchAdminJob(
+  token: string,
+  jobId: string,
+): Promise<AdminJob> {
+  const url = apiUrl(`/api/admin/jobs/${encodeURIComponent(jobId)}`);
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { "X-Admin-Token": token },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail =
+      typeof body?.detail === "string"
+        ? body.detail
+        : `API ${res.status}: ${url}`;
+    throw new Error(detail);
+  }
+  return body as AdminJob;
+}
+
 export async function fetchHealth(): Promise<{
   ok: boolean;
   version?: string;
   data_mode?: string;
   files?: number;
+  web_db_exists?: boolean;
+  active_version_id?: number | null;
 }> {
   const url = apiUrl("/api/health");
   const res = await fetch(url, { cache: "no-store" });

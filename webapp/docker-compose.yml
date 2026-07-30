@@ -10,6 +10,8 @@ services:
       WEBAPP_ROOT: /app
       SHOWCASE_ROOT: /showcase
       BI_CORE_APP_DIR: /core
+      WEB_DB_PATH: ${WEB_DB_PATH:-/data/db/web_data.db}
+      WEBAPP_REPORT_CACHE_DIR: ${WEBAPP_REPORT_CACHE_DIR:-/data/report_cache}
       BI_FTP_HOST: ${BI_FTP_HOST:-}
       BI_FTP_USER: ${BI_FTP_USER:-}
       BI_FTP_PASSWORD: ${BI_FTP_PASSWORD:-}
@@ -18,6 +20,8 @@ services:
       BI_FTP_TLS: ${BI_FTP_TLS:-0}
     volumes:
       - ./data/web:/data/web
+      - ./data/db:/data/db
+      - ./data/report_cache:/data/report_cache
       - ../showcase_data:/showcase/showcase_data:ro
       - ../bi-analytics-v-5-main:/core:ro
       - ../showcase_app.py:/showcase/showcase_app.py:ro

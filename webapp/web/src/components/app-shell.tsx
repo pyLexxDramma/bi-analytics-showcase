@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
-import { isAuthenticated } from "@/lib/auth";
+import { login } from "@/lib/auth";
 import {
   applyThemeClass,
   readTheme,
@@ -20,20 +19,17 @@ export function AppShell({
   subtitle?: string;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const [dark, setDark] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [dark, setDark] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.replace("/login");
-      return;
+    applyThemeClass(readTheme());
+    setDark(readTheme() === "dark");
+    try {
+      login("demo");
+    } catch {
+      /* ignore storage errors */
     }
-    const mode = readTheme();
-    setDark(mode === "dark");
-    applyThemeClass(mode);
-    setReady(true);
-  }, [router]);
+  }, []);
 
   const setTheme = (mode: ThemeMode) => {
     setDark(mode === "dark");
@@ -41,16 +37,8 @@ export function AppShell({
     applyThemeClass(mode);
   };
 
-  if (!ready) {
-    return (
-      <div className="flex min-h-full items-center justify-center bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-        Проверка сессии…
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-full bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
+    <div className="min-h-screen bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
       <AppSidebar />
       <div className="flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">

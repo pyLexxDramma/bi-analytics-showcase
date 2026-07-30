@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Пилот миграции Streamlit → Next.js + FastAPI",
 };
 
-const themeInitScript = `(function(){try{var t=localStorage.getItem('bi_showcase_theme');if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){}})();`;
+const themeInitScript = `(function(){try{var t=localStorage.getItem('bi_showcase_theme_v2');if(t==='light')document.documentElement.classList.remove('dark');else document.documentElement.classList.add('dark');}catch(e){document.documentElement.classList.add('dark');}})();`;
 
 export default function RootLayout({
   children,

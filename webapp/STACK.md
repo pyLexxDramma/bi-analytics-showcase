@@ -52,7 +52,8 @@ FastAPI (:8000)
 | **Uvicorn** | ASGI-сервер |
 | **pandas** | Агрегации DK / фильтры |
 | **Pydantic v2** | (через FastAPI) |
-| **ftp_sync.py** из `bi-analytics-v-5-main/` | Скачивание с FTP как на проде |
+| **ftp_sync.py** / `load_all_from_web` | FTP→web→`web_data.db` |
+| **BI_CORE_APP_DIR** | ядро `[main]` (нужны `web_db_read.py`, `_build_project_frames`). Локально авто: соседний `../bi-analytics-v-5-main/bi-analytics-v-5-main` |
 
 ### Данные
 
@@ -63,8 +64,17 @@ FastAPI (:8000)
 
 Секреты FTP: те же, что у Streamlit — `[ftp]` в `.streamlit/secrets.toml` основного приложения (`host` / `user` / `password` / `remote_dir`).
 
-Пилот-экран: **дебиторка подрядчиков** (`/debit-credit` ← `/api/debit-credit`).
-Меню сайдбара = блоки `REPORT_CATEGORIES` с ai.conall.ru (`web/src/lib/nav.ts`); остальные экраны — заглушки.
+Пилот: меню = `REPORT_CATEGORIES` / `nav.ts`. Приёмка экран-за-экраном:
+[`PARITY_ACCEPTANCE.md`](PARITY_ACCEPTANCE.md).
+
+Данные:
+
+| Режим | Env | web/ | БД |
+|-------|-----|------|----|
+| synthetic | `WEBAPP_DATA_MODE=synthetic` | `showcase_data/web/` | `webapp/data/web_data.db` после `POST /api/admin/ingest` |
+| ftp | `WEBAPP_DATA_MODE=ftp` + `BI_FTP_*` | `webapp/data/web/` | то же; `POST /api/admin/sync` = FTP→web→БД (фон) |
+
+Секреты FTP: те же, что у Streamlit — `[ftp]` в `.streamlit/secrets.toml`.
 
 ### Инфра / деплой
 
@@ -121,7 +131,10 @@ npm run dev
 | UI local | http://localhost:3000 |
 | API docs | http://127.0.0.1:8000/docs (Windows часто :8010) |
 | Health | http://127.0.0.1:8010/api/health |
-| Sync | `POST /api/admin/sync` + Bearer `WEBAPP_ADMIN_TOKEN` |
+| Sync | `POST /api/admin/sync` + Bearer — FTP→web→БД (фон, `job_id`) |
+| Ingest | `POST /api/admin/ingest` — только web→БД |
+| Job | `GET /api/admin/jobs/{id}` |
+| Приёмка | [PARITY_ACCEPTANCE.md](PARITY_ACCEPTANCE.md) |
 | Streamlit showcase | http://localhost:8502 |
 
 ## Важно

@@ -55,6 +55,7 @@ app.include_router(admin.router)
 @app.get("/api/health")
 def health():
     st = sync_status()
+    db = st.get("db") or {}
     return {
         "ok": True,
         "version": API_VERSION,
@@ -63,6 +64,9 @@ def health():
         "web_data_exists": WEB_DATA_DIR.is_dir(),
         "files": st.get("files"),
         "ftp_configured": st.get("ftp_configured"),
+        "web_db_path": db.get("web_db_path"),
+        "web_db_exists": db.get("exists"),
+        "active_version_id": db.get("active_version_id"),
     }
 
 
