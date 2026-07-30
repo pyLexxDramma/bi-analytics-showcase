@@ -8,6 +8,7 @@ import { FinanceBarChart } from "@/components/finance-bar-chart";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
   fetchBdds,
+  type BddsQuery,
   type BddsGroup,
   type BddsPayload,
   type BddsTableRow,
@@ -34,9 +35,6 @@ const INITIAL: Filters = {
   hide_zero: null,
   show_deviation: false,
 };
-
-const PLAN_SERIES = "БДДС план";
-const FACT_SERIES = "БДДС факт";
 
 const inputClass =
   "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
@@ -135,7 +133,23 @@ function sorted<T extends PeriodRow | ProjectRow>(rows: T[], sort: SortState): T
   });
 }
 
-export function BddsView() {
+type FinanceViewConfig = {
+  title: string;
+  planSeries: string;
+  factSeries: string;
+  sheetName: string;
+  fetchPayload: (query: BddsQuery) => Promise<BddsPayload>;
+};
+
+const BDDS_CONFIG: FinanceViewConfig = {
+  title: "БДДС (расходы)",
+  planSeries: "БДДС план",
+  factSeries: "БДДС факт",
+  sheetName: "БДДС",
+  fetchPayload: fetchBdds,
+};
+
+export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig }) {
   const [filters, setFilters] = useState<Filters>(INITIAL);
   const [data, setData] = useState<BddsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +163,7 @@ export function BddsView() {
     setError(null);
     try {
       setData(
-        await fetchBdds({
+        await config.fetchPayload({
           projects: next.projects,
           date_from: next.date_from || undefined,
           date_to: next.date_to || undefined,
@@ -165,7 +179,7 @@ export function BddsView() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [config]);
 
   useEffect(() => {
     void load(filters);
@@ -246,7 +260,7 @@ export function BddsView() {
         ["Проект", periodLabel, "План, млн. руб.", "Факт, млн. руб.", "Отклонение, млн. руб."],
       ],
       rows,
-      sheetName: "БДДС",
+      sheetName: config.sheetName,
     };
   };
 
@@ -267,7 +281,7 @@ export function BddsView() {
     return {
       header: [["Проект", "План, млн. руб.", "Факт, млн. руб.", "Отклонение, млн. руб."]],
       rows,
-      sheetName: "БДДС по проектам",
+      sheetName: `${config.sheetName} по проектам`,
     };
   };
 
@@ -290,7 +304,7 @@ export function BddsView() {
     filters.show_deviation;
 
   return (
-    <AppShell title="БДДС (расходы)">
+    <AppShell title={config.title}>
       <Card className="mb-6 rounded-xl">
         <button
           type="button"
@@ -436,10 +450,10 @@ export function BddsView() {
             {(zoomed) => (
               <FinanceBarChart
                 rows={chartRows}
-                planName={PLAN_SERIES}
-                factName={FACT_SERIES}
+                planName={config.planSeries}
+                factName={config.factSeries}
                 showDeviation={filters.show_deviation}
-                xAxisTitle={data?.labels.chart_caption ?? "БДДС по месяцам"}
+                xAxisTitle={data?.labels.chart_caption ?? `${config.sheetName} по месяцам`}
                 fullscreen={zoomed}
                 emptyText={
                   loading
@@ -454,7 +468,7 @@ export function BddsView() {
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              {data?.labels.period_table_title ?? "Таблица БДДС по месяцам"}
+              {data?.labels.period_table_title ?? `Таблица ${config.sheetName} по месяцам`}
             </Title>
           </div>
           <FullscreenPanel disabled={!periodRows.length}>
@@ -557,7 +571,7 @@ export function BddsView() {
         <div>
           <DownloadTableButton
             getTable={periodExport}
-            fileStem="bdds_po_mesyacam"
+            fileStem={`${config.sheetName.toLowerCase()}_po_mesyacam`}
             disabled={!periodRows.length}
           />
         </div>
@@ -565,7 +579,7 @@ export function BddsView() {
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              {data?.labels.project_table_title ?? "Таблица БДДС по проектам"}
+              {data?.labels.project_table_title ?? `Таблица ${config.sheetName} по проектам`}
             </Title>
           </div>
           <FullscreenPanel disabled={!projectRows.length}>
@@ -652,7 +666,7 @@ export function BddsView() {
         <div>
           <DownloadTableButton
             getTable={projectExport}
-            fileStem="bdds_po_proektam"
+            fileStem={`${config.sheetName.toLowerCase()}_po_proektam`}
             disabled={!projectRows.length}
           />
         </div>

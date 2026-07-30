@@ -1,14 +1,18 @@
 "use client";
 
-import { FinancePeriodView } from "@/components/finance-period-view";
+import { BddsView } from "@/components/bdds-view";
 import { fetchBdr } from "@/lib/api";
 
 export function BdrView() {
   return (
-    <FinancePeriodView
-      title="БДР (расходы)"
-      subtitle="План и факт расходов по оборотам 1С (ТипСтатьи = БДР)"
-      fetchPayload={fetchBdr}
+    <BddsView
+      config={{
+        title: "БДР (расходы)",
+        planSeries: "План расходов",
+        factSeries: "Факт расходов",
+        sheetName: "БДР",
+        fetchPayload: fetchBdr,
+      }}
     />
   );
 }

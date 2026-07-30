@@ -342,19 +342,93 @@ def _month_matches(expected: tuple[float, float], actual: tuple[float, float] | 
 
 
 def check_bdr(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
-    # БДР возвращает помесячные строки с собственными колонками расходов
-    ref = _finance_reference(
-        "try_synthetic_bdr_from_1c_dannye",
-        plan_col="bdr_plan_expense",
-        fact_col="bdr_fact_expense",
-    )
+    ref = _bdr_screen_reference()
     api = _api_get(base, "/api/bdr", timeout)
+    meta = api.get("meta") or {}
     kpis = api.get("kpis") or {}
-    return [
-        _kpi_row("план, млн", ref["plan_mln"], kpis.get("plan_mln")),
-        _kpi_row("факт, млн", ref["fact_mln"], kpis.get("fact_mln")),
-        _info_row("активная версия", ref["version_id"], (api.get("meta") or {}).get("version_id")),
+    api_projects = {
+        str(row.get("project")): (_mln(row.get("plan") or 0.0), _mln(row.get("fact") or 0.0))
+        for row in (api.get("project_rows") or [])
+    }
+    rows = [
+        _info_row("web_data.db", REFERENCE_DB.name, (meta.get("db") or {}).get("web_db_path") or "—"),
+        _info_row("активная версия", ref["version_id"], meta.get("version_id")),
+        _meta_row("строк 1С (снимок)", ref["rows_1c"], meta.get("rows_1c")),
+        _kpi_row("ИТОГО план, млн", ref["plan_mln"], kpis.get("plan_mln")),
+        _kpi_row("ИТОГО факт, млн", ref["fact_mln"], kpis.get("fact_mln")),
+        _choice_row("mode", {"synthetic_1c", "msp_1c"}, meta.get("mode") or "—"),
+        _meta_row("meta.error", None, meta.get("error") or None),
+        _meta_row("период с", ref["cal_start"], ((api.get("filters") or {}).get("applied") or {}).get("date_from")),
+        _meta_row("период по", ref["cal_end"], ((api.get("filters") or {}).get("applied") or {}).get("date_to")),
+        _meta_row("проектов", len(ref["by_project"]), len(api_projects)),
     ]
+    for project, (plan, fact) in sorted(ref["by_project"].items()):
+        api_plan, api_fact = api_projects.get(project, (None, None))
+        rows.append(_kpi_row(f"{project}: план", plan, api_plan))
+        rows.append(_kpi_row(f"{project}: факт", fact, api_fact))
+    rows.extend(_bdds_month_rows(ref["by_month"], api.get("period_rows") or []))
+    return rows
+
+
+def _bdr_screen_reference() -> dict[str, Any]:
+    """Эталон точного data-path `dashboard_bdr` в main, без сервисного слоя showcase."""
+    import pandas as pd
+
+    vid, ref = _reference_frame()
+    ensure_renderers_shim()
+    fin = import_dashboard_module("finance_from_1c")
+    labels_mod = import_dashboard_module("project_labels")
+    import utils  # type: ignore
+
+    session_state()["reference_1c_dannye"] = ref
+    msp = load_msp_frame(vid)
+    if msp is None or getattr(msp, "empty", True):
+        raise SmokeError(f"в версии {vid} нет MSP (file_type=project)")
+    msp = labels_mod.apply_unified_project_column(msp.copy(), "project name")
+    utils.ensure_date_columns(msp)
+    frame, used_1c = fin.ensure_bdr_frame_with_fallback(msp, restrict_projects_from_df=True)
+    if frame is None or getattr(frame, "empty", True):
+        raise SmokeError("путь экрана БДР не дал строк")
+    frame = labels_mod.apply_unified_project_column(frame.copy(), "project name")
+    utils.ensure_date_columns(frame)
+    for source, target in (("bdr_plan_expense", "_plan"), ("bdr_fact_expense", "_fact")):
+        if source not in frame.columns:
+            raise SmokeError(f"путь экрана БДР: нет колонки {source}")
+        frame[target] = pd.to_numeric(frame[source], errors="coerce").fillna(0.0)
+    frame["plan end"] = pd.to_datetime(frame["plan end"], errors="coerce")
+    frame = frame[frame["plan end"].notna()].copy()
+    frame["period"] = frame["plan end"].dt.to_period("M")
+    summary = frame.groupby(["project name", "period"], dropna=False)[["_plan", "_fact"]].sum().reset_index()
+    summary["label"] = summary["period"].apply(utils.format_period_ru)
+    summary["_pk"] = summary["project name"].map(labels_mod.project_filter_norm_key)
+    grouped = summary.groupby("_pk", dropna=False)[["_plan", "_fact"]].sum()
+    names = {
+        key: max(
+            (str(name) for name, project_key in zip(summary["project name"], summary["_pk"]) if project_key == key),
+            key=len,
+        )
+        for key in grouped.index
+    }
+    by_project = {
+        names[key]: (_mln(row["_plan"]), _mln(row["_fact"]))
+        for key, row in grouped.iterrows()
+    }
+    keep = (summary["_plan"].abs() + summary["_fact"].abs()) >= MIN_MONTH_RUB
+    by_month = {
+        f"{row['_pk']}|{row['label']}": (_mln(row["_plan"]), _mln(row["_fact"]))
+        for _, row in summary[keep].iterrows()
+    }
+    return {
+        "version_id": vid,
+        "rows_1c": int(len(ref)),
+        "plan_mln": _mln(float(summary["_plan"].sum())),
+        "fact_mln": _mln(float(summary["_fact"].sum())),
+        "by_project": by_project,
+        "by_month": by_month,
+        "cal_start": frame["plan end"].min().date().isoformat(),
+        "cal_end": frame["plan end"].max().date().isoformat(),
+        "mode": "synthetic_1c" if used_1c else "msp_1c",
+    }
 
 
 def check_approved_budget(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:

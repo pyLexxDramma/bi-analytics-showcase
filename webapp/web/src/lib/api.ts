@@ -313,9 +313,20 @@ export async function fetchBdds(query: BddsQuery = {}): Promise<BddsPayload> {
   return apiGet<BddsPayload>("/api/bdds", params);
 }
 
-export type BdrPayload = FinancePeriodPayload;
+export type BdrPayload = BddsPayload;
 
-export async function fetchBdr(params: QueryParams = {}): Promise<BdrPayload> {
+export async function fetchBdr(query: BddsQuery = {}): Promise<BdrPayload> {
+  const params: QueryParams = {
+    projects: query.projects,
+    date_from: query.date_from,
+    date_to: query.date_to,
+    group: query.group,
+    view: query.view,
+  };
+  if (query.hide_zero !== undefined) params.hide_zero = String(query.hide_zero);
+  if (query.show_deviation !== undefined) {
+    params.show_deviation = String(query.show_deviation);
+  }
   return apiGet<BdrPayload>("/api/bdr", params);
 }
 

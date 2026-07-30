@@ -12,14 +12,26 @@ router = APIRouter(prefix="/api/bdr", tags=["bdr"])
 
 @router.get("")
 def bdr_report(
-    project: Optional[str] = Query(None, description="Фильтр проекта"),
+    project: Optional[str] = Query(None, description="Устарело: один проект. Предпочтительно projects="),
+    projects: Optional[list[str]] = Query(None, description="Multiselect проектов; пусто = все"),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    group: str = Query("month", pattern="^(month|quarter|year)$"),
     view: str = Query("monthly", pattern="^(monthly|cumulative)$"),
+    hide_zero: Optional[bool] = Query(None),
+    show_deviation: bool = Query(False),
 ):
+    selected: list[str] = []
+    if projects:
+        selected.extend([p for p in projects if p and str(p).strip()])
+    elif project and str(project).strip() and str(project).strip() != "Все":
+        selected.append(str(project).strip())
     return build_bdr_payload(
-        project=project,
+        projects=selected,
         date_from=date_from,
         date_to=date_to,
+        group=group,
         view=view,
+        hide_zero=hide_zero,
+        show_deviation=show_deviation,
     )

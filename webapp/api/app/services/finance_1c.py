@@ -825,6 +825,101 @@ def date_range_title_suffix(start: date | None, end: date | None) -> str:
     return f"{start.strftime('%d.%m.%Y')} – {end.strftime('%d.%m.%Y')}"
 
 
+@dataclass
+class BdrScreenFrame:
+    version_id: int | None = None
+    summary: pd.DataFrame | None = None
+    reference_rows: int = 0
+    project_options: list[str] = field(default_factory=list)
+    date_min: date | None = None
+    date_max: date | None = None
+    cal_start: date | None = None
+    cal_end: date | None = None
+    mode: str = MODE_UNAVAILABLE
+    used_1c: bool = False
+    hints: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.summary is not None and not self.summary.empty
+
+
+def load_bdr_screen_frame(
+    *,
+    projects: list[str] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    group: str = "month",
+    view: str = "monthly",
+) -> BdrScreenFrame:
+    """Путь `dashboard_bdr` [main]: MSP → fallback 1С → фильтры → свод."""
+    group = group if group in GROUPS else "month"
+    selected = [str(p).strip() for p in (projects or []) if str(p).strip()]
+    try:
+        vid = active_version_id()
+        fin, labels_mod, hints_mod, utils_mod = _core_modules()
+        reference = load_version_df(vid, "reference_dannye") if vid else None
+        msp = load_msp_frame(vid) if vid else None
+    except Exception as exc:  # noqa: BLE001
+        return BdrScreenFrame(error=f"Не читаются данные экрана БДР: {exc}")
+    if not vid:
+        return BdrScreenFrame(error="В web_data.db нет активной версии — выполните ingest в админке.")
+    if reference is None or getattr(reference, "empty", True):
+        return BdrScreenFrame(version_id=vid, error=f"В версии {vid} нет оборотов 1С (file_type=reference_dannye).")
+    if msp is None or getattr(msp, "empty", True):
+        return BdrScreenFrame(version_id=vid, error=f"В версии {vid} нет MSP (file_type=project).")
+
+    session_state()["reference_1c_dannye"] = reference
+    source = labels_mod.apply_unified_project_column(msp.copy(), PROJECT_COL)
+    options = main_project_labels(source[PROJECT_COL])
+    try:
+        work, used_1c = fin.ensure_bdr_frame_with_fallback(source, restrict_projects_from_df=True)
+    except Exception as exc:  # noqa: BLE001
+        return BdrScreenFrame(version_id=vid, reference_rows=int(len(reference)), error=f"БДР fallback 1С: {exc}")
+    if work is None or work.empty:
+        return BdrScreenFrame(version_id=vid, reference_rows=int(len(reference)), project_options=options)
+
+    work = labels_mod.apply_unified_project_column(work.copy(), PROJECT_COL)
+    utils_mod.ensure_date_columns(work)
+    plan_src, fact_src = _KIND_COLUMNS["bdr"]
+    if plan_src not in work.columns or fact_src not in work.columns:
+        return BdrScreenFrame(version_id=vid, reference_rows=int(len(reference)), project_options=options, error="В кадре БДР не найдены колонки расходов.")
+    work[PLAN_COL] = pd.to_numeric(work[plan_src], errors="coerce").fillna(0.0)
+    work[FACT_COL] = pd.to_numeric(work[fact_src], errors="coerce").fillna(0.0)
+    work[PERIOD_END_COL] = pd.to_datetime(work.get(PERIOD_END_COL), errors="coerce")
+    work = work[work[PERIOD_END_COL].notna()].copy()
+    if work.empty:
+        return BdrScreenFrame(version_id=vid, reference_rows=int(len(reference)), project_options=options)
+
+    date_min, date_max = _as_date(work[PERIOD_END_COL].min()), _as_date(work[PERIOD_END_COL].max())
+    filtered = labels_mod.filter_dataframe_by_project_labels(work, selected, col=PROJECT_COL) if selected else work
+    defaults = filtered if not filtered.empty else work
+    cal_start = _clamp(date_from, date_min, date_max) or _as_date(defaults[PERIOD_END_COL].min())
+    cal_end = _clamp(date_to, date_min, date_max) or _as_date(defaults[PERIOD_END_COL].max())
+    if cal_start and cal_end and cal_start > cal_end:
+        cal_start, cal_end = cal_end, cal_start
+    if cal_start:
+        filtered = filtered[filtered[PERIOD_END_COL].dt.date >= cal_start]
+    if cal_end:
+        filtered = filtered[filtered[PERIOD_END_COL].dt.date <= cal_end]
+
+    attrs = dict(getattr(work, "attrs", {}) or {})
+    return BdrScreenFrame(
+        version_id=vid,
+        summary=group_by_period(filtered, group=group),
+        reference_rows=int(len(reference)),
+        project_options=options,
+        date_min=date_min,
+        date_max=date_max,
+        cal_start=cal_start,
+        cal_end=cal_end,
+        mode=MODE_SYNTHETIC if used_1c else MODE_UNAVAILABLE,
+        used_1c=bool(used_1c),
+        hints=list(hints_mod.collect_bdr_hints(attrs)),
+    )
+
+
 def records(rows: pd.DataFrame, *, fields: tuple[str, ...]) -> list[dict[str, Any]]:
     """Строки в JSON: суммы в рублях (округление до копеек), подписи — строками."""
     if rows is None or rows.empty:
