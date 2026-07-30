@@ -1,8 +1,9 @@
 """#2 БДДС (расходы) — паритет с `dashboard_budget_by_period` [main].
 
-Данные: `finance_1c.load_finance_frame("bdds")` → `try_synthetic_budget_from_1c_dannye`
-по активной версии `web_data.db`. Фильтры, группировка, «скрывать нулевые месяцы»,
-накопительный вид и структура таблиц повторяют экран [main].
+Свод считает `finance_1c.load_bdds_screen_frame`: это транскрипция пути экрана
+(кадр MSP → фильтры → 1С-fallback → overlay 1С → сетка месяцев → finalize),
+а не «голый» `try_synthetic_budget_from_1c_dannye`. Заголовки, подписи периодов
+и структура таблиц повторяют `_renderers.py` (строки 14472–15683).
 """
 from __future__ import annotations
 
@@ -18,25 +19,35 @@ from app.services.finance_1c import (
     GROUPS,
     MODE_UNAVAILABLE,
     VIEW_LABELS,
+    BddsScreenFrame,
     aggregate_periods,
-    aggregate_projects,
+    bdds_block_labels,
+    bdds_block_rows,
+    bdds_project_totals,
     cumulate,
-    date_bounds,
+    date_range_title_suffix,
     drop_zero_periods,
-    expand_period_grid,
-    filter_frame,
-    group_by_period,
-    load_finance_frame,
+    load_bdds_screen_frame,
     mln,
-    project_labels,
     records,
-    totals,
 )
 from app.services.report_cache import cache_get, cache_set
 
 CACHE_ID = "bdds"
-CACHE_VERSION = "v2"
+CACHE_VERSION = "v4"
 CACHE_MAX_AGE_SEC = 3600
+
+GRANULARITY: dict[str, str] = {"month": "по месяцам", "quarter": "по кварталам", "year": "по годам"}
+
+
+def _granularity(group: str, view: str) -> str:
+    """`utils.format_report_granularity_label`."""
+    return "накопительно" if view == "cumulative" else GRANULARITY.get(group, "по месяцам")
+
+
+def _title(name: str, suffix: str) -> str:
+    """`utils.format_table_title`: «Таблица …» + диапазон дат в скобках."""
+    return f"Таблица {name} ({suffix})" if suffix else f"Таблица {name}"
 
 
 def _applied(
@@ -79,16 +90,32 @@ def _filters_block(
     }
 
 
+def _labels(*, group: str, view: str, suffix: str, total_period: str) -> dict[str, str]:
+    gran = _granularity(group, view)
+    return {
+        "period": GROUP_LABELS.get(group, "Месяц"),
+        "total_period": total_period,
+        "date_suffix": suffix,
+        "chart_caption": f"БДДС {gran} ({suffix})" if suffix else f"БДДС {gran}",
+        "period_table_title": _title(f"БДДС {gran}", suffix),
+        "project_table_title": _title("БДДС по проектам", suffix),
+    }
+
+
 def _empty_payload(
     *,
     applied: dict[str, Any],
+    screen: BddsScreenFrame | None = None,
     mode: str = MODE_UNAVAILABLE,
     error: str | None = None,
-    version_id: int | None = None,
-    all_projects: list[str] | None = None,
-    date_min: date | None = None,
-    date_max: date | None = None,
 ) -> dict[str, Any]:
+    group = str(applied.get("group") or "month")
+    view = str(applied.get("view") or "monthly")
+    suffix = (
+        date_range_title_suffix(screen.cal_start, screen.cal_end)
+        if screen is not None and screen.cal_start and screen.cal_end
+        else ""
+    )
     return {
         "meta": {
             "source": "web_data.db",
@@ -96,29 +123,30 @@ def _empty_payload(
             "parity": "main_budget_by_period",
             "mode": mode,
             "error": error,
-            "version_id": version_id,
+            "version_id": screen.version_id if screen else None,
             "rows": 0,
             "db": db_status(),
         },
         "filters": _filters_block(
-            all_projects=all_projects or [],
-            date_min=date_min,
-            date_max=date_max,
+            all_projects=list(screen.project_options) if screen else [],
+            date_min=screen.date_min if screen else None,
+            date_max=screen.date_max if screen else None,
             applied=applied,
         ),
         "kpis": {"plan_mln": 0.0, "fact_mln": 0.0, "deviation_mln": 0.0, "periods": 0},
         "tremor": {"by_period": [], "by_project": []},
         "period_rows": [],
         "project_rows": [],
+        "hints": list(screen.hints) if screen else [],
         "totals": {"plan": 0.0, "fact": 0.0, "deviation": 0.0},
-        "labels": {"period": GROUP_LABELS.get(str(applied.get("group")), "Месяц"), "total_period": ""},
+        "labels": _labels(group=group, view=view, suffix=suffix, total_period=""),
     }
 
 
-def _period_total_label(rows: pd.DataFrame, *, date_from: date | None, date_to: date | None) -> str:
-    """Подпись периода в строке ИТОГО — как `_bdds_period_total_disp` в [main]."""
-    if date_from and date_to:
-        return f"{date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
+def _total_period(screen: BddsScreenFrame, rows: pd.DataFrame) -> str:
+    """`_bdds_period_total_disp`: диапазон календаря, иначе первый — последний период."""
+    if screen.cal_start and screen.cal_end:
+        return f"{screen.cal_start.strftime('%d.%m.%Y')} — {screen.cal_end.strftime('%d.%m.%Y')}"
     if rows is None or rows.empty:
         return ""
     first = str(rows.iloc[0]["period"])
@@ -126,57 +154,51 @@ def _period_total_label(rows: pd.DataFrame, *, date_from: date | None, date_to: 
     return first if first == last else f"{first} — {last}"
 
 
-def _table_rows(
-    grouped: pd.DataFrame,
+def _period_rows(
+    screen: BddsScreenFrame,
     *,
-    labels: list[str],
     view: str,
     hide_zero: bool,
 ) -> list[dict[str, Any]]:
-    """Блоки как в сводной таблице [main]: заголовок проекта + его периоды."""
-    if grouped is None or grouped.empty:
-        return []
+    """Блоки сводной таблицы [main]: строка-заголовок проекта + его периоды."""
+    summary = screen.summary
+    assert summary is not None
 
-    def block(project: str) -> pd.DataFrame:
-        rows = grouped[grouped["project"].astype(str) == project].sort_values("period_key")
+    def block(label: str) -> pd.DataFrame:
+        rows = bdds_block_rows(summary, label)
         if hide_zero:
             rows = drop_zero_periods(rows)
         if rows.empty:
             return rows
         return cumulate(rows) if view == "cumulative" else rows
 
-    present = [label for label in labels if not block(label).empty]
+    labels = bdds_block_labels(summary)
+    blocks = [(label, block(label)) for label in labels]
+    present = [(label, rows) for label, rows in blocks if not rows.empty]
+
     out: list[dict[str, Any]] = []
     if len(present) > 1:
-        for project in present:
+        for label, rows in present:
             out.append(
                 {
                     "kind": "project",
-                    "project": project,
+                    "project": label,
                     "period": "",
                     "plan": 0.0,
                     "fact": 0.0,
                     "deviation": 0.0,
                 }
             )
-            for row in records(block(project), fields=("period", "plan", "fact", "deviation")):
+            for row in records(rows, fields=("period", "plan", "fact", "deviation")):
                 out.append({"kind": "data", "project": "", **row})
         return out
     if len(present) == 1:
-        project = present[0]
-        for row in records(block(project), fields=("period", "plan", "fact", "deviation")):
-            out.append({"kind": "data", "project": project, **row})
-    return out
-
-
-def _all_projects_rows(
-    grouped: pd.DataFrame,
-    *,
-    view: str,
-    hide_zero: bool,
-) -> list[dict[str, Any]]:
-    """Одна колонка «Все» — как в [main], когда проектов в срезе нет (свод по периодам)."""
-    rows = aggregate_periods(grouped)
+        label, rows = present[0]
+        for row in records(rows, fields=("period", "plan", "fact", "deviation")):
+            out.append({"kind": "data", "project": label, **row})
+        return out
+    # Проектов в срезе нет — одна серия «Все» (ветка else в [main]).
+    rows = aggregate_periods(summary)
     if hide_zero:
         rows = drop_zero_periods(rows)
     if view == "cumulative":
@@ -200,19 +222,10 @@ def build_bdds_payload(
     group = group if group in GROUPS else "month"
     view = view if view in VIEW_LABELS else "monthly"
     selected = [str(p).strip() for p in (projects or []) if str(p).strip() and str(p).strip() != "Все"]
-    # main: чекбокс включён по умолчанию, когда проект не выбран (все проекты)
+    # main: `value=bool(_bdds_all_projects)` — включён, пока не выбран конкретный проект
     hide_zero_effective = (not selected) if hide_zero is None else bool(hide_zero)
-    # скрытие нулей действует только для месячной разбивки без накопления (как в main)
+    # чекбокс существует только для месячной разбивки без накопления
     hide_zero_effective = hide_zero_effective and group == "month" and view == "monthly"
-    applied = _applied(
-        projects=selected,
-        date_from=date_from,
-        date_to=date_to,
-        group=group,
-        view=view,
-        hide_zero=hide_zero_effective,
-        show_deviation=bool(show_deviation),
-    )
 
     cache_key = "|".join(
         [
@@ -229,54 +242,40 @@ def build_bdds_payload(
     )
     cached = cache_get(CACHE_ID, cache_key, max_age_sec=CACHE_MAX_AGE_SEC)
     if cached is not None:
-        cached.setdefault("filters", {})["applied"] = applied
         return cached
 
-    finance = load_finance_frame("bdds")
-    if not finance.ok:
-        return _empty_payload(
-            applied=applied,
-            mode=finance.mode,
-            error=finance.error,
-            version_id=finance.version_id,
-        )
+    screen = load_bdds_screen_frame(
+        projects=selected,
+        date_from=date_from,
+        date_to=date_to,
+        group=group,
+        view=view,
+    )
+    applied = _applied(
+        projects=selected,
+        date_from=screen.cal_start,
+        date_to=screen.cal_end,
+        group=group,
+        view=view,
+        hide_zero=hide_zero_effective,
+        show_deviation=bool(show_deviation),
+    )
+    if not screen.ok:
+        return _empty_payload(applied=applied, screen=screen, mode=screen.mode, error=screen.error)
 
-    frame = finance.frame
-    assert frame is not None
-    all_projects = project_labels(frame)
-    date_min, date_max = date_bounds(frame)
+    summary = screen.summary
+    assert summary is not None
+    visible = drop_zero_periods(summary) if hide_zero_effective else summary
 
-    filtered = filter_frame(frame, projects=selected, date_from=date_from, date_to=date_to)
-    if filtered.empty:
-        payload = _empty_payload(
-            applied=applied,
-            mode=finance.mode,
-            error=None,
-            version_id=finance.version_id,
-            all_projects=all_projects,
-            date_min=date_min,
-            date_max=date_max,
-        )
-        payload["labels"]["period"] = GROUP_LABELS[group]
-        return payload
-
-    grouped = group_by_period(filtered, group=group)
-    if group == "month" and view == "monthly":
-        grouped = expand_period_grid(grouped, group=group, date_from=date_from, date_to=date_to)
-
-    chart_rows = aggregate_periods(grouped)
+    chart_rows = aggregate_periods(summary)
     if hide_zero_effective:
         chart_rows = drop_zero_periods(chart_rows)
     if view == "cumulative":
         chart_rows = cumulate(chart_rows)
 
-    labels = selected or [p for p in all_projects if p in set(grouped["project"].astype(str))]
-    period_rows = _table_rows(grouped, labels=labels, view=view, hide_zero=hide_zero_effective)
-    if not period_rows:
-        period_rows = _all_projects_rows(grouped, view=view, hide_zero=hide_zero_effective)
+    period_rows = _period_rows(screen, view=view, hide_zero=hide_zero_effective)
+    project_rows_df = bdds_project_totals(visible)
 
-    project_rows_df = aggregate_projects(grouped)
-    grand = totals(filtered)
     if view == "cumulative" and not chart_rows.empty:
         last = chart_rows.iloc[-1]
         grand = {
@@ -284,23 +283,28 @@ def build_bdds_payload(
             "fact": float(last["fact"]),
             "deviation": float(last["fact"]) - float(last["plan"]),
         }
+    else:
+        plan = float(pd.to_numeric(visible["plan"], errors="coerce").fillna(0.0).sum())
+        fact = float(pd.to_numeric(visible["fact"], errors="coerce").fillna(0.0).sum())
+        grand = {"plan": plan, "fact": fact, "deviation": fact - plan}
 
+    suffix = date_range_title_suffix(screen.cal_start, screen.cal_end)
     payload: dict[str, Any] = {
         "meta": {
             "source": "web_data.db",
             "data_mode": DATA_MODE,
             "parity": "main_budget_by_period",
-            "mode": finance.mode,
+            "mode": screen.mode,
             "error": None,
-            "version_id": finance.version_id,
-            "rows": int(len(filtered)),
+            "version_id": screen.version_id,
+            "rows": int(len(summary)),
             "periods": int(len(chart_rows)),
             "db": db_status(),
         },
         "filters": _filters_block(
-            all_projects=all_projects,
-            date_min=date_min,
-            date_max=date_max,
+            all_projects=list(screen.project_options),
+            date_min=screen.date_min,
+            date_max=screen.date_max,
             applied=applied,
         ),
         "kpis": {
@@ -331,15 +335,18 @@ def build_bdds_payload(
         },
         "period_rows": period_rows,
         "project_rows": records(project_rows_df, fields=("project", "plan", "fact", "deviation")),
+        "hints": list(screen.hints),
         "totals": {
             "plan": round(grand["plan"], 2),
             "fact": round(grand["fact"], 2),
             "deviation": round(grand["deviation"], 2),
         },
-        "labels": {
-            "period": GROUP_LABELS[group],
-            "total_period": _period_total_label(chart_rows, date_from=date_from, date_to=date_to),
-        },
+        "labels": _labels(
+            group=group,
+            view=view,
+            suffix=suffix,
+            total_period=_total_period(screen, chart_rows),
+        ),
     }
     cache_set(CACHE_ID, cache_key, payload)
     return payload

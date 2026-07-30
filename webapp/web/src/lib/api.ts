@@ -275,8 +275,16 @@ export type BddsPayload = {
     fact: number;
     deviation: number;
   }>;
+  hints: string[];
   totals: { plan: number; fact: number; deviation: number };
-  labels: { period: string; total_period: string };
+  labels: {
+    period: string;
+    total_period: string;
+    date_suffix: string;
+    chart_caption: string;
+    period_table_title: string;
+    project_table_title: string;
+  };
 };
 
 export type BddsQuery = {

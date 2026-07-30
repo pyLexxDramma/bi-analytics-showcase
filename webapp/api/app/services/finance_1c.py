@@ -10,7 +10,7 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal
 
@@ -19,8 +19,11 @@ import pandas as pd
 from app.services.core_bridge import (
     active_version_id,
     ensure_core_path,
+    ensure_renderers_shim,
     import_dashboard_module,
+    load_msp_frame,
     load_version_df,
+    session_state,
 )
 
 PROJECT_COL = "project name"
@@ -304,6 +307,518 @@ def totals(frame: pd.DataFrame) -> dict[str, float]:
     plan = float(pd.to_numeric(frame[PLAN_COL], errors="coerce").fillna(0.0).sum())
     fact = float(pd.to_numeric(frame[FACT_COL], errors="coerce").fillna(0.0).sum())
     return {"plan": plan, "fact": fact, "deviation": fact - plan}
+
+
+# ==================== путь экрана «БДДС (расходы)» ====================
+# Транскрипция `dashboards/_renderers.py::dashboard_budget_by_period` (строки 14472–15683):
+# кадр MSP → фильтры → 1С-fallback → сводка по (период × проект) → overlay 1С →
+# сетка месяцев по календарю → finalize. Считать по «голому»
+# `try_synthetic_budget_from_1c_dannye` нельзя: экран берёт границы календаря из MSP
+# («Конец план»), сужает синтетику до проектов MSP и достраивает пустые месяцы.
+
+PERIOD_KEY_COL = "period_original"
+RESERVE_COL = "reserve budget"
+
+
+@dataclass
+class BddsScreenFrame:
+    """Свод БДДС в том виде, в котором его рисует экран [main]."""
+
+    version_id: int | None = None
+    summary: pd.DataFrame | None = None
+    project_options: list[str] = field(default_factory=list)
+    date_min: date | None = None
+    date_max: date | None = None
+    cal_start: date | None = None
+    cal_end: date | None = None
+    mode: str = MODE_UNAVAILABLE
+    used_1c: bool = False
+    hints: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.summary is not None and not self.summary.empty
+
+
+def _core_modules() -> tuple[Any, Any, Any, Any]:
+    """(finance_from_1c, project_labels, data_quality_hints, utils) кода [main]."""
+    ensure_core_path()
+    ensure_renderers_shim()
+    import utils  # type: ignore
+
+    return (
+        import_dashboard_module("finance_from_1c"),
+        import_dashboard_module("project_labels"),
+        import_dashboard_module("data_quality_hints"),
+        utils,
+    )
+
+
+def _as_date(value: Any) -> date | None:
+    ts = pd.to_datetime(value, errors="coerce")
+    return ts.date() if pd.notna(ts) else None
+
+
+def _clamp(value: date | None, low: date | None, high: date | None) -> date | None:
+    """main отдаёт границы через `st.date_input(min_value=…, max_value=…)`."""
+    if value is None:
+        return None
+    if low is not None and value < low:
+        return low
+    if high is not None and value > high:
+        return high
+    return value
+
+
+def _recalc_reserve(frame: pd.DataFrame) -> pd.DataFrame:
+    """`_renderers._bdds_recalc_reserve`: отклонение БДДС = факт − план."""
+    if frame is None or frame.empty:
+        return frame
+    out = frame.copy()
+    if PLAN_COL not in out.columns or FACT_COL not in out.columns:
+        return out
+    plan = pd.to_numeric(out[PLAN_COL], errors="coerce").fillna(0.0)
+    fact = pd.to_numeric(out[FACT_COL], errors="coerce").fillna(0.0)
+    out[RESERVE_COL] = fact - plan
+    return out
+
+
+def _to_period(value: Any, freq: str) -> Any:
+    if isinstance(value, pd.Period):
+        return value if value.freqstr[0] == freq else value.asfreq(freq)
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return pd.NaT
+    try:
+        return pd.Period(str(value), freq=freq)
+    except (ValueError, TypeError):
+        pass
+    ts = pd.to_datetime(value, errors="coerce")
+    return ts.to_period(freq) if pd.notna(ts) else pd.NaT
+
+
+def _normalize_period_keys(frame: pd.DataFrame, *, freq: str) -> pd.DataFrame:
+    """`_renderers._bdds_normalize_period_original` с учётом выбранной группировки."""
+    if frame is None or frame.empty or PERIOD_KEY_COL not in frame.columns:
+        return frame
+    out = frame.copy()
+    out[PERIOD_KEY_COL] = out[PERIOD_KEY_COL].map(lambda v: _to_period(v, freq))
+    return out[out[PERIOD_KEY_COL].notna()].copy()
+
+
+def _regroup_periods(frame: pd.DataFrame, *, freq: str) -> pd.DataFrame:
+    """Месячная сетка → кварталы/годы: суммы по (проект × период) новой частоты."""
+    if frame is None or frame.empty or PERIOD_KEY_COL not in frame.columns:
+        return frame
+    out = frame.copy()
+    out[PERIOD_KEY_COL] = out[PERIOD_KEY_COL].map(lambda v: _to_period(v, freq))
+    out = out[out[PERIOD_KEY_COL].notna()]
+    grouped = (
+        out.groupby([PROJECT_COL, PERIOD_KEY_COL], dropna=False)[[PLAN_COL, FACT_COL]]
+        .sum()
+        .reset_index()
+    )
+    return _recalc_reserve(grouped)
+
+
+def _restrict_project_options(
+    fin: Any,
+    labels_mod: Any,
+    options: list[str],
+    msp: pd.DataFrame,
+) -> list[str]:
+    """`restrict_project_filter_labels_to_finance_data`: в фильтре только проекты с суммами.
+
+    В копии ядра showcase этой функции ещё нет (она новее) — тогда повторяем её
+    логику здесь: ключи проектов из MSP-колонок бюджета и из синтетики 1С.
+    """
+    if not options:
+        return list(options)
+    try:
+        return list(fin.restrict_project_filter_labels_to_finance_data(options, msp, kind="bdds"))
+    except AttributeError:
+        pass
+    except Exception:  # noqa: BLE001 — список фильтра не должен ломать отчёт
+        return list(options)
+
+    data_keys: set[str] = set()
+    money_cols = [c for c in (PLAN_COL, FACT_COL) if c in msp.columns]
+    if money_cols and PROJECT_COL in msp.columns:
+        amounts = None
+        for column in money_cols:
+            values = pd.to_numeric(msp[column], errors="coerce").fillna(0.0).abs()
+            amounts = values if amounts is None else amounts + values
+        if amounts is not None:
+            by_project = amounts.groupby(msp[PROJECT_COL]).sum()
+            for name, total in by_project.items():
+                if float(total) > 0.0:
+                    key = labels_mod.project_filter_norm_key(name)
+                    if key:
+                        data_keys.add(key)
+    try:
+        syn = fin.try_synthetic_budget_from_1c_dannye()
+    except Exception:  # noqa: BLE001
+        syn = None
+    if syn is not None and not getattr(syn, "empty", True) and PROJECT_COL in syn.columns:
+        for name in syn[PROJECT_COL].dropna().unique():
+            key = labels_mod.project_filter_norm_key(name)
+            if key:
+                data_keys.add(key)
+    if not data_keys:
+        return list(options)
+    out: list[str] = []
+    for label in options:
+        key = labels_mod.project_filter_norm_key(label)
+        if key and labels_mod._project_norm_key_matches_msp_keys(key, data_keys):
+            out.append(str(label).strip())
+    return out
+
+
+def load_bdds_screen_frame(
+    *,
+    projects: list[str] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    group: str = "month",
+    view: str = "monthly",
+) -> BddsScreenFrame:
+    """Свод БДДС по пути экрана [main] (кадр MSP + обороты 1С активной версии БД)."""
+    group = group if group in GROUPS else "month"
+    view = view if view in VIEW_LABELS else "monthly"
+    # Обороты 1С месячные: overlay/finalize [main] считаем по месяцам, а квартал
+    # и год получаем перегруппировкой готовой месячной сетки.
+    group_col = GROUPS["month"]
+    freq = GROUP_FREQ["month"]
+    target_freq = GROUP_FREQ[group]
+    selected = [str(p).strip() for p in (projects or []) if str(p).strip()]
+
+    try:
+        vid = active_version_id()
+    except Exception as exc:  # noqa: BLE001
+        return BddsScreenFrame(error=f"web_data.db недоступна: {exc}")
+    if not vid:
+        return BddsScreenFrame(error="В web_data.db нет активной версии — выполните ingest в админке.")
+
+    try:
+        fin, labels_mod, hints_mod, utils_mod = _core_modules()
+    except Exception as exc:  # noqa: BLE001
+        return BddsScreenFrame(version_id=vid, error=f"Код [main] не загружается: {type(exc).__name__}: {exc}")
+
+    try:
+        reference = load_version_df(vid, "reference_dannye")
+    except Exception as exc:  # noqa: BLE001
+        return BddsScreenFrame(version_id=vid, error=f"Не читается reference_dannye: {exc}")
+    if reference is None or getattr(reference, "empty", True):
+        return BddsScreenFrame(
+            version_id=vid,
+            error=f"В версии {vid} нет оборотов 1С (file_type=reference_dannye).",
+        )
+    # Код [main] (`resolve_reference_1c_dannye`) берёт обороты из session_state.
+    session_state()["reference_1c_dannye"] = reference
+
+    msp = load_msp_frame(vid)
+    if msp is None or getattr(msp, "empty", True):
+        return BddsScreenFrame(
+            version_id=vid,
+            error=f"В версии {vid} нет MSP (file_type=project) — экран БДДС берёт из него календарь.",
+        )
+    msp = labels_mod.apply_unified_project_column(msp.copy(), PROJECT_COL)
+
+    options = _restrict_project_options(fin, labels_mod, main_project_labels(msp[PROJECT_COL]), msp)
+
+    proj_df = msp
+    if selected:
+        proj_df = labels_mod.filter_dataframe_by_project_labels(msp, selected, col=PROJECT_COL)
+    utils_mod.ensure_date_columns(proj_df)
+
+    end_all = pd.to_datetime(msp.get(PERIOD_END_COL), errors="coerce")
+    end_sel = pd.to_datetime(proj_df.get(PERIOD_END_COL), errors="coerce")
+    def_start = _as_date(end_sel.min()) if end_sel is not None and end_sel.notna().any() else None
+    def_end = _as_date(end_sel.max()) if end_sel is not None and end_sel.notna().any() else None
+    min_all = _as_date(end_all.min()) if end_all is not None and end_all.notna().any() else def_start
+    max_all = _as_date(end_all.max()) if end_all is not None and end_all.notna().any() else def_end
+
+    narrow_key: str | None = None
+    if len(selected) == 1:
+        narrow_key = str(labels_mod.project_filter_norm_key(selected[0])).strip() or None
+        try:
+            lo, hi = fin.bdds_project_turnover_date_bounds(
+                str(selected[0]), reference_1c_dannye=reference
+            )
+        except Exception:  # noqa: BLE001
+            lo = hi = None
+        if lo is not None and hi is not None:
+            def_start = lo if def_start is None or lo < def_start else def_start
+            def_end = hi if def_end is None or hi > def_end else def_end
+            min_all = lo if min_all is None or lo < min_all else min_all
+            max_all = hi if max_all is None or hi > max_all else max_all
+
+    cal_start = _clamp(date_from, min_all, max_all) or def_start
+    cal_end = _clamp(date_to, min_all, max_all) or def_end
+    if cal_start and cal_end and cal_start > cal_end:
+        cal_start, cal_end = cal_end, cal_start
+
+    filtered = proj_df.copy()
+    if cal_start is not None and cal_end is not None and PERIOD_END_COL in filtered.columns:
+        end_series = pd.to_datetime(filtered[PERIOD_END_COL], errors="coerce")
+        start_ts = pd.Timestamp(cal_start)
+        end_ts = pd.Timestamp(cal_end)
+        end_inclusive = end_ts + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+        if "plan start" in filtered.columns:
+            start_col = pd.to_datetime(filtered["plan start"], errors="coerce")
+            keep = (
+                end_series.notna()
+                & start_col.notna()
+                & (start_col <= end_inclusive)
+                & (end_series >= start_ts)
+            )
+        else:
+            keep = (end_series >= start_ts) & (end_series <= end_inclusive)
+        filtered = filtered[keep].copy()
+
+    utils_mod.ensure_budget_columns(filtered)
+    filtered, used_1c = fin.ensure_budget_frame_with_fallback(
+        filtered,
+        show_caption=False,
+        restrict_projects_from_df=True,
+        period_start=pd.Timestamp(cal_start) if cal_start else None,
+        period_end=pd.Timestamp(cal_end) if cal_end else None,
+        force_from_1c=False,
+        narrow_to_project_norm_key=narrow_key,
+    )
+    if selected:
+        filtered = labels_mod.filter_dataframe_by_project_labels(filtered, selected, col=PROJECT_COL)
+    utils_mod.ensure_date_columns(filtered)
+    utils_mod.ensure_budget_columns(filtered)
+    if filtered is None or filtered.empty:
+        return BddsScreenFrame(
+            version_id=vid,
+            project_options=list(options),
+            date_min=min_all,
+            date_max=max_all,
+            cal_start=cal_start,
+            cal_end=cal_end,
+            mode=MODE_SYNTHETIC if used_1c else MODE_UNAVAILABLE,
+            used_1c=bool(used_1c),
+        )
+
+    frame_attrs = dict(getattr(filtered, "attrs", {}) or {})
+    filtered[PLAN_COL] = pd.to_numeric(filtered[PLAN_COL], errors="coerce")
+    filtered[FACT_COL] = pd.to_numeric(filtered[FACT_COL], errors="coerce")
+    filtered = _recalc_reserve(filtered)
+
+    if group_col not in filtered.columns and PERIOD_END_COL in filtered.columns:
+        end_series = pd.to_datetime(filtered[PERIOD_END_COL], errors="coerce")
+        filtered[group_col] = end_series.dt.to_period(freq)
+    if group_col not in filtered.columns:
+        return BddsScreenFrame(
+            version_id=vid,
+            project_options=list(options),
+            date_min=min_all,
+            date_max=max_all,
+            cal_start=cal_start,
+            cal_end=cal_end,
+            error=f"Столбец периода «{group_col}» не найден.",
+        )
+
+    summary = (
+        filtered.groupby([group_col, PROJECT_COL], dropna=False)
+        .agg({PLAN_COL: "sum", FACT_COL: "sum", RESERVE_COL: "sum"})
+        .reset_index()
+    )
+    summary[PERIOD_KEY_COL] = summary[group_col]
+    summary[group_col] = summary[group_col].apply(utils_mod.format_period_ru)
+
+    project_keys = {labels_mod.project_filter_norm_key(p) for p in selected}
+    project_keys.discard("")
+
+    summary, overlay_1c = fin.overlay_1c_on_budget_summary(
+        summary,
+        period_col=group_col,
+        period_start=pd.Timestamp(cal_start) if cal_start else None,
+        period_end=pd.Timestamp(cal_end) if cal_end else None,
+        project_norm_keys=project_keys or None,
+        narrow_to_project_norm_key=narrow_key,
+        reference_1c_dannye=reference,
+    )
+    used_1c = bool(used_1c or overlay_1c)
+    summary = _normalize_period_keys(_recalc_reserve(summary), freq=freq)
+
+    if group == "month" and view == "monthly":
+        summary = fin.expand_budget_month_grid(
+            summary,
+            period_col=group_col,
+            cal_start=cal_start,
+            cal_end=cal_end,
+            fill_columns=(PLAN_COL, FACT_COL, RESERVE_COL),
+            group_by=PROJECT_COL if PROJECT_COL in summary.columns else None,
+        )
+        summary = _normalize_period_keys(_recalc_reserve(summary), freq=freq)
+
+    summary = fin.finalize_budget_summary_for_display(
+        summary,
+        period_col=group_col,
+        period_start=pd.Timestamp(cal_start) if cal_start else None,
+        period_end=pd.Timestamp(cal_end) if cal_end else None,
+        project_norm_keys=project_keys or None,
+        narrow_to_project_norm_key=narrow_key,
+        reference_1c_dannye=reference,
+    )
+    summary = _normalize_period_keys(_recalc_reserve(summary), freq=freq)
+    if target_freq != freq:
+        summary = _regroup_periods(summary, freq=target_freq)
+
+    out = summary.rename(
+        columns={PROJECT_COL: "project", PLAN_COL: "plan", FACT_COL: "fact", RESERVE_COL: "deviation"}
+    )
+    out["period"] = out[PERIOD_KEY_COL].map(format_period)
+    out = out.rename(columns={PERIOD_KEY_COL: "period_key"})
+    out = out[["project", "period_key", "period", "plan", "fact", "deviation"]]
+    out = out.sort_values(["project", "period_key"]).reset_index(drop=True)
+
+    return BddsScreenFrame(
+        version_id=vid,
+        summary=out,
+        project_options=list(options),
+        date_min=min_all,
+        date_max=max_all,
+        cal_start=cal_start,
+        cal_end=cal_end,
+        mode=MODE_SYNTHETIC if used_1c else MODE_UNAVAILABLE,
+        used_1c=used_1c,
+        hints=_bdds_hints(
+            fin,
+            hints_mod,
+            labels_mod,
+            attrs=frame_attrs,
+            summary=out,
+            reference=reference,
+            selected=selected,
+            used_1c=used_1c,
+        ),
+    )
+
+
+def _bdds_hints(
+    fin: Any,
+    hints_mod: Any,
+    labels_mod: Any,
+    *,
+    attrs: dict[str, Any],
+    summary: pd.DataFrame,
+    reference: pd.DataFrame,
+    selected: list[str],
+    used_1c: bool,
+) -> list[str]:
+    """Жёлтая карточка под таблицами — `collect_budget_1c_hints` [main]."""
+    hint_attrs = dict(attrs)
+    try:
+        syn = fin.try_synthetic_budget_from_1c_dannye(reference_1c_dannye=reference)
+        if syn is not None and not syn.empty and "plan_month" in syn.columns:
+            hint_attrs["bdds_1c_latest_month"] = format_period(
+                pd.Period(syn["plan_month"].max(), freq="M")
+            )
+    except Exception:  # noqa: BLE001
+        pass
+    plan_sum = float(pd.to_numeric(summary.get("plan"), errors="coerce").fillna(0.0).sum())
+    fact_sum = float(pd.to_numeric(summary.get("fact"), errors="coerce").fillna(0.0).sum())
+    if plan_sum < ZERO_PERIOD_THRESHOLD_RUB:
+        hint_attrs.pop("bddds_plan_imputed_ratio", None)
+    try:
+        no_plan_keys = fin.bddds_project_norm_keys_without_plan_scenario(reference)
+    except Exception:  # noqa: BLE001
+        no_plan_keys = set()
+    display_no_plan = False
+    if no_plan_keys and fact_sum >= ZERO_PERIOD_THRESHOLD_RUB:
+        display_no_plan = (
+            any(labels_mod.project_filter_norm_key(p) in no_plan_keys for p in selected)
+            if selected
+            else True
+        )
+    try:
+        return list(
+            hints_mod.collect_budget_1c_hints(
+                hint_attrs,
+                used_fallback_1c=bool(used_1c),
+                display_has_plan=plan_sum >= ZERO_PERIOD_THRESHOLD_RUB,
+                display_no_plan_scenario=display_no_plan,
+            )
+        )
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def main_project_labels(names: Any, *, apply_exclude_names: bool = True) -> list[str]:
+    """Подписи проектов из ядра — `project_labels_for_filter` [main]."""
+    if names is None or getattr(names, "empty", True):
+        return []
+    _, labels_mod, _, _ = _core_modules()
+    return list(
+        labels_mod.project_labels_for_filter(
+            pd.Series(names), apply_exclude_names=apply_exclude_names
+        )
+    )
+
+
+def bdds_block_labels(summary: pd.DataFrame) -> list[str]:
+    """Подписи проектов для блоков сводной таблицы — `_unique_project_labels_for_select`."""
+    if summary is None or summary.empty or "project" not in summary.columns:
+        return []
+    return main_project_labels(summary["project"], apply_exclude_names=False)
+
+
+def bdds_block_rows(summary: pd.DataFrame, label: str) -> pd.DataFrame:
+    """Строки блока одного проекта — `_bdds_slice_for_project` (свод по периодам)."""
+    empty = pd.DataFrame(columns=["period_key", "period", "plan", "fact", "deviation"])
+    if summary is None or summary.empty:
+        return empty
+    _, labels_mod, _, _ = _core_modules()
+    key = labels_mod.project_filter_norm_key(label)
+    match = summary["project"].map(labels_mod.project_filter_norm_key).map(
+        lambda rk: labels_mod._project_norm_key_matches_msp_keys(rk, {key})
+    )
+    rows = summary[match]
+    if rows.empty:
+        return empty
+    out = rows.groupby("period_key", dropna=False, sort=True)[["plan", "fact"]].sum().reset_index()
+    out["period"] = out["period_key"].map(format_period)
+    out["deviation"] = out["fact"] - out["plan"]
+    return out.sort_values("period_key").reset_index(drop=True)
+
+
+def bdds_project_totals(summary: pd.DataFrame) -> pd.DataFrame:
+    """Таблица «БДДС по проектам»: свод по norm-key, подпись — самое длинное имя (как в [main])."""
+    empty = pd.DataFrame(columns=["project", "plan", "fact", "deviation"])
+    if summary is None or summary.empty:
+        return empty
+    _, labels_mod, _, _ = _core_modules()
+    work = summary.copy()
+    work["_pk"] = work["project"].map(labels_mod.project_filter_norm_key)
+    name_by_pk: dict[str, str] = {}
+    for name, key in zip(work["project"], work["_pk"]):
+        if not key:
+            continue
+        if key not in name_by_pk or len(str(name)) > len(name_by_pk[key]):
+            name_by_pk[key] = str(name)
+    out = work.groupby("_pk", dropna=False)[["plan", "fact"]].sum().reset_index()
+    out["project"] = out["_pk"].map(lambda k: name_by_pk.get(str(k), str(k)))
+    out["deviation"] = out["fact"] - out["plan"]
+    return (
+        out[["project", "plan", "fact", "deviation"]]
+        .sort_values("project", key=lambda s: s.astype(str).str.casefold())
+        .reset_index(drop=True)
+    )
+
+
+def date_range_title_suffix(start: date | None, end: date | None) -> str:
+    """«23.03.2024 – 30.07.2029» как `utils.format_date_range_title_suffix` [main].
+
+    Считаем здесь: в копии ядра showcase этой функции ещё нет, а суффикс нужен
+    в заголовках графика и таблиц.
+    """
+    if start is None or end is None:
+        return ""
+    return f"{start.strftime('%d.%m.%Y')} – {end.strftime('%d.%m.%Y')}"
 
 
 def records(rows: pd.DataFrame, *, fields: tuple[str, ...]) -> list[dict[str, Any]]:

@@ -121,6 +121,31 @@ def ensure_core_path() -> Path:
     return core
 
 
+def ensure_renderers_shim() -> ModuleType:
+    """`dashboards._renderers` как тонкий прокси на `dashboards.project_labels`.
+
+    `dashboards/finance_from_1c.py` берёт из `_renderers` ровно два имени —
+    `_project_filter_norm_key` и `_project_norm_key_matches_msp_keys`, — и оба
+    в [main] являются алиасами функций из `dashboards/project_labels.py`.
+    Настоящий `_renderers` тянет `streamlit.components.v1` и `plotly`, которых
+    в образе API нет, поэтому регистрируем прокси всегда: локально и на стенде
+    финансовый пайплайн идёт одним и тем же кодом.
+    """
+    existing = sys.modules.get("dashboards._renderers")
+    if existing is not None:
+        return existing
+    labels = import_dashboard_module("project_labels")
+    shim = ModuleType("dashboards._renderers")
+    shim.__bi_showcase_renderers_shim__ = True  # type: ignore[attr-defined]
+    shim._project_filter_norm_key = labels.project_filter_norm_key  # type: ignore[attr-defined]
+    shim._project_norm_key_matches_msp_keys = labels._project_norm_key_matches_msp_keys  # type: ignore[attr-defined]
+    sys.modules["dashboards._renderers"] = shim
+    package = sys.modules.get("dashboards")
+    if package is not None:
+        package._renderers = shim  # type: ignore[attr-defined]
+    return shim
+
+
 def prepare_core_env() -> Path:
     """stub + sys.path + env-флаги ETL. Возвращает каталог core."""
     ensure_streamlit_stub()
@@ -188,3 +213,17 @@ def load_version_df(version_id: int, file_type: str):
     from web_db_read import load_version_dataframe  # type: ignore
 
     return load_version_dataframe(int(version_id), file_type)
+
+
+def load_msp_frame(version_id: int):
+    """Кадр MSP как `st.session_state.project_data` в [main] (project + budget, дедуп снимков)."""
+    prepare_web_db()
+    from web_loader import _build_project_frames, _web_db_mtime  # type: ignore
+
+    _, frame = _build_project_frames(int(version_id), _web_db_mtime())
+    return frame
+
+
+def session_state() -> Any:
+    """`st.session_state` активного stub/streamlit: код [main] читает оттуда `reference_1c_dannye`."""
+    return ensure_streamlit_stub().session_state
