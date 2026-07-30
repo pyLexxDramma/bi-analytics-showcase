@@ -182,7 +182,8 @@ export async function fetchDebitCredit(
   return apiGet<DebitCreditPayload>("/api/debit-credit", params);
 }
 
-export type BddsPayload = {
+/** Упрощённый финансовый payload (`services/finance_period.py`) — БДР до фазы 2.3. */
+export type FinancePeriodPayload = {
   meta: { rows: number; source: string; data_mode: string; files: number };
   filters: {
     projects: string[];
@@ -204,13 +205,107 @@ export type BddsPayload = {
   project_rows: Array<{ project: string; plan: number; fact: number; deviation: number }>;
 };
 
-export async function fetchBdds(
-  params: QueryParams = {},
-): Promise<BddsPayload> {
+export type BddsGroup = "month" | "quarter" | "year";
+export type BddsView = "monthly" | "cumulative";
+
+export type BddsTableRow = {
+  kind: "project" | "data";
+  project: string;
+  period: string;
+  plan: number;
+  fact: number;
+  deviation: number;
+};
+
+/** #2 БДДС — паритет с `dashboard_budget_by_period` [main]; суммы в рублях. */
+export type BddsPayload = {
+  meta: {
+    source: string;
+    data_mode: string;
+    parity?: string;
+    mode: string;
+    error: string | null;
+    version_id: number | null;
+    rows: number;
+    periods?: number;
+    db?: { active_version_id?: number | null; exists?: boolean };
+  };
+  filters: {
+    projects: string[];
+    date_min: string | null;
+    date_max: string | null;
+    groups: Array<{ id: BddsGroup; label: string }>;
+    views: Array<{ id: BddsView; label: string }>;
+    mode?: string;
+    empty_means_all?: boolean;
+    applied: {
+      projects: string[];
+      date_from: string | null;
+      date_to: string | null;
+      group: BddsGroup;
+      view: BddsView;
+      hide_zero: boolean;
+      show_deviation: boolean;
+    };
+  };
+  kpis: {
+    plan_mln: number;
+    fact_mln: number;
+    deviation_mln: number;
+    periods: number;
+  };
+  tremor: {
+    by_period: Array<{
+      period: string;
+      plan: number;
+      fact: number;
+      deviation: number;
+    }>;
+    by_project: Array<{
+      project: string;
+      plan: number;
+      fact: number;
+      deviation: number;
+    }>;
+  };
+  period_rows: BddsTableRow[];
+  project_rows: Array<{
+    project: string;
+    plan: number;
+    fact: number;
+    deviation: number;
+  }>;
+  totals: { plan: number; fact: number; deviation: number };
+  labels: { period: string; total_period: string };
+};
+
+export type BddsQuery = {
+  projects?: string[];
+  date_from?: string;
+  date_to?: string;
+  group?: BddsGroup;
+  view?: BddsView;
+  hide_zero?: boolean;
+  show_deviation?: boolean;
+};
+
+export async function fetchBdds(query: BddsQuery = {}): Promise<BddsPayload> {
+  // hide_zero/show_deviation отправляем всегда: false здесь — осознанный выбор, не «фильтр не задан»
+  const params: QueryParams = {
+    projects: query.projects,
+    date_from: query.date_from,
+    date_to: query.date_to,
+    group: query.group,
+    view: query.view,
+  };
+  if (query.hide_zero !== undefined) params.hide_zero = String(query.hide_zero);
+  if (query.show_deviation !== undefined) {
+    params.show_deviation = String(query.show_deviation);
+  }
   return apiGet<BddsPayload>("/api/bdds", params);
 }
 
-export type BdrPayload = BddsPayload;
+export type BdrPayload = FinancePeriodPayload;
 
 export async function fetchBdr(params: QueryParams = {}): Promise<BdrPayload> {
   return apiGet<BdrPayload>("/api/bdr", params);

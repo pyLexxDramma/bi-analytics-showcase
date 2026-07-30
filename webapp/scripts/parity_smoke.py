@@ -102,7 +102,8 @@ def check_bdds(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
         _kpi_row("план, млн", ref["plan_mln"], kpis.get("plan_mln")),
         _kpi_row("факт, млн", ref["fact_mln"], kpis.get("fact_mln")),
         _meta_row("version_id", ref["version_id"], (api.get("meta") or {}).get("version_id")),
-        _meta_row("mode", "msp_1c|synthetic", (api.get("meta") or {}).get("mode") or "—"),
+        _choice_row("mode", {"synthetic_1c", "msp_1c"}, (api.get("meta") or {}).get("mode") or "—"),
+        _meta_row("meta.error", None, (api.get("meta") or {}).get("error") or None),
     ]
 
 
@@ -163,6 +164,11 @@ def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, boo
 
 def _meta_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     return (label, expected, actual, expected == actual)
+
+
+def _choice_row(label: str, allowed: set[str], actual: Any) -> tuple[str, Any, Any, bool]:
+    """Годится любой режим из списка (главное — не fallback_simplified)."""
+    return (label, "|".join(sorted(allowed)), actual, str(actual) in allowed)
 
 
 def _bool_row(label: str, value: bool) -> tuple[str, Any, Any, bool]:

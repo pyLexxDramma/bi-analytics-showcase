@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BarChart, Card, Grid, Metric, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
-import type { BddsPayload } from "@/lib/api";
+import type { FinancePeriodPayload } from "@/lib/api";
 import { formatMln } from "@/lib/format";
 import {
   PLAN_FACT_DEVIATION_CATEGORIES,
@@ -27,7 +27,9 @@ export function FinancePeriodView({
 }: {
   title: string;
   subtitle: string;
-  fetchPayload: (params: Record<string, string | undefined>) => Promise<BddsPayload>;
+  fetchPayload: (
+    params: Record<string, string | undefined>,
+  ) => Promise<FinancePeriodPayload>;
 }) {
   const [filters, setFilters] = useState<Filters>({
     project: "Все",
@@ -35,7 +37,7 @@ export function FinancePeriodView({
     date_to: "",
     view: "monthly",
   });
-  const [data, setData] = useState<BddsPayload | null>(null);
+  const [data, setData] = useState<FinancePeriodPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 

@@ -20,7 +20,8 @@ ETL_FILES = {"db_ingest.py", "ftp_ingest.py", "data_paths.py"}
 
 # Техдолг на 2026-07-30: переводим на web_data.db по мере прохождения экранов.
 KNOWN_DEBT = {
-    "finance_period.py": "#2–#5 финансы: latest_web_file('_dannye.json') → фаза 2",
+    # #2 БДДС переведён на web_data.db (services/finance_1c.py); остались #3 БДР и #5 план/факт
+    "finance_period.py": "#3 БДР и #5 план/факт: latest_web_file('_dannye.json') → фазы 2.3/2.5",
     "approved_budget.py": "#4 утв. бюджет → фаза 2.4",
     "control_points.py": "#6 контрольные точки → фаза 4",
     "project_schedule.py": "#7 график проекта → фаза 4",
