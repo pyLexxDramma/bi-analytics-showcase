@@ -432,19 +432,22 @@ export function BddsView() {
 
       <div className="space-y-6">
         <Card className="rounded-xl">
-          <FullscreenPanel disabled={!chartRows.length}>
-            <FinanceBarChart
-              rows={chartRows}
-              planName={PLAN_SERIES}
-              factName={FACT_SERIES}
-              showDeviation={filters.show_deviation}
-              xAxisTitle={data?.labels.chart_caption ?? "БДДС по месяцам"}
-              emptyText={
-                loading
-                  ? "Загрузка…"
-                  : "Нет периодов для графика. Снимите «Скрывать месяцы, где план и факт равны 0» или расширьте период/фильтры."
-              }
-            />
+          <FullscreenPanel disabled={!chartRows.length} fill>
+            {(zoomed) => (
+              <FinanceBarChart
+                rows={chartRows}
+                planName={PLAN_SERIES}
+                factName={FACT_SERIES}
+                showDeviation={filters.show_deviation}
+                xAxisTitle={data?.labels.chart_caption ?? "БДДС по месяцам"}
+                fullscreen={zoomed}
+                emptyText={
+                  loading
+                    ? "Загрузка…"
+                    : "Нет периодов для графика. Снимите «Скрывать месяцы, где план и факт равны 0» или расширьте период/фильтры."
+                }
+              />
+            )}
           </FullscreenPanel>
         </Card>
 

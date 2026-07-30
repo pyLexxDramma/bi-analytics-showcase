@@ -125,6 +125,7 @@ def _empty_payload(
             "error": error,
             "version_id": screen.version_id if screen else None,
             "rows": 0,
+            "rows_1c": screen.reference_rows if screen else 0,
             "db": db_status(),
         },
         "filters": _filters_block(
@@ -298,6 +299,7 @@ def build_bdds_payload(
             "error": None,
             "version_id": screen.version_id,
             "rows": int(len(summary)),
+            "rows_1c": screen.reference_rows,
             "periods": int(len(chart_rows)),
             "db": db_status(),
         },

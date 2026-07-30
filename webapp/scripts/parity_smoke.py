@@ -1,8 +1,14 @@
-"""Сверка API showcase с эталоном [main] на одной и той же web_data.db.
+"""Сверка API showcase с числами экрана основного дашборда [main].
 
 Эталон не хардкодится: считается прямо здесь вызовом функций main
-(`dashboards/finance_from_1c.py`, `dashboards/dev_projects_tz_matrix.py`)
-по активной версии БД. Числа из чатов устаревают после каждого ingest.
+(`dashboards/finance_from_1c.py`, `dashboards/dev_projects_tz_matrix.py`),
+но **на той же web_data.db, которую рисует экран main**. Считать эталон по БД
+самого сервиса нельзя: тогда обе стороны берут один и тот же (возможно
+устаревший) снимок, smoke зелёный, а на экране main другие цифры.
+
+Эталонная БД: `BI_MAIN_WEB_DB_PATH`, иначе `<каталог main>/data/web_data.db`
+(`BI_MAIN_APP_DIR` или автоопределение рядом с showcase-репо).
+БД сервиса берётся из ответа API (`meta.db.web_db_path`).
 
 Запуск:
     python webapp/scripts/parity_smoke.py                     # все поддержанные экраны
@@ -15,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -23,6 +30,39 @@ from typing import Any, Callable
 
 API_DIR = Path(__file__).resolve().parents[1] / "api"
 sys.path.insert(0, str(API_DIR))
+
+
+def _main_db_candidates() -> list[Path]:
+    env_db = (os.environ.get("BI_MAIN_WEB_DB_PATH") or "").strip()
+    if env_db:
+        return [Path(env_db)]
+    out: list[Path] = []
+    env_dir = (os.environ.get("BI_MAIN_APP_DIR") or "").strip()
+    if env_dir:
+        out.append(Path(env_dir) / "data" / "web_data.db")
+    analitics_root = Path(__file__).resolve().parents[3]
+    out.append(
+        analitics_root / "bi-analytics-v-5-main" / "bi-analytics-v-5-main" / "data" / "web_data.db"
+    )
+    out.append(analitics_root / "bi-analytics-v-5-main" / "data" / "web_data.db")
+    return out
+
+
+def _resolve_reference_db() -> Path:
+    for candidate in _main_db_candidates():
+        if candidate.is_file():
+            return candidate.resolve()
+    paths = "\n  ".join(str(p) for p in _main_db_candidates())
+    raise SystemExit(
+        "Не найдена web_data.db основного дашборда — сверять с экраном main нечем.\n"
+        f"Проверены пути:\n  {paths}\n"
+        "Укажите BI_MAIN_WEB_DB_PATH или BI_MAIN_APP_DIR."
+    )
+
+
+# До импорта app.config: она читает WEB_DB_PATH на импорте модуля.
+REFERENCE_DB = _resolve_reference_db()
+os.environ["WEB_DB_PATH"] = str(REFERENCE_DB)
 
 from app.services.core_bridge import (  # noqa: E402
     active_version_id,
@@ -207,6 +247,7 @@ def _bdds_screen_reference() -> dict[str, Any]:
     }
     return {
         "version_id": vid,
+        "rows_1c": int(len(ref)),
         "plan_mln": _mln(float(summary["budget plan"].fillna(0.0).sum())),
         "fact_mln": _mln(float(summary["budget fact"].fillna(0.0).sum())),
         "by_project": by_project,
@@ -226,10 +267,14 @@ def check_bdds(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
         str(row.get("project")): (_mln(row.get("plan") or 0.0), _mln(row.get("fact") or 0.0))
         for row in (api.get("project_rows") or [])
     }
+    db_meta = meta.get("db") or {}
     rows: list[tuple[str, Any, Any, bool]] = [
+        _info_row("web_data.db", REFERENCE_DB.name, db_meta.get("web_db_path") or "—"),
+        _info_row("активная версия", ref["version_id"], meta.get("version_id")),
+        # Разные снимки оборотов 1С = разные цифры на экране: это не «почти то же».
+        _meta_row("строк 1С (снимок)", ref["rows_1c"], meta.get("rows_1c")),
         _kpi_row("ИТОГО план, млн", ref["plan_mln"], kpis.get("plan_mln")),
         _kpi_row("ИТОГО факт, млн", ref["fact_mln"], kpis.get("fact_mln")),
-        _meta_row("version_id", ref["version_id"], meta.get("version_id")),
         _choice_row("mode", {"synthetic_1c", "msp_1c"}, meta.get("mode") or "—"),
         _meta_row("meta.error", None, meta.get("error") or None),
         _meta_row("период с", ref["cal_start"], applied.get("date_from")),
@@ -308,7 +353,7 @@ def check_bdr(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
     return [
         _kpi_row("план, млн", ref["plan_mln"], kpis.get("plan_mln")),
         _kpi_row("факт, млн", ref["fact_mln"], kpis.get("fact_mln")),
-        _meta_row("version_id", ref["version_id"], (api.get("meta") or {}).get("version_id")),
+        _info_row("активная версия", ref["version_id"], (api.get("meta") or {}).get("version_id")),
     ]
 
 
@@ -336,7 +381,7 @@ def check_developer_projects(base: str, timeout: float) -> list[tuple[str, Any, 
         if (cell.get("plan") or cell.get("fact"))
     )
     return [
-        _meta_row("version_id", vid, meta.get("version_id")),
+        _info_row("активная версия", vid, meta.get("version_id")),
         _meta_row("meta.error", None, meta.get("error") or None),
         _bool_row("проектов > 0", bool(matrix.get("projects"))),
         _bool_row("колонок > 0", bool(matrix.get("columns"))),
@@ -353,6 +398,11 @@ def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, boo
 
 def _meta_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     return (label, expected, actual, expected == actual)
+
+
+def _info_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
+    """Справочная строка: эталон и сервис читают разные файлы БД — это норма."""
+    return (label, expected, actual, True)
 
 
 def _choice_row(label: str, allowed: set[str], actual: Any) -> tuple[str, Any, Any, bool]:
@@ -384,6 +434,9 @@ def main() -> int:
     if unknown:
         print(f"Неизвестные экраны: {', '.join(unknown)}", file=sys.stderr)
         return 2
+
+    print(f"Эталон (БД экрана main): {REFERENCE_DB}")
+    print(f"Сервис: {args.api}")
 
     failures = 0
     for screen in screens:

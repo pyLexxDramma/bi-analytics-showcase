@@ -25,12 +25,16 @@ export function FullscreenPanel({
   children,
   disabled = false,
   toolbar,
+  fill = false,
   className = "",
 }: {
-  children: ReactNode;
+  /** Функция получает признак фуллскрина — контент может увеличить масштаб. */
+  children: ReactNode | ((active: boolean) => ReactNode);
   disabled?: boolean;
   /** Кнопки рядом с зумом (например «Скачать таблицу»). */
   toolbar?: ReactNode;
+  /** Растянуть контент на весь экран вместо центрирования (графики). */
+  fill?: boolean;
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -97,11 +101,13 @@ export function FullscreenPanel({
       <div
         className={
           active
-            ? "flex min-h-full min-w-fit items-center justify-center p-4"
+            ? fill
+              ? "h-full w-full"
+              : "flex min-h-full min-w-fit items-center justify-center p-4"
             : ""
         }
       >
-        {children}
+        {typeof children === "function" ? children(active) : children}
       </div>
     </div>
   );

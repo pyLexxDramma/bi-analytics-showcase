@@ -326,6 +326,7 @@ class BddsScreenFrame:
 
     version_id: int | None = None
     summary: pd.DataFrame | None = None
+    reference_rows: int = 0
     project_options: list[str] = field(default_factory=list)
     date_min: date | None = None
     date_max: date | None = None
@@ -593,6 +594,7 @@ def load_bdds_screen_frame(
     if filtered is None or filtered.empty:
         return BddsScreenFrame(
             version_id=vid,
+            reference_rows=int(len(reference)),
             project_options=list(options),
             date_min=min_all,
             date_max=max_all,
@@ -613,6 +615,7 @@ def load_bdds_screen_frame(
     if group_col not in filtered.columns:
         return BddsScreenFrame(
             version_id=vid,
+            reference_rows=int(len(reference)),
             project_options=list(options),
             date_min=min_all,
             date_max=max_all,
@@ -679,6 +682,7 @@ def load_bdds_screen_frame(
     return BddsScreenFrame(
         version_id=vid,
         summary=out,
+        reference_rows=int(len(reference)),
         project_options=list(options),
         date_min=min_all,
         date_max=max_all,

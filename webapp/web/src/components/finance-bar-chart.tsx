@@ -50,6 +50,19 @@ function useDarkTheme(): boolean {
   return dark;
 }
 
+function useViewportSize(enabled: boolean): { width: number; height: number } {
+  const [size, setSize] = useState({ width: 1440, height: 900 });
+  useEffect(() => {
+    if (!enabled) return;
+    const sync = () =>
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, [enabled]);
+  return size;
+}
+
 /**
  * Столбчатый график план/факт(/отклонение) как на финансовых вкладках [main]:
  * подписи значений над столбцами, легенда под графиком, наклонные подписи
@@ -63,6 +76,7 @@ export function FinanceBarChart({
   xAxisTitle,
   yAxisTitle = "млн рублей",
   emptyText = "Нет периодов для графика",
+  fullscreen = false,
 }: {
   rows: FinanceBarPoint[];
   planName: string;
@@ -71,16 +85,26 @@ export function FinanceBarChart({
   xAxisTitle: string;
   yAxisTitle?: string;
   emptyText?: string;
+  /** Зум: график занимает весь экран, столбцы шире, подписи крупнее. */
+  fullscreen?: boolean;
 }) {
   const dark = useDarkTheme();
   const textColor = dark ? "#f0f4f8" : "#111827";
+  const viewport = useViewportSize(fullscreen);
+
+  const height = fullscreen ? Math.max(520, viewport.height - 32) : 620;
+  // Полоса на период: в зуме столбцы не сжимаются, а уезжают в горизонтальный скролл.
+  const width = fullscreen
+    ? Math.max(viewport.width - 32, rows.length * 150 + 180)
+    : undefined;
 
   const { data, layout } = useMemo(() => {
     const periods = rows.map((row) => row.period);
     const plans = rows.map((row) => row.plan);
     const facts = rows.map((row) => row.fact);
     const count = rows.length || 1;
-    const fontSize = count > 32 ? 9 : count > 20 ? 10 : count > 12 ? 11 : 12;
+    const baseFont = count > 32 ? 9 : count > 20 ? 10 : count > 12 ? 11 : 12;
+    const fontSize = fullscreen ? Math.max(14, baseFont + 4) : baseFont;
 
     const traces: Data[] = [];
     if (plans.some((value) => Math.abs(value) >= 0.5)) {
@@ -146,36 +170,45 @@ export function FinanceBarChart({
       }
     }
 
-    const tickAngle = count <= 18 ? -45 : count <= 36 ? -50 : -55;
+    const tickAngle = fullscreen ? -35 : count <= 18 ? -45 : count <= 36 ? -50 : -55;
     const figureLayout: Partial<Layout> = {
       barmode: "group",
-      bargap: count <= 12 ? 0.28 : 0.18,
+      bargap: fullscreen ? 0.24 : count <= 12 ? 0.28 : 0.18,
       bargroupgap: 0.08,
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      font: { color: textColor, size: 12 },
-      margin: { l: 64, r: 24, t: 48, b: 168 },
+      font: { color: textColor, size: fullscreen ? 15 : 12 },
+      margin: fullscreen
+        ? { l: 88, r: 40, t: 64, b: 190 }
+        : { l: 64, r: 24, t: 48, b: 168 },
       hovermode: "closest",
       showlegend: true,
       legend: {
         orientation: "h",
         yanchor: "top",
-        y: -0.42,
+        y: fullscreen ? -0.3 : -0.42,
         xanchor: "center",
         x: 0.5,
-        font: { color: textColor, size: 12 },
+        font: { color: textColor, size: fullscreen ? 15 : 12 },
       },
       xaxis: {
-        title: { text: xAxisTitle, standoff: 28, font: { color: textColor, size: 13 } },
+        title: {
+          text: xAxisTitle,
+          standoff: 28,
+          font: { color: textColor, size: fullscreen ? 17 : 13 },
+        },
         tickangle: tickAngle,
-        tickfont: { color: textColor, size: count > 32 ? 10 : 11 },
+        tickfont: {
+          color: textColor,
+          size: fullscreen ? 14 : count > 32 ? 10 : 11,
+        },
         gridcolor: GRID_COLOR,
         linecolor: AXIS_LINE_COLOR,
         automargin: true,
       },
       yaxis: {
-        title: { text: yAxisTitle, font: { color: textColor, size: 13 } },
-        tickfont: { color: textColor, size: 11 },
+        title: { text: yAxisTitle, font: { color: textColor, size: fullscreen ? 17 : 13 } },
+        tickfont: { color: textColor, size: fullscreen ? 14 : 11 },
         gridcolor: GRID_COLOR,
         linecolor: AXIS_LINE_COLOR,
         zerolinecolor: "rgba(100, 116, 139, 0.55)",
@@ -183,7 +216,16 @@ export function FinanceBarChart({
       },
     };
     return { data: traces, layout: figureLayout };
-  }, [rows, planName, factName, showDeviation, xAxisTitle, yAxisTitle, textColor]);
+  }, [
+    rows,
+    planName,
+    factName,
+    showDeviation,
+    xAxisTitle,
+    yAxisTitle,
+    textColor,
+    fullscreen,
+  ]);
 
   // Панель инструментов как в [main] (`_PLOTLY_CONFIG`): PNG, зум, панорама,
   // выделение, автомасштаб, сброс; без логотипа Plotly.
@@ -204,13 +246,17 @@ export function FinanceBarChart({
   }
 
   return (
-    <PlotlyFigure
-      data={data}
-      layout={layout}
-      config={config}
-      className="w-full"
-      style={{ width: "100%", height: 620 }}
-      useResizeHandler
-    />
+    <div className={fullscreen ? "h-full w-full overflow-x-auto" : "w-full"}>
+      <div style={{ width: width ?? "100%", height }}>
+        <PlotlyFigure
+          data={data}
+          layout={layout}
+          config={config}
+          className="w-full"
+          style={{ width: "100%", height: "100%" }}
+          useResizeHandler
+        />
+      </div>
+    </div>
   );
 }
