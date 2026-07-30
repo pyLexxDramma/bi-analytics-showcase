@@ -34,8 +34,14 @@ def __getattr__(name: str):
 @contextmanager
 def get_web_connection():
     """Контекстный менеджер подключения к web_data.db."""
-    conn = sqlite3.connect(get_web_db_path())
+    conn = sqlite3.connect(get_web_db_path(), timeout=30)
     conn.row_factory = sqlite3.Row
+    # busy_timeout: при параллельной записи (auto-ingest + приложение) читатель
+    # ждёт до 30с вместо мгновенного "database is locked".
+    try:
+        conn.execute("PRAGMA busy_timeout=30000")
+    except Exception:
+        pass
     try:
         yield conn
         conn.commit()
@@ -56,6 +62,13 @@ def init_web_schema():
 
     with get_web_connection() as conn:
         cur = conn.cursor()
+
+        # WAL: читатели (дашборд) не блокируются писателем (пересборка БД) и не
+        # ловят "database is locked". Свойство файла — задаётся один раз.
+        try:
+            cur.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
 
         # ── Версии загрузки ──────────────────────────────────────────────────
         cur.execute("""
@@ -108,18 +121,64 @@ def init_web_schema():
             CREATE INDEX IF NOT EXISTS idx_web_files_version
             ON web_files(version_id)
         """)
+        # Инкрементальная загрузка: web_data по (версия, file_id) — копирование
+        # строк неизменённого файла из прошлой версии (INSERT ... SELECT).
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_web_data_version_file
+            ON web_data(version_id, file_id)
+        """)
+
+        # Сигнатура файла (size:mtime) для детекции изменений между версиями.
+        # Миграция старых БД: колонки может не быть — добавляем безопасно.
+        try:
+            _cols = {r[1] for r in cur.execute("PRAGMA table_info(web_files)").fetchall()}
+            if "sig" not in _cols:
+                cur.execute("ALTER TABLE web_files ADD COLUMN sig TEXT")
+        except Exception:
+            pass
+
+
+_ACTIVE_VERSION_CACHE: dict[tuple[str, float], int | None] = {}
 
 
 def get_active_version_id() -> int | None:
+    """Возвращает id активной версии (кеш по mtime БД).
+
+    Функция вызывается тысячи раз за рендер (через resolve_version_id в разрешении
+    подписей проектов на каждую строку таблиц). Каждый вызов открывал новое
+    соединение SQLite и делал несколько запросов — это давало десятки секунд на
+    тяжёлых дашбордах. Кешируем результат по времени модификации web_data.db:
+    любое обновление данных или переключение активной версии меняет mtime и
+    сбрасывает кеш.
+    """
+    _db = get_web_db_path()
+    try:
+        _mt = os.path.getmtime(_db)
+    except OSError:
+        _mt = 0.0
+    if _mt and (_db, _mt) in _ACTIVE_VERSION_CACHE:
+        return _ACTIVE_VERSION_CACHE[(_db, _mt)]
+    result = _get_active_version_id_uncached()
+    if _mt:
+        if len(_ACTIVE_VERSION_CACHE) > 8:
+            _ACTIVE_VERSION_CACHE.clear()
+        # UPDATE в ветке «беднее предыдущей» меняет mtime — перечитаем актуальный,
+        # чтобы кеш лёг под правильный ключ (иначе следующий вызов пересчитает).
+        try:
+            _mt_after = os.path.getmtime(_db)
+        except OSError:
+            _mt_after = _mt
+        _ACTIVE_VERSION_CACHE[(_db, _mt_after)] = result
+    return result
+
+
+def _get_active_version_id_uncached() -> int | None:
     """Возвращает id активной версии.
 
     Политика:
-    1) явно помеченная `is_active=1` — но только если её статус `success`
-       (чтобы случайно оставшаяся активной `partial`-версия не блокировала
-        показ последней корректной загрузки);
-       Страховка: если активна последняя по id success, но она строго «беднее»
-       предыдущей success (меньше и files_count, и rows_count), возвращаем
-       предыдущую — исправляет уже записанные в БД случаи до правки web_loader.
+    1) явно помеченная `is_active=1` (success или partial — partial активируется
+       намеренно, когда часть файлов с ошибками, остальные валидны);
+       для success — страховка «беднее предыдущей success» (files_count и rows_count).
     2) иначе — последняя `status='success'`;
     3) в крайнем случае — последняя любая (включая `partial`).
     """
@@ -129,6 +188,8 @@ def get_active_version_id() -> int | None:
             "SELECT id, status, files_count, rows_count FROM web_versions WHERE is_active = 1 "
             "ORDER BY id DESC LIMIT 1"
         ).fetchone()
+        if row and row["status"] == "partial":
+            return int(row["id"])
         if row and row["status"] == "success":
             aid = int(row["id"])
             max_s = cur.execute(

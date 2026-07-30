@@ -20,6 +20,7 @@ import csv
 import io
 import json
 import math
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -153,10 +154,24 @@ def _parse_snapshot_date(date_str: str):
     return None
 
 
+def _msp_source_project_bucket(source_file: Any) -> Optional[str]:
+    """Корень проекта из имени msp_<slug>_<date>.csv (независимо от регистра/подписи)."""
+    if source_file is None or (isinstance(source_file, float) and pd.isna(source_file)):
+        return None
+    stem = Path(str(source_file).replace("\\", "/").split("/")[-1]).stem
+    return _msp_project_bucket(stem)
+
+
 def _deduplicate_project_snapshots(df: pd.DataFrame) -> pd.DataFrame:
     """
     Для проектных данных из MSP: оставляет только последний снимок каждого
-    проекта (строки с максимальным snapshot_date по каждому project name).
+    проекта (строки с максимальным snapshot_date).
+
+    Группировка: сначала bucket из ``__source_file`` / ``source_file``
+    (msp_zhukovsky1_…), иначе точный ``project name``. Так июньский и июльский
+    файлы одного slug не остаются рядом из‑за разных подписей проекта
+    («zhukovsky1» vs «Жуковский») — иначе матрица Девелоперских смешивает
+    снимки и отклонения обнуляются (у старых выгрузок base end == plan end).
     Строки без snapshot_date оставляет нетронутыми.
     """
     if df is None or df.empty:
@@ -167,7 +182,55 @@ def _deduplicate_project_snapshots(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["snapshot_date"] = pd.to_datetime(df["snapshot_date"], errors="coerce")
 
-    # Строки без snapshot_date или без project name — оставляем как есть
+    # Строки без snapshot_date — оставляем как есть
+    has_snap = df["snapshot_date"].notna()
+    if not has_snap.any():
+        return df
+
+    snap_part = df[has_snap].copy()
+    no_snap_part = df[~has_snap].copy()
+
+    src_col = next(
+        (c for c in ("__source_file", "source_file", "_source_file") if c in snap_part.columns),
+        None,
+    )
+    if src_col is not None:
+        _keys = snap_part[src_col].map(_msp_source_project_bucket)
+    else:
+        _keys = pd.Series([None] * len(snap_part), index=snap_part.index, dtype=object)
+    if "project name" in snap_part.columns:
+        _pn = snap_part["project name"].map(
+            lambda x: (
+                str(x).strip()
+                if x is not None and not (isinstance(x, float) and pd.isna(x)) and str(x).strip()
+                else None
+            )
+        )
+        _keys = _keys.where(pd.notna(_keys) & (_keys.astype(str).str.strip() != ""), _pn)
+    snap_part["_snap_proj_key"] = _keys.fillna("__all__").astype(str)
+
+    latest = snap_part.groupby("_snap_proj_key", dropna=False)["snapshot_date"].transform("max")
+    snap_part = snap_part[snap_part["snapshot_date"] == latest]
+    snap_part = snap_part.drop(columns=["_snap_proj_key"], errors="ignore")
+
+    result = pd.concat([no_snap_part, snap_part], ignore_index=True)
+    return result
+
+
+def _deduplicate_project_snapshots_last_per_month(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Для MSP: последний снимок каждого проекта в каждом календарном месяце
+    выгрузки (по snapshot_date). Нужен для динамики отклонений по plan end.
+    Колонка snapshot_upload_month — месяц выгрузки файла на FTP.
+    """
+    if df is None or df.empty:
+        return df
+    if "snapshot_date" not in df.columns:
+        return df
+
+    df = df.copy()
+    df["snapshot_date"] = pd.to_datetime(df["snapshot_date"], errors="coerce")
+
     has_snap = df["snapshot_date"].notna()
     if "project name" in df.columns:
         has_snap = has_snap & df["project name"].notna()
@@ -178,12 +241,15 @@ def _deduplicate_project_snapshots(df: pd.DataFrame) -> pd.DataFrame:
     snap_part = df[has_snap].copy()
     no_snap_part = df[~has_snap].copy()
 
-    # Максимальная дата снимка на группу project name
-    latest = snap_part.groupby("project name")["snapshot_date"].transform("max")
-    snap_part = snap_part[snap_part["snapshot_date"] == latest]
+    snap_part["_upload_month"] = snap_part["snapshot_date"].dt.to_period("M")
+    latest = snap_part.groupby(
+        ["project name", "_upload_month"], observed=False
+    )["snapshot_date"].transform("max")
+    snap_part = snap_part[snap_part["snapshot_date"] == latest].copy()
+    snap_part["snapshot_upload_month"] = snap_part["_upload_month"]
+    snap_part = snap_part.drop(columns=["_upload_month"], errors="ignore")
 
-    result = pd.concat([no_snap_part, snap_part], ignore_index=True)
-    return result
+    return pd.concat([no_snap_part, snap_part], ignore_index=True)
 
 
 def _fill_section_from_task_tree(df: pd.DataFrame) -> pd.DataFrame:
@@ -224,9 +290,17 @@ def _fill_section_from_task_tree(df: pd.DataFrame) -> pd.DataFrame:
         if "project name" in g.columns and len(g) > 0:
             v0 = g["project name"].iloc[0]
             proj_name = str(v0).strip() if pd.notna(v0) else ""
-        for idx in g.index:
-            lvl = pd.to_numeric(g.at[idx, ocol], errors="coerce")
-            task = str(g.at[idx, "task name"]).strip() if pd.notna(g.at[idx, "task name"]) else ""
+        # Поэлементный g.at[idx, ...] по Arrow-backed столбцам (pandas 3.0)
+        # боксит pyarrow-скаляр и переписывает chunked-массив на каждой ячейке
+        # (~O(n) на запись). Снимаем оверхед: читаем колонки в numpy/списки,
+        # считаем section в чистом Python, пишем столбец одной операцией.
+        lvl_arr = pd.to_numeric(g[ocol], errors="coerce").to_numpy()
+        task_vals = g["task name"].tolist()
+        section_vals = g["section"].astype(object).tolist()
+        for i in range(len(g)):
+            lvl = lvl_arr[i]
+            tv = task_vals[i]
+            task = str(tv).strip() if pd.notna(tv) else ""
             if pd.notna(lvl):
                 lvl_int = int(lvl)
                 if lvl_int == 1:
@@ -237,9 +311,10 @@ def _fill_section_from_task_tree(df: pd.DataFrame) -> pd.DataFrame:
                     if k > lvl_int:
                         del current_sections[k]
                 if lvl_int >= 3 and 2 in current_sections:
-                    g.at[idx, "section"] = current_sections[2]
+                    section_vals[i] = current_sections[2]
                 elif lvl_int >= 2 and 1 in current_sections:
-                    g.at[idx, "section"] = current_sections[1]
+                    section_vals[i] = current_sections[1]
+        g["section"] = section_vals
         return g
 
     if "project name" in df.columns:
@@ -296,9 +371,25 @@ def _apply_msp_column_mapping(df: pd.DataFrame, project_name: str) -> pd.DataFra
     _msp_name_map = get_msp_project_name_map()
 
     # Нормализованное имя проекта из имени файла (msp_<project_name>_<date>.csv).
-    # Используется и как заполнитель пустых ячеек, и как fallback для непокрытых ключей.
-    _file_key = (project_name or "").strip().lower()
-    ru_from_file = _msp_name_map.get(_file_key, project_name or "")
+    # Карта → автомат по 1С Projekts (транслит slug) → исходный slug.
+    _file_key = (project_name or "").strip().lower().replace(" ", "")
+    _file_key_base = re.sub(r"\d+$", "", _file_key)
+    ru_from_file = (
+        _msp_name_map.get(_file_key)
+        or _msp_name_map.get(_file_key_base)
+        or ""
+    )
+    if not ru_from_file:
+        try:
+            from dashboards.project_labels import match_latin_slug_to_russian_project
+
+            ru_from_file = str(
+                match_latin_slug_to_russian_project(project_name or _file_key) or ""
+            ).strip()
+        except Exception:
+            ru_from_file = ""
+    if not ru_from_file:
+        ru_from_file = project_name or ""
 
     def _normalize_project_cell(x):
         if pd.isna(x):
@@ -306,8 +397,24 @@ def _apply_msp_column_mapping(df: pd.DataFrame, project_name: str) -> pd.DataFra
         s = str(x).strip()
         if not s or s.lower() in ("nan", "none", "<na>"):
             return ru_from_file
-        # Пробуем маппинг (с учётом регистра и варианта lower).
-        return _msp_name_map.get(s, _msp_name_map.get(s.lower(), ru_from_file or s))
+        lk = s.lower().replace(" ", "")
+        lk_base = re.sub(r"\d+$", "", lk)
+        hit = (
+            _msp_name_map.get(s)
+            or _msp_name_map.get(lk)
+            or _msp_name_map.get(lk_base)
+        )
+        if hit:
+            return hit
+        try:
+            from dashboards.project_labels import match_latin_slug_to_russian_project
+
+            auto = match_latin_slug_to_russian_project(s)
+            if auto:
+                return str(auto).strip()
+        except Exception:
+            pass
+        return ru_from_file or s
 
     if "project name" not in df.columns:
         df["project name"] = ru_from_file
@@ -366,15 +473,9 @@ def _apply_msp_column_mapping(df: pd.DataFrame, project_name: str) -> pd.DataFra
 
     # ── pct complete: "5%" → 5.0 ────────────────────────────────────────────
     if "pct complete" in df.columns:
-        def _parse_pct(val):
-            if val is None:
-                return None
-            s = str(val).replace("%", "").replace(",", ".").strip()
-            try:
-                return float(s)
-            except (ValueError, TypeError):
-                return None
-        df["pct complete"] = df["pct complete"].apply(_parse_pct)
+        from utils import parse_msp_pct_complete
+
+        df["pct complete"] = df["pct complete"].apply(parse_msp_pct_complete)
 
     # ── deviation in days: "5 дн" → 5.0, "-30 дн" → -30.0 ─────────────────
     if "deviation in days" in df.columns:
@@ -389,6 +490,20 @@ def _apply_msp_column_mapping(df: pd.DataFrame, project_name: str) -> pd.DataFra
         if calc_mask.any():
             df.loc[calc_mask, "deviation in days"] = (
                 df.loc[calc_mask, "plan end"] - df.loc[calc_mask, "base end"]
+            ).dt.days
+
+    # ── deviation start days: "5 дн" → 5.0 ─────────────────────────────────
+    if "deviation start days" in df.columns:
+        df["deviation start days"] = df["deviation start days"].apply(_parse_days_str)
+    else:
+        df["deviation start days"] = None
+
+    if "plan start" in df.columns and "base start" in df.columns:
+        mask_empty = df["deviation start days"].isna()
+        calc_mask = mask_empty & df["plan start"].notna() & df["base start"].notna()
+        if calc_mask.any():
+            df.loc[calc_mask, "deviation start days"] = (
+                df.loc[calc_mask, "plan start"] - df.loc[calc_mask, "base start"]
             ).dt.days
 
     # ── Флаг deviation: True если задача запаздывает ─────────────────────────
@@ -536,6 +651,7 @@ def _load_rd_plan_file(filepath: Path) -> Optional[pd.DataFrame]:
                     df = df.dropna(how="all").reset_index(drop=True)
                     if df.empty:
                         continue
+                    df = _rd_plan_unglue_name_columns(df)
                     df.attrs["data_type"] = "rd_plan"
                     df.attrs["rd_plan_header_note"] = (
                         f"FALLBACK header_row={header_row}, enc={enc}, sep=';', "
@@ -546,9 +662,47 @@ def _load_rd_plan_file(filepath: Path) -> Optional[pd.DataFrame]:
     best_df = best_df.dropna(how="all").reset_index(drop=True)
     if best_df.empty:
         return None
+    best_df = _rd_plan_unglue_name_columns(best_df)
     best_df.attrs["data_type"] = "rd_plan"
     best_df.attrs["rd_plan_header_note"] = best_note
     return best_df
+
+
+# other_*_rd/pd.csv иногда склеивают уровни иерархии без пробела
+# («…железобетонныеПлиты…», «…+4.500Покрытие…»).
+_RD_PLAN_GLUED_NAME_RE = re.compile(
+    r"(?<=[а-яёa-z])(?=[А-ЯЁA-Z])|(?<=[0-9])(?=[А-ЯЁA-Z])"
+)
+
+
+def _rd_plan_unglue_name_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Нормализует колонки «Наименование…» плана РД/ПД: вставляет пробелы в слитных именах."""
+    if df is None or getattr(df, "empty", True):
+        return df
+    out = df
+    for col in list(out.columns):
+        cl = str(col).replace("\n", " ").replace("\r", " ").strip().casefold()
+        if "наименован" not in cl:
+            continue
+        ser = out[col].map(
+            lambda v: (
+                ""
+                if v is None or (isinstance(v, float) and pd.isna(v))
+                else str(v).strip()
+            )
+        )
+        fixed = ser.map(
+            lambda s: (
+                re.sub(r"\s+", " ", _RD_PLAN_GLUED_NAME_RE.sub(" ", s)).strip()
+                if s and _RD_PLAN_GLUED_NAME_RE.search(s)
+                else s
+            )
+        )
+        if not fixed.equals(ser):
+            if out is df:
+                out = df.copy()
+            out[col] = fixed
+    return out
 
 
 def _load_resources_file(filepath: Path) -> Optional[pd.DataFrame]:
@@ -632,10 +786,11 @@ def _load_resources_file(filepath: Path) -> Optional[pd.DataFrame]:
                         if a in df.columns and b not in df.columns:
                             df = df.rename(columns={a: b})
 
-                    from config import MSP_PROJECT_NAME_MAP
+                    from config import get_msp_project_name_map
+                    _msp_name_map = get_msp_project_name_map()
                     if "Проект" in df.columns:
                         df["Проект"] = df["Проект"].apply(
-                            lambda x: MSP_PROJECT_NAME_MAP.get(
+                            lambda x: _msp_name_map.get(
                                 str(x).strip().lower().replace(" ", ""), str(x).strip()
                             ) if pd.notna(x) else x
                         )
@@ -760,10 +915,11 @@ def _load_resources_file(filepath: Path) -> Optional[pd.DataFrame]:
                     data = data.rename(columns={a: b})
 
             try:
-                from config import MSP_PROJECT_NAME_MAP
+                from config import get_msp_project_name_map
+                _msp_name_map = get_msp_project_name_map()
                 if "Проект" in data.columns:
                     data["Проект"] = data["Проект"].apply(
-                        lambda x: MSP_PROJECT_NAME_MAP.get(
+                        lambda x: _msp_name_map.get(
                             str(x).strip().lower().replace(" ", ""), str(x).strip()
                         ) if pd.notna(x) else x
                     )
@@ -783,16 +939,41 @@ def _load_1c_json_dk(filepath: Path) -> Optional[pd.DataFrame]:
         if not raw or not isinstance(raw, list):
             return None
         rows = []
+        _summary_adv_rub = 0.0
         for item in raw:
             try:
-                flat = {}
                 org = item.get("Организация") or {}
+                contr = item.get("Контрагент") or {}
+                dog = item.get("Договор") or {}
+                # Итоговая строка выгрузки (Контрагент/Договор/Организация = null) — не контрагент.
+                if not isinstance(contr, dict):
+                    contr = {}
+                if not isinstance(dog, dict):
+                    dog = {}
+                if not isinstance(org, dict):
+                    org = {}
+                _has_contr = bool(
+                    str(contr.get("НаименованиеКонтрагента", "") or "").strip()
+                    or str(contr.get("ID_Контрагента", "") or "").strip()
+                )
+                _has_dog = bool(
+                    str(dog.get("ID_Договора", "") or "").strip()
+                    or str(dog.get("НомерДоговора", "") or "").strip()
+                )
+                _has_org = bool(str(org.get("ID_Организации", "") or "").strip())
+                if not _has_contr and not _has_dog and not _has_org:
+                    try:
+                        _summary_adv_rub += float(
+                            item.get("ОстатокНаКонецПериодаПоАвансам", 0) or 0
+                        )
+                    except (TypeError, ValueError):
+                        pass
+                    continue
+                flat = {}
                 flat["Название организации"] = org.get("НаименованиеОрганизации", "")
                 flat["ID_Организации"] = org.get("ID_Организации", "")
-                contr = item.get("Контрагент") or {}
                 flat["Название контрагента"] = contr.get("НаименованиеКонтрагента", "")
                 flat["ID_Контрагента"] = contr.get("ID_Контрагента", "")
-                dog = item.get("Договор") or {}
                 flat["Номер договора"] = str(dog.get("НомерДоговора", "") or "").strip()
                 flat["ID_Договора"] = dog.get("ID_Договора", "")
                 flat["Дата договора"] = dog.get("ДатаДоговора", "")
@@ -821,6 +1002,8 @@ def _load_1c_json_dk(filepath: Path) -> Optional[pd.DataFrame]:
             return None
         df = pd.DataFrame(rows)
         df.attrs["data_type"] = "debit_credit"
+        if _summary_adv_rub > 0:
+            df.attrs["dk_summary_advance_rub"] = float(_summary_adv_rub)
         return df
     except Exception:
         return None
@@ -1055,7 +1238,6 @@ def _iter_web_scan_roots() -> List[Tuple[Path, str]]:
         get_extra_web_dirs_from_env,
         get_showcase_web_dir,
         include_analytics_sibling_web_dir,
-        is_prohibited_production_data_path,
         is_showcase_mode,
     )
 
@@ -1457,7 +1639,12 @@ def pick_latest_snapshot_files(files: List[Dict]) -> Tuple[List[Dict], List[str]
             one_c_fallback.append(f)
         else:
             buckets_1c.setdefault(fam, []).append(f)
+    _keep_all_one_c_families = frozenset({"dogovor", "kontr", "spravochniki"})
     for _fam, lst in buckets_1c.items():
+        if _fam in _keep_all_one_c_families:
+            for f in lst:
+                _add(f)
+            continue
         rated: List[Tuple[tuple, Dict]] = []
         for f in lst:
             sk = _one_c_snapshot_sort_key(Path(f["name"]).stem)
@@ -1487,13 +1674,25 @@ def pick_latest_snapshot_files(files: List[Dict]) -> Tuple[List[Dict], List[str]
         bk = _msp_project_bucket(stem) or stem.lower()
         buckets_m.setdefault(str(bk), []).append(f)
     for lst in buckets_m.values():
-        rated = []
+        by_month: Dict[tuple[int, int], List[Dict]] = {}
+        undated: List[Dict] = []
         for f in lst:
             stem = Path(f["name"]).stem
             md = _max_date_in_stem(stem)
-            rated.append(((md or dt_date.min, _file_mtime(f["path"])), f))
-        best_f = max(rated, key=lambda x: x[0])[1]
-        _add(best_f)
+            if md is None:
+                undated.append(f)
+                continue
+            by_month.setdefault((md.year, md.month), []).append(f)
+        for month_lst in by_month.values():
+            rated = []
+            for f in month_lst:
+                stem = Path(f["name"]).stem
+                md = _max_date_in_stem(stem)
+                rated.append(((md or dt_date.min, _file_mtime(f["path"])), f))
+            best_f = max(rated, key=lambda x: x[0])[1]
+            _add(best_f)
+        for f in undated:
+            _add(f)
 
     buckets_o: Dict[str, List[Dict]] = {}
     for f in dated_other:
@@ -1501,7 +1700,11 @@ def pick_latest_snapshot_files(files: List[Dict]) -> Tuple[List[Dict], List[str]
         ext = Path(f["name"]).suffix.lower()
         fam = _generic_stem_family(stem) + "|" + ext
         buckets_o.setdefault(fam, []).append(f)
-    for lst in buckets_o.values():
+    for fam, lst in buckets_o.items():
+        if "resursi" in fam or "resursy" in fam:
+            for f in lst:
+                _add(f)
+            continue
         rated = []
         for f in lst:
             stem = Path(f["name"]).stem
@@ -1629,6 +1832,61 @@ def _create_version(cur, files_count: int) -> int:
     return cur.lastrowid
 
 
+def _count_version_ingested_files(cur, version_id: int) -> int:
+    """Число файлов, реально записанных в web_files для версии (не «файлов в скане»)."""
+    row = cur.execute(
+        "SELECT COUNT(*) AS n FROM web_files WHERE version_id=?",
+        (int(version_id),),
+    ).fetchone()
+    return int(row["n"] if row else 0)
+
+
+def _load_json_array_file(filepath: Path) -> List[dict]:
+    """JSON-массив объектов (Dogovor, Kontr, spravochniki, Projekts)."""
+    encodings = ("utf-8-sig", "utf-8", "cp1251")
+    for enc in encodings:
+        try:
+            raw = filepath.read_text(encoding=enc)
+            data = json.loads(raw)
+            if isinstance(data, list):
+                return [r for r in data if isinstance(r, dict)]
+            return []
+        except Exception:
+            continue
+    return []
+
+
+def _ingest_json_array(
+    cur,
+    version_id: int,
+    file_info: Dict,
+    file_type: str,
+    filepath: Path,
+    rel_path: str,
+) -> tuple[bool, int]:
+    records = _load_json_array_file(filepath)
+    if not records:
+        return False, 0
+    file_id = _register_file(cur, version_id, file_info, file_type, len(records))
+    cur.executemany(
+        """
+        INSERT INTO web_data (version_id, file_id, file_type, source_file, row_data)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                version_id,
+                file_id,
+                file_type,
+                rel_path,
+                json.dumps(r, ensure_ascii=False, default=str),
+            )
+            for r in records
+        ],
+    )
+    return True, len(records)
+
+
 def _register_file(cur, version_id: int, file_info: Dict, file_type: str, rows_count: int) -> int:
     """Регистрирует файл в web_files и возвращает его id."""
     cur.execute(
@@ -1641,22 +1899,99 @@ def _register_file(cur, version_id: int, file_info: Dict, file_type: str, rows_c
     return cur.lastrowid
 
 
+def _incremental_ingest_enabled() -> bool:
+    """Инкрементальная загрузка: копировать строки неизменённых файлов из прошлой
+    версии вместо повторного парсинга. По умолчанию ВКЛ. Отключить: =0."""
+    return str(os.environ.get("BI_ANALYTICS_INCREMENTAL_INGEST", "1")).strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _file_signature(path: Path) -> Optional[str]:
+    """Сигнатура файла ``size:mtime_ns`` для детекции изменений между версиями.
+
+    FTP-скачивание пишет новый файл через os.replace → у изменённого файла меняется
+    mtime. Совпадение size+mtime считаем «файл не изменился» — строки копируем из
+    прошлой версии, без повторного парсинга.
+    """
+    try:
+        stt = Path(path).stat()
+        return f"{int(stt.st_size)}:{int(stt.st_mtime_ns)}"
+    except Exception:
+        return None
+
+
+def _load_base_version_file_map(cur, base_version_id: int) -> Dict[str, list]:
+    """rel_path → список записей web_files базовой версии (id, file_type, rows, sig).
+
+    Один rel_path может иметь несколько записей (файл ресурсов → 'resources' + 'gdrs_fact').
+    """
+    out: Dict[str, list] = {}
+    try:
+        rows = cur.execute(
+            "SELECT id, rel_path, file_type, rows_count, sig FROM web_files WHERE version_id=?",
+            (int(base_version_id),),
+        ).fetchall()
+    except Exception:
+        return out
+    for r in rows:
+        out.setdefault(str(r["rel_path"]), []).append(
+            {
+                "id": int(r["id"]),
+                "file_type": r["file_type"],
+                "rows_count": int(r["rows_count"] or 0),
+                "sig": r["sig"],
+            }
+        )
+    return out
+
+
+def _copy_version_file(cur, new_version_id: int, base_version_id: int, base_file: dict, file_info: Dict) -> int:
+    """Копирует один файл (web_files + его web_data) из базовой версии в новую.
+
+    Возвращает число скопированных строк.
+    """
+    new_id = _register_file(
+        cur, new_version_id, file_info, base_file["file_type"], int(base_file["rows_count"] or 0)
+    )
+    cur.execute(
+        """
+        INSERT INTO web_data (version_id, file_id, file_type, source_file, row_data)
+        SELECT ?, ?, file_type, source_file, row_data
+        FROM web_data
+        WHERE version_id=? AND file_id=?
+        """,
+        (int(new_version_id), int(new_id), int(base_version_id), int(base_file["id"])),
+    )
+    n = cur.rowcount
+    return int(n) if isinstance(n, int) and n >= 0 else int(base_file["rows_count"] or 0)
+
+
 def _save_rows(cur, version_id: int, file_id: int, file_type: str, source_file: str, df: pd.DataFrame):
     """Сохраняет строки DataFrame в web_data как JSON."""
-    df_copy = df.copy()
-    # Даты → строки
-    for col in df_copy.select_dtypes(include=["datetime64[ns]", "datetimetz"]).columns:
-        df_copy[col] = df_copy[col].astype(str)
-    # Period-колонки → строки (pandas Period не сериализуется в JSON напрямую)
-    for col in df_copy.columns:
-        if df_copy[col].dtype == object:
+    # Колонки, которые нужно привести к строкам перед JSON (datetime / period).
+    _dt_cols = list(df.select_dtypes(include=["datetime64[ns]", "datetimetz"]).columns)
+    _period_cols: list = []
+    for col in df.columns:
+        if df[col].dtype == object or col in _dt_cols:
             continue
         try:
-            # Period dtype
-            if hasattr(df_copy[col], "dt") and hasattr(df_copy[col].dt, "to_timestamp"):
-                df_copy[col] = df_copy[col].astype(str)
+            if hasattr(df[col], "dt") and hasattr(df[col].dt, "to_timestamp"):
+                _period_cols.append(col)
         except Exception:
             pass
+
+    # Копируем только если реально есть что конвертировать — на больших кадрах
+    # (ресурсы/MSP) лишний df.copy() заметно тормозит и ест память.
+    if _dt_cols or _period_cols:
+        df_copy = df.copy()
+        for col in _dt_cols + _period_cols:
+            df_copy[col] = df_copy[col].astype(str)
+    else:
+        df_copy = df
 
     rows = df_copy.where(pd.notnull(df_copy), None).to_dict(orient="records")
     cur.executemany(
@@ -1673,12 +2008,24 @@ def _save_rows(cur, version_id: int, file_id: int, file_type: str, source_file: 
 
 # ── Основная функция загрузки ────────────────────────────────────────────────
 
-def load_all_from_web() -> Dict:
+def load_all_from_web(progress=None) -> Dict:
     """
     Сканирует web/, парсит CSV, сохраняет в SQLite.
     Возвращает {"loaded": N, "skipped": N, "errors": [], "version_id": int|None}
+
+    ``progress`` — необязательный колбэк ``progress(done: int, total: int, name: str)``,
+    вызывается перед обработкой каждого файла. Нужен для прогресс-бара с оценкой ETA
+    в UI (кнопки загрузки). Исключения в колбэке подавляются.
     """
     from data_loader import load_data, ensure_data_session_state, update_session_with_loaded_file
+
+    def _emit_progress(done: int, total: int, name: str) -> None:
+        if progress is None:
+            return
+        try:
+            progress(int(done), int(total), str(name))
+        except Exception:
+            pass
 
     result = {
         "loaded": 0,
@@ -1714,23 +2061,114 @@ def load_all_from_web() -> Dict:
     st.session_state["reference_contractors"] = None
     st.session_state["reference_krstates"] = None
     st.session_state["reference_docstates"] = None
+    st.session_state["reference_execdockinds"] = None
     st.session_state["reference_1c_dannye"] = None
     st.session_state["reference_partner_to_project"] = None
 
     import sqlite3
-    conn = sqlite3.connect(get_web_db_path())
+    conn = sqlite3.connect(get_web_db_path(), timeout=30)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+    # Настройки под массовую загрузку: пересборка идёт одной транзакцией и БД в любой
+    # момент восстановима из web/, поэтому можно ослабить durability ради скорости.
+    #   synchronous=OFF   — не ждём fsync на каждый коммит журнала (главный выигрыш);
+    #   temp_store=MEMORY — временные структуры в RAM;
+    #   cache_size ~128MB — меньше вытеснений страниц при сотнях тысяч INSERT;
+    #   busy_timeout      — параллельный читатель ждёт, а не падает с "database is locked".
+    try:
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA synchronous=OFF")
+        cur.execute("PRAGMA temp_store=MEMORY")
+        cur.execute("PRAGMA cache_size=-131072")
+    except Exception:
+        pass
+
+    # Инициализируем до try: используется после commit для гидрации сессии.
+    _incremental_copied = 0
 
     try:
         version_id = _create_version(cur, len(files))
         result["version_id"] = version_id
         total_rows = 0
 
-        for file_info in files:
+        # ── Инкрементальная загрузка: карта файлов базовой версии ─────────────
+        # Для неизменённых файлов (совпадает size+mtime) копируем строки из базовой
+        # версии, не парся заново. Базовая версия — активная, иначе последняя success.
+        _incremental = _incremental_ingest_enabled()
+        _base_version_id: Optional[int] = None
+        _base_file_map: Dict[str, list] = {}
+        if _incremental:
+            try:
+                _brow = cur.execute(
+                    "SELECT id FROM web_versions WHERE is_active=1 AND id<>? ORDER BY id DESC LIMIT 1",
+                    (version_id,),
+                ).fetchone()
+                if not _brow:
+                    _brow = cur.execute(
+                        "SELECT id FROM web_versions WHERE status='success' AND id<>? ORDER BY id DESC LIMIT 1",
+                        (version_id,),
+                    ).fetchone()
+                if _brow:
+                    _base_version_id = int(_brow["id"])
+                    _base_file_map = _load_base_version_file_map(cur, _base_version_id)
+            except Exception:
+                _base_version_id = None
+                _base_file_map = {}
+
+        _total_files = len(files)
+        for _file_idx, file_info in enumerate(files, start=1):
             filepath: Path = file_info["path"]
             name: str = file_info["name"]
             rel_path: str = file_info["rel_path"]
+            _emit_progress(_file_idx, _total_files, name)
+
+            # ── Инкремент: файл не изменился с базовой версии → копируем строки ──
+            if _incremental and _base_version_id is not None:
+                _sig_now = _file_signature(filepath)
+                _base_entries = _base_file_map.get(rel_path)
+                if (
+                    _sig_now
+                    and _base_entries
+                    and all(str(be["sig"] or "") == _sig_now for be in _base_entries)
+                ):
+                    try:
+                        _copied = 0
+                        for be in _base_entries:
+                            _copied += _copy_version_file(
+                                cur, version_id, _base_version_id, be, file_info
+                            )
+                        total_rows += _copied
+                        _incremental_copied += 1
+                        result["loaded"] += 1
+                        result["diagnostics"].append(
+                            {
+                                "file": rel_path,
+                                "type": _base_entries[0]["file_type"],
+                                "rows": int(_copied),
+                                "incremental": True,
+                            }
+                        )
+                        continue
+                    except Exception as _inc_e:
+                        # Любой сбой копирования → откатываемся к обычному парсингу
+                        # этого файла (строки могли частично записаться — удалим их).
+                        try:
+                            cur.execute(
+                                "DELETE FROM web_data WHERE version_id=? AND file_id IN "
+                                "(SELECT id FROM web_files WHERE version_id=? AND rel_path=?)",
+                                (version_id, version_id, rel_path),
+                            )
+                            cur.execute(
+                                "DELETE FROM web_files WHERE version_id=? AND rel_path=?",
+                                (version_id, rel_path),
+                            )
+                        except Exception:
+                            pass
+                        result.setdefault("warnings", []).append(
+                            _format_skip_reason(
+                                rel_path, "инкремент не удался, парсинг заново", str(_inc_e)
+                            )
+                        )
 
             try:
                 # ── Определяем тип файла через ETL-парсер ──────────────────
@@ -1768,6 +2206,22 @@ def load_all_from_web() -> Dict:
                     result["loaded"] += 1
                     df.attrs["data_type"] = "resources"
                     update_session_with_loaded_file(df, rel_path)
+                    try:
+                        from dashboards.gdrs_resursi import load_resursi_file
+
+                        gdrs_df = load_resursi_file(filepath)
+                        if gdrs_df is not None and not gdrs_df.empty:
+                            gdrs_df = gdrs_df.copy()
+                            gdrs_df["__source_file"] = name
+                            gdrs_file_id = _register_file(
+                                cur, version_id, file_info, "gdrs_fact", len(gdrs_df)
+                            )
+                            _save_rows(
+                                cur, version_id, gdrs_file_id, "gdrs_fact", name, gdrs_df
+                            )
+                            total_rows += len(gdrs_df)
+                    except Exception:
+                        pass
                     result["diagnostics"].append({
                         "file": rel_path,
                         "type": "resources",
@@ -1803,14 +2257,59 @@ def load_all_from_web() -> Dict:
                         )
                     continue
 
+                if file_type_by_name in (
+                    "dogovor_json",
+                    "kontr_json",
+                    "projekts_json",
+                    "spravochniki_json",
+                ):
+                    ok, nrows = _ingest_json_array(
+                        cur,
+                        version_id,
+                        file_info,
+                        file_type_by_name,
+                        filepath,
+                        rel_path,
+                    )
+                    if ok:
+                        total_rows += nrows
+                        result["loaded"] += 1
+                        result["diagnostics"].append({
+                            "file": rel_path,
+                            "type": file_type_by_name,
+                            "rows": int(nrows),
+                        })
+                    else:
+                        result["skipped"] += 1
+                        result["warnings"].append(
+                            _format_skip_reason(rel_path, f"{file_type_by_name} пуст или не JSON-массив")
+                        )
+                    continue
+
                 if file_type_by_name == "reference_json":
+                    ok, nrows = _ingest_json_array(
+                        cur,
+                        version_id,
+                        file_info,
+                        "spravochniki_json",
+                        filepath,
+                        rel_path,
+                    )
                     ref_df = _load_1c_json_spravochniki(filepath)
                     if ref_df is not None and not ref_df.empty:
                         st.session_state["reference_contractors"] = ref_df
+                    if ok:
+                        total_rows += nrows
                         result["loaded"] += 1
                         result["diagnostics"].append({
-                            "file": rel_path, "type": "reference", "rows": int(len(ref_df)),
-                            "columns": [str(c) for c in ref_df.columns[:25]],
+                            "file": rel_path,
+                            "type": "spravochniki_json",
+                            "rows": int(nrows),
+                            "columns": (
+                                [str(c) for c in ref_df.columns[:25]]
+                                if ref_df is not None and not ref_df.empty
+                                else []
+                            ),
                         })
                     else:
                         result["skipped"] += 1
@@ -1902,7 +2401,13 @@ def load_all_from_web() -> Dict:
                 if file_type_by_name == "reference_csv":
                     ref_df = _load_reference_csv(filepath)
                     if ref_df is not None and not ref_df.empty:
-                        ref_key = "krstates" if "krstate" in name.lower() else "docstates"
+                        nl_ref = name.lower()
+                        if "krstate" in nl_ref:
+                            ref_key = "krstates"
+                        elif "execdockind" in nl_ref:
+                            ref_key = "execdockinds"
+                        else:
+                            ref_key = "docstates"
                         st.session_state[f"reference_{ref_key}"] = ref_df
                         result["loaded"] += 1
                     else:
@@ -1927,7 +2432,8 @@ def load_all_from_web() -> Dict:
                         # dashboard не может развести строки по проектам (в самих
                         # CSV нет колонки «project name»).
                         try:
-                            from config import MSP_PROJECT_NAME_MAP as _MSP_NAME_MAP
+                            from config import get_msp_project_name_map as _get_msp_name_map
+                            _MSP_NAME_MAP = _get_msp_name_map()
                             _stem = name.lower().replace(".csv", "")
                             _parts = _stem.split("_")
                             _proj_token = _parts[1] if len(_parts) > 2 and _parts[0] == "other" else ""
@@ -2018,7 +2524,6 @@ def load_all_from_web() -> Dict:
                 # ── MSP-файлы: применяем ремаппинг колонок ─────────────────
                 if file_type == "msp":
                     # Извлекаем имя проекта из имени файла: msp_dmitrovsky1_... → dmitrovsky1
-                    # Формат: msp_<project_name>_<date>.csv
                     # Формат: msp_<project_slug>_<date>.csv (slug может содержать «_»)
                     parts = name.replace(".csv", "").split("_")
                     if len(parts) >= 3:
@@ -2069,6 +2574,26 @@ def load_all_from_web() -> Dict:
                     _format_skip_reason(rel_path, "исключение при обработке", str(e))
                 )
                 result["skipped"] += 1
+
+        # ── Backfill сигнатур: сохраняем size:mtime для всех файлов этой версии
+        # (и распарсенных, и скопированных) — чтобы СЛЕДУЮЩАЯ загрузка могла
+        # определить неизменённые файлы и не парсить их заново.
+        try:
+            for _fi in files:
+                _s = _file_signature(_fi["path"])
+                if _s:
+                    cur.execute(
+                        "UPDATE web_files SET sig=? WHERE version_id=? AND rel_path=?",
+                        (_s, version_id, _fi["rel_path"]),
+                    )
+        except Exception:
+            pass
+
+        if _incremental_copied:
+            result.setdefault("warnings", []).append(
+                f"Инкрементальная загрузка: {_incremental_copied} неизменённых файлов "
+                f"скопировано из версии id={_base_version_id} без повторного парсинга."
+            )
 
         # Обновляем статус версии (warnings не делают partial, только errors)
         status = "partial" if result["errors"] else "success"
@@ -2122,43 +2647,61 @@ def load_all_from_web() -> Dict:
                     "UPDATE web_versions SET is_active=1 WHERE id=?", (version_id,)
                 )
         else:
-            prev_success = cur.execute(
-                "SELECT id, files_count, rows_count FROM web_versions "
-                "WHERE status='success' AND id<>? ORDER BY id DESC LIMIT 1",
+            # Сравниваем с текущей активной (или последней success), по числу
+            # реально ingested-файлов в web_files — не со «сканом» files_count.
+            prev_ref = cur.execute(
+                "SELECT id, rows_count FROM web_versions "
+                "WHERE is_active=1 AND id<>? ORDER BY id DESC LIMIT 1",
                 (version_id,),
             ).fetchone()
-            curr_loaded = int(result.get("loaded") or 0)
+            if prev_ref is None:
+                prev_ref = cur.execute(
+                    "SELECT id, rows_count FROM web_versions "
+                    "WHERE status='success' AND id<>? ORDER BY id DESC LIMIT 1",
+                    (version_id,),
+                ).fetchone()
+            curr_ingested = _count_version_ingested_files(cur, version_id)
             curr_rows = int(total_rows or 0)
-            prev_files = int(prev_success["files_count"] or 0) if prev_success else 0
-            prev_rows = int(prev_success["rows_count"] or 0) if prev_success else 0
+            prev_ingested = (
+                _count_version_ingested_files(cur, int(prev_ref["id"])) if prev_ref else 0
+            )
+            prev_rows = int(prev_ref["rows_count"] or 0) if prev_ref else 0
+            err_n = len(result.get("errors") or [])
             promote_partial = (
-                prev_success is None
-                or (curr_loaded >= prev_files and curr_rows >= prev_rows)
+                curr_ingested > 0
+                and (
+                    prev_ref is None
+                    or curr_rows >= prev_rows
+                    or curr_ingested >= prev_ingested
+                    or (
+                        prev_ingested > 0
+                        and curr_ingested >= prev_ingested - err_n
+                    )
+                )
             )
             if promote_partial:
                 cur.execute("UPDATE web_versions SET is_active=0")
                 cur.execute(
                     "UPDATE web_versions SET is_active=1 WHERE id=?", (version_id,)
                 )
-                if prev_success is not None:
+                if prev_ref is not None:
                     result.setdefault("warnings", []).append(
                         f"Версия {version_id} помечена как partial (есть ошибки "
-                        f"по отдельным файлам), но активирована, т.к. содержит "
-                        f"больше или столько же данных, сколько success-версия "
-                        f"id={prev_success['id']} ({curr_loaded}/{prev_files} файлов, "
-                        f"{curr_rows}/{prev_rows} строк)."
+                        f"по отдельным файлам), но активирована — валидные файлы "
+                        f"доступны в отчётах (ingested {curr_ingested}/{prev_ingested} "
+                        f"файлов, {curr_rows}/{prev_rows} строк)."
                     )
             else:
                 cur.execute("UPDATE web_versions SET is_active=0")
                 cur.execute(
                     "UPDATE web_versions SET is_active=1 WHERE id=?",
-                    (prev_success["id"],),
+                    (int(prev_ref["id"]),),
                 )
                 result.setdefault("warnings", []).append(
                     f"Версия {version_id} сохранена как partial и НЕ активирована "
-                    f"(меньше данных: {curr_loaded}/{prev_files} файлов, "
+                    f"(ingested {curr_ingested}/{prev_ingested} файлов, "
                     f"{curr_rows}/{prev_rows} строк) — активной оставлена "
-                    f"последняя success-версия id={prev_success['id']}."
+                    f"предыдущая версия id={prev_ref['id']}."
                 )
 
         # Автоочистка архива снимков: храним только N последних версий
@@ -2195,6 +2738,21 @@ def load_all_from_web() -> Dict:
         )
     else:
         st.session_state["project_data_all_snapshots"] = None
+
+    # ── Инкремент: скопированные файлы не наполняли session_state в цикле
+    # (парсинг пропущен). Гидрируем сессию из активной версии БД — иначе
+    # контракт данных и дашборды увидят пустую сессию (project_data=0).
+    if _incremental_copied:
+        try:
+            from web_schema import get_active_version_id
+
+            _active_id = get_active_version_id()
+            if _active_id:
+                read_version_to_session(int(_active_id))
+        except Exception as _hydr_e:
+            result.setdefault("warnings", []).append(
+                f"Инкремент: не удалось гидрировать сессию из БД: {_hydr_e}"
+            )
 
     return result
 
@@ -2274,7 +2832,7 @@ def _infer_file_type_by_name(file_name: str) -> str:
         return "tessa"
 
     # ── Справочники KrStates / DocStates ─────────────────────────────────────
-    if stem in ("docstates", "krstates"):
+    if stem in ("docstates", "krstates", "execdockinds"):
         return "reference_csv"
 
     # ── Статические файлы — пропускаем ───────────────────────────────────────
@@ -2325,6 +2883,12 @@ def _infer_file_type_by_name(file_name: str) -> str:
             or (_ref_prefix and ("sprav" in sl or "справ" in sl))
         ):
             return "reference_json"
+        if "dogovor" in sl:
+            return "dogovor_json"
+        if "kontr" in sl and "spravochnik" not in sl and "справочник" not in sl:
+            return "kontr_json"
+        if "projekts" in sl or "projects" in sl or "projekt" in sl:
+            return "projekts_json"
         if "dannye" in sl or "данные" in sl:
             return "budget_json"
         if _ref_prefix or sl.startswith("1c") or sl.startswith("1с"):
@@ -2411,23 +2975,30 @@ def _restore_date_columns(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce")
 
-    # Period-колонки
+    # Period-колонки. Парсим по уникальным значениям (месяцы/кварталы/годы имеют
+    # низкую кардинальность относительно строк) — это эквивалент построчного
+    # apply, но pd.Period вызывается один раз на уникальное значение.
+    def _periods_from_series(s: pd.Series, freq: str) -> pd.Series:
+        def _conv(x):
+            return (
+                pd.Period(x, freq)
+                if pd.notna(x) and x not in ("NaT", "None", "nan", "")
+                else pd.NaT
+            )
+
+        mapping = {v: _conv(v) for v in pd.unique(s)}
+        return s.map(mapping)
+
     month_cols = [c for c in df.columns if c.endswith("_month") or c.endswith("_quarter") or c.endswith("_year")]
     for col in month_cols:
         if df[col].dtype == object:
             try:
                 if col.endswith("_month"):
-                    df[col] = df[col].apply(
-                        lambda x: pd.Period(x, "M") if pd.notna(x) and x not in ("NaT", "None", "nan", "") else pd.NaT
-                    )
+                    df[col] = _periods_from_series(df[col], "M")
                 elif col.endswith("_quarter"):
-                    df[col] = df[col].apply(
-                        lambda x: pd.Period(x, "Q") if pd.notna(x) and x not in ("NaT", "None", "nan", "") else pd.NaT
-                    )
+                    df[col] = _periods_from_series(df[col], "Q")
                 elif col.endswith("_year"):
-                    df[col] = df[col].apply(
-                        lambda x: pd.Period(x, "Y") if pd.notna(x) and x not in ("NaT", "None", "nan", "") else pd.NaT
-                    )
+                    df[col] = _periods_from_series(df[col], "Y")
             except Exception:
                 pass
 
@@ -2443,19 +3014,18 @@ def _restore_date_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def read_version_to_session(version_id: int):
-    """
-    Загружает данные выбранной версии из SQLite в session_state.
-    project_data  — объединение project + budget + debit_credit типов
-    resources_data — данные ресурсов (для ГДРС)
-    technique_data — данные техники (для ГДРС)
-    """
-    from data_loader import ensure_data_session_state
+@st.cache_data(ttl=600, show_spinner=False)
+def _build_project_frames(
+    version_id: int, _db_mtime: float = 0.0
+) -> tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+    """Готовые кадры проектов из БД: (все снимки, дедуплицированные).
 
-    ensure_data_session_state()
-    _db_mtime = _web_db_mtime()
-
-    # ── Данные проектов (без дебиторки — она в отдельном session_state) ─────
+    Тяжёлая цепочка преобразований (восстановление дат/периодов, иерархия MSP,
+    section по дереву задач, дедупликация снимков) кешируется на (version_id, mtime),
+    чтобы не пересчитывать на каждый rerun/клик по фильтру. Все вызываемые
+    функции чистые (не читают session_state), а st.cache_data возвращает копию,
+    поэтому мутации у вызывающих не отравляют кэш.
+    """
     dfs = []
     for ftype in ("project", "budget"):
         df = _load_version_data(version_id, ftype, _db_mtime)
@@ -2469,15 +3039,36 @@ def read_version_to_session(version_id: int):
             dfs.append(df)
 
     combined = pd.concat(dfs, ignore_index=True) if dfs else None
-    if combined is not None:
-        st.session_state["project_data_all_snapshots"] = combined.copy()
-    else:
-        st.session_state["project_data_all_snapshots"] = None
-    st.session_state.project_data = _deduplicate_project_snapshots(combined) if combined is not None else None
+    if combined is None:
+        return None, None
+    return combined, _deduplicate_project_snapshots(combined)
+
+
+def read_version_to_session(version_id: int):
+    """
+    Загружает данные выбранной версии из SQLite в session_state.
+    project_data  — объединение project + budget + debit_credit типов
+    resources_data — данные ресурсов (для ГДРС)
+    technique_data — данные техники (для ГДРС)
+    """
+    from data_loader import ensure_data_session_state
+
+    ensure_data_session_state()
+    _db_mtime = _web_db_mtime()
+
+    # ── Данные проектов (без дебиторки — она в отдельном session_state) ─────
+    combined, project_data = _build_project_frames(version_id, _db_mtime)
+    st.session_state["project_data_all_snapshots"] = (
+        combined.copy() if combined is not None else None
+    )
+    st.session_state.project_data = project_data
 
     deb = _load_version_data(version_id, "debit_credit", _db_mtime)
     if deb is not None and not deb.empty:
         st.session_state.debit_credit_data = deb
+        _dk_adv = float(getattr(deb, "attrs", {}).get("dk_summary_advance_rub", 0) or 0)
+        if _dk_adv > 0:
+            st.session_state["dk_summary_advance_rub"] = _dk_adv
     else:
         st.session_state.debit_credit_data = None
 
@@ -2535,3 +3126,7 @@ def read_version_to_session(version_id: int):
         kr_path = Path(__file__).resolve().parent / "web" / "KrStates.csv"
         if kr_path.exists():
             st.session_state["reference_krstates"] = _load_reference_csv(kr_path)
+    if st.session_state.get("reference_execdockinds") is None:
+        _edk_path = Path(__file__).resolve().parent / "web" / "ExecDocKinds.csv"
+        if _edk_path.exists():
+            st.session_state["reference_execdockinds"] = _load_reference_csv(_edk_path)

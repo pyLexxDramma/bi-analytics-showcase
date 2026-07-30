@@ -592,6 +592,33 @@ def ensure_date_columns(df: Optional[pd.DataFrame]) -> None:
                     break
 
 
+_MSP_PCT_CELL_RE = re.compile(r"^([+-]?\d+(?:[.,]\d+)?)\s*%")
+
+
+def parse_msp_pct_complete(val: Any) -> Optional[float]:
+    """«0%», «100%», «0% 0 д», «100% 267 д» → число 0..100 или None."""
+    if val is None:
+        return None
+    try:
+        if isinstance(val, float) and pd.isna(val):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        return float(val)
+    s = str(val).strip()
+    if not s or s.lower() in ("nan", "none", "nat", "<na>"):
+        return None
+    m = _MSP_PCT_CELL_RE.match(s)
+    if m:
+        return float(m.group(1).replace(",", "."))
+    s2 = s.replace("%", "").replace(",", ".").strip()
+    try:
+        return float(s2.split()[0])
+    except (ValueError, TypeError, IndexError):
+        return None
+
+
 def ensure_msp_hierarchy_columns(df: Optional[pd.DataFrame]) -> None:
     """
     Добавляет canonical-колонки MSP для дерева задач: task name, level structure, level.
