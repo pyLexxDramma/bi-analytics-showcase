@@ -30,6 +30,18 @@ curl -fsS "http://127.0.0.1:3080/api/health" || true
 echo
 curl -fsS -o /dev/null -w "UI %{http_code}\n" "http://127.0.0.1:3080/" || true
 
+# Данные стенда обновляются только по кнопке «FTP + перезагрузить БД», а она требует
+# admin-токен. Внутри контейнера токен не нужен, поэтому синк делаем на деплое —
+# иначе стенд остаётся на старом снимке 1С и цифры расходятся с основным дашбордом.
+if [[ "${WEBAPP_SKIP_SYNC:-0}" == "1" ]]; then
+  echo "==> data sync skipped (WEBAPP_SKIP_SYNC=1)"
+else
+  echo "==> data sync (FTP -> web/ -> web_data.db)"
+  docker compose exec -T api python -c \
+    'from app.services.ftp_ingest import run_ftp_then_db_ingest; print(run_ftp_then_db_ingest(force=False))' \
+    || echo "data sync FAILED (docker compose logs api)"
+fi
+
 # Прогрев только HTTP (не в процессе API) и только дефолтные фильтры:
 # первый клик по фильтру всё равно считается заново — известное ограничение.
 echo "==> warmup (default filters)"
