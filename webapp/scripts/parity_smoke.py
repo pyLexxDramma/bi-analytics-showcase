@@ -432,14 +432,17 @@ def _bdr_screen_reference() -> dict[str, Any]:
 
 
 def check_approved_budget(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
-    ref = _finance_reference("try_approved_budget_from_1c_dannye")
+    ref = _bdds_screen_reference()
     api = _api_get(base, "/api/approved-budget", timeout)
+    meta = api.get("meta") or {}
     kpis = api.get("kpis") or {}
     rows = api.get("project_rows") or []
     return [
+        _info_row("активная версия", ref["version_id"], meta.get("version_id")),
+        _meta_row("строк 1С (снимок)", ref["rows_1c"], meta.get("rows_1c")),
         _kpi_row("план, млн", ref["plan_mln"], kpis.get("plan_mln")),
         _kpi_row("факт, млн", ref["fact_mln"], kpis.get("fact_mln")),
-        _meta_row("проектов", ref["projects"], len(rows)),
+        _meta_row("проектов", len(ref["by_project"]), len(rows)),
     ]
 
 

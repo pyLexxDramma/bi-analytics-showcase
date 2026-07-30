@@ -703,6 +703,67 @@ def load_bdds_screen_frame(
     )
 
 
+def _approved_budget_fiz_map(reference: pd.DataFrame) -> dict[str, set[str]]:
+    """Связь «проект → ФИЗ» из оборотов 1С для фильтра утверждённого бюджета."""
+    project_candidates = (
+        "Проект",
+        "project",
+        "проект",
+        "проектдляотчетов",
+        "проект для отчетов",
+        "ИмяПроекта",
+    )
+    fiz_candidates = (
+        "ФИЗ",
+        "Физ",
+        "Организация",
+        "Название организации",
+        "НаименованиеОрганизации",
+        "ЮрЛицо",
+        "Юридическое лицо",
+    )
+    project_col = next((col for col in project_candidates if col in reference.columns), None)
+    fiz_col = next((col for col in fiz_candidates if col in reference.columns), None)
+    if not project_col or not fiz_col:
+        return {}
+    out: dict[str, set[str]] = {}
+    for project, fiz in zip(reference[project_col], reference[fiz_col]):
+        project_name = str(project or "").strip()
+        fiz_name = str(fiz or "").strip()
+        if project_name and fiz_name and fiz_name.casefold() not in {"nan", "none"}:
+            out.setdefault(project_name.casefold(), set()).add(fiz_name)
+    return out
+
+
+def load_approved_budget_screen_frame(
+    *,
+    projects: list[str] | None = None,
+    fiz: str | None = None,
+) -> tuple[BddsScreenFrame, list[str]]:
+    """Утверждённый бюджет — накопительный итог полного пути БДДС [main]."""
+    selected = [str(project).strip() for project in (projects or []) if str(project).strip()]
+    try:
+        vid = active_version_id()
+        reference = load_version_df(vid, "reference_dannye") if vid else None
+    except Exception as exc:  # noqa: BLE001
+        return BddsScreenFrame(error=f"Не читаются обороты 1С: {exc}"), []
+    fiz_map = _approved_budget_fiz_map(reference) if reference is not None else {}
+    fiz_options = sorted({item for values in fiz_map.values() for item in values}, key=str.casefold)
+    if fiz and fiz != "Все":
+        matching = {
+            project
+            for project, values in fiz_map.items()
+            if any(value.casefold() == fiz.casefold() for value in values)
+        }
+        selected = [
+            project
+            for project in selected
+            if project.casefold() in matching
+        ] if selected else list(matching)
+    screen = load_bdds_screen_frame(projects=selected, group="month", view="monthly")
+    return screen, fiz_options
+
+
 def _bdds_hints(
     fin: Any,
     hints_mod: Any,

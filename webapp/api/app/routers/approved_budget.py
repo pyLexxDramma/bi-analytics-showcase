@@ -11,6 +11,18 @@ router = APIRouter(prefix="/api/approved-budget", tags=["approved-budget"])
 
 @router.get("")
 def approved_budget_report(
-    project: Optional[str] = Query(None, description="Фильтр проекта"),
+    project: Optional[str] = Query(None, description="Устарело: один проект"),
+    projects: Optional[list[str]] = Query(None, description="Проекты; пусто = все"),
+    fiz: Optional[str] = Query(None, description="ФИЗ / организация / юрлицо"),
+    hide_zero: Optional[bool] = Query(None, description="Скрыть пустые месяцы"),
+    show_deviation: bool = Query(False, description="Показывать отклонение на графике"),
 ):
-    return build_approved_budget_payload(project=project)
+    selected = [item for item in (projects or []) if item and item.strip()]
+    if not selected and project and project.strip() and project != "Все":
+        selected = [project.strip()]
+    return build_approved_budget_payload(
+        projects=selected,
+        fiz=fiz,
+        hide_zero=hide_zero,
+        show_deviation=show_deviation,
+    )

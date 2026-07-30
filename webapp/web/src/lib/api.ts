@@ -335,12 +335,24 @@ export type ApprovedBudgetPayload = {
     rows: number;
     source: string;
     data_mode: string;
-    files: number;
-    rule?: string;
+    parity: string;
+    mode: string;
+    error: string | null;
+    version_id: number | null;
+    rows_1c: number;
+    db?: { active_version_id?: number | null; exists?: boolean };
   };
   filters: {
     projects: string[];
-    applied: { project: string };
+    fiz: string[];
+    mode: string;
+    empty_means_all: boolean;
+    applied: {
+      projects: string[];
+      fiz: string;
+      hide_zero: boolean;
+      show_deviation: boolean;
+    };
   };
   kpis: {
     plan_mln: number;
@@ -349,6 +361,12 @@ export type ApprovedBudgetPayload = {
     remainder_mln: number;
   };
   tremor: {
+    by_period: Array<{
+      period: string;
+      plan: number;
+      fact: number;
+      deviation: number;
+    }>;
     by_project: Array<{
       project: string;
       plan: number;
@@ -356,18 +374,54 @@ export type ApprovedBudgetPayload = {
       deviation: number;
     }>;
   };
+  gauge: {
+    plan: number;
+    fact: number;
+    deviation: number;
+    plan_mlrd: number;
+    fact_mlrd: number;
+    deviation_mlrd: number;
+    fact_pct: number;
+    deviation_pct: number;
+    axis_max_mlrd: number;
+  };
+  period_rows: Array<{
+    period: string;
+    plan: number;
+    fact: number;
+    deviation: number;
+  }>;
   project_rows: Array<{
     project: string;
     plan: number;
     fact: number;
     deviation: number;
     remainder: number;
+    completion_pct: number | null;
+    contract_coverage_pct: number | null;
   }>;
+  totals: { plan: number; fact: number; deviation: number; remainder: number };
+  hints: string[];
+  labels: {
+    period_table_title: string;
+    project_table_title: string;
+    total_period: string;
+  };
+};
+
+export type ApprovedBudgetQuery = {
+  projects?: string[];
+  fiz?: string;
+  hide_zero?: boolean;
+  show_deviation?: boolean;
 };
 
 export async function fetchApprovedBudget(
-  params: QueryParams = {},
+  query: ApprovedBudgetQuery = {},
 ): Promise<ApprovedBudgetPayload> {
+  const params: QueryParams = { projects: query.projects, fiz: query.fiz };
+  if (query.hide_zero !== undefined) params.hide_zero = String(query.hide_zero);
+  if (query.show_deviation !== undefined) params.show_deviation = String(query.show_deviation);
   return apiGet<ApprovedBudgetPayload>("/api/approved-budget", params);
 }
 
