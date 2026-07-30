@@ -18,10 +18,15 @@ services:
       BI_FTP_REMOTE_DIR: ${BI_FTP_REMOTE_DIR:-/web}
       BI_FTP_PORT: ${BI_FTP_PORT:-21}
       BI_FTP_TLS: ${BI_FTP_TLS:-0}
+      WEBAPP_API_WORKERS: ${WEBAPP_API_WORKERS:-1}
+      WEBAPP_JOBS_DIR: ${WEBAPP_JOBS_DIR:-/data/jobs}
+    # OOM на ГДРС уже был: лимит явный, чтобы падал контейнер, а не весь VPS
+    mem_limit: ${WEBAPP_API_MEM_LIMIT:-1200m}
     volumes:
       - ./data/web:/data/web
       - ./data/db:/data/db
       - ./data/report_cache:/data/report_cache
+      - ./data/jobs:/data/jobs
       - ../showcase_data:/showcase/showcase_data:ro
       - ../bi-analytics-v-5-main:/core:ro
       - ../showcase_app.py:/showcase/showcase_app.py:ro

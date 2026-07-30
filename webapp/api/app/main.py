@@ -21,6 +21,7 @@ from app.routers import (
     prescriptions,
     project_documentation,
     project_schedule,
+    versions,
     working_documentation,
 )
 from app.services.ftp_ingest import sync_status
@@ -49,6 +50,7 @@ app.include_router(gdrs_people.router)
 app.include_router(gdrs_equipment.router)
 app.include_router(prescriptions.router)
 app.include_router(executive_docs.router)
+app.include_router(versions.router)
 app.include_router(admin.router)
 
 

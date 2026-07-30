@@ -61,6 +61,13 @@ REPORT_CACHE_DIR = Path(
         str(WEBAPP_ROOT / "data" / "report_cache"),
     )
 )
+# Состояние фоновых jobs — рядом с кэшем, но отдельно: cache_clear() чистит только кэш.
+JOBS_DIR = Path(
+    os.environ.get(
+        "WEBAPP_JOBS_DIR",
+        str(REPORT_CACHE_DIR.parent / "jobs"),
+    )
+)
 
 CORS_ORIGINS = [
     o.strip()

@@ -8,5 +8,8 @@ COPY app ./app
 
 ENV PYTHONUNBUFFERED=1
 ENV WEBAPP_DATA_MODE=synthetic
+# 1 воркер ≈ 230 МБ RSS после прогрева матрицы девпроектов (ГДРС тяжелее — был OOM).
+# Поднимать WEBAPP_API_WORKERS только после замера свободной памяти на VPS.
+ENV WEBAPP_API_WORKERS=1
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WEBAPP_API_WORKERS:-1} --timeout-keep-alive 75"]

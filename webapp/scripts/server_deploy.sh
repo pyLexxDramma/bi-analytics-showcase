@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WEBAPP="$ROOT/webapp"
 cd "$WEBAPP"
 
-mkdir -p data/web
+mkdir -p data/web data/db data/report_cache data/jobs
 
 echo "==> docker compose build/up in $WEBAPP"
 docker compose pull edge || true
@@ -29,5 +29,14 @@ sleep 3
 curl -fsS "http://127.0.0.1:3080/api/health" || true
 echo
 curl -fsS -o /dev/null -w "UI %{http_code}\n" "http://127.0.0.1:3080/" || true
+
+# Прогрев только HTTP (не в процессе API) и только дефолтные фильтры:
+# первый клик по фильтру всё равно считается заново — известное ограничение.
+echo "==> warmup (default filters)"
+for path in "/api/developer-projects" "/api/bdds" "/api/bdr"; do
+  curl -fsS -o /dev/null -m 600 -w "warm ${path} %{http_code} %{time_total}s\n" \
+    "http://127.0.0.1:3080${path}" || echo "warm ${path} FAILED"
+done
+
 echo "Deploy OK. Edge: http://127.0.0.1:3080"
 docker logs cloudpub-webapp --tail 5 2>/dev/null || true

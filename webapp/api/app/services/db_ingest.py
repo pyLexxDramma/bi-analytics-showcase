@@ -1,77 +1,11 @@
 """FTP/web → web_data.db — тот же ETL, что admin «FTP → web/ → БД» в [main]."""
 from __future__ import annotations
 
-import os
-import sys
-import types
 from pathlib import Path
 from typing import Any
 
-from app.config import CORE_APP_DIR, WEB_DATA_DIR, WEB_DB_PATH
-
-
-def _ensure_streamlit_stub() -> None:
-    if "streamlit" in sys.modules:
-        return
-
-    class _FakeSessionState:
-        def __init__(self) -> None:
-            self._d: dict = {}
-
-        def __contains__(self, k: object) -> bool:
-            return k in self._d
-
-        def __getitem__(self, k: str):
-            return self._d[k]
-
-        def __setitem__(self, k: str, v) -> None:
-            self._d[k] = v
-
-        def get(self, k: str, default=None):
-            return self._d.get(k, default)
-
-        def pop(self, k: str, default=None):
-            return self._d.pop(k, default) if k in self._d else default
-
-        def __getattr__(self, name: str):
-            if name == "_d" or name.startswith("__"):
-                raise AttributeError(name)
-            return self._d.get(name)
-
-        def __setattr__(self, name: str, value) -> None:
-            if name == "_d":
-                object.__setattr__(self, name, value)
-            else:
-                if not hasattr(self, "_d"):
-                    object.__setattr__(self, "_d", {})
-                self._d[name] = value
-
-    mock = types.ModuleType("streamlit")
-    mock.session_state = _FakeSessionState()
-    mock.error = lambda *a, **kw: None
-    mock.warning = lambda *a, **kw: None
-    mock.cache_data = lambda *a, **kw: (lambda f: f)
-    mock.cache_resource = lambda *a, **kw: (lambda f: f)
-    sys.modules["streamlit"] = mock
-
-
-def _prepare_core_imports() -> Path:
-    core = CORE_APP_DIR.resolve()
-    if not (core / "web_loader.py").is_file():
-        raise FileNotFoundError(f"web_loader.py не найден в {core}")
-    if str(core) not in sys.path:
-        sys.path.insert(0, str(core))
-
-    db_path = WEB_DB_PATH.resolve()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    os.environ["WEB_DB_PATH"] = str(db_path)
-    # Не тянуть соседний Analitics/web и лишние корни — только WEB_DATA_DIR через monkeypatch.
-    os.environ["BI_ANALYTICS_WEB_INCLUDE_SIBLING"] = "0"
-    os.environ["BI_ANALYTICS_AUTO_FTP_ON_START"] = "0"
-    os.environ.pop("BI_ANALYTICS_WEB_EXTRA_PATHS", None)
-
-    _ensure_streamlit_stub()
-    return core
+from app.config import WEB_DATA_DIR, WEB_DB_PATH
+from app.services.core_bridge import prepare_core_env as _prepare_core_imports
 
 
 def db_status() -> dict[str, Any]:

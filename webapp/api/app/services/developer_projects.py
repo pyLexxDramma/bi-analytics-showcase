@@ -1,20 +1,17 @@
 """Девелоперские проекты — матрица как в [main] (dev_projects_tz_matrix + web_data.db)."""
 from __future__ import annotations
 
-import importlib.util
-import os
 import re
-import sys
 import unicodedata
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 import pandas as pd
 
-from app.config import CORE_APP_DIR, DATA_MODE, WEB_DB_PATH
+from app.config import DATA_MODE, WEB_DB_PATH
+from app.services.core_bridge import import_dashboard_module, prepare_web_db
 from app.services.db_ingest import db_status
 from app.services.report_cache import cache_get, cache_set
 
@@ -71,82 +68,6 @@ def _status(plan: date | None, fact: date | None, pct: float | None) -> str:
     if plan and ((not fact and plan < date.today()) or (fact and fact > plan)):
         return "overdue"
     return "on_track"
-
-
-def _ensure_core_path() -> None:
-    core = str(CORE_APP_DIR.resolve())
-    if core not in sys.path:
-        sys.path.insert(0, core)
-
-
-def _ensure_streamlit_stub() -> None:
-    existing = sys.modules.get("streamlit")
-    if existing is not None and getattr(existing, "cache_data", None) is not None:
-        return
-    try:
-        if importlib.util.find_spec("streamlit") is not None:
-            import streamlit  # noqa: F401
-
-            return
-    except ModuleNotFoundError:
-        pass
-
-    st = ModuleType("streamlit")
-
-    def cache_data(*args, **kwargs):
-        def decorator(fn):
-            return fn
-
-        if len(args) == 1 and callable(args[0]) and not kwargs:
-            return args[0]
-        return decorator
-
-    class _SS(dict):
-        def __getattr__(self, name: str):
-            try:
-                return self[name]
-            except KeyError as exc:
-                raise AttributeError(name) from exc
-
-        def __setattr__(self, name: str, value: Any) -> None:
-            self[name] = value
-
-    st.cache_data = cache_data  # type: ignore[attr-defined]
-    st.session_state = _SS()  # type: ignore[attr-defined]
-    st.error = lambda *a, **kw: None  # type: ignore[attr-defined]
-    st.warning = lambda *a, **kw: None  # type: ignore[attr-defined]
-    sys.modules["streamlit"] = st
-
-
-def _import_dashboard_module(name: str):
-    _ensure_streamlit_stub()
-    _ensure_core_path()
-    full = f"dashboards.{name}"
-    existing = sys.modules.get(full)
-    if existing is not None:
-        return existing
-    if "dashboards" not in sys.modules:
-        pkg = ModuleType("dashboards")
-        pkg.__path__ = [str((CORE_APP_DIR / "dashboards").resolve())]  # type: ignore[attr-defined]
-        sys.modules["dashboards"] = pkg
-    path = CORE_APP_DIR / "dashboards" / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(full, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {path}")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[full] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def _prepare_web_db() -> None:
-    _ensure_streamlit_stub()
-    _ensure_core_path()
-    db_path = str(WEB_DB_PATH.resolve())
-    os.environ["WEB_DB_PATH"] = db_path
-    import web_schema  # type: ignore
-
-    web_schema.WEB_DB_PATH = db_path
 
 
 def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
@@ -352,12 +273,12 @@ def build_developer_projects_payload(
         )
 
     try:
-        _prepare_web_db()
+        prepare_web_db()
         import web_schema  # type: ignore
         from web_loader import _build_project_frames, _web_db_mtime  # type: ignore
         from web_db_read import load_version_dataframe  # type: ignore
 
-        mtx = _import_dashboard_module("dev_projects_tz_matrix")
+        mtx = import_dashboard_module("dev_projects_tz_matrix")
 
         vid = web_schema.get_active_version_id()
         if not vid:
@@ -425,7 +346,7 @@ def build_developer_projects_payload(
 
         hints: list[str] = []
         try:
-            dq = _import_dashboard_module("data_quality_hints")
+            dq = import_dashboard_module("data_quality_hints")
             raw_hints = dq.collect_developer_projects_hints(ss, mdf)
             if isinstance(raw_hints, list):
                 for h in raw_hints:

@@ -1,75 +1,18 @@
 from __future__ import annotations
 
-import importlib.util
 import math
-import sys
 from functools import lru_cache
-from types import ModuleType
 from typing import Any, Literal
 
 import pandas as pd
 
-from app.config import CORE_APP_DIR, DATA_MODE, WEB_DATA_DIR
+from app.config import DATA_MODE, WEB_DATA_DIR
+from app.services.core_bridge import import_dashboard_module as _import_dashboard_module
 
 ResourceKind = Literal["people", "equipment"]
 
 _VID = {"people": "Рабочие", "equipment": "Техника"}
 _UNIT = {"people": "люди", "equipment": "техника"}
-
-
-def _ensure_core_path() -> None:
-    core = str(CORE_APP_DIR.resolve())
-    if core not in sys.path:
-        sys.path.insert(0, core)
-
-
-def _ensure_streamlit_stub() -> None:
-    """API-образ без Streamlit: gdrs_resursi тянет st.cache_data на уровне модуля."""
-    existing = sys.modules.get("streamlit")
-    if existing is not None and getattr(existing, "cache_data", None) is not None:
-        return
-    try:
-        if importlib.util.find_spec("streamlit") is not None:
-            import streamlit  # noqa: F401
-
-            return
-    except ModuleNotFoundError:
-        pass
-
-    st = ModuleType("streamlit")
-
-    def cache_data(*args, **kwargs):
-        def decorator(fn):
-            return fn
-
-        if len(args) == 1 and callable(args[0]) and not kwargs:
-            return args[0]
-        return decorator
-
-    st.cache_data = cache_data  # type: ignore[attr-defined]
-    sys.modules["streamlit"] = st
-
-
-def _import_dashboard_module(name: str):
-    """Загрузка dashboards.<name> без выполнения dashboards/__init__.py (streamlit)."""
-    _ensure_streamlit_stub()
-    _ensure_core_path()
-    full = f"dashboards.{name}"
-    existing = sys.modules.get(full)
-    if existing is not None:
-        return existing
-    if "dashboards" not in sys.modules:
-        pkg = ModuleType("dashboards")
-        pkg.__path__ = [str((CORE_APP_DIR / "dashboards").resolve())]  # type: ignore[attr-defined]
-        sys.modules["dashboards"] = pkg
-    path = CORE_APP_DIR / "dashboards" / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(full, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {path}")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[full] = mod
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _gdrs():

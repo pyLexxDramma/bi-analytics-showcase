@@ -11,7 +11,13 @@ import {
 } from "@/lib/nav";
 import { logout } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
-import { fetchAdminDataStatus, postAdminSync } from "@/lib/api";
+import {
+  fetchAdminDataStatus,
+  fetchDataVersions,
+  postActivateVersion,
+  postAdminSync,
+  type DataVersion,
+} from "@/lib/api";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -42,6 +48,10 @@ export function AppSidebar() {
   const [fileCount, setFileCount] = useState<number | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [versions, setVersions] = useState<DataVersion[]>([]);
+  const [activeVersionId, setActiveVersionId] = useState<number | null>(null);
+  const [versionBusy, setVersionBusy] = useState(false);
+  const [versionNote, setVersionNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeAccordion) setOpenId(activeAccordion);
@@ -52,6 +62,23 @@ export function AppSidebar() {
       .then((s) => setFileCount(s.files))
       .catch(() => setFileCount(null));
   }, [pathname]);
+
+  const loadVersions = () =>
+    fetchDataVersions()
+      .then((v) => {
+        setVersions(v.items || []);
+        setActiveVersionId(v.active_version_id ?? null);
+      })
+      .catch(() => {
+        setVersions([]);
+        setActiveVersionId(null);
+      });
+
+  useEffect(() => {
+    void loadVersions();
+    // селектор версий не зависит от текущей страницы — грузим один раз
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -81,9 +108,36 @@ export function AppSidebar() {
     }
   };
 
+  const applyVersion = async (versionId: number) => {
+    const token = getAdminToken();
+    if (!token) {
+      setVersionNote("Задайте токен в Админ-панели");
+      router.push("/settings/admin");
+      return;
+    }
+    setVersionBusy(true);
+    setVersionNote(null);
+    try {
+      await postActivateVersion(token, versionId);
+      await loadVersions();
+      setVersionNote("Версия переключена");
+      router.refresh();
+    } catch (e) {
+      setVersionNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setVersionBusy(false);
+    }
+  };
+
+  const versionLabel = (v: DataVersion) =>
+    `${v.created_at} | файлов: ${v.files_count}, строк: ${v.rows_count}${
+      v.id === activeVersionId ? " ✅" : ""
+    }`;
+
   return (
-    <aside className="flex w-full shrink-0 flex-col border-r border-gray-200 bg-[#f8f9fb] text-[13px] text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong lg:h-screen lg:w-[280px]">
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+    <aside className="flex w-full shrink-0 flex-col border-r border-gray-200 bg-[#f8f9fb] text-[13px] text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong lg:sticky lg:top-0 lg:h-screen lg:w-[280px] lg:self-start">
+      {/* прокрутка меню включается только под курсором — колесо над дашбордом не двигает сайдбар */}
+      <div className="flex-1 overflow-y-hidden px-3 py-4 hover:overflow-y-auto">
         <section className="mb-5">
           <SectionTitle>Меню</SectionTitle>
           <Link
@@ -238,6 +292,37 @@ export function AppSidebar() {
               <p className="text-[11px] leading-snug text-gray-500">
                 Выгрузка на FTP ежедневно в 07:00 МСК. Токен — в админке.
               </p>
+            )}
+          </div>
+        </section>
+
+        <section className="mb-4">
+          <SectionTitle>Версия данных</SectionTitle>
+          <div className="space-y-2 rounded-md border border-gray-200 bg-white p-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
+            {versions.length === 0 ? (
+              <p className="text-[11px] leading-snug text-gray-500">
+                Нет снимков в БД
+              </p>
+            ) : (
+              <>
+                <select
+                  value={activeVersionId ?? versions[0]?.id ?? ""}
+                  disabled={versionBusy}
+                  onChange={(e) => void applyVersion(Number(e.target.value))}
+                  className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[12px] text-gray-800 disabled:opacity-60 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+                >
+                  {versions.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {versionLabel(v)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] leading-snug text-gray-600 dark:text-dark-tremor-content">
+                  {versionBusy
+                    ? "Переключение…"
+                    : versionNote || `Активная: id ${activeVersionId ?? "—"}`}
+                </p>
+              </>
             )}
           </div>
         </section>

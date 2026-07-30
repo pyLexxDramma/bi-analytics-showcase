@@ -7,6 +7,120 @@ function apiUrl(path: string): string {
   return API_BASE ? `${API_BASE}${p}` : p;
 }
 
+/** Тяжёлые отчёты на холодном кэше считаются минутами — но не бесконечно. */
+export const DEFAULT_TIMEOUT_MS = 120_000;
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly url: string;
+  readonly timeout: boolean;
+
+  constructor(
+    message: string,
+    { status = 0, url = "", timeout = false } = {},
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.url = url;
+    this.timeout = timeout;
+  }
+}
+
+export type QueryValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | null
+  | undefined;
+
+export type QueryParams = Record<string, QueryValue>;
+
+type ApiGetOptions = {
+  timeoutMs?: number;
+  /** «Все»/пустой список → параметр не отправляется (фильтр не применён). */
+  arrayFormat?: "repeat" | "comma";
+};
+
+function appendParam(
+  search: URLSearchParams,
+  key: string,
+  value: QueryValue,
+  arrayFormat: "repeat" | "comma",
+): void {
+  if (value === undefined || value === null || value === "" || value === "Все") {
+    return;
+  }
+  if (Array.isArray(value)) {
+    const items = value.filter((v) => v && v !== "Все");
+    if (!items.length) return;
+    if (arrayFormat === "comma") {
+      search.set(key, items.join(","));
+    } else {
+      items.forEach((item) => search.append(key, item));
+    }
+    return;
+  }
+  if (typeof value === "boolean") {
+    if (value) search.set(key, "true");
+    return;
+  }
+  search.set(key, String(value));
+}
+
+function abortSignal(timeoutMs: number): AbortSignal | undefined {
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  return undefined;
+}
+
+export async function apiGet<T>(
+  path: string,
+  params: QueryParams = {},
+  { timeoutMs = DEFAULT_TIMEOUT_MS, arrayFormat = "repeat" }: ApiGetOptions = {},
+): Promise<T> {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    appendParam(search, key, value, arrayFormat);
+  });
+  const qs = search.toString();
+  const url = apiUrl(`${path}${qs ? `?${qs}` : ""}`);
+
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store", signal: abortSignal(timeoutMs) });
+  } catch (err) {
+    const aborted =
+      err instanceof DOMException &&
+      (err.name === "TimeoutError" || err.name === "AbortError");
+    if (aborted) {
+      throw new ApiError(
+        `Превышено время ожидания (${Math.round(timeoutMs / 1000)} с): ${path}. ` +
+          "Отчёт ещё считается — обновите страницу через минуту.",
+        { url, timeout: true },
+      );
+    }
+    throw new ApiError(
+      `Нет связи с API (${path}): ${err instanceof Error ? err.message : String(err)}`,
+      { url },
+    );
+  }
+
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((body) => (typeof body?.detail === "string" ? body.detail : ""))
+      .catch(() => "");
+    throw new ApiError(detail || `API ${res.status}: ${url}`, {
+      status: res.status,
+      url,
+    });
+  }
+  return (await res.json()) as T;
+}
+
 export type DebitCreditPayload = {
   meta: {
     rows: number;
@@ -63,18 +177,9 @@ export type DebitCreditPayload = {
 };
 
 export async function fetchDebitCredit(
-  params: Record<string, string | undefined> = {},
+  params: QueryParams = {},
 ): Promise<DebitCreditPayload> {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v && v !== "Все") qs.set(k, v);
-  });
-  const url = apiUrl(`/api/debit-credit${qs.toString() ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<DebitCreditPayload>("/api/debit-credit", params);
 }
 
 export type BddsPayload = {
@@ -100,35 +205,15 @@ export type BddsPayload = {
 };
 
 export async function fetchBdds(
-  params: Record<string, string | undefined> = {},
+  params: QueryParams = {},
 ): Promise<BddsPayload> {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value && value !== "Все") qs.set(key, value);
-  });
-  const url = apiUrl(`/api/bdds${qs.toString() ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<BddsPayload>("/api/bdds", params);
 }
 
 export type BdrPayload = BddsPayload;
 
-export async function fetchBdr(
-  params: Record<string, string | undefined> = {},
-): Promise<BdrPayload> {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value && value !== "Все") qs.set(key, value);
-  });
-  const url = apiUrl(`/api/bdr${qs.toString() ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+export async function fetchBdr(params: QueryParams = {}): Promise<BdrPayload> {
+  return apiGet<BdrPayload>("/api/bdr", params);
 }
 
 export type ApprovedBudgetPayload = {
@@ -167,18 +252,9 @@ export type ApprovedBudgetPayload = {
 };
 
 export async function fetchApprovedBudget(
-  params: Record<string, string | undefined> = {},
+  params: QueryParams = {},
 ): Promise<ApprovedBudgetPayload> {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value && value !== "Все") qs.set(key, value);
-  });
-  const url = apiUrl(`/api/approved-budget${qs.toString() ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<ApprovedBudgetPayload>("/api/approved-budget", params);
 }
 
 export type BddsPlanFactPayload = {
@@ -237,18 +313,9 @@ export type BddsPlanFactPayload = {
 };
 
 export async function fetchBddsPlanFact(
-  params: Record<string, string | undefined> = {},
+  params: QueryParams = {},
 ): Promise<BddsPlanFactPayload> {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value && value !== "Все") qs.set(key, value);
-  });
-  const url = apiUrl(`/api/bdds-plan-fact${qs.toString() ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<BddsPlanFactPayload>("/api/bdds-plan-fact", params);
 }
 
 export type DeveloperProjectsCell = {
@@ -323,17 +390,9 @@ export type DeveloperProjectsPayload = {
 export async function fetchDeveloperProjects(
   projects: string[] = [],
 ): Promise<DeveloperProjectsPayload> {
-  const params = new URLSearchParams();
-  for (const p of projects) {
-    if (p && p !== "Все") params.append("projects", p);
-  }
-  const qs = params.toString() ? `?${params.toString()}` : "";
-  const url = apiUrl(`/api/developer-projects${qs}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<DeveloperProjectsPayload>("/api/developer-projects", {
+    projects,
+  });
 }
 
 export type ControlPointsPayload = {
@@ -396,13 +455,7 @@ export type ControlPointsPayload = {
 export async function fetchControlPoints(
   project?: string,
 ): Promise<ControlPointsPayload> {
-  const qs = project && project !== "Все" ? `?project=${encodeURIComponent(project)}` : "";
-  const url = apiUrl(`/api/control-points${qs}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<ControlPointsPayload>("/api/control-points", { project });
 }
 
 export type ProjectSchedulePayload = {
@@ -475,21 +528,7 @@ export type ProjectScheduleQuery = {
 export async function fetchProjectSchedule(
   query: ProjectScheduleQuery = {},
 ): Promise<ProjectSchedulePayload> {
-  const params = new URLSearchParams();
-  if (query.project && query.project !== "Все") {
-    params.set("project", query.project);
-  }
-  if (query.level) params.set("level", query.level);
-  if (query.block && query.block !== "Все") params.set("block", query.block);
-  if (query.hide_completed) params.set("hide_completed", "true");
-  if (query.only_delay) params.set("only_delay", "true");
-  const qs = params.toString();
-  const url = apiUrl(`/api/project-schedule${qs ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<ProjectSchedulePayload>("/api/project-schedule", { ...query });
 }
 
 export type DeviationReasonsPayload = {
@@ -554,25 +593,7 @@ export type DeviationReasonsQuery = {
 export async function fetchDeviationReasons(
   query: DeviationReasonsQuery = {},
 ): Promise<DeviationReasonsPayload> {
-  const params = new URLSearchParams();
-  if (query.project && query.project !== "Все") {
-    params.set("project", query.project);
-  }
-  if (query.block && query.block !== "Все") {
-    params.set("block", query.block);
-  }
-  if (query.reason && query.reason !== "Все") {
-    params.set("reason", query.reason);
-  }
-  if (query.date_from) params.set("date_from", query.date_from);
-  if (query.date_to) params.set("date_to", query.date_to);
-  const qs = params.toString();
-  const url = apiUrl(`/api/deviation-reasons${qs ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<DeviationReasonsPayload>("/api/deviation-reasons", { ...query });
 }
 
 export type BaselineDeviationPayload = {
@@ -652,24 +673,9 @@ export type BaselineDeviationQuery = {
 export async function fetchBaselineDeviation(
   query: BaselineDeviationQuery = {},
 ): Promise<BaselineDeviationPayload> {
-  const params = new URLSearchParams();
-  if (query.project && query.project !== "Все") {
-    params.set("project", query.project);
-  }
-  if (query.block && query.block !== "Все") {
-    params.set("block", query.block);
-  }
-  if (query.building && query.building !== "Все") {
-    params.set("building", query.building);
-  }
-  if (query.level) params.set("level", query.level);
-  const qs = params.toString();
-  const url = apiUrl(`/api/baseline-deviation${qs ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<BaselineDeviationPayload>("/api/baseline-deviation", {
+    ...query,
+  });
 }
 
 export type ProjectDocumentationPayload = {
@@ -733,43 +739,17 @@ export type ProjectDocumentationQuery = {
 export async function fetchProjectDocumentation(
   query: ProjectDocumentationQuery = {},
 ): Promise<ProjectDocumentationPayload> {
-  const params = new URLSearchParams();
-  if (query.project && query.project !== "Все") {
-    params.set("project", query.project);
-  }
-  if (query.section && query.section !== "Все") {
-    params.set("section", query.section);
-  }
-  if (query.granularity) params.set("granularity", query.granularity);
-  if (query.report_date) params.set("report_date", query.report_date);
-  const qs = params.toString();
-  const url = apiUrl(`/api/project-documentation${qs ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<ProjectDocumentationPayload>("/api/project-documentation", {
+    ...query,
+  });
 }
 
 export async function fetchWorkingDocumentation(
   query: ProjectDocumentationQuery = {},
 ): Promise<ProjectDocumentationPayload> {
-  const params = new URLSearchParams();
-  if (query.project && query.project !== "Все") {
-    params.set("project", query.project);
-  }
-  if (query.section && query.section !== "Все") {
-    params.set("section", query.section);
-  }
-  if (query.granularity) params.set("granularity", query.granularity);
-  if (query.report_date) params.set("report_date", query.report_date);
-  const qs = params.toString();
-  const url = apiUrl(`/api/working-documentation${qs ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<ProjectDocumentationPayload>("/api/working-documentation", {
+    ...query,
+  });
 }
 
 export type GdrsPayload = {
@@ -849,44 +829,25 @@ export type GdrsQuery = {
   skud_agg?: string;
 };
 
+/** ГДРС тяжелее прочих экранов — отдельный, больший таймаут. */
+const GDRS_TIMEOUT_MS = 300_000;
+
 export async function fetchGdrsPeople(
   query: GdrsQuery = {},
 ): Promise<GdrsPayload> {
-  const params = new URLSearchParams();
-  if (query.projects?.length) params.set("projects", query.projects.join(","));
-  if (query.contractors?.length) {
-    params.set("contractors", query.contractors.join(","));
-  }
-  if (query.months?.length) params.set("months", query.months.join(","));
-  if (query.plan_agg) params.set("plan_agg", query.plan_agg);
-  if (query.skud_agg) params.set("skud_agg", query.skud_agg);
-  const qs = params.toString();
-  const url = apiUrl(`/api/gdrs-people${qs ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<GdrsPayload>("/api/gdrs-people", { ...query }, {
+    arrayFormat: "comma",
+    timeoutMs: GDRS_TIMEOUT_MS,
+  });
 }
 
 export async function fetchGdrsEquipment(
   query: GdrsQuery = {},
 ): Promise<GdrsPayload> {
-  const params = new URLSearchParams();
-  if (query.projects?.length) params.set("projects", query.projects.join(","));
-  if (query.contractors?.length) {
-    params.set("contractors", query.contractors.join(","));
-  }
-  if (query.months?.length) params.set("months", query.months.join(","));
-  if (query.plan_agg) params.set("plan_agg", query.plan_agg);
-  if (query.skud_agg) params.set("skud_agg", query.skud_agg);
-  const qs = params.toString();
-  const url = apiUrl(`/api/gdrs-equipment${qs ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<GdrsPayload>("/api/gdrs-equipment", { ...query }, {
+    arrayFormat: "comma",
+    timeoutMs: GDRS_TIMEOUT_MS,
+  });
 }
 
 export type PrescriptionsPayload = {
@@ -952,18 +913,9 @@ export type PrescriptionsPayload = {
 };
 
 export async function fetchPrescriptions(
-  params: Record<string, string | undefined> = {},
+  params: QueryParams = {},
 ): Promise<PrescriptionsPayload> {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v && v !== "Все") qs.set(k, v);
-  });
-  const url = apiUrl(`/api/prescriptions${qs.toString() ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<PrescriptionsPayload>("/api/prescriptions", params);
 }
 
 export type ExecutiveDocsPayload = {
@@ -1035,18 +987,9 @@ export type ExecutiveDocsPayload = {
 };
 
 export async function fetchExecutiveDocs(
-  params: Record<string, string | undefined> = {},
+  params: QueryParams = {},
 ): Promise<ExecutiveDocsPayload> {
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v && v !== "Все") qs.set(k, v);
-  });
-  const url = apiUrl(`/api/executive-docs${qs.toString() ? `?${qs}` : ""}`);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<ExecutiveDocsPayload>("/api/executive-docs", params);
 }
 
 export type AdminDbStatus = {
@@ -1068,12 +1011,9 @@ export type AdminDataStatus = {
 };
 
 export async function fetchAdminDataStatus(): Promise<AdminDataStatus> {
-  const url = apiUrl("/api/admin/data-status");
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+  return apiGet<AdminDataStatus>("/api/admin/data-status", {}, {
+    timeoutMs: 30_000,
+  });
 }
 
 export type AdminSyncResult = {
@@ -1110,6 +1050,7 @@ async function postAdminAction(
     headers: {
       "X-Admin-Token": token,
     },
+    signal: abortSignal(60_000),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -1117,7 +1058,7 @@ async function postAdminAction(
       typeof body?.detail === "string"
         ? body.detail
         : `API ${res.status}: ${url}`;
-    throw new Error(detail);
+    throw new ApiError(detail, { status: res.status, url });
   }
   return body as AdminSyncResult;
 }
@@ -1135,6 +1076,33 @@ export async function postAdminIngest(token: string): Promise<AdminSyncResult> {
   return postAdminAction("/api/admin/ingest", token);
 }
 
+export type DataVersion = {
+  id: number;
+  created_at: string;
+  label?: string | null;
+  status?: string | null;
+  files_count: number;
+  rows_count: number;
+  is_active: boolean;
+};
+
+export type DataVersionsPayload = {
+  items: DataVersion[];
+  active_version_id: number | null;
+  error?: string | null;
+};
+
+export async function fetchDataVersions(): Promise<DataVersionsPayload> {
+  return apiGet<DataVersionsPayload>("/api/versions", {}, { timeoutMs: 30_000 });
+}
+
+export async function postActivateVersion(
+  token: string,
+  versionId: number,
+): Promise<AdminSyncResult> {
+  return postAdminAction(`/api/admin/versions/${versionId}/activate`, token);
+}
+
 export async function fetchAdminJob(
   token: string,
   jobId: string,
@@ -1143,6 +1111,7 @@ export async function fetchAdminJob(
   const res = await fetch(url, {
     cache: "no-store",
     headers: { "X-Admin-Token": token },
+    signal: abortSignal(30_000),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -1150,23 +1119,20 @@ export async function fetchAdminJob(
       typeof body?.detail === "string"
         ? body.detail
         : `API ${res.status}: ${url}`;
-    throw new Error(detail);
+    throw new ApiError(detail, { status: res.status, url });
   }
   return body as AdminJob;
 }
 
-export async function fetchHealth(): Promise<{
+export type HealthPayload = {
   ok: boolean;
   version?: string;
   data_mode?: string;
   files?: number;
   web_db_exists?: boolean;
   active_version_id?: number | null;
-}> {
-  const url = apiUrl("/api/health");
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${url}`);
-  }
-  return res.json();
+};
+
+export async function fetchHealth(): Promise<HealthPayload> {
+  return apiGet<HealthPayload>("/api/health", {}, { timeoutMs: 15_000 });
 }
