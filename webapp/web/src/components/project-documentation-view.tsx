@@ -13,7 +13,6 @@ import {
 } from "@tremor/react";
 import {
   fetchProjectDocumentation,
-  fetchWorkingDocumentation,
   type ProjectDocumentationPayload,
   type ProjectDocumentationQuery,
 } from "@/lib/api";
@@ -932,16 +931,6 @@ export function ProjectDocumentationView() {
       title="Проектная документация"
       fetchPayload={fetchProjectDocumentation}
       showDelayTab
-    />
-  );
-}
-
-export function WorkingDocumentationView() {
-  return (
-    <ProjectDocumentationScreen
-      title="Рабочая документация"
-      fetchPayload={fetchWorkingDocumentation}
-      showDelayTab={false}
     />
   );
 }

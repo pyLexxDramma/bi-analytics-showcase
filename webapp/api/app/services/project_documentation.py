@@ -1247,12 +1247,3 @@ def build_project_documentation_payload(
         out = _empty_payload(error=str(exc)[:400])
         return out
 
-
-def build_working_documentation_payload(**kwargs: Any) -> dict[str, Any]:
-    """РД: тот же MSP-источник БД (экран #11 — упрощённый паритет до отдельной итерации)."""
-    payload = build_project_documentation_payload(**kwargs)
-    payload["meta"]["doc_kind"] = "rd"
-    payload["meta"]["title"] = "Рабочая документация"
-    payload["meta"]["parity"] = "main_working_documentation_db_stub"
-    payload["meta"]["rule"] = "MSP через web_data.db (полная логика РД/TESSA — экран #11)"
-    return payload

@@ -1080,10 +1080,111 @@ export async function fetchProjectDocumentation(
   });
 }
 
+export type WorkingDocumentationPayload = {
+  meta: {
+    rows: number;
+    source: string;
+    data_mode: string;
+    files: number;
+    doc_kind: string;
+    title: string;
+    rule?: string;
+    parity?: string;
+    version_id?: number | null;
+    error?: string | null;
+  };
+  filters: {
+    projects: string[];
+    sections: string[];
+    statuses: string[];
+    period_modes: string[];
+    metric_modes: string[];
+    view_modes: Array<{ id: string; label: string }>;
+    plan_date_min?: string | null;
+    plan_date_max?: string | null;
+    applied: {
+      projects: string[];
+      sections: string[];
+      statuses: string[];
+      period_mode: string;
+      date_from: string | null;
+      date_to: string | null;
+      metric_mode: string;
+      show_forecast: boolean;
+      view_mode: string;
+      tab: string;
+    };
+  };
+  kpis: {
+    total_sections: number;
+    overdue: number;
+    avg_delay: number;
+    plan_total: number;
+    plan_to_date: number;
+    fact_to_date: number;
+    deviation_to_date: number;
+    planned_weekly: number | null;
+    fact_weekly: number | null;
+    nec_weekly: number | null;
+  };
+  tremor: {
+    status_mix: Array<{ name: string; value: number; color?: string }>;
+    dynamics: Array<{
+      period: string;
+      period_label: string;
+      plan: number;
+      fact: number;
+    }>;
+    monthly: Array<{
+      month: string;
+      month_label: string;
+      plan: number;
+      fact: number;
+      fact_inc?: number;
+    }>;
+  };
+  detail_rows: Array<Record<string, string | number | null>>;
+  detail_columns: string[];
+  delay: {
+    gantt: {
+      rows: Array<{
+        label: string;
+        start: string | null;
+        base_finish: string | null;
+        finish: string | null;
+        delay_end: string | null;
+        base_dur: number;
+        fact_dur: number;
+        delay_dur: number;
+        base_label: string;
+        fact_label: string;
+        delay_label: string;
+      }>;
+      range_start: string | null;
+      range_end: string | null;
+    };
+    detail_rows: Array<Record<string, string | number | null>>;
+    detail_columns: string[];
+  };
+};
+
+export type WorkingDocumentationQuery = {
+  project?: string;
+  section?: string;
+  status?: string;
+  period_mode?: string;
+  date_from?: string;
+  date_to?: string;
+  metric_mode?: string;
+  show_forecast?: boolean;
+  view_mode?: string;
+  tab?: string;
+};
+
 export async function fetchWorkingDocumentation(
-  query: ProjectDocumentationQuery = {},
-): Promise<ProjectDocumentationPayload> {
-  return apiGet<ProjectDocumentationPayload>("/api/working-documentation", {
+  query: WorkingDocumentationQuery = {},
+): Promise<WorkingDocumentationPayload> {
+  return apiGet<WorkingDocumentationPayload>("/api/working-documentation", {
     ...query,
   });
 }

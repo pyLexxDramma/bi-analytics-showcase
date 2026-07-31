@@ -625,6 +625,43 @@ def check_project_documentation(base: str, timeout: float) -> list[tuple[str, An
     ]
 
 
+def check_working_documentation(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    vid, _ = _reference_frame()
+    api = _api_get(base, "/api/working-documentation", timeout)
+    meta = api.get("meta") or {}
+    filters = api.get("filters") or {}
+    applied = filters.get("applied") or {}
+    kpis = api.get("kpis") or {}
+    tremor = api.get("tremor") or {}
+    detail = api.get("detail_rows") or []
+    delay = api.get("delay") or {}
+    gantt = delay.get("gantt") or {}
+    pie = tremor.get("status_mix") or []
+    total = int(kpis.get("total_sections") or 0)
+    return [
+        _info_row("активная версия", vid, meta.get("version_id")),
+        _meta_row("meta.error", None, meta.get("error") or None),
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_working_documentation_rd_plan_tessa", meta.get("parity")),
+        _meta_row("doc_kind", "rd", meta.get("doc_kind")),
+        _bool_row("проектов в фильтре > 1", len(filters.get("projects") or []) > 1),
+        _bool_row("KPI total_sections > 0", total > 0),
+        _bool_row("KPI overdue ≥ 0", int(kpis.get("overdue") or 0) >= 0),
+        _bool_row("KPI avg_delay ≥ 0", float(kpis.get("avg_delay") or 0) >= 0),
+        _bool_row("pie non-empty if data", (total == 0) or (len(pie) > 0)),
+        _bool_row("dynamics ≥ 0", len(tremor.get("dynamics") or []) >= 0),
+        _bool_row("monthly ≥ 0", len(tremor.get("monthly") or []) >= 0),
+        _bool_row("detail rows ≥ 0", len(detail) >= 0),
+        _bool_row("gantt rows ≥ 0", len(gantt.get("rows") or []) >= 0),
+        _meta_row("view_mode default", "project", applied.get("view_mode") or "project"),
+        _meta_row(
+            "period_mode default",
+            "Весь период (за всё время)",
+            applied.get("period_mode") or "Весь период (за всё время)",
+        ),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -657,6 +694,7 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "deviation-reasons": check_deviation_reasons,
     "baseline-deviation": check_baseline_deviation,
     "project-documentation": check_project_documentation,
+    "working-documentation": check_working_documentation,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,

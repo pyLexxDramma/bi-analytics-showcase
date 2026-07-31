@@ -1,5 +1,5 @@
-import { WorkingDocumentationView } from "@/components/project-documentation-view";
+import { WorkingDocumentationView } from "@/components/working-documentation-view";
 
-export default function Page() {
+export default function WorkingDocumentationPage() {
   return <WorkingDocumentationView />;
 }
