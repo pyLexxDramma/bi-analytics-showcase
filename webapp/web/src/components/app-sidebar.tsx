@@ -9,10 +9,11 @@ import {
   REPORT_TOP_TAB,
   accordionIdForPath,
 } from "@/lib/nav";
-import { logout } from "@/lib/auth";
+import { getAuthSession, isAdminRole, logout } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
 import {
   fetchAdminDataStatus,
+  fetchAdminJob,
   fetchDataVersions,
   postActivateVersion,
   postAdminSync,
@@ -38,6 +39,37 @@ function Chevron({ open }: { open: boolean }) {
       ▸
     </span>
   );
+}
+
+/** Как main `_fmt`: дата/время выгрузки + файлы/строки. */
+function formatVersionStamp(raw: string): string {
+  const s = (raw || "").trim();
+  if (!s) return "—";
+  // "2026-07-30 14:04:15" → "30.07.2026 14:04"
+  const m = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::\d{2})?/,
+  );
+  if (m) return `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`;
+  return s;
+}
+
+function versionCaption(v: DataVersion, activeId: number | null): string {
+  const base = `${formatVersionStamp(v.created_at)} · файлов ${v.files_count}, строк ${v.rows_count}`;
+  return v.id === activeId ? `${base} ✅` : base;
+}
+
+async function waitAdminJob(
+  token: string | null,
+  jobId: string,
+  onTick?: (status: string) => void,
+) {
+  for (let i = 0; i < 180; i += 1) {
+    const job = await fetchAdminJob(token, jobId);
+    onTick?.(job.status);
+    if (job.status === "ok" || job.status === "error") return job;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error("Таймаут ожидания FTP/БД");
 }
 
 export function AppSidebar() {
@@ -76,31 +108,55 @@ export function AppSidebar() {
 
   useEffect(() => {
     void loadVersions();
-    // селектор версий не зависит от текущей страницы — грузим один раз
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pathname]);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
   const runFtpSync = async () => {
     const token = getAdminToken();
-    if (!token) {
-      setSyncNote("Задайте токен в Админ-панели");
+    const session = getAuthSession();
+    const canFtp =
+      Boolean(token) ||
+      (session &&
+        (isAdminRole(session.role) ||
+          session.role.toLowerCase() === "analyst"));
+    if (!canFtp) {
+      setSyncNote("Войдите как admin/analyst или задайте токен в админке");
       router.push("/settings/admin");
       return;
     }
     setSyncBusy(true);
     setSyncNote(null);
     try {
-      const r = await postAdminSync(token, false);
-      setSyncNote(
-        r.ok
-          ? `OK · файлов ${r.files ?? "—"} · скачано ${r.downloaded ?? 0}`
-          : `Ошибка: ${(r.errors || []).join("; ") || "см. админку"}`,
-      );
+      const r = await postAdminSync(token || null, false);
+      if (r.async && r.job_id) {
+        setSyncNote(`job ${r.job_id}: queued`);
+        const job = await waitAdminJob(token || null, r.job_id, (s) =>
+          setSyncNote(`Синхронизация… ${s}`),
+        );
+        if (job.status !== "ok") {
+          setSyncNote(job.error || "Ошибка FTP/БД");
+          return;
+        }
+        const result =
+          typeof job.result === "object" && job.result
+            ? (job.result as Record<string, unknown>)
+            : {};
+        setSyncNote(
+          `OK · файлов ${String(result.files ?? "—")} · активная версия обновлена`,
+        );
+      } else {
+        setSyncNote(
+          r.ok
+            ? `OK · файлов ${r.files ?? "—"} · скачано ${r.downloaded ?? 0}`
+            : `Ошибка: ${(r.errors || []).join("; ") || "см. админку"}`,
+        );
+      }
       const st = await fetchAdminDataStatus();
       setFileCount(st.files);
+      await loadVersions();
+      router.refresh();
     } catch (e) {
       setSyncNote(e instanceof Error ? e.message : String(e));
     } finally {
@@ -109,18 +165,20 @@ export function AppSidebar() {
   };
 
   const applyVersion = async (versionId: number) => {
+    if (versionId === activeVersionId) return;
     const token = getAdminToken();
-    if (!token) {
-      setVersionNote("Задайте токен в Админ-панели");
-      router.push("/settings/admin");
+    const session = getAuthSession();
+    if (!token && !session) {
+      setVersionNote("Войдите в систему или задайте токен в админке");
+      router.push("/login");
       return;
     }
     setVersionBusy(true);
     setVersionNote(null);
     try {
-      await postActivateVersion(token, versionId);
+      await postActivateVersion(token || null, versionId);
       await loadVersions();
-      setVersionNote("Версия переключена");
+      setVersionNote("Версия переключена — дашборд на свежих данных");
       router.refresh();
     } catch (e) {
       setVersionNote(e instanceof Error ? e.message : String(e));
@@ -128,11 +186,6 @@ export function AppSidebar() {
       setVersionBusy(false);
     }
   };
-
-  const versionLabel = (v: DataVersion) =>
-    `${v.created_at} | файлов: ${v.files_count}, строк: ${v.rows_count}${
-      v.id === activeVersionId ? " ✅" : ""
-    }`;
 
   return (
     <aside className="flex w-full shrink-0 flex-col border-r border-gray-200 bg-[#f8f9fb] text-[13px] text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong lg:sticky lg:top-0 lg:h-screen lg:w-[280px] lg:self-start">
@@ -253,29 +306,13 @@ export function AppSidebar() {
         <section className="mb-4">
           <SectionTitle>Данные</SectionTitle>
           <div className="space-y-2 rounded-md border border-gray-200 bg-white p-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
-            <label className="flex cursor-default items-center gap-2 text-gray-500">
-              <input type="radio" disabled name="data-src" />
-              Загрузить вручную
-            </label>
-            <label className="flex cursor-default items-center gap-2">
-              <input type="radio" name="data-src" defaultChecked readOnly />
-              Из папки web/
-              {fileCount != null ? (
-                <span className="text-[11px] text-gray-500">
-                  ({fileCount} файл.)
-                </span>
-              ) : null}
-            </label>
-            <label className="flex cursor-default items-center gap-2 text-gray-500">
-              <input type="radio" disabled name="data-src" />
-              FTP + web/
-            </label>
-            <Link
-              href="/settings/admin"
-              className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-center text-gray-700 hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
-            >
-              Статус web/…
-            </Link>
+            <p className="text-[11px] leading-snug text-gray-600 dark:text-dark-tremor-content">
+              Staging:{" "}
+              <span className="font-medium text-gray-800 dark:text-dark-tremor-content-strong">
+                web/
+              </span>
+              {fileCount != null ? ` · ${fileCount} файл.` : null}
+            </p>
             <button
               type="button"
               disabled={syncBusy}
@@ -290,37 +327,64 @@ export function AppSidebar() {
               </p>
             ) : (
               <p className="text-[11px] leading-snug text-gray-500">
-                Выгрузка на FTP ежедневно в 07:00 МСК. Токен — в админке.
+                07:00 МСК — выгрузка 1С на FTP. Кнопка тянет файлы и создаёт
+                новый снимок в списке ниже.
               </p>
             )}
           </div>
         </section>
 
         <section className="mb-4">
-          <SectionTitle>Версия данных</SectionTitle>
-          <div className="space-y-2 rounded-md border border-gray-200 bg-white p-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
+          <SectionTitle>Версия данных (в дашбордах)</SectionTitle>
+          <div className="space-y-1.5 rounded-md border border-gray-200 bg-white p-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
             {versions.length === 0 ? (
-              <p className="text-[11px] leading-snug text-gray-500">
-                Нет снимков в БД
+              <p className="px-1 py-1 text-[11px] leading-snug text-gray-500">
+                Нет снимков в БД — нажмите «FTP + перезагрузить БД»
               </p>
             ) : (
               <>
-                <select
-                  value={activeVersionId ?? versions[0]?.id ?? ""}
-                  disabled={versionBusy}
-                  onChange={(e) => void applyVersion(Number(e.target.value))}
-                  className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[12px] text-gray-800 disabled:opacity-60 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-                >
-                  {versions.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {versionLabel(v)}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] leading-snug text-gray-600 dark:text-dark-tremor-content">
+                <ul className="max-h-52 space-y-1 overflow-y-auto">
+                  {versions.map((v) => {
+                    const active = v.id === activeVersionId;
+                    return (
+                      <li key={v.id}>
+                        <button
+                          type="button"
+                          disabled={versionBusy}
+                          onClick={() => void applyVersion(v.id)}
+                          className={`w-full rounded-md border px-2 py-1.5 text-left text-[11px] leading-snug transition disabled:opacity-60 ${
+                            active
+                              ? "border-emerald-500 bg-emerald-50 font-semibold text-emerald-900 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-100"
+                              : "border-amber-800/40 bg-amber-50/80 text-amber-950 hover:border-amber-800 dark:border-amber-700/50 dark:bg-amber-950/20 dark:text-amber-100"
+                          }`}
+                          title={
+                            active
+                              ? "Активная версия (загружена в дашборды)"
+                              : "Предыдущая выгрузка — клик активирует"
+                          }
+                        >
+                          <span className="block">
+                            {versionCaption(v, activeVersionId)}
+                          </span>
+                          <span
+                            className={`mt-0.5 block text-[10px] ${
+                              active
+                                ? "text-emerald-700 dark:text-emerald-300"
+                                : "text-amber-800/80 dark:text-amber-200/80"
+                            }`}
+                          >
+                            {active ? "активная" : `снимок #${v.id}`}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="px-1 text-[11px] leading-snug text-gray-600 dark:text-dark-tremor-content">
                   {versionBusy
                     ? "Переключение…"
-                    : versionNote || `Активная: id ${activeVersionId ?? "—"}`}
+                    : versionNote ||
+                      "Зелёная — текущая; коричневая — клик переключает"}
                 </p>
               </>
             )}

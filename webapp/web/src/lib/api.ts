@@ -1668,17 +1668,22 @@ export type AdminJob = {
   error?: string | null;
 };
 
+async function adminHeaders(token?: string | null): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { ...authHeaders() };
+  const t = (token || "").trim();
+  if (t) headers["X-Admin-Token"] = t;
+  return headers;
+}
+
 async function postAdminAction(
   path: string,
-  token: string,
+  token?: string | null,
 ): Promise<AdminSyncResult> {
   const url = apiUrl(path);
   const res = await fetch(url, {
     method: "POST",
     cache: "no-store",
-    headers: {
-      "X-Admin-Token": token,
-    },
+    headers: await adminHeaders(token),
     signal: abortSignal(60_000),
   });
   const body = await res.json().catch(() => ({}));
@@ -1693,7 +1698,7 @@ async function postAdminAction(
 }
 
 export async function postAdminSync(
-  token: string,
+  token?: string | null,
   force = false,
 ): Promise<AdminSyncResult> {
   const qs = force ? "?force=true" : "";
@@ -1701,7 +1706,7 @@ export async function postAdminSync(
 }
 
 /** web/ → web_data.db (без FTP; synthetic и ftp). */
-export async function postAdminIngest(token: string): Promise<AdminSyncResult> {
+export async function postAdminIngest(token?: string | null): Promise<AdminSyncResult> {
   return postAdminAction("/api/admin/ingest", token);
 }
 
@@ -1726,20 +1731,20 @@ export async function fetchDataVersions(): Promise<DataVersionsPayload> {
 }
 
 export async function postActivateVersion(
-  token: string,
+  token: string | null | undefined,
   versionId: number,
 ): Promise<AdminSyncResult> {
   return postAdminAction(`/api/admin/versions/${versionId}/activate`, token);
 }
 
 export async function fetchAdminJob(
-  token: string,
+  token: string | null | undefined,
   jobId: string,
 ): Promise<AdminJob> {
   const url = apiUrl(`/api/admin/jobs/${encodeURIComponent(jobId)}`);
   const res = await fetch(url, {
     cache: "no-store",
-    headers: { "X-Admin-Token": token },
+    headers: await adminHeaders(token),
     signal: abortSignal(30_000),
   });
   const body = await res.json().catch(() => ({}));
