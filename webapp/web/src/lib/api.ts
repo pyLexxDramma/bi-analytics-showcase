@@ -1,3 +1,6 @@
+import type { AuthUser } from "@/lib/auth";
+import { authHeaders } from "@/lib/auth";
+
 export const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE ?? ""
 ).replace(/\/$/, "");
@@ -41,6 +44,7 @@ type ApiGetOptions = {
   timeoutMs?: number;
   /** «Все»/пустой список → параметр не отправляется (фильтр не применён). */
   arrayFormat?: "repeat" | "comma";
+  headers?: Record<string, string>;
 };
 
 function appendParam(
@@ -79,7 +83,7 @@ function abortSignal(timeoutMs: number): AbortSignal | undefined {
 export async function apiGet<T>(
   path: string,
   params: QueryParams = {},
-  { timeoutMs = DEFAULT_TIMEOUT_MS, arrayFormat = "repeat" }: ApiGetOptions = {},
+  { timeoutMs = DEFAULT_TIMEOUT_MS, arrayFormat = "repeat", headers = {} }: ApiGetOptions = {},
 ): Promise<T> {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -90,7 +94,11 @@ export async function apiGet<T>(
 
   let res: Response;
   try {
-    res = await fetch(url, { cache: "no-store", signal: abortSignal(timeoutMs) });
+    res = await fetch(url, {
+      cache: "no-store",
+      signal: abortSignal(timeoutMs),
+      headers,
+    });
   } catch (err) {
     const aborted =
       err instanceof DOMException &&
@@ -118,6 +126,123 @@ export async function apiGet<T>(
       url,
     });
   }
+  return (await res.json()) as T;
+}
+
+type ApiPostOptions = {
+  timeoutMs?: number;
+  headers?: Record<string, string>;
+};
+
+export async function apiPost<T>(
+  path: string,
+  body: unknown = {},
+  { timeoutMs = DEFAULT_TIMEOUT_MS, headers = {} }: ApiPostOptions = {},
+): Promise<T> {
+  const url = apiUrl(path.startsWith("/") ? path : `/${path}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify(body),
+      signal: abortSignal(timeoutMs),
+    });
+  } catch (err) {
+    throw new ApiError(
+      `Нет связи с API (${path}): ${err instanceof Error ? err.message : String(err)}`,
+      { url },
+    );
+  }
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
+      .catch(() => "");
+    throw new ApiError(detail || `API ${res.status}: ${url}`, {
+      status: res.status,
+      url,
+    });
+  }
+  return (await res.json()) as T;
+}
+
+export async function apiPut<T>(
+  path: string,
+  body: unknown = {},
+  { timeoutMs = DEFAULT_TIMEOUT_MS, headers = {} }: ApiPostOptions = {},
+): Promise<T> {
+  const url = apiUrl(path.startsWith("/") ? path : `/${path}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PUT",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify(body),
+      signal: abortSignal(timeoutMs),
+    });
+  } catch (err) {
+    throw new ApiError(
+      `Нет связи с API (${path}): ${err instanceof Error ? err.message : String(err)}`,
+      { url },
+    );
+  }
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
+      .catch(() => "");
+    throw new ApiError(detail || `API ${res.status}: ${url}`, {
+      status: res.status,
+      url,
+    });
+  }
+  return (await res.json()) as T;
+}
+
+export async function apiDelete<T>(
+  path: string,
+  body: unknown = {},
+  { timeoutMs = DEFAULT_TIMEOUT_MS, headers = {} }: ApiPostOptions = {},
+): Promise<T> {
+  const url = apiUrl(path.startsWith("/") ? path : `/${path}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify(body),
+      signal: abortSignal(timeoutMs),
+    });
+  } catch (err) {
+    throw new ApiError(
+      `Нет связи с API (${path}): ${err instanceof Error ? err.message : String(err)}`,
+      { url },
+    );
+  }
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
+      .catch(() => "");
+    throw new ApiError(detail || `API ${res.status}: ${url}`, {
+      status: res.status,
+      url,
+    });
+  }
+  if (res.status === 204) return {} as T;
   return (await res.json()) as T;
 }
 
@@ -1639,4 +1764,190 @@ export type HealthPayload = {
 
 export async function fetchHealth(): Promise<HealthPayload> {
   return apiGet<HealthPayload>("/api/health", {}, { timeoutMs: 15_000 });
+}
+
+export type AuthStatusPayload = {
+  users_db_exists: boolean;
+  users_db_path: string;
+  demo_fallback: boolean;
+};
+
+export async function fetchAuthStatus(): Promise<AuthStatusPayload> {
+  return apiGet<AuthStatusPayload>("/api/auth/status", {}, { timeoutMs: 15_000 });
+}
+
+export async function postAuthLogin(
+  username: string,
+  password: string,
+): Promise<{ ok: boolean; user: AuthUser }> {
+  return apiPost("/api/auth/login", { username, password });
+}
+
+export async function fetchAuthMe(): Promise<{ ok: boolean; user: AuthUser }> {
+  return apiGet("/api/auth/me", {}, { headers: authHeaders(), timeoutMs: 15_000 });
+}
+
+export async function postProfilePassword(
+  oldPassword: string,
+  newPassword: string,
+): Promise<{ ok: boolean; message: string }> {
+  return apiPost(
+    "/api/profile/password",
+    { old_password: oldPassword, new_password: newPassword },
+    { headers: authHeaders() },
+  );
+}
+
+export async function postProfileEmail(
+  newEmail: string | null,
+): Promise<{ ok: boolean; message: string; email?: string | null }> {
+  return apiPost(
+    "/api/profile/email",
+    { new_email: newEmail },
+    { headers: authHeaders() },
+  );
+}
+
+export type SettingsUser = {
+  id: number;
+  username: string;
+  role: string;
+  role_label: string;
+  email: string | null;
+  created_at: string | null;
+  created_at_fmt: string;
+  last_login: string | null;
+  last_login_fmt: string;
+  is_active: boolean;
+};
+
+export async function fetchSettingsUsers(): Promise<{ items: SettingsUser[] }> {
+  return apiGet("/api/settings/users", {}, { headers: authHeaders() });
+}
+
+export async function postSettingsUser(body: {
+  username: string;
+  password: string;
+  role: string;
+  email?: string;
+}): Promise<{ ok: boolean }> {
+  return apiPost("/api/settings/users", body, { headers: authHeaders() });
+}
+
+export async function postSettingsChangeRole(body: {
+  user_id: number;
+  new_role: string;
+}): Promise<{ ok: boolean }> {
+  return apiPost("/api/settings/users/change-role", body, {
+    headers: authHeaders(),
+  });
+}
+
+export async function deleteSettingsUser(userId: number): Promise<{ ok: boolean; message?: string }> {
+  return apiDelete(`/api/settings/users/${userId}`, {}, { headers: authHeaders() });
+}
+
+export type SettingsStats = {
+  total_users: number;
+  active_users: number;
+  users_with_login: number;
+  total_logs: number;
+  roles: Array<{ role: string; role_label: string; count: number }>;
+};
+
+export async function fetchSettingsStats(): Promise<SettingsStats> {
+  return apiGet("/api/settings/stats", {}, { headers: authHeaders() });
+}
+
+export type SettingsLogRow = {
+  id: number;
+  username: string;
+  action: string;
+  action_key?: string;
+  details: string;
+  ip_address: string;
+  created_at: string;
+  created_at_fmt: string;
+};
+
+export async function fetchSettingsLogs(params: {
+  username?: string;
+  action?: string;
+  limit?: number;
+  date_from?: string;
+  date_to?: string;
+}): Promise<{
+  items: SettingsLogRow[];
+  filters: { usernames: string[]; actions: string[] };
+}> {
+  return apiGet("/api/settings/logs", params, { headers: authHeaders() });
+}
+
+export async function fetchSettingsRoles(): Promise<{
+  items: Array<{ code: string; label: string }>;
+}> {
+  return apiGet("/api/settings/roles", {}, { headers: authHeaders() });
+}
+
+export type DefaultFilterRow = {
+  role: string;
+  role_label: string;
+  report_name: string;
+  filter_key: string;
+  filter_value: string | null;
+  filter_type: string;
+  filter_type_label: string;
+  updated_at: string | null;
+  updated_by: string | null;
+};
+
+export async function fetchSettingsFilters(params?: {
+  role?: string;
+  report_name?: string;
+}): Promise<{
+  items: DefaultFilterRow[];
+  reports: string[];
+  filter_types: Record<string, string>;
+  roles: Record<string, string>;
+}> {
+  return apiGet("/api/settings/filters", params || {}, { headers: authHeaders() });
+}
+
+export async function postSettingsFilter(body: {
+  role: string;
+  report_name: string;
+  filter_key: string;
+  filter_value?: string;
+  filter_type?: string;
+}): Promise<{ ok: boolean }> {
+  return apiPost("/api/settings/filters", body, { headers: authHeaders() });
+}
+
+export async function deleteSettingsFilter(body: {
+  role: string;
+  report_name: string;
+  filter_key: string;
+}): Promise<{ ok: boolean }> {
+  return apiDelete("/api/settings/filters", body, { headers: authHeaders() });
+}
+
+export async function postSettingsCopyFilters(body: {
+  source_role: string;
+  target_role: string;
+  report_name?: string | null;
+}): Promise<{ ok: boolean }> {
+  return apiPost("/api/settings/filters/copy", body, { headers: authHeaders() });
+}
+
+export async function fetchReportConfig(): Promise<{
+  values: Record<string, string>;
+  descriptions: Record<string, string>;
+}> {
+  return apiGet("/api/settings/report-config", {}, { headers: authHeaders() });
+}
+
+export async function putReportConfig(
+  values: Record<string, string | undefined>,
+): Promise<{ ok: boolean }> {
+  return apiPut("/api/settings/report-config", values, { headers: authHeaders() });
 }

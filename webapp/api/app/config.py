@@ -80,6 +80,13 @@ CORS_ORIGINS = [
 API_TITLE = "BI Analytics Showcase API"
 API_VERSION = "0.19.0"
 ADMIN_SYNC_TOKEN = (os.environ.get("WEBAPP_ADMIN_TOKEN") or "").strip()
+USERS_DB_PATH = Path(
+    os.environ.get(
+        "BI_USERS_DB",
+        str(WEBAPP_ROOT / "data" / "users.db"),
+    )
+)
+DEMO_ADMIN_PASSWORD = (os.environ.get("BI_DEMO_ADMIN_PASSWORD") or "admin").strip()
 def _detect_core_app_dir() -> Path:
     env = (os.environ.get("BI_CORE_APP_DIR") or "").strip()
     if env:

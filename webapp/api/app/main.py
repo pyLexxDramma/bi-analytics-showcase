@@ -7,6 +7,7 @@ from app.config import API_TITLE, API_VERSION, CORS_ORIGINS, DATA_MODE, WEB_DATA
 from app.routers import (
     admin,
     approved_budget,
+    auth_router,
     baseline_deviation,
     bdds,
     bdds_plan_fact,
@@ -19,8 +20,10 @@ from app.routers import (
     gdrs_equipment,
     gdrs_people,
     prescriptions,
+    profile_router,
     project_documentation,
     project_schedule,
+    settings_router,
     versions,
     working_documentation,
 )
@@ -51,6 +54,9 @@ app.include_router(gdrs_equipment.router)
 app.include_router(prescriptions.router)
 app.include_router(executive_docs.router)
 app.include_router(versions.router)
+app.include_router(auth_router.router)
+app.include_router(profile_router.router)
+app.include_router(settings_router.router)
 app.include_router(admin.router)
 
 

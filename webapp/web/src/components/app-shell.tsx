@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { login } from "@/lib/auth";
 import {
   applyThemeClass,
   readTheme,
@@ -24,11 +23,6 @@ export function AppShell({
   useEffect(() => {
     applyThemeClass(readTheme());
     setDark(readTheme() === "dark");
-    try {
-      login("demo");
-    } catch {
-      /* ignore storage errors */
-    }
   }, []);
 
   const setTheme = (mode: ThemeMode) => {

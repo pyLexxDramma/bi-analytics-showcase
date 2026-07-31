@@ -1,0 +1,493 @@
+from __future__ import annotations
+
+import sqlite3
+from datetime import date, datetime, time, timezone
+
+from fastapi import APIRouter, Header, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from app.config import USERS_DB_PATH
+from app.services.users_bridge import (
+    format_russian_datetime,
+    import_auth,
+    import_filters,
+    import_logger,
+    import_settings_module,
+    user_payload,
+)
+
+router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+
+def _require_admin(x_auth_user: str | None) -> dict:
+    username = (x_auth_user or "").strip()
+    if not username:
+        raise HTTPException(status_code=401, detail="X-Auth-User required")
+    auth = import_auth()
+    user = auth.get_user_by_username(username)
+    if not user or not user.get("is_active"):
+        raise HTTPException(status_code=401, detail="Пользователь не найден")
+    if not auth.has_admin_access(user["role"]):
+        raise HTTPException(status_code=403, detail="Доступ только для администраторов")
+    return user
+
+
+class CreateUserBody(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+    role: str
+    email: str | None = None
+
+
+class ChangeRoleBody(BaseModel):
+    user_id: int
+    new_role: str
+
+
+class DeleteUserBody(BaseModel):
+    user_id: int
+
+
+class FilterBody(BaseModel):
+    role: str
+    report_name: str
+    filter_key: str
+    filter_value: str | None = None
+    filter_type: str = "string"
+
+
+class DeleteFilterBody(BaseModel):
+    role: str
+    report_name: str
+    filter_key: str
+
+
+class CopyFiltersBody(BaseModel):
+    source_role: str
+    target_role: str
+    report_name: str | None = None
+
+
+class ReportConfigBody(BaseModel):
+    admin_notification_email: str | None = None
+    baseline_plan_task_for_metrics: str | None = None
+    control_points_milestones_json: str | None = None
+    developer_projects_matrix_json: str | None = None
+
+
+@router.get("/roles")
+def list_roles():
+    auth = import_auth()
+    return {
+        "items": [
+            {"code": code, "label": title}
+            for code, title in auth.ROLES.items()
+        ]
+    }
+
+
+@router.get("/users")
+def list_users(x_auth_user: str | None = Header(default=None)):
+    _require_admin(x_auth_user)
+    auth = import_auth()
+    conn = sqlite3.connect(str(USERS_DB_PATH))
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, username, role, email, created_at, last_login, is_active
+        FROM users
+        ORDER BY created_at DESC
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+    items = []
+    for row in rows:
+        items.append(
+            {
+                "id": row[0],
+                "username": row[1],
+                "role": row[2],
+                "role_label": auth.get_user_role_display(row[2]),
+                "email": row[3],
+                "created_at": row[4],
+                "created_at_fmt": format_russian_datetime(row[4]),
+                "last_login": row[5],
+                "last_login_fmt": format_russian_datetime(row[5])
+                if row[5]
+                else "Никогда",
+                "is_active": bool(row[6]),
+            }
+        )
+    return {"items": items}
+
+
+@router.post("/users")
+def create_user(
+    body: CreateUserBody,
+    x_auth_user: str | None = Header(default=None),
+):
+    actor = _require_admin(x_auth_user)
+    auth = import_auth()
+    if body.role == "superadmin":
+        conn = sqlite3.connect(str(USERS_DB_PATH))
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM users WHERE role = 'superadmin' AND is_active = 1"
+        )
+        if int(cur.fetchone()[0]) >= 1:
+            conn.close()
+            raise HTTPException(
+                status_code=400,
+                detail="В системе уже есть суперадминистратор. Допускается только один.",
+            )
+        conn.close()
+    if body.role not in auth.ROLES:
+        raise HTTPException(status_code=400, detail="Неизвестная роль")
+    ok = auth.create_user(
+        body.username.strip(),
+        body.password,
+        body.role,
+        body.email.strip() if body.email else None,
+        actor["username"],
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=400,
+            detail="Ошибка при создании пользователя. Возможно, имя уже занято.",
+        )
+    return {"ok": True}
+
+
+@router.post("/users/change-role")
+def change_user_role(
+    body: ChangeRoleBody,
+    x_auth_user: str | None = Header(default=None),
+):
+    actor = _require_admin(x_auth_user)
+    auth = import_auth()
+    if body.new_role not in auth.ROLES:
+        raise HTTPException(status_code=400, detail="Неизвестная роль")
+    conn = sqlite3.connect(str(USERS_DB_PATH))
+    cur = conn.cursor()
+    cur.execute("SELECT username, role FROM users WHERE id = ?", (body.user_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    target_username, current_role = row[0], row[1]
+    if body.new_role == current_role:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Выберите другую роль")
+    cur.execute(
+        "SELECT COUNT(*) FROM users WHERE role = 'superadmin' AND is_active = 1"
+    )
+    superadmin_count = int(cur.fetchone()[0])
+    if (
+        body.new_role == "superadmin"
+        and current_role != "superadmin"
+        and superadmin_count >= 1
+    ):
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="В системе уже есть суперадминистратор. Допускается только один.",
+        )
+    if (
+        current_role == "superadmin"
+        and body.new_role != "superadmin"
+        and superadmin_count <= 1
+    ):
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="Нельзя снять роль у единственного суперадминистратора.",
+        )
+    cur.execute(
+        "UPDATE users SET role = ? WHERE id = ?",
+        (body.new_role, body.user_id),
+    )
+    conn.commit()
+    conn.close()
+    logger = import_logger()
+    logger.log_action(
+        actor["username"],
+        "change_role",
+        f"Изменена роль пользователя {target_username} с {auth.get_user_role_display(current_role)} на {auth.get_user_role_display(body.new_role)}",
+    )
+    return {"ok": True}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    x_auth_user: str | None = Header(default=None),
+):
+    actor = _require_admin(x_auth_user)
+    if actor["role"] != "superadmin":
+        raise HTTPException(
+            status_code=403,
+            detail="Удалять пользователей может только суперадминистратор",
+        )
+    auth = import_auth()
+    ok, message = auth.delete_user(user_id, actor["username"])
+    if not ok:
+        raise HTTPException(status_code=400, detail=message)
+    return {"ok": True, "message": message}
+
+
+@router.get("/stats")
+def system_stats(x_auth_user: str | None = Header(default=None)):
+    _require_admin(x_auth_user)
+    auth = import_auth()
+    logger = import_logger()
+    conn = sqlite3.connect(str(USERS_DB_PATH))
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM users")
+    total_users = int(cur.fetchone()[0])
+    cur.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
+    active_users = int(cur.fetchone()[0])
+    cur.execute("SELECT COUNT(*) FROM users WHERE last_login IS NOT NULL")
+    users_with_login = int(cur.fetchone()[0])
+    cur.execute(
+        """
+        SELECT role, COUNT(*) as count
+        FROM users
+        GROUP BY role
+        """
+    )
+    role_stats = cur.fetchall()
+    conn.close()
+    total_logs = logger.get_logs_count()
+    return {
+        "total_users": total_users,
+        "active_users": active_users,
+        "users_with_login": users_with_login,
+        "total_logs": total_logs,
+        "roles": [
+            {
+                "role": r[0],
+                "role_label": auth.get_user_role_display(r[0]),
+                "count": int(r[1]),
+            }
+            for r in role_stats
+        ],
+    }
+
+
+@router.get("/logs")
+def activity_logs(
+    x_auth_user: str | None = Header(default=None),
+    username: str | None = None,
+    action: str | None = None,
+    limit: int = Query(default=100, ge=10, le=1000),
+    date_from: date | None = None,
+    date_to: date | None = None,
+):
+    _require_admin(x_auth_user)
+    logger = import_logger()
+    created_after = None
+    created_before = None
+    if date_from:
+        created_after = datetime.combine(
+            date_from, time.min, tzinfo=timezone.utc
+        ).isoformat()
+    if date_to:
+        created_before = datetime.combine(
+            date_to, time.max, tzinfo=timezone.utc
+        ).isoformat()
+    logs = logger.get_logs(
+        limit=limit,
+        username=username if username and username != "Все" else None,
+        action=action if action and action != "Все" else None,
+        created_after=created_after,
+        created_before=created_before,
+    )
+    conn = sqlite3.connect(str(USERS_DB_PATH))
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT DISTINCT username FROM user_activity_logs ORDER BY username"
+    )
+    usernames = [r[0] for r in cur.fetchall()]
+    cur.execute("SELECT DISTINCT action FROM user_activity_logs ORDER BY action")
+    actions = [r[0] for r in cur.fetchall()]
+    conn.close()
+    items = []
+    for log in logs:
+        items.append(
+            {
+                "id": log.get("id"),
+                "username": log.get("username"),
+                "action": log.get("action"),
+                "action_key": log.get("action_key"),
+                "details": log.get("details") or "-",
+                "ip_address": log.get("ip_address") or "-",
+                "created_at": log.get("created_at"),
+                "created_at_fmt": format_russian_datetime(log.get("created_at")),
+            }
+        )
+    return {
+        "items": items,
+        "filters": {"usernames": usernames, "actions": actions},
+        "action_labels": logger.ACTION_LABELS,
+    }
+
+
+@router.get("/filters")
+def list_filters(
+    x_auth_user: str | None = Header(default=None),
+    role: str | None = None,
+    report_name: str | None = None,
+):
+    _require_admin(x_auth_user)
+    auth = import_auth()
+    filters_mod = import_filters()
+    rows = filters_mod.get_all_default_filters(
+        role=None if not role or role == "Все" else role,
+        report_name=None if not report_name or report_name == "Все" else report_name,
+    )
+    items = []
+    for f in rows:
+        items.append(
+            {
+                "role": f["role"],
+                "role_label": auth.get_user_role_display(f["role"]),
+                "report_name": f["report_name"],
+                "filter_key": f["filter_key"],
+                "filter_value": f["filter_value"],
+                "filter_type": f["filter_type"],
+                "filter_type_label": filters_mod.FILTER_TYPES.get(
+                    f["filter_type"], f["filter_type"]
+                ),
+                "updated_at": f.get("updated_at"),
+                "updated_by": f.get("updated_by"),
+            }
+        )
+    return {
+        "items": items,
+        "reports": filters_mod.AVAILABLE_REPORTS,
+        "filter_types": filters_mod.FILTER_TYPES,
+        "roles": auth.ROLES,
+    }
+
+
+@router.post("/filters")
+def save_filter(
+    body: FilterBody,
+    x_auth_user: str | None = Header(default=None),
+):
+    actor = _require_admin(x_auth_user)
+    filters_mod = import_filters()
+    auth = import_auth()
+    if not body.filter_key or body.role not in auth.ROLES:
+        raise HTTPException(status_code=400, detail="Заполните обязательные поля")
+    ok = filters_mod.set_default_filter(
+        body.role,
+        body.report_name,
+        body.filter_key,
+        body.filter_value or "",
+        body.filter_type,
+        actor["username"],
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail="Ошибка при сохранении фильтра")
+    logger = import_logger()
+    logger.log_action(
+        actor["username"],
+        "set_default_filter",
+        f"Установлен фильтр {body.filter_key} для роли {auth.get_user_role_display(body.role)} в отчете {body.report_name}",
+    )
+    return {"ok": True}
+
+
+@router.delete("/filters")
+def remove_filter(
+    body: DeleteFilterBody,
+    x_auth_user: str | None = Header(default=None),
+):
+    actor = _require_admin(x_auth_user)
+    filters_mod = import_filters()
+    auth = import_auth()
+    ok = filters_mod.delete_default_filter(
+        body.role, body.report_name, body.filter_key
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail="Ошибка при удалении фильтра")
+    logger = import_logger()
+    logger.log_action(
+        actor["username"],
+        "delete_default_filter",
+        f"Удален фильтр {body.filter_key} для роли {auth.get_user_role_display(body.role)} в отчете {body.report_name}",
+    )
+    return {"ok": True}
+
+
+@router.post("/filters/copy")
+def copy_filters(
+    body: CopyFiltersBody,
+    x_auth_user: str | None = Header(default=None),
+):
+    actor = _require_admin(x_auth_user)
+    if body.source_role == body.target_role:
+        raise HTTPException(
+            status_code=400,
+            detail="Исходная и целевая роли не могут быть одинаковыми",
+        )
+    filters_mod = import_filters()
+    auth = import_auth()
+    ok = filters_mod.copy_filters_to_role(
+        body.source_role,
+        body.target_role,
+        body.report_name,
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail="Ошибка при копировании фильтров")
+    logger = import_logger()
+    logger.log_action(
+        actor["username"],
+        "copy_filters",
+        f"Скопированы фильтры из роли {auth.get_user_role_display(body.source_role)} в роль {auth.get_user_role_display(body.target_role)}"
+        + (f" для отчета {body.report_name}" if body.report_name else " для всех отчетов"),
+    )
+    return {"ok": True}
+
+
+@router.get("/report-config")
+def get_report_config(x_auth_user: str | None = Header(default=None)):
+    _require_admin(x_auth_user)
+    settings_mod = import_settings_module()
+    keys = [
+        "admin_notification_email",
+        "baseline_plan_task_for_metrics",
+        "control_points_milestones_json",
+        "developer_projects_matrix_json",
+    ]
+    values = {k: settings_mod.get_setting(k) or "" for k in keys}
+    return {
+        "values": values,
+        "descriptions": {
+            k: settings_mod.SETTING_KEYS.get(k, k) for k in keys
+        },
+    }
+
+
+@router.put("/report-config")
+def put_report_config(
+    body: ReportConfigBody,
+    x_auth_user: str | None = Header(default=None),
+):
+    actor = _require_admin(x_auth_user)
+    settings_mod = import_settings_module()
+    logger = import_logger()
+    updates = body.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        if value is None:
+            continue
+        settings_mod.set_setting(
+            key,
+            str(value).strip(),
+            description=settings_mod.SETTING_KEYS.get(key, ""),
+            updated_by=actor["username"],
+        )
+        logger.log_action(actor["username"], "admin_setting", key)
+    return {"ok": True}

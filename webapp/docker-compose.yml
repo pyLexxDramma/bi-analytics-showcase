@@ -11,6 +11,8 @@ services:
       SHOWCASE_ROOT: /showcase
       BI_CORE_APP_DIR: /core
       WEB_DB_PATH: ${WEB_DB_PATH:-/data/db/web_data.db}
+      BI_USERS_DB: ${BI_USERS_DB:-/data/db/users.db}
+      BI_DEMO_ADMIN_PASSWORD: ${BI_DEMO_ADMIN_PASSWORD:-admin}
       WEBAPP_REPORT_CACHE_DIR: ${WEBAPP_REPORT_CACHE_DIR:-/data/report_cache}
       BI_FTP_HOST: ${BI_FTP_HOST:-}
       BI_FTP_USER: ${BI_FTP_USER:-}
