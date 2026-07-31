@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Матрица «Девелоперские проекты» по ТЗ (правки): строки-показатели; у вех — План / Факт / Откл.,
-у блока «ПРЕДПИСАНИЯ» — Всего / Критические / Неустраненные предписания.
+у блока «ПРЕДПИСАНИЯ» — Всего / Критические / Критические просроченные предписания.
 Источники: MSP (canonical колонки после web_loader), project_data (БДДС), tessa_tasks_data.
 """
 from __future__ import annotations
@@ -12,6 +12,7 @@ import html as html_module
 import json
 import re
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -22,149 +23,6 @@ from utils import outline_level_numeric
 from settings import SETTING_KEYS
 
 DEV_MATRIX_JSON_KEY = "developer_projects_matrix_json"
-
-
-def _iframe_chrome_palette() -> Dict[str, str]:
-    try:
-        from showcase.theme import matrix_iframe_palette
-
-        return matrix_iframe_palette()
-    except Exception:
-        from config import is_showcase_mode
-
-        if is_showcase_mode():
-            return {
-                "page_bg": "#f8fafc",
-                "page_text": "#111827",
-                "head_text": "#111827",
-                "body_text": "#111827",
-                "cell_bg": "#ffffff",
-                "project_head_bg": "#e8f0fe",
-                "project_col_bg": "#f9fafb",
-                "project_col_text": "#111827",
-                "block_bg": "#ffffff",
-                "block_border": "rgba(15,23,42,0.12)",
-                "block_shadow": "0 6px 18px rgba(15,23,42,0.08)",
-                "grid_border": "#cbd5e1",
-                "strong_border": "#111827",
-                "sep_gap": "#f8fafc",
-                "scrollbar_track": "#e5e7eb",
-                "scrollbar_thumb": "rgba(100,116,139,0.45)",
-            }
-        return {
-            "page_bg": "#0e1520",
-            "page_text": "#e6edf3",
-            "head_text": "#f0f4f8",
-            "body_text": "#fafafa",
-            "cell_bg": "#0c1219",
-            "project_head_bg": "#1a3328",
-            "project_col_bg": "#161f2b",
-            "project_col_text": "#ffffff",
-            "block_bg": "#121a24",
-            "block_border": "rgba(255,255,255,0.42)",
-            "block_shadow": "0 6px 18px rgba(0,0,0,0.42)",
-            "grid_border": "#5a6f82",
-            "strong_border": "#ffffff",
-            "sep_gap": "#121a24",
-            "scrollbar_track": "#141820",
-            "scrollbar_thumb": "rgba(121,154,192,0.42)",
-        }
-
-
-def _dev_tz_matrix_showcase_overrides(p: Dict[str, str]) -> str:
-    """Перекрывает тёмный _DEV_TZ_MATRIX_CSS: светлый фон и читаемый текст в iframe."""
-    try:
-        from config import is_showcase_mode
-    except Exception:
-        return ""
-    if not is_showcase_mode():
-        return ""
-    bt = p.get("body_text", "#111827")
-    ht = p.get("head_text", "#111827")
-    cell = p.get("cell_bg", "#ffffff")
-    ph = p.get("project_head_bg", "#e8f0fe")
-    pc = p.get("project_col_bg", "#f9fafb")
-    ms = p.get("surface_alt", "#f3f4f6")
-    sb = p.get("strong_border", "#111827")
-    inv_bg = "linear-gradient(180deg,#d1fae5 0%,#bbf7d0 100%)"
-    life_bg = "linear-gradient(180deg,#e5e7eb 0%,#f3f4f6 100%)"
-    return f"""
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
-  color:{bt}!important;background-color:{cell}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
-  background:{ph}!important;color:{ht}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
-  background:{pc}!important;color:{ht}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-inv-block,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-inv-block{{
-  background:{inv_bg}!important;color:#065f46!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-life-block,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-life-block{{
-  background:{life_bg}!important;color:{ht}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub{{
-  background:{ms}!important;color:{ht}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide{{
-  border-color:{sb}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{{
-  box-shadow:none!important}}
-.dev-tz-matrix-wrap::-webkit-scrollbar-track{{background:{p.get('scrollbar_track', '#e5e7eb')}!important}}
-"""
-
-
-def _control_points_showcase_overrides(p: Dict[str, str]) -> str:
-    """Светлая палитра для iframe «Контрольные точки» в showcase."""
-    try:
-        from config import is_showcase_mode
-    except Exception:
-        return ""
-    if not is_showcase_mode():
-        return ""
-    bt = p.get("body_text", "#111827")
-    ht = p.get("head_text", "#111827")
-    cell = p.get("cell_bg", "#ffffff")
-    ph = p.get("project_head_bg", "#e8f0fe")
-    pc = p.get("project_col_bg", "#f9fafb")
-    ms = p.get("surface_alt", "#f3f4f6")
-    sb = p.get("strong_border", "#111827")
-    return f"""
-.cp-table-wrap .rendered-table tbody td{{
-  color:{bt}!important;background-color:{cell}!important}}
-.cp-table-wrap .rendered-table th{{
-  background:{ms}!important;color:{ht}!important}}
-.cp-table-wrap .rendered-table th.cp-ghead{{
-  background:linear-gradient(180deg,#d1fae5 0%,#bbf7d0 100%)!important;color:#065f46!important}}
-.cp-table-wrap .rendered-table th.cp-sub{{
-  background:{ms}!important;color:{ht}!important}}
-.cp-table-wrap .rendered-table th.cp-col-project,
-.cp-table-wrap .rendered-table td.cp-col-project{{
-  background:{pc}!important;color:{ht}!important}}
-.cp-table-wrap .rendered-table thead th.cp-col-project{{
-  background:{ph}!important;color:{ht}!important}}
-.rendered-table th.cp-tophead{{
-  background:{ph}!important;color:{ht}!important}}
-.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block,
-.cp-table-wrap .rendered-table th.cp-ms-first,
-.cp-table-wrap .rendered-table td.cp-ms-first,
-.cp-table-wrap .rendered-table th.cp-ms-last,
-.cp-table-wrap .rendered-table td.cp-ms-last,
-.cp-table-wrap .rendered-table thead th.cp-col-project,
-.cp-table-wrap .rendered-table tbody td.cp-col-project{{
-  box-shadow:none!important}}
-.cp-table-wrap .rendered-table{{
-  border-color:{sb}!important}}
-"""
 
 
 def _dearrow_object_columns(df: "pd.DataFrame") -> "pd.DataFrame":
@@ -198,7 +56,7 @@ def _dearrow_object_columns(df: "pd.DataFrame") -> "pd.DataFrame":
 _DEV_MATRIX_PREDS_SUBCOLS: Dict[str, str] = {
     "plan": "Всего предписаний",
     "fact": "Критические предписания",
-    "otkl": "Неустраненные предписания",
+    "otkl": "Критические просроченные предписания",
 }
 
 # Стабильные ключи строк матрицы (порядок = порядок колонок отчёта), для titles/matches в JSON.
@@ -605,14 +463,16 @@ def _pct_scale_max_from_frame(ref: Optional[pd.DataFrame], col: str = "pct compl
     ser = _dev_tz_pct_complete_series(ref, col=col) if ref is not None else None
     if ser is None or ser.empty:
         return None
-    t = ser.astype(str).str.strip()
-    t = t.str.replace("\xa0", "", regex=False).str.replace("\u200b", "", regex=False)
-    t = t.str.replace("%", "", regex=False).str.replace(",", ".", regex=False)
-    num = pd.to_numeric(t, errors="coerce")
-    v = num.dropna()
-    if v.empty:
+    from utils import parse_msp_pct_complete
+
+    vals: list[float] = []
+    for raw in ser.tolist():
+        v = parse_msp_pct_complete(raw)
+        if v is not None:
+            vals.append(v)
+    if not vals:
         return None
-    return float(v.max())
+    return float(max(vals))
 
 
 def _normalized_pct_0_100(pct: Any, *, pct_scale_max: Any = None) -> Optional[float]:
@@ -624,6 +484,29 @@ def _normalized_pct_0_100(pct: Any, *, pct_scale_max: Any = None) -> Optional[fl
             return None
     except (TypeError, ValueError):
         return None
+    from utils import parse_msp_pct_complete
+
+    if not isinstance(pct, (int, float)) or isinstance(pct, bool):
+        parsed = parse_msp_pct_complete(pct)
+        if parsed is not None:
+            pct = parsed
+    if isinstance(pct, (int, float)) and not isinstance(pct, bool):
+        v = float(pct)
+        sm: Optional[float] = None
+        if pct_scale_max is not None:
+            try:
+                if isinstance(pct_scale_max, float) and pd.isna(pct_scale_max):
+                    sm = None
+                else:
+                    sm = float(pct_scale_max)
+            except (TypeError, ValueError):
+                sm = None
+        if sm is not None and sm <= 1.000001:
+            v = v * 100.0
+        elif sm is None:
+            if 0.0 <= v <= 1.0:
+                v = v * 100.0
+        return float(v)
     s = str(pct).strip().replace("%", "").replace(" ", "").replace(",", ".")
     if not s or s.lower() in ("nan", "none", "nat"):
         return None
@@ -751,11 +634,11 @@ def _fmt_delta_days(d: Optional[int]) -> str:
         return "Н/Д"
     if di == 0:
         return "0 дн."
-    sign = "+" if di > 0 else ""
-    return f"{sign}{di} дн."
+    sign = "+" if di > 0 else "-" if di < 0 else ""
+    return f"{sign}{abs(di)} дн."
 
 
-_OTKL_DAYS_DISPLAY_RE = re.compile(r"([+-]?\d+)\s*дн", re.IGNORECASE)
+_OTKL_DAYS_DISPLAY_RE = re.compile(r"([+\-−]?\d+)\s*дн", re.IGNORECASE)
 
 
 def _parse_otkl_mln_display(s: Any) -> Optional[float]:
@@ -767,7 +650,7 @@ def _parse_otkl_mln_display(s: Any) -> Optional[float]:
         return None
     if _OTKL_DAYS_DISPLAY_RE.search(t):
         return None
-    t = t.replace("\xa0", "").replace("\u202f", "").replace(" ", "").replace(",", ".")
+    t = t.replace("\xa0", "").replace("\u202f", "").replace(" ", "").replace(",", ".").replace("−", "-")
     try:
         return float(t)
     except ValueError:
@@ -784,7 +667,7 @@ def _parse_otkl_days_display(s: Any) -> Optional[int]:
     if not m:
         return None
     try:
-        v = int(m.group(1))
+        v = int(m.group(1).replace("−", "-"))
         return v
     except ValueError:
         return None
@@ -1144,13 +1027,9 @@ def _projekts_display_by_norm_key() -> Dict[str, str]:
         return by_nk
     try:
         import json
+        from pathlib import Path
 
-        from dashboards.project_labels import projekts_json_dirs
-
-        paths = []
-        for root in projekts_json_dirs():
-            if root.is_dir():
-                paths.extend(sorted(root.glob("*_Projekts.json")))
+        paths = sorted(Path("web").glob("*_Projekts.json"))
         if paths:
             with open(paths[-1], encoding="utf-8") as f:
                 rows = json.load(f)
@@ -1519,7 +1398,7 @@ def _dev_matrix_bddds_totals_mln(
         plan_sum = float(g["budget plan"].sum())
         fact_sum = float(g["budget fact"].sum())
 
-    diff = plan_sum - fact_sum
+    diff = fact_sum - plan_sum
     return plan_sum / 1e6, fact_sum / 1e6, diff / 1e6
 
 
@@ -1571,7 +1450,7 @@ def _ds_plan_fact_otkl_mln(project_data: Optional[pd.DataFrame]) -> Tuple[Option
     # Корректная формула: `× 1000 (тыс.руб → руб) / 1e6 (руб → млн.руб) = / 1000`.
     plan_mln = float(plan_sum) / 1000.0
     fact_mln = float(fact_sum) / 1000.0
-    return plan_mln, fact_mln, plan_mln - fact_mln
+    return plan_mln, fact_mln, fact_mln - plan_mln
 
 
 def _tessa_to_dt(series: pd.Series) -> pd.Series:
@@ -1657,12 +1536,14 @@ def _tessa_pred_critical_series(pred: pd.DataFrame) -> pd.Series:
             .str.strip()
             .str.casefold()
         )
-        crit = _tag_norm.isin({"критичный", "критическое", "критичное", "critical"})
+        crit = _tag_norm.isin(
+            {"критичный", "критический", "критическое", "критичное", "critical"}
+        )
     return crit
 
 
 def _tessa_counts(ss: Any, project_name_hint: str = "") -> Tuple[str, str, str, str]:
-    """Метрики вехи «ПРЕДПИСАНИЯ»: всего / критические / неустранённые (по уникальным карточкам)."""
+    """Метрики вехи «ПРЕДПИСАНИЯ»: всего / критические / критические просроченные (по карточкам)."""
     pred, kk, src_key = _resolve_tessa_pred_source(ss)
     if pred.empty:
         # Если хоть один из источников загружен, но без «Предписания» в KindName —
@@ -1725,52 +1606,51 @@ def _tessa_counts(ss: Any, project_name_hint: str = "") -> Tuple[str, str, str, 
     card_resolved = pred.groupby("_card", group_keys=False)["_resolved"].agg(lambda s: bool(s.any()))
     card_critical = pred.groupby("_card", group_keys=False)["_critical"].agg(lambda s: bool(s.any()))
     n_total = int(len(card_resolved))
-    n_unresolved = int((~card_resolved).sum())
     n_critical = int((~card_resolved & card_critical).sum())
 
-    tail_hint = ""
-    overdue_n = 0
+    card_overdue = pd.Series(False, index=card_resolved.index)
     if due_c and due_c in pred.columns:
         now = pd.Timestamp.now().normalize()
-        open_rows = pred.loc[~pred["_resolved"].astype(bool)]
+        open_rows = pred.loc[~pred["_resolved"].astype(bool)].copy()
         if not open_rows.empty:
             dts = _tessa_to_dt(open_rows[due_c])
-            overdue_n = int(((dts.dt.normalize() < now) & dts.notna()).sum())
-            if overdue_n:
-                tail_hint = f"Просрочено (не устранено, срок прошёл): {overdue_n}"
+            open_rows["_overdue"] = (dts.dt.normalize() < now) & dts.notna()
+            card_overdue = open_rows.groupby("_card", group_keys=False)["_overdue"].agg(
+                lambda s: bool(s.any())
+            ).reindex(card_resolved.index, fill_value=False)
 
-    return str(n_total), str(n_critical), str(n_unresolved), tail_hint
+    n_critical_overdue = int(
+        (~card_resolved & card_critical & card_overdue.fillna(False)).sum()
+    )
+
+    tail_hint = ""
+    if n_critical_overdue:
+        tail_hint = f"Критические просроченные (срок сдачи прошёл): {n_critical_overdue}"
+
+    return str(n_total), str(n_critical), str(n_critical_overdue), tail_hint
 
 
 def _predpisaniya_combined(mdf: pd.DataFrame, ss: Any, project_name: str = "") -> Tuple[str, str, str, bool, str]:
     """
     Строка «ПРЕДПИСАНИЯ»: только TESSA (как смежные отчёты по tessa_*), с фильтром по проекту MSP.
-    Колонки: всего / критические / неустранённые предписания (ТЗ 04.05).
+    Колонки: всего / критические / критические просроченные предписания (ТЗ 04.05).
     """
-    n_total, n_critical, n_unresolved, hint = _tessa_counts(ss, project_name)
-    if not (n_total == "Н/Д" and n_critical == "Н/Д" and n_unresolved == "Н/Д"):
+    n_total, n_critical, n_critical_overdue, hint = _tessa_counts(ss, project_name)
+    if not (n_total == "Н/Д" and n_critical == "Н/Д" and n_critical_overdue == "Н/Д"):
         try:
-            nu = int(str(n_unresolved).strip())
+            nco = int(str(n_critical_overdue).strip())
         except (TypeError, ValueError):
-            nu = 0
+            nco = 0
         try:
             nc = int(str(n_critical).strip())
         except (TypeError, ValueError):
             nc = 0
-        _oh = 0
-        if hint and "Просрочено" in str(hint):
-            try:
-                _m = re.search(r"(\d+)\s*$", str(hint))
-                if _m:
-                    _oh = int(_m.group(1))
-            except Exception:
-                _oh = 0
-        warn_t = nu > 0 or nc > 0 or _oh > 0
-        return n_total, n_critical, n_unresolved, warn_t, hint
+        warn_t = nco > 0 or nc > 0
+        return n_total, n_critical, n_critical_overdue, warn_t, hint
     return (
         n_total,
         n_critical,
-        n_unresolved,
+        n_critical_overdue,
         False,
         (hint or "Нет данных Tessa по предписаниям (tessa_tasks_data / tessa_data не загружены или без KindName)."),
     )
@@ -1876,13 +1756,106 @@ def render_developer_predpisaniya_expander(
 
 
 
+def developer_projects_msp_snapshot_hints(
+    mdf: pd.DataFrame | None,
+    *,
+    ss: Any = None,
+) -> list[str]:
+    """Подсказки по снимку MSP и сбоям FTP (550 на msp_*_DD-MM-YYYY)."""
+    hints: list[str] = []
+    if ss is not None:
+        try:
+            for raw in ss.get("_last_ftp_sync_transient") or []:
+                line = str(raw).strip()
+                if not line or "msp_" not in line.casefold():
+                    continue
+                m = re.search(r"msp_[\w-]+", line, flags=re.IGNORECASE)
+                stem = m.group(0) if m else line.split(":", 1)[0].strip()
+                hints.append(
+                    f"На FTP есть {stem}, но скачать не удалось (файл занят / 550). "
+                    "Дашборд остаётся на предыдущем msp_* из web/. Повторите «FTP → перезагрузить БД» "
+                    "через 5–10 мин после 07:00 или попросите IT проверить выгрузку MSP на FTP."
+                )
+        except Exception:
+            pass
+    if mdf is not None and not getattr(mdf, "empty", True) and "snapshot_date" in mdf.columns:
+        try:
+            snap = pd.to_datetime(mdf["snapshot_date"], errors="coerce").max()
+            if pd.notna(snap):
+                hints.append(
+                    f"Активный снимок MSP в матрице: {pd.Timestamp(snap).strftime('%d.%m.%Y')} "
+                    "(последний успешно загруженный msp_* в web/)."
+                )
+        except Exception:
+            pass
+    return hints
+
+
+def _msp_row_source_project_bucket(source_file: Any) -> str:
+    """msp_<slug>_DD-MM-YYYY → slug; иначе пусто."""
+    if source_file is None or (isinstance(source_file, float) and pd.isna(source_file)):
+        return ""
+    try:
+        from web_loader import _msp_project_bucket
+
+        stem = Path(str(source_file).replace("\\", "/").split("/")[-1]).stem
+        return str(_msp_project_bucket(stem) or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def _keep_latest_msp_snapshot_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Жёстко оставляет только max(snapshot_date) на логический MSP-проект.
+
+    Нужно до dedupe по unique id: иначе при разных подписях project name
+    (zhukovsky1 / Жуковский) или multi-proj keep=(project,id) в кадре остаются
+    и июнь, и июль — вехи с нулевым Откл. из старого снимка перебивают актуальные.
+    """
+    if df is None or getattr(df, "empty", True) or "snapshot_date" not in df.columns:
+        return df
+    out = df.copy()
+    out["_snap_ord"] = pd.to_datetime(out["snapshot_date"], errors="coerce")
+    has = out["_snap_ord"].notna()
+    if not bool(has.any()):
+        return out.drop(columns=["_snap_ord"], errors="ignore")
+
+    src_col = next(
+        (c for c in ("__source_file", "source_file", "_source_file") if c in out.columns),
+        None,
+    )
+    pc = _find_col(out, ["project name", "Проект", "Project", "проект"])
+    if src_col is not None:
+        keys = out[src_col].map(_msp_row_source_project_bucket).astype(str)
+    else:
+        keys = pd.Series([""] * len(out), index=out.index, dtype=object)
+    if pc and pc in out.columns:
+        try:
+            gk = out[pc].map(
+                lambda x: str(_control_points_project_group_key(x) or "").strip()
+            )
+        except Exception:
+            gk = out[pc].map(lambda x: str(x or "").strip().lower())
+        keys = keys.where(keys.str.strip() != "", gk)
+    keys = keys.fillna("").astype(str).str.strip().replace("", "__all__")
+    out["_snap_proj_key"] = keys
+
+    snap = out.loc[has].copy()
+    nosnap = out.loc[~has].copy()
+    latest = snap.groupby("_snap_proj_key", dropna=False)["_snap_ord"].transform("max")
+    snap = snap[snap["_snap_ord"] == latest]
+    out = pd.concat([snap, nosnap], ignore_index=False)
+    return out.drop(columns=["_snap_ord", "_snap_proj_key"], errors="ignore")
+
+
 def dedupe_msp_for_developer_projects(df: pd.DataFrame) -> pd.DataFrame:
     """
     ТЗ: нет дублирования проектов и задач в «Девелоперские проекты».
-    Сначала по идентификатору задачи MSP (если колонка есть и не пустая).
+    Сначала — только последний MSP-снимок на проект (snapshot_date / msp_* файл).
+    Затем по идентификатору задачи MSP (если колонка есть и не пустая).
     При **нескольких проектах** в одном кадре дедупликация по id ведётся в паре
-    с колонкой проекта — иначе совпадающие номера id у разных проектов схлопываются
-    и вехи пропадают (режим «Все проекты»).
+    с логическим ключом проекта — иначе совпадающие номера id у разных проектов
+    схлопываются и вехи пропадают (режим «Все проекты»).
     Иначе по (проект, задача) / по задаче.
 
     Если в колонке id часть строк без значения, нельзя делать ``drop_duplicates`` по всему кадру:
@@ -1890,7 +1863,24 @@ def dedupe_msp_for_developer_projects(df: pd.DataFrame) -> pd.DataFrame:
     """
     if df is None or getattr(df, "empty", True):
         return df
-    out = df.copy()
+    out = _keep_latest_msp_snapshot_rows(df.copy())
+
+    # При нескольких MSP-снимках одного проекта строку на задачу берём из самой
+    # свежей выгрузки по дате (snapshot_date), а не случайную по порядку склейки.
+    # Иначе дата (напр. ЗОС) могла прийти из старого снимка. Всегда берётся
+    # последняя дата (в т.ч. будущая) — «плохие» файлы убираются удалением с FTP.
+    if "snapshot_date" in out.columns:
+        try:
+            _sd = pd.to_datetime(out["snapshot_date"], errors="coerce")
+            out = out.assign(_snap_ord=_sd)
+            out = out.sort_values(
+                by="_snap_ord",
+                ascending=False,
+                kind="mergesort",
+                na_position="last",
+            ).drop(columns=["_snap_ord"], errors="ignore")
+        except Exception:
+            pass
 
     def _series_id_valid(ser: pd.Series) -> pd.Series:
         s2 = ser.astype(str).str.strip()
@@ -1901,33 +1891,41 @@ def dedupe_msp_for_developer_projects(df: pd.DataFrame) -> pd.DataFrame:
         ok = _series_id_valid(frame[id_col])
         if int(ok.sum()) == 0:
             return frame
+        # keep="first" после сортировки по snapshot_date desc
         part_ok = frame.loc[ok].drop_duplicates(subset=[id_col], keep="first")
         part_miss = frame.loc[~ok]
-        return pd.concat([part_miss, part_ok]).sort_index()
+        return pd.concat([part_miss, part_ok], ignore_index=True)
 
     def _dedupe_by_id_and_project_nonempty(
-        frame: pd.DataFrame, id_col: str, proj_col: str
+        frame: pd.DataFrame, id_col: str, proj_key_col: str
     ) -> pd.DataFrame:
-        """Составной ключ (проект, id): при объединении нескольких проектов в одном кадре ID MSP
-        могут совпадать между проектами — глобальный drop_duplicates(id) «съедает» вехи."""
+        """Составной ключ (логический проект, id): ID MSP могут совпадать между проектами."""
         ok = _series_id_valid(frame[id_col])
         if int(ok.sum()) == 0:
             return frame
         sub = frame.loc[ok]
-        if proj_col in sub.columns:
-            part_ok = sub.drop_duplicates(subset=[proj_col, id_col], keep="first")
+        if proj_key_col in sub.columns:
+            part_ok = sub.drop_duplicates(subset=[proj_key_col, id_col], keep="first")
         else:
             part_ok = sub.drop_duplicates(subset=[id_col], keep="first")
         part_miss = frame.loc[~ok]
-        return pd.concat([part_miss, part_ok]).sort_index()
+        return pd.concat([part_miss, part_ok], ignore_index=True)
 
     pc_for_id = _find_col(out, ["project name", "Проект", "Project", "проект"])
+    _proj_key_col = None
     _multi_proj = False
     if pc_for_id and pc_for_id in out.columns:
         try:
-            _multi_proj = int(out[pc_for_id].dropna().astype(str).str.strip().nunique()) > 1
+            out = out.copy()
+            out["_dev_proj_gk"] = out[pc_for_id].map(
+                lambda x: str(_control_points_project_group_key(x) or "").strip()
+                or str(x or "").strip().lower()
+            )
+            _proj_key_col = "_dev_proj_gk"
+            _multi_proj = int(out["_dev_proj_gk"].replace("", pd.NA).dropna().nunique()) > 1
         except Exception:
-            _multi_proj = False
+            _multi_proj = int(out[pc_for_id].dropna().astype(str).str.strip().nunique()) > 1
+            _proj_key_col = pc_for_id
 
     for id_c in (
         "unique id",
@@ -1939,20 +1937,38 @@ def dedupe_msp_for_developer_projects(df: pd.DataFrame) -> pd.DataFrame:
             continue
         if int(_series_id_valid(out[id_c]).sum()) == 0:
             continue
-        if _multi_proj and pc_for_id and pc_for_id in out.columns:
-            out = _dedupe_by_id_and_project_nonempty(out, id_c, pc_for_id).reset_index(drop=True)
+        if _multi_proj and _proj_key_col and _proj_key_col in out.columns:
+            out = _dedupe_by_id_and_project_nonempty(out, id_c, _proj_key_col)
         else:
-            out = _dedupe_by_id_nonempty(out, id_c).reset_index(drop=True)
-        return out
+            out = _dedupe_by_id_nonempty(out, id_c)
+        return out.drop(columns=["_dev_proj_gk"], errors="ignore").reset_index(drop=True)
     pc = _find_col(out, ["project name", "Проект", "Project", "проект"])
     tc = _task_name_col(out)
     if pc and tc and pc in out.columns and tc in out.columns:
         _score = out.apply(_msp_row_date_completeness, axis=1)
-        _ord = out.assign(_d=_score).sort_values(by="_d", ascending=False).drop(columns=["_d"])
-        return _ord.drop_duplicates(subset=[pc, tc], keep="first").reset_index(drop=True)
+        # Сначала полнота дат, затем свежесть снимка — не потерять июльский Откл.
+        _sd = (
+            pd.to_datetime(out["snapshot_date"], errors="coerce")
+            if "snapshot_date" in out.columns
+            else pd.Series(pd.NaT, index=out.index)
+        )
+        _ord = (
+            out.assign(_d=_score, _snap=_sd)
+            .sort_values(by=["_d", "_snap"], ascending=[False, False], kind="mergesort")
+            .drop(columns=["_d", "_snap"])
+        )
+        return (
+            _ord.drop_duplicates(subset=[pc, tc], keep="first")
+            .drop(columns=["_dev_proj_gk"], errors="ignore")
+            .reset_index(drop=True)
+        )
     if tc and tc in out.columns:
-        return out.drop_duplicates(subset=[tc], keep="first").reset_index(drop=True)
-    return out
+        return (
+            out.drop_duplicates(subset=[tc], keep="first")
+            .drop(columns=["_dev_proj_gk"], errors="ignore")
+            .reset_index(drop=True)
+        )
+    return out.drop(columns=["_dev_proj_gk"], errors="ignore")
 
 
 
@@ -1992,6 +2008,21 @@ def _task_plot_section(task_name: object) -> Optional[str]:
     return None
 
 
+def _row_plot_section(row: pd.Series, task_col: Optional[str] = None) -> Optional[str]:
+    """Участок №N: из имени задачи или родительского section/block (Есипово 5: «Получение ЗОС…» под «…участок №2»)."""
+    tc = task_col or _task_name_col(row.to_frame().T)
+    if tc and tc in row.index:
+        ps = _task_plot_section(row.get(tc))
+        if ps:
+            return ps
+    for col in ("section", "block", "l2 parent", "l2_parent", "parent l2", "Раздел"):
+        if col in row.index:
+            ps = _task_plot_section(row.get(col))
+            if ps:
+                return ps
+    return None
+
+
 def _task_name_suggests_plot_section(task_name: object) -> bool:
     t = str(task_name or "").casefold()
     if not t:
@@ -2015,16 +2046,23 @@ def _filter_milestone_tasks_by_plot_section(
     if not sec:
         return sub
     has_sectioned = False
-    for tn in sub[tc].astype(str):
-        if _task_plot_section(tn):
+    for _ix, rr in sub.iterrows():
+        if _row_plot_section(rr, tc):
             has_sectioned = True
             break
     if not has_sectioned:
         return sub
     keep = []
     for ix, rr in sub.iterrows():
-        ps = _task_plot_section(rr.get(tc))
-        if ps is None or ps == sec:
+        ps = _row_plot_section(rr, tc)
+        if ps == sec:
+            keep.append(ix)
+    if keep:
+        return sub.loc[keep].copy()
+    # Общие вехи без маркера участка — только если нет задач с явным № участка.
+    keep = []
+    for ix, rr in sub.iterrows():
+        if _row_plot_section(rr, tc) is None:
             keep.append(ix)
     if not keep:
         return sub.iloc[0:0].copy()
@@ -2193,10 +2231,14 @@ def build_dev_tz_matrix_rows(
     plab = str(project_label_for_scope or "").strip()
     if plab and "project name" in mdf.columns:
         try:
-            pk_tgt = _norm_dev_project_key(plab)
+            # Жуковский (подпись) и Zhukovsky1 (slug файла) — один group key после карты.
+            pk_tgt = str(_control_points_project_group_key(plab) or "").strip()
             if pk_tgt:
                 m_scoped = mdf[
-                    mdf["project name"].map(lambda x, pk=pk_tgt: _norm_dev_project_key(x) == pk)
+                    mdf["project name"].map(
+                        lambda x, pk=pk_tgt: str(_control_points_project_group_key(x) or "").strip()
+                        == pk
+                    )
                 ]
                 if m_scoped is not None and not getattr(m_scoped, "empty", True):
                     mdf = m_scoped
@@ -2213,6 +2255,15 @@ def build_dev_tz_matrix_rows(
             pass
     if mdf is not None and not getattr(mdf, "empty", True):
         mdf = dedupe_msp_for_developer_projects(mdf)
+    # Подпись в колонке «Проект»: всегда русская карта (не slug из msp_zhukovsky1_*).
+    if mdf is not None and not getattr(mdf, "empty", True) and "project name" in mdf.columns:
+        try:
+            mdf = mdf.copy()
+            mdf["project name"] = mdf["project name"].map(
+                lambda x: resolve_msp_project_display_name(x) or str(x or "").strip()
+            )
+        except Exception:
+            pass
 
     _prefs = load_developer_projects_matrix_prefs()
 
@@ -2280,7 +2331,8 @@ def build_dev_tz_matrix_rows(
     if "project name" in mdf.columns and mdf["project name"].notna().any():
         cap = str(mdf["project name"].dropna().astype(str).iloc[0]).strip()
     # Подпись блока (фильтр «Все» → по проектам): для TESSA/1С не брать случайный iloc[0].
-    scope_label = (plab or cap).strip()
+    # Всегда через карту: иначе cap остаётся Zhukovsky1 при пустом plab.
+    scope_label = resolve_msp_project_display_name(plab or cap) or (plab or cap).strip()
 
     def _msp_row(
         phase: str,
@@ -2322,19 +2374,21 @@ def build_dev_tz_matrix_rows(
             "Аренда ЗУ",
             {
                 "level": 5.0,
-                # ТЗ (редакции): «Регистрация договора субаренды» и «Подготовка договора аренды».
+                "parent_l2_contains": "Ковенанты",
+                # ТЗ: дочерняя «Аренда земельного участка (ЗУ)» (ур.5) под родителем «КОВЕНАНТЫ» (ур.2).
+                "names_exact_any": [
+                    "Аренда земельного участка (ЗУ)",
+                ],
                 "names_any": [
-                    "Регистрация договора субаренды",
-                    "Подготовка договора аренды",
-                    "договор субаренды",
-                    "субаренд",
+                    "Аренда земельного участка",
+                    "аренда земельного участка",
                 ],
                 "phase_needles": [
                     "Аренда ЗУ",
-                    "субаренд",
+                    "Аренда земельного участка",
+                    "земельного участка (ЗУ)",
                     "Инвестиционная. Аренда",
                     "аренда зу",
-                    "договор субаренды",
                 ],
             },
         ),
@@ -2498,6 +2552,14 @@ def build_dev_tz_matrix_rows(
         # десятых (1 знак после запятой), а не до сотых.
         return f"{v:.1f}".replace(".", ",")
 
+    def _fmtml_otkl(v: float) -> str:
+        """Отклонение «Выборка ДС»: явный +/− по знаку (Факт − План)."""
+        if v > 0:
+            return f"+{_fmtml(v)}"
+        if v < 0:
+            return f"-{_fmtml(abs(v))}"
+        return _fmtml(v)
+
     rk_ds = str(next(_rk))
     pm, fm, om = _dev_matrix_bddds_totals_mln(ss, scope_label, project_data, mdf)
     if pm is None:
@@ -2516,20 +2578,22 @@ def build_dev_tz_matrix_rows(
             effective_title(rk_ds, "Выборка ДС, млн руб."),
             _fmtml(pm),
             _fmtml(fm),
-            _fmtml(om),
+            _fmtml_otkl(om),
             otkl_fact_lt_plan=bool(fm < pm),
             phase="life",
             row_key=rk_ds,
         )
 
     rk_tp = str(next(_rk))
-    n_total, n_critical, n_unresolved, warn_t, _tessa_hint = _predpisaniya_combined(mdf, ss, scope_label)
+    n_total, n_critical, n_critical_overdue, warn_t, _tessa_hint = _predpisaniya_combined(
+        mdf, ss, scope_label
+    )
     add_row(
         "ТЕССА",
         effective_title(rk_tp, "ПРЕДПИСАНИЯ"),
         n_total,
         n_critical,
-        n_unresolved,
+        n_critical_overdue,
         warn_directives=warn_t,
         subcolumn_labels=dict(_DEV_MATRIX_PREDS_SUBCOLS),
         phase="life",
@@ -2671,22 +2735,28 @@ def build_dev_tz_matrix_rows(
             "ЗОС",
             {
                 "level": 5.0,
+                # Колонка «ЗОС» = веха-ковенант, названная именно «ЗОС» (или «ЗОС (участок №N)»),
+                # а не СМР-задача «Получение Заключения о соответствии … (ЗОС)». У большинства
+                # проектов их даты совпадают, но у Новорижского расходятся — нужен ковенант «ЗОС».
+                # Поэтому не матчим по «Заключение о соответствии»/«(ЗОС)» в names_any.
+                "names_exact_any": ["ЗОС"],
                 "names_any": [
-                    "Заключение о соответствии",
-                    "заключение о соответствии",
-                    "ЗОС)",
-                    "зос)",
+                    "ЗОС (участок",
+                    "ЗОС  (участок",
                     "ЗОС - 1 этап",
                     "ЗОС - 2 этап",
                     "ЗОС -",
                 ],
                 "parent_l2_contains": "Ковенанты",
+                # Фаза-фолбэк (срабатывает только если по имени ничего не найдено):
+                # оставляем «Заключение о соответствии» для проектов без отдельной вехи «ЗОС».
                 "phase_needles": [
-                    "Заключение о соответствии",
                     ". ЗОС",
                     "Жизнь проекта. ЗОС",
                     "Инвестиционная. ЗОС",
                     "инвестиционная. зос",
+                    "ЗОС (участок",
+                    "Заключение о соответствии",
                 ],
             },
         ),
@@ -2854,6 +2924,22 @@ iframe.dev-tz-matrix-iframe[title="streamlit_components_v1"] {
 div[data-testid="stElementContainer"]:has(iframe.dev-tz-matrix-iframe) {
   margin-bottom: 0 !important;
   padding-bottom: 0 !important;
+}
+</style>
+"""
+
+_DEV_MATRIX_STREAMLIT_HOST_CSS_LIGHT = """
+<style>
+html body.gdrs-light-preview div[data-testid="stElementContainer"]:has(iframe[title="streamlit_components_v1"]) {
+  background: transparent !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+html body.gdrs-light-preview iframe[title="streamlit_components_v1"] {
+  opacity: 1 !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+  background: transparent !important;
 }
 </style>
 """
@@ -3116,6 +3202,356 @@ _DEV_TZ_MATRIX_CSS = """
 </style>
 """
 
+_DEV_TZ_MATRIX_CSS_LIGHT = """
+<style>
+.dev-tz-matrix-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-bottom: 0.75rem;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #e5e7eb;
+}
+.dev-tz-matrix-wrap::-webkit-scrollbar { height: 10px; }
+.dev-tz-matrix-wrap::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 5px; }
+.dev-tz-matrix-wrap::-webkit-scrollbar-thumb {
+  background: #94a3b8; border-radius: 5px; border: 2px solid #e5e7eb;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide {
+  border: 3px solid #94a3b8;
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content !important;
+  min-width: max(720px, 100%) !important;
+  max-width: none !important;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: #cbd5e1 !important;
+  border-bottom-width: 2px !important;
+  border-bottom-color: #94a3b8 !important;
+  box-sizing: border-box;
+  background-clip: padding-box;
+  position: relative !important;
+  top: auto !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: none !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: #cbd5e1 !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  padding: 14px 12px !important;
+  color: #111827;
+  background-color: #ffffff !important;
+  background-clip: padding-box;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project {
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-weight: 700;
+  font-size: 17px;
+  padding: 12px 14px;
+  color: #111827;
+  background: #e8f0fe !important;
+  border-top: 3px solid #94a3b8 !important;
+  border-left: 3px solid #94a3b8 !important;
+  border-right: 3px solid #94a3b8 !important;
+  border-bottom: 3px solid #94a3b8 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead {
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 12px 14px;
+  background: #dcfce7 !important;
+  color: #14532d;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead {
+  border-top: 3px solid #94a3b8 !important;
+  border-bottom: 3px solid #94a3b8 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv {
+  border-right: 3px solid #94a3b8 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life {
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 12px 14px;
+  background: #e2e8f0 !important;
+  color: #1f2937 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life {
+  border-left: 3px solid #94a3b8 !important;
+  border-right: 3px solid #94a3b8 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone {
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+  min-width: 6.5em;
+  max-width: none !important;
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  padding: 12px 10px;
+  color: #111827;
+  background: #f3f4f6 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub {
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  min-width: 4.5em;
+  padding: 10px 8px;
+  background: #f9fafb !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-inv-block,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-inv-block {
+  background: #dcfce7 !important;
+  color: #14532d !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-life-block,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-life-block {
+  background: #e2e8f0 !important;
+  color: #1f2937 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-td-project {
+  text-align: left !important;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 14px 12px !important;
+  background: #f9fafb !important;
+  color: #111827;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: middle !important;
+  border-right: 3px solid #94a3b8 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-text-pct-done {
+  color: #ea580c !important;
+  font-weight: 700 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-otkl-ok {
+  color: #15803d !important;
+  font-weight: 700 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-otkl-bad {
+  color: #b91c1c !important;
+  font-weight: 700 !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block {
+  border-left: 3px solid #94a3b8 !important;
+  border-right: 3px solid #94a3b8 !important;
+  box-shadow: inset 3px 0 0 #94a3b8, inset -3px 0 0 #94a3b8;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first {
+  border-left: 3px solid #94a3b8 !important;
+  box-shadow: inset 3px 0 0 #94a3b8;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last {
+  border-right: 3px solid #94a3b8 !important;
+  box-shadow: inset -3px 0 0 #94a3b8;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project {
+  box-shadow: inset -3px 0 0 #94a3b8;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-directives-warn {
+  background: rgba(234, 88, 12, 0.12) !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-sortable:hover {
+  filter: brightness(0.97);
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody tr:hover td {
+  background: inherit;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody tr:nth-child(even) td {
+  background: inherit;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-date-vert {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  max-height: 7.5em;
+  white-space: nowrap;
+  vertical-align: middle;
+  text-align: center;
+  padding: 8px 4px !important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead {
+  box-shadow: inset 0 3px 0 #94a3b8, inset 0 -3px 0 #94a3b8;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv {
+  box-shadow: inset -3px 0 0 #94a3b8, inset 0 3px 0 #94a3b8, inset 0 -3px 0 #94a3b8;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life {
+  box-shadow: inset 3px 0 0 #94a3b8, inset -3px 0 0 #94a3b8, inset 0 3px 0 #94a3b8, inset 0 -3px 0 #94a3b8;
+}
+</style>
+"""
+
+
+def _dev_tz_matrix_css_raw(theme: str = "dark") -> str:
+    css = _DEV_TZ_MATRIX_CSS_LIGHT if str(theme or "").strip().lower() == "light" else _DEV_TZ_MATRIX_CSS
+    return css.replace("<style>", "").replace("</style>", "")
+
+
+def _dev_tz_matrix_iframe_sticky_css(theme: str = "dark") -> str:
+    if str(theme or "").strip().lower() == "light":
+        return """
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#ffffff;color:#111827;overflow:hidden;
+  opacity:1!important;filter:none!important;isolation:isolate}
+.dev-tz-matrix-wrap{width:100%;max-width:100%;margin:0!important;padding:0!important;
+  overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  scrollbar-width:thin;scrollbar-color:#64748b #e5e7eb}
+.dev-tz-matrix-wrap::-webkit-scrollbar{height:10px}
+.dev-tz-matrix-wrap::-webkit-scrollbar-track{background:#e5e7eb;border-radius:5px}
+.dev-tz-matrix-wrap::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:5px;border:2px solid #e5e7eb}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{background-color:#ffffff!important;color:#111827!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
+  z-index:5!important;background:#e8f0fe!important;color:#111827!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
+  z-index:4!important;background:#f9fafb!important;color:#111827!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
+  position:sticky!important;left:0!important;
+  border-right:3px solid #94a3b8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide{
+  border-collapse:separate!important;border-spacing:0!important;
+  width:max-content!important;min-width:100%!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
+  border-top:3px solid #94a3b8!important;border-left:3px solid #94a3b8!important;
+  border-bottom:3px solid #94a3b8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life{
+  font-size:18px!important;padding:12px 14px!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone{
+  font-size:17px!important;padding:12px 10px!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub{
+  font-size:16px!important;padding:10px 8px!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{
+  border-left:3px solid #94a3b8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{
+  border-right:3px solid #94a3b8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{
+  border-top:3px solid #94a3b8!important;border-bottom:3px solid #94a3b8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{
+  border-right:3px solid #94a3b8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{
+  border-left:3px solid #94a3b8!important;border-right:3px solid #94a3b8!important}
+"""
+    return """
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:transparent;color:#e6edf3;overflow:hidden;
+  opacity:1!important;filter:none!important;isolation:isolate}
+.dev-tz-matrix-wrap{width:100%;max-width:100%;margin:0!important;padding:0!important;
+  overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  scrollbar-width:thin;scrollbar-color:rgba(121,154,192,0.5) transparent}
+.dev-tz-matrix-wrap::-webkit-scrollbar{height:10px}
+.dev-tz-matrix-wrap::-webkit-scrollbar-track{background:transparent;border-radius:5px}
+.dev-tz-matrix-wrap::-webkit-scrollbar-thumb{background:rgba(121,154,192,0.42);border-radius:5px;border:2px solid #141820}
+.dev-tz-matrix-wrap::-webkit-scrollbar-thumb:hover{background:rgba(121,154,192,0.65)}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide{
+  border-collapse:separate!important;border-spacing:0!important;
+  width:max-content!important;min-width:100%!important;
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;
+  font-size:16px!important;font-weight:700!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{
+  font-size:16px!important;line-height:1.45!important;padding:14px 12px!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
+  font-size:17px!important;padding:12px 14px!important;color:#f0f4f8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
+  font-size:18px!important;padding:14px 12px!important;color:#f0f4f8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life{
+  font-size:18px!important;padding:12px 14px!important;color:#f0f4f8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone{
+  font-size:17px!important;padding:12px 10px!important;color:#f0f4f8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub{
+  font-size:16px!important;padding:10px 8px!important;color:#f0f4f8!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{
+  border-width:1px!important;border-style:solid!important;
+  border-color:#5a6f82!important;background-clip:padding-box!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{
+  background-color:#0c1219!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{
+  border-left:3px solid #ffffff!important;
+  border-right:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{
+  border-left:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{
+  border-right:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{
+  border-top:3px solid #ffffff!important;border-bottom:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{
+  border-right:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{
+  border-left:3px solid #ffffff!important;border-right:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
+  position:sticky!important;left:0!important;
+  border-right:3px solid #ffffff!important;
+}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
+  border-top:3px solid #ffffff!important;border-left:3px solid #ffffff!important;
+  border-bottom:3px solid #ffffff!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{
+  z-index:5!important;background:#1a3328!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{
+  z-index:4!important;background:#161f2b!important}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{box-shadow:inset 3px 0 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{box-shadow:inset -3px 0 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{box-shadow:inset -3px 0 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{
+  box-shadow:inset 0 3px 0 #fff,inset 0 -3px 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{
+  box-shadow:inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}
+.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}
+"""
+
 
 def _dev_tz_matrix_row_key(r: Dict[str, Any]) -> Tuple[str, str]:
     """Стабильный ключ строки матрицы для сопоставления блоков разных проектов."""
@@ -3344,12 +3780,65 @@ _MATRIX_IFRAME_FULLSCREEN_SHELL_CSS = """
   box-sizing:border-box!important}
 """
 
+_MATRIX_IFRAME_FULLSCREEN_SHELL_CSS_LIGHT = """
+body[data-bi-color-scheme="light"] .matrix-fs-btn{
+  border:1px solid #cbd5e1!important;
+  background:#ffffff!important;
+  color:#111827!important;
+  box-shadow:0 1px 2px rgba(0,0,0,0.06);
+}
+body[data-bi-color-scheme="light"] .matrix-fs-btn:hover{
+  background:#f3f4f6!important;
+  color:#111827!important;
+  border-color:#94a3b8!important;
+}
+body[data-bi-color-scheme="light"] .matrix-fs-btn:focus-visible{
+  outline:2px solid #3b82f6!important;
+  outline-offset:1px;
+}
+body[data-bi-color-scheme="light"] #matrix-fs-root:fullscreen,
+body[data-bi-color-scheme="light"] #matrix-fs-root:-webkit-full-screen,
+body[data-bi-color-scheme="light"] #matrix-fs-root:-moz-full-screen{
+  background:#f3f4f6!important;
+}
+body[data-bi-color-scheme="light"] #matrix-fs-root.matrix-fs-pseudo-on{
+  background:#f3f4f6!important;
+}
+"""
+
+
+def _matrix_iframe_fullscreen_shell_css(theme: str = "dark") -> str:
+    css = _MATRIX_IFRAME_FULLSCREEN_SHELL_CSS
+    if str(theme or "").strip().lower() == "light":
+        css += _MATRIX_IFRAME_FULLSCREEN_SHELL_CSS_LIGHT
+    return css
+
+
 _MATRIX_IFRAME_FULLSCREEN_SCRIPT = """
 <script>
 (function(){
   var root=document.getElementById("matrix-fs-root");
   var btn=document.getElementById("matrix-fs-btn");
   if(!root||!btn) return;
+
+  function matrixFsScheme(){
+    var b=document.body;
+    return (b&&b.getAttribute("data-bi-color-scheme")==="light")?"light":"dark";
+  }
+  function matrixFsShellBg(){
+    return matrixFsScheme()==="light"?"#f3f4f6":"#0e1520";
+  }
+  function matrixFsCloseBtnStyle(){
+    if(matrixFsScheme()==="light"){
+      return "width:40px;height:40px;font-size:18px;border-radius:4px;"
+        +"border:1px solid #cbd5e1;background:#ffffff;color:#111827;"
+        +"box-shadow:0 1px 2px rgba(0,0,0,0.06);"
+        +"touch-action:manipulation;-webkit-tap-highlight-color:transparent;";
+    }
+    return "width:40px;height:40px;font-size:18px;border-radius:4px;"
+      +"border:1px solid rgba(121,154,192,0.55);background:rgba(35,43,56,0.96);color:#e8eef5;"
+      +"touch-action:manipulation;-webkit-tap-highlight-color:transparent;";
+  }
 
   var parentDoc=null;
   try{
@@ -3668,7 +4157,7 @@ _MATRIX_IFRAME_FULLSCREEN_SCRIPT = """
     pseudoShell.setAttribute("style",
       "position:fixed!important;z-index:2147483646!important;left:0!important;top:0!important;right:0!important;bottom:0!important;"
       +"width:100%!important;height:100%!important;max-height:-webkit-fill-available!important;"
-      +"background:#0e1520!important;display:flex!important;flex-direction:column!important;"
+      +"background:"+matrixFsShellBg()+"!important;display:flex!important;flex-direction:column!important;"
       +"padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right))"
       +" max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))!important;"
       +"box-sizing:border-box!important;overflow:hidden!important;");
@@ -3678,9 +4167,7 @@ _MATRIX_IFRAME_FULLSCREEN_SCRIPT = """
     var xb=doc.createElement("button");
     xb.type="button";
     xb.textContent="\\u2715";
-    xb.setAttribute("style","width:40px;height:40px;font-size:18px;border-radius:4px;"
-      +"border:1px solid rgba(121,154,192,0.55);background:rgba(35,43,56,0.96);color:#e8eef5;"
-      +"touch-action:manipulation;-webkit-tap-highlight-color:transparent;");
+    xb.setAttribute("style",matrixFsCloseBtnStyle());
     xb.addEventListener("click",function(ev){ev.preventDefault();exitPseudo();sync();});
     tb.appendChild(xb);
     var scroll=doc.createElement("div");
@@ -3804,22 +4291,61 @@ _MATRIX_IFRAME_FULLSCREEN_SCRIPT = """
 _MATRIX_IFRAME_FIT_HEIGHT_SCRIPT = """
 <script>
 (function(){
+  // Высота, до которой нужно ужать iframe и контейнер (= высота контента таблицы).
+  var H=0;
+  var mo=null, moTarget=null;
   function measure(){
     var root=document.getElementById("matrix-fs-root");
     if(!root) return 0;
     var wrap=root.querySelector(".dev-tz-matrix-wrap,.cp-tables-stack,.cp-table-wrap,.gdrs-table-wrap");
     if(wrap){
-      var tbl=wrap.querySelector("table");
-      var topbar=root.querySelector(".matrix-fs-topbar");
-      var tb=topbar?Math.ceil(topbar.getBoundingClientRect().height):0;
-      var th=tbl
-        ? Math.max(Math.ceil(tbl.offsetHeight||0),Math.ceil(tbl.scrollHeight||0))
-        : Math.ceil(wrap.scrollHeight||0);
       var rr=wrap.getBoundingClientRect();
       var rt=root.getBoundingClientRect();
-      return Math.max(tb+th+4, Math.ceil(rr.bottom-rt.top+2));
+      return Math.ceil(rr.bottom-rt.top+2);
     }
     return Math.ceil(root.getBoundingClientRect().height);
+  }
+  function container(){
+    var fe=window.frameElement;
+    if(!fe) return null;
+    var p=fe.parentElement;
+    while(p){
+      if(p.getAttribute&&p.getAttribute("data-testid")==="stElementContainer") return p;
+      p=p.parentElement;
+    }
+    return null;
+  }
+  function setContainer(c,h){
+    // Контейнер Streamlit держит высоту = height из components.html (emotion-класс),
+    // и она не зависит от ужатого iframe — под таблицей до кнопки «Скачать таблицу»
+    // остаётся пустота. Явно ужимаем контейнер по высоте контента таблицы.
+    c.style.setProperty("height",h+"px","important");
+    c.style.setProperty("min-height","0","important");
+    c.style.setProperty("max-height",h+"px","important");
+    c.style.setProperty("margin-bottom","0","important");
+    c.style.setProperty("padding-bottom","0","important");
+  }
+  function defend(){
+    // React Streamlit при ререндере сбрасывает inline-height контейнера обратно к
+    // Python-высоте. Следим за style/class контейнера и возвращаем нашу высоту.
+    var c=container();
+    if(!c) return;
+    if(mo && moTarget===c) return;
+    if(mo){ try{mo.disconnect();}catch(e){} }
+    moTarget=c;
+    mo=new MutationObserver(function(){
+      if(!H) return;
+      var cc=container();
+      if(!cc) return;
+      var cur=Math.round(cc.getBoundingClientRect().height);
+      if(Math.abs(cur-H)>2){
+        try{mo.disconnect();}catch(e){}
+        setContainer(cc,H);
+        moTarget=cc;
+        try{mo.observe(moTarget,{attributes:true,attributeFilter:["style","class"]});}catch(e){}
+      }
+    });
+    try{mo.observe(c,{attributes:true,attributeFilter:["style","class"]});}catch(e){}
   }
   function apply(){
     var h=measure();
@@ -3839,21 +4365,17 @@ _MATRIX_IFRAME_FIT_HEIGHT_SCRIPT = """
       fe.style.maxHeight="none";
       fe.style.overflow="hidden";
       fe.classList.add("dev-tz-matrix-iframe");
-      var p=fe.parentElement;
-      while(p){
-        if(p.getAttribute&&p.getAttribute("data-testid")==="stElementContainer"){
-          p.style.marginBottom="0";
-          p.style.paddingBottom="0";
-          break;
-        }
-        p=p.parentElement;
-      }
+      H=h;
+      var c=container();
+      if(c){ setContainer(c,h); defend(); }
     }catch(e){}
   }
   function schedule(){requestAnimationFrame(apply);}
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",schedule);
   else schedule();
   window.addEventListener("load",schedule);
+  // Повторные проходы: первые несколько секунд контент таблицы ещё доуточняет высоту.
+  var n=0; var iv=setInterval(function(){ apply(); if(++n>=12) clearInterval(iv); },350);
   try{
     var w=document.querySelector(".dev-tz-matrix-wrap,.cp-tables-stack,.gdrs-table-wrap");
     if(w&&typeof ResizeObserver!=="undefined") new ResizeObserver(schedule).observe(w);
@@ -3941,6 +4463,7 @@ def _matrix_iframe_html_document(
     *,
     extra_body_suffix: str = "",
     body_class: str = "",
+    color_scheme: str = "dark",
 ) -> str:
     """
     Полный HTML-документ для st.components.v1.html: матрица + кнопка полноэкранного режима.
@@ -3950,14 +4473,16 @@ def _matrix_iframe_html_document(
     # Сортировка только из extra_body_suffix (dev-tz / control-points).
     # Общий table_sort_inject в iframe не подключаем: даёт дубли <select>Все</select> рядом с кликом по th.
     _extra = extra_body_suffix or ""
+    _scheme = "light" if str(color_scheme or "").strip().lower() == "light" else "dark"
     return (
         '<!DOCTYPE html><html><head><meta charset="utf-8">'
-        '<meta name="color-scheme" content="dark">'
+        f'<meta name="color-scheme" content="{_scheme}">'
         '<meta name="viewport" content="width=device-width,initial-scale=5,viewport-fit=cover">'
         "<style>"
         + head_styles
-        + _MATRIX_IFRAME_FULLSCREEN_SHELL_CSS
-        + "</style></head><body>"
+        + _matrix_iframe_fullscreen_shell_css(color_scheme)
+        + "</style></head><body"
+        + f' data-bi-color-scheme="{_scheme}">'
         + '<div id="matrix-fs-root" class="matrix-fs-root">'
         + '<div class="matrix-fs-topbar" role="toolbar" aria-label="Таблица">'
         + '<button type="button" class="matrix-fs-btn" id="matrix-fs-btn" title="На весь экран">\u26F6</button>'
@@ -3974,12 +4499,102 @@ def _matrix_iframe_html_document(
     )
 
 
+def _dev_tz_matrix_legend_palette(theme: str) -> dict[str, str]:
+    if str(theme or "").strip().lower() == "light":
+        return {
+            "done": "#ea580c",
+            "ok": "#15803d",
+            "bad": "#b91c1c",
+            "muted": "#6b7280",
+            "text": "#111827",
+            "border": "#d1d5db",
+            "bg": "#f9fafb",
+        }
+    return {
+        "done": "#f09355",
+        "ok": "#28a745",
+        "bad": "#d9534f",
+        "muted": "#8899aa",
+        "text": "#e8eef5",
+        "border": "#3d4f63",
+        "bg": "rgba(23, 49, 75, 0.35)",
+    }
+
+
+def render_dev_tz_matrix_color_legend(st, *, theme: str = "dark") -> None:
+    """Легенда цветов шрифта матрицы «Девелоперские проекты» (под таблицей)."""
+    p = _dev_tz_matrix_legend_palette(theme)
+    st.markdown(
+        f"""
+<div class="dev-tz-color-legend" role="note" aria-label="Легенда цветов таблицы">
+  <span class="dev-tz-color-legend-title">Легенда:</span>
+  <span class="dev-tz-color-legend-item">
+    <span class="dev-tz-color-swatch dev-tz-color-swatch-done">100%</span>
+    <span class="dev-tz-color-legend-text">План / Факт — задача в MSP выполнена на 100%</span>
+  </span>
+  <span class="dev-tz-color-legend-item">
+    <span class="dev-tz-color-swatch dev-tz-color-swatch-ok">+0</span>
+    <span class="dev-tz-color-legend-text">Откл. — нулевое или положительное отклонение</span>
+  </span>
+  <span class="dev-tz-color-legend-item">
+    <span class="dev-tz-color-swatch dev-tz-color-swatch-bad">−0</span>
+    <span class="dev-tz-color-legend-text">Откл. — отрицательное отклонение (просрочка / недовыполнение)</span>
+  </span>
+</div>
+<style>
+.dev-tz-color-legend {{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 1.35rem;
+  margin: 0.45rem 0 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid {p["border"]};
+  border-radius: 8px;
+  background: {p["bg"]};
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: {p["text"]};
+}}
+.dev-tz-color-legend-title {{
+  font-weight: 700;
+  color: {p["text"]};
+  margin-right: 0.15rem;
+}}
+.dev-tz-color-legend-item {{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}}
+.dev-tz-color-swatch {{
+  display: inline-block;
+  min-width: 2.1rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.25;
+}}
+.dev-tz-color-swatch-done {{ color: {p["done"]} !important; }}
+.dev-tz-color-swatch-ok {{ color: {p["ok"]} !important; }}
+.dev-tz-color-swatch-bad {{ color: {p["bad"]} !important; }}
+.dev-tz-color-legend-text {{ color: {p["text"]}; }}
+@media (max-width: 720px) {{
+  .dev-tz-color-legend {{ flex-direction: column; align-items: flex-start; gap: 0.45rem; }}
+}}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 def render_dev_tz_matrix(
     rows: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]],
     table_css: str,
     *,
     project_labels: Optional[List[str]] = None,
     vertical_dates: bool = False,
+    theme: str = "dark",
 ) -> None:
     """
     Первая колонка «Проект» — только название; далее «Инвестиционная фаза» / «Жизнь проекта»
@@ -4106,101 +4721,28 @@ def render_dev_tz_matrix(
     # фиксацию первой колонки при горизонтальном скролле в Streamlit, так как
     # внешние контейнеры st.markdown/st.html ломают position:sticky.
     import streamlit.components.v1 as _components
-    # Общий _TABLE_CSS из _renderers (color:#e0e0e0, col-fact с оранжевым фоном) в iframe
-    # матрицы не подмешиваем — иначе на dev/release цвета блекнут и границы «оранжевят».
-    _dev_css_raw = _DEV_TZ_MATRIX_CSS.replace("<style>", "").replace("</style>", "")
-    _p = _iframe_chrome_palette()
-    _sticky_css = f"""
-*{{box-sizing:border-box}}
-html,body{{margin:0;padding:0;background:transparent;color:{_p['page_text']};overflow:hidden;
-  opacity:1!important;filter:none!important;isolation:isolate}}
-.dev-tz-matrix-wrap{{width:100%;max-width:100%;margin:0!important;padding:0!important;
-  overflow-x:auto;overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
-  scrollbar-width:thin;scrollbar-color:{_p['scrollbar_thumb']} transparent}}
-.dev-tz-matrix-wrap::-webkit-scrollbar{{height:10px}}
-.dev-tz-matrix-wrap::-webkit-scrollbar-track{{background:transparent;border-radius:5px}}
-.dev-tz-matrix-wrap::-webkit-scrollbar-thumb{{background:{_p['scrollbar_thumb']};border-radius:5px;border:2px solid {_p['scrollbar_track']}}}
-.dev-tz-matrix-wrap::-webkit-scrollbar-thumb:hover{{background:rgba(121,154,192,0.65)}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide{{
-  border-collapse:separate!important;border-spacing:0!important;
-  width:max-content!important;min-width:100%!important;
-  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;
-  font-size:16px!important;font-weight:700!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
-  font-size:16px!important;line-height:1.45!important;padding:14px 12px!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
-  font-size:17px!important;padding:12px 14px!important;color:{_p['head_text']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
-  font-size:18px!important;padding:14px 12px!important;color:{_p['head_text']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-ghead-life{{
-  font-size:18px!important;padding:12px 14px!important;color:{_p['head_text']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone{{
-  font-size:17px!important;padding:12px 10px!important;color:{_p['head_text']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub{{
-  font-size:16px!important;padding:10px 8px!important;color:{_p['head_text']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
-  border-width:1px!important;border-style:solid!important;
-  border-color:{_p['grid_border']}!important;background-clip:padding-box!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td{{
-  background-color:{_p['cell_bg']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{{
-  border-left:3px solid {_p['strong_border']}!important;
-  border-right:3px solid {_p['strong_border']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{{
-  border-left:3px solid {_p['strong_border']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{{
-  border-right:3px solid {_p['strong_border']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{{
-  border-top:3px solid {_p['strong_border']}!important;border-bottom:3px solid {_p['strong_border']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{{
-  border-right:3px solid {_p['strong_border']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{{
-  border-left:3px solid {_p['strong_border']}!important;border-right:3px solid {_p['strong_border']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
-  position:sticky!important;left:0!important;
-  border-right:3px solid {_p['strong_border']}!important;
-}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
-  border-top:3px solid {_p['strong_border']}!important;border-left:3px solid {_p['strong_border']}!important;
-  border-bottom:3px solid {_p['strong_border']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project{{
-  z-index:5!important;background:{_p['project_head_bg']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{
-  z-index:4!important;background:{_p['project_col_bg']}!important}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-milestone.dev-tz-ms-block{{
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-first,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-first{{box-shadow:inset 3px 0 0 #fff}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide th.dev-tz-sub.dev-tz-ms-last,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide td.dev-tz-ms-last{{box-shadow:inset -3px 0 0 #fff}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead th.dev-tz-th-project,
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide tbody td.dev-tz-td-project{{box-shadow:inset -3px 0 0 #fff}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead{{
-  box-shadow:inset 0 3px 0 #fff,inset 0 -3px 0 #fff}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-inv{{
-  box-shadow:inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}}
-.dev-tz-matrix-wrap table.rendered-table.dev-tz-wide thead tr:first-child th.dev-tz-ghead-life{{
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff,inset 0 3px 0 #fff,inset 0 -3px 0 #fff}}
-"""
+    _dev_css_raw = _dev_tz_matrix_css_raw(theme)
+    _sticky_css = _dev_tz_matrix_iframe_sticky_css(theme)
     _n_rows = len(blocks)
     _row_h = 56
     _iframe_h = max(220, 6 + 3 * _row_h + _n_rows * _row_h + 12)
-    _head_styles = _dev_css_raw + _sticky_css + _dev_tz_matrix_showcase_overrides(_p)
+    _head_styles = _dev_css_raw + _sticky_css
     _scroll_block = '<div class="dev-tz-matrix-wrap">' + html_tbl + "</div>"
     _iframe_html = _matrix_iframe_html_document(
         _head_styles,
         _scroll_block,
         body_class="dev-tz-fs-body",
         extra_body_suffix=_DEV_TZ_MATRIX_SORT_SCRIPT,
+        color_scheme=theme,
     )
-    st.markdown(_DEV_MATRIX_STREAMLIT_HOST_CSS, unsafe_allow_html=True)
+    st.markdown(
+        _DEV_MATRIX_STREAMLIT_HOST_CSS_LIGHT
+        if str(theme or "").strip().lower() == "light"
+        else _DEV_MATRIX_STREAMLIT_HOST_CSS,
+        unsafe_allow_html=True,
+    )
     _components.html(_iframe_html, height=_iframe_h, scrolling=False)
+    render_dev_tz_matrix_color_legend(st, theme=theme)
 
 
 # ── Контрольные точки (Сроки / макет file-009): проекты × вехи ───────────────
@@ -4297,6 +4839,8 @@ CONTROL_POINT_MILESTONES: List[Tuple[str, str, dict]] = [
             "names_any": [
                 "Заключение о соответствии",
                 "ЗОС)",
+                "ЗОС (участок",
+                "ЗОС  (участок",
                 "ЗОС - 1 этап",
                 "ЗОС - 2 этап",
             ],
@@ -4518,18 +5062,30 @@ def _pick_representative_milestone_row(
     *,
     pct_scale_max: Any = None,
 ) -> pd.Series:
-    """Строка-репрезентант вехи: приоритет задача с минимальным известным «% выполнения» (типичная просрочка/0%)."""
+    """Строка-репрезентант вехи: свежий snapshot, затем мин. % выполнения (просрочка/0%)."""
     if rows is None or getattr(rows, "empty", True):
         return rows.iloc[0]
+
+    work = rows
+    if "snapshot_date" in rows.columns and len(rows) > 1:
+        try:
+            _sd = pd.to_datetime(rows["snapshot_date"], errors="coerce")
+            if bool(_sd.notna().any()):
+                _max = _sd.max()
+                _latest = rows.loc[_sd == _max]
+                if _latest is not None and not getattr(_latest, "empty", True):
+                    work = _latest
+        except Exception:
+            work = rows
 
     def _both_dates_ok(rr: pd.Series) -> bool:
         pdt, fdt, _p = _msp_plan_fact_pct(rr)
         return (not pd.isna(pdt)) and (not pd.isna(fdt))
 
-    if "pct complete" in rows.columns:
+    if "pct complete" in work.columns:
         best_ix = None
         best_val: float | None = None
-        for ix, rr in rows.iterrows():
+        for ix, rr in work.iterrows():
             raw = rr.get("pct complete", np.nan)
             if isinstance(raw, pd.Series):
                 raw2 = raw.dropna()
@@ -4541,20 +5097,20 @@ def _pick_representative_milestone_row(
                 best_val = nv
                 best_ix = ix
         if best_ix is not None:
-            cand = rows.loc[best_ix]
+            cand = work.loc[best_ix]
             if _both_dates_ok(cand):
                 return cand
-            for _ix, rr in rows.iterrows():
+            for _ix, rr in work.iterrows():
                 if _both_dates_ok(rr):
                     return rr
             return cand
-    for _ix, rr in rows.iterrows():
+    for _ix, rr in work.iterrows():
         if _both_dates_ok(rr):
             return rr
-    tc = _task_name_col(rows)
-    if tc and tc in rows.columns:
-        return rows.sort_values(by=tc).iloc[0]
-    return rows.iloc[0]
+    tc = _task_name_col(work)
+    if tc and tc in work.columns:
+        return work.sort_values(by=tc).iloc[0]
+    return work.iloc[0]
 
 
 def _one_milestone_cell(
@@ -4576,31 +5132,8 @@ def _one_milestone_cell(
         pct_scale_max = None
     r = _pick_representative_milestone_row(rows, pct_scale_max=pct_scale_max)
     pdt, fdt, pct = _msp_plan_fact_pct(r)
-    # Предупреждение по % — только по строке-представителе вехи (та же, что даёт План/Факт),
-    # иначе при нескольких совпадениях под одну веху «оранжевый» статус липнет ко всем столбцам.
-    def _row_pct_flags(rr: pd.Series) -> Tuple[bool, bool]:
-        if "pct complete" not in rr.index:
-            return False, False
-        v = rr["pct complete"]
-        if isinstance(v, pd.Series):
-            not100 = False
-            is100 = False
-            for _x in v.tolist():
-                if _is_pct_complete_not_100_dev_matrix(_x, pct_scale_max=pct_scale_max):
-                    not100 = True
-                if _is_pct_complete_100_dev_matrix(_x, pct_scale_max=pct_scale_max):
-                    is100 = True
-            return not100, is100
-        return (
-            bool(_is_pct_complete_not_100_dev_matrix(v, pct_scale_max=pct_scale_max)),
-            bool(_is_pct_complete_100_dev_matrix(v, pct_scale_max=pct_scale_max)),
-        )
-
-    try:
-        warn_pct, pct_complete_100 = _row_pct_flags(r)
-    except Exception:
-        warn_pct = bool(_is_pct_complete_not_100_dev_matrix(pct, pct_scale_max=pct_scale_max))
-        pct_complete_100 = bool(_is_pct_complete_100_dev_matrix(pct, pct_scale_max=pct_scale_max))
+    warn_pct = bool(_is_pct_complete_not_100_dev_matrix(pct, pct_scale_max=pct_scale_max))
+    pct_complete_100 = bool(_is_pct_complete_100_dev_matrix(pct, pct_scale_max=pct_scale_max))
     pl = _fmt_date_ru(pdt)
     fl = _fmt_date_ru(fdt)
     if pd.isna(pdt) or pd.isna(fdt):
@@ -4896,6 +5429,348 @@ _CONTROL_POINTS_CSS = """
 </style>
 """
 
+_CONTROL_POINTS_CSS_LIGHT = """
+<style>
+.cp-tables-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 40px;
+  width: 100%;
+  padding: 8px 8px 18px;
+  box-sizing: border-box;
+}
+.cp-table-wrap {
+  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #e5e7eb;
+}
+.cp-table-wrap.cp-table-block {
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  isolation: isolate;
+}
+.cp-table-wrap::-webkit-scrollbar { height: 10px; }
+.cp-table-wrap::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 5px; }
+.cp-table-wrap::-webkit-scrollbar-thumb {
+  background: #94a3b8; border-radius: 5px; border: 2px solid #e5e7eb;
+}
+.cp-table-wrap::-webkit-scrollbar-thumb:hover { background: #64748b; }
+.cp-table-wrap .rendered-table {
+  border: 3px solid #94a3b8;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+.cp-table-wrap .rendered-table th,
+.cp-table-wrap .rendered-table td {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: #cbd5e1 !important;
+  background-clip: padding-box;
+}
+.cp-table-wrap .rendered-table tbody td {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+.cp-table-wrap .rendered-table th {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  background: #e8f0fe !important;
+  padding: 10px 10px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+.cp-table-wrap .rendered-table td {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  line-height: 1.35 !important;
+  padding: 6px 8px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+.cp-table-wrap .rendered-table th.cp-ghead {
+  text-align: center !important;
+  vertical-align: middle !important;
+  background: #dcfce7 !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  padding: 10px 10px !important;
+  color: #14532d !important;
+}
+.cp-table-wrap .rendered-table th.cp-sub {
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-size: 16px !important;
+  color: #111827 !important;
+  font-weight: 700 !important;
+  padding: 8px 8px !important;
+  background: #f9fafb !important;
+}
+.cp-table-wrap .rendered-table th.cp-col-project {
+  text-align: center !important;
+  vertical-align: middle !important;
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 3 !important;
+  background: #e8f0fe !important;
+  color: #111827 !important;
+  font-size: 17px !important;
+}
+.cp-col-project {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 2 !important;
+  background: #f9fafb !important;
+  border-right: 3px solid #94a3b8 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  text-align: left !important;
+  padding: 6px 10px !important;
+}
+.cp-table-wrap .rendered-table tbody td.cp-col-project { font-size: 15px !important; }
+.cp-table-wrap .rendered-table thead th.cp-col-project {
+  border-top: 3px solid #94a3b8 !important;
+  border-left: 3px solid #94a3b8 !important;
+  border-bottom: 3px solid #94a3b8 !important;
+}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block {
+  border-left: 3px solid #94a3b8 !important;
+  border-right: 3px solid #94a3b8 !important;
+}
+.cp-table-wrap .rendered-table th.cp-ms-first,
+.cp-table-wrap .rendered-table td.cp-ms-first { border-left: 3px solid #94a3b8 !important; }
+.cp-table-wrap .rendered-table th.cp-ms-last,
+.cp-table-wrap .rendered-table td.cp-ms-last { border-right: 3px solid #94a3b8 !important; }
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block {
+  box-shadow: inset 3px 0 0 #94a3b8, inset -3px 0 0 #94a3b8;
+}
+.cp-table-wrap .rendered-table th.cp-ms-first,
+.cp-table-wrap .rendered-table td.cp-ms-first { box-shadow: inset 3px 0 0 #94a3b8; }
+.cp-table-wrap .rendered-table th.cp-ms-last,
+.cp-table-wrap .rendered-table td.cp-ms-last { box-shadow: inset -3px 0 0 #94a3b8; }
+.cp-table-wrap .rendered-table thead th.cp-col-project,
+.cp-table-wrap .rendered-table tbody td.cp-col-project { box-shadow: inset -3px 0 0 #94a3b8; }
+.cp-table-wrap .rendered-table th.cp-ms-sep,
+.cp-table-wrap .rendered-table td.cp-ms-sep { border-left: 16px solid #ffffff !important; }
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block.cp-ms-sep {
+  box-shadow: inset 3px 0 0 #94a3b8, inset -3px 0 0 #94a3b8;
+}
+.cp-table-wrap .rendered-table th.cp-ms-first.cp-ms-sep,
+.cp-table-wrap .rendered-table td.cp-ms-first.cp-ms-sep { box-shadow: inset 3px 0 0 #94a3b8; }
+.cp-table-wrap .rendered-table td.cp-td-pct-done {
+  background: transparent !important;
+  color: #ea580c !important;
+  font-weight: 700 !important;
+}
+.cp-table-wrap .rendered-table td.cp-otkl-ok {
+  color: #15803d !important;
+  font-weight: 700 !important;
+}
+.cp-table-wrap .rendered-table td.cp-otkl-late {
+  color: #b91c1c !important;
+  font-weight: 700 !important;
+}
+.cp-table-wrap .rendered-table td.cp-otkl-ok.cp-td-pct-done { color: #15803d !important; }
+.cp-table-wrap .rendered-table td.cp-otkl-late.cp-td-pct-done { color: #b91c1c !important; }
+.cp-table-wrap .rendered-table thead th.cp-sortable { cursor: pointer; user-select: none; }
+.cp-table-wrap .rendered-table thead th.cp-sortable:hover { filter: brightness(0.97); }
+.cp-status-cell { text-align: center; vertical-align: middle; }
+.cp-status-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: middle; }
+.cp-status-ok { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.35); }
+.cp-status-bad { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.35); }
+.cp-status-warn { background: #f59e0b; box-shadow: 0 0 7px rgba(245,158,11,0.5); }
+</style>
+"""
+
+
+def _control_points_css_raw(theme: str = "dark") -> str:
+    css = _CONTROL_POINTS_CSS_LIGHT if str(theme or "").strip().lower() == "light" else _CONTROL_POINTS_CSS
+    return css.replace("<style>", "").replace("</style>", "")
+
+
+def _control_points_iframe_sticky_css(theme: str = "dark") -> str:
+    if str(theme or "").strip().lower() == "light":
+        return """
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#ffffff;color:#111827;overflow-x:hidden;overflow-y:auto;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  opacity:1!important;filter:none!important;isolation:isolate}
+.matrix-fs-root,.matrix-fs-body{min-width:0!important;max-width:100%!important;width:100%!important}
+.cp-tables-stack{display:flex!important;flex-direction:column!important;align-items:stretch!important;
+  gap:40px!important;width:100%!important;padding:8px 8px 18px!important;box-sizing:border-box!important}
+.cp-table-wrap.cp-table-block{background:#ffffff!important;border:2px solid #cbd5e1!important;
+  border-radius:10px!important;padding:12px 14px!important;box-shadow:0 4px 14px rgba(15,23,42,0.08)!important;
+  isolation:isolate!important}
+.cp-table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;
+  overflow-x:auto!important;overflow-y:hidden!important;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  scrollbar-width:thin;scrollbar-color:#64748b #e5e7eb}
+.cp-table-wrap::-webkit-scrollbar{height:10px}
+.cp-table-wrap::-webkit-scrollbar-track{background:#e5e7eb;border-radius:5px}
+.cp-table-wrap::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:5px;border:2px solid #e5e7eb}
+.cp-table-wrap::-webkit-scrollbar-thumb:hover{background:#64748b}
+.cp-table-wrap .rendered-table{
+  border-collapse:separate!important;border-spacing:0!important;
+  width:max-content!important;min-width:100%!important;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;
+  font-size:13px!important;font-weight:700!important;border:3px solid #94a3b8!important}
+.cp-table-wrap .rendered-table tbody td{
+  font-size:13px!important;font-weight:700!important;line-height:1.35!important;
+  color:#111827!important;padding:6px 8px!important;text-align:center!important;
+  background-color:#ffffff!important}
+.cp-table-wrap .rendered-table th{
+  font-size:17px!important;font-weight:700!important;color:#111827!important;padding:10px 10px!important}
+.cp-table-wrap .rendered-table th.cp-sub{color:#111827!important;font-size:16px!important;background:#f9fafb!important}
+.cp-table-wrap .rendered-table th.cp-ghead{font-size:17px!important;color:#14532d!important;background:#dcfce7!important}
+.cp-table-wrap .rendered-table thead th.cp-col-project{font-size:17px!important;color:#111827!important;background:#e8f0fe!important}
+.cp-table-wrap .rendered-table th,
+.cp-table-wrap .rendered-table td{
+  border-width:1px!important;border-style:solid!important;
+  border-color:#cbd5e1!important;background-clip:padding-box!important}
+.cp-table-wrap .rendered-table th.cp-col-project,
+.cp-table-wrap .rendered-table td.cp-col-project{
+  position:sticky!important;left:0!important;
+  width:200px!important;min-width:200px!important;max-width:200px!important;
+  white-space:normal!important;word-break:break-word!important;
+  border-right:3px solid #94a3b8!important}
+.cp-table-wrap .rendered-table thead th.cp-col-project{
+  border-top:3px solid #94a3b8!important;border-left:3px solid #94a3b8!important;
+  border-bottom:3px solid #94a3b8!important}
+.cp-table-wrap .rendered-table th.cp-col-project{z-index:5!important;background:#e8f0fe!important}
+.cp-table-wrap .rendered-table td.cp-col-project{
+  z-index:4!important;background:#f9fafb!important;
+  text-align:left!important;color:#111827!important;padding:6px 10px!important;
+  font-size:15px!important}
+.cp-table-wrap .rendered-table td.cp-td-pct-done{color:#ea580c!important}
+.cp-table-wrap .rendered-table td.cp-otkl-ok{color:#15803d!important}
+.cp-table-wrap .rendered-table td.cp-otkl-late{color:#b91c1c!important}
+.cp-table-wrap .rendered-table th.cp-sub-status,
+.cp-table-wrap .rendered-table td.cp-col-cell-status{
+  width:34px!important;min-width:34px!important;
+  text-align:center!important;padding:4px 4px!important}
+.cp-table-wrap .rendered-table th.cp-sub,
+.cp-table-wrap .rendered-table td{min-width:96px;white-space:nowrap}
+.cp-table-wrap .rendered-table th.cp-sub-status,
+.cp-table-wrap .rendered-table td.cp-col-cell-status{min-width:34px!important}
+.cp-table-wrap .rendered-table th.cp-col-project,
+.cp-table-wrap .rendered-table td.cp-col-project{min-width:200px!important;white-space:normal!important}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block{
+  border-left:3px solid #94a3b8!important;border-right:3px solid #94a3b8!important;
+  box-shadow:inset 3px 0 0 #94a3b8,inset -3px 0 0 #94a3b8}
+.cp-table-wrap .rendered-table th.cp-ms-first,
+.cp-table-wrap .rendered-table td.cp-ms-first{
+  border-left:3px solid #94a3b8!important;box-shadow:inset 3px 0 0 #94a3b8}
+.cp-table-wrap .rendered-table th.cp-ms-last,
+.cp-table-wrap .rendered-table td.cp-ms-last{
+  border-right:3px solid #94a3b8!important;box-shadow:inset -3px 0 0 #94a3b8}
+.cp-table-wrap .rendered-table thead th.cp-col-project,
+.cp-table-wrap .rendered-table tbody td.cp-col-project{box-shadow:inset -3px 0 0 #94a3b8}
+.cp-table-wrap .rendered-table th.cp-ms-sep,
+.cp-table-wrap .rendered-table td.cp-ms-sep{border-left:16px solid #ffffff!important}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block.cp-ms-sep{
+  box-shadow:inset 3px 0 0 #94a3b8,inset -3px 0 0 #94a3b8}
+.cp-table-wrap .rendered-table th.cp-ms-first.cp-ms-sep,
+.cp-table-wrap .rendered-table td.cp-ms-first.cp-ms-sep{box-shadow:inset 3px 0 0 #94a3b8}
+"""
+    return """
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#0e1520;overflow-x:hidden;overflow-y:auto;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  opacity:1!important;filter:none!important;isolation:isolate}
+.matrix-fs-root,.matrix-fs-body{min-width:0!important;max-width:100%!important;width:100%!important}
+.cp-tables-stack{display:flex!important;flex-direction:column!important;align-items:stretch!important;
+  gap:40px!important;width:100%!important;padding:8px 8px 18px!important;box-sizing:border-box!important}
+.cp-table-wrap.cp-table-block{background:#121a24!important;border:2px solid rgba(255,255,255,0.42)!important;
+  border-radius:10px!important;padding:12px 14px!important;box-shadow:0 6px 18px rgba(0,0,0,0.42)!important;
+  isolation:isolate!important}
+.cp-table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;
+  overflow-x:auto!important;overflow-y:hidden!important;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  scrollbar-width:thin;scrollbar-color:rgba(121,154,192,0.5) #141820}
+.cp-table-wrap::-webkit-scrollbar{height:10px}
+.cp-table-wrap::-webkit-scrollbar-track{background:#141820;border-radius:5px}
+.cp-table-wrap::-webkit-scrollbar-thumb{background:rgba(121,154,192,0.42);border-radius:5px;border:2px solid #141820}
+.cp-table-wrap::-webkit-scrollbar-thumb:hover{background:rgba(121,154,192,0.65)}
+.cp-table-wrap .rendered-table{
+  border-collapse:separate!important;border-spacing:0!important;
+  width:max-content!important;min-width:100%!important;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;
+  font-size:13px!important;font-weight:700!important}
+.cp-table-wrap .rendered-table tbody td{
+  font-size:13px!important;font-weight:700!important;line-height:1.35!important;
+  color:#fafafa!important;padding:6px 8px!important;text-align:center!important}
+.cp-table-wrap .rendered-table th{
+  font-size:17px!important;font-weight:700!important;color:#f0f4f8!important;padding:10px 10px!important}
+.cp-table-wrap .rendered-table th.cp-sub{color:#f0f4f8!important;font-size:16px!important}
+.cp-table-wrap .rendered-table th.cp-ghead{font-size:17px!important;color:#f0f4f8!important}
+.cp-table-wrap .rendered-table thead th.cp-col-project{font-size:17px!important;color:#f0f4f8!important}
+.cp-table-wrap .rendered-table{border:3px solid #ffffff!important}
+.cp-table-wrap .rendered-table th,
+.cp-table-wrap .rendered-table td{
+  border-width:1px!important;border-style:solid!important;
+  border-color:#5a6f82!important;background-clip:padding-box!important}
+.cp-table-wrap .rendered-table tbody td{background-color:#0c1219!important}
+.cp-table-wrap .rendered-table th.cp-col-project,
+.cp-table-wrap .rendered-table td.cp-col-project{
+  position:sticky!important;left:0!important;
+  width:200px!important;min-width:200px!important;max-width:200px!important;
+  white-space:normal!important;word-break:break-word!important;
+  border-right:3px solid #ffffff!important}
+.cp-table-wrap .rendered-table thead th.cp-col-project{
+  border-top:3px solid #ffffff!important;border-left:3px solid #ffffff!important;
+  border-bottom:3px solid #ffffff!important}
+.cp-table-wrap .rendered-table th.cp-col-project{
+  z-index:5!important;background:#161f2b!important}
+.cp-table-wrap .rendered-table td.cp-col-project{
+  z-index:4!important;background:#161f2b!important;
+  text-align:left!important;color:#ffffff!important;padding:6px 10px!important;
+  font-size:15px!important}
+.cp-table-wrap .rendered-table td.cp-td-pct-done{color:#f09355!important}
+.cp-table-wrap .rendered-table td.cp-otkl-ok{color:#28a745!important}
+.cp-table-wrap .rendered-table td.cp-otkl-late{color:#d9534f!important}
+.cp-table-wrap .rendered-table th.cp-sub-status,
+.cp-table-wrap .rendered-table td.cp-col-cell-status{
+  width:34px!important;min-width:34px!important;
+  text-align:center!important;padding:4px 4px!important}
+.cp-table-wrap .rendered-table th.cp-sub,
+.cp-table-wrap .rendered-table td{
+  min-width:96px;white-space:nowrap}
+.cp-table-wrap .rendered-table th.cp-sub-status,
+.cp-table-wrap .rendered-table td.cp-col-cell-status{
+  min-width:34px!important}
+.cp-table-wrap .rendered-table th.cp-col-project,
+.cp-table-wrap .rendered-table td.cp-col-project{
+  min-width:200px!important;white-space:normal!important}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block{
+  border-left:3px solid #ffffff!important;border-right:3px solid #ffffff!important;
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table th.cp-ms-first,
+.cp-table-wrap .rendered-table td.cp-ms-first{
+  border-left:3px solid #ffffff!important;box-shadow:inset 3px 0 0 #fff}
+.cp-table-wrap .rendered-table th.cp-ms-last,
+.cp-table-wrap .rendered-table td.cp-ms-last{
+  border-right:3px solid #ffffff!important;box-shadow:inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table thead th.cp-col-project,
+.cp-table-wrap .rendered-table tbody td.cp-col-project{box-shadow:inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table th.cp-ms-sep,
+.cp-table-wrap .rendered-table td.cp-ms-sep{border-left:16px solid #121a24!important}
+.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block.cp-ms-sep{
+  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}
+.cp-table-wrap .rendered-table th.cp-ms-first.cp-ms-sep,
+.cp-table-wrap .rendered-table td.cp-ms-first.cp-ms-sep{box-shadow:inset 3px 0 0 #fff}
+"""
+
 
 def _apply_control_points_msp_filters(
     st, mdf: pd.DataFrame
@@ -5188,6 +6063,113 @@ _CONTROL_POINTS_POPOVER_FRAGMENT = (
 )
 
 
+_CONTROL_POINTS_POPOVER_FRAGMENT_LIGHT = (
+    """
+<style>
+.cp-tip-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.35);z-index:2147483000;
+  display:none;align-items:center;justify-content:center;padding:max(10px,2vw);
+  box-sizing:border-box;-webkit-overflow-scrolling:touch}
+.cp-tip-overlay.is-open{display:flex!important}
+.cp-tip-panel{position:relative;width:min(1120px,96vw);max-height:min(92vh,900px);
+  display:flex;flex-direction:column;background:#ffffff;border:1px solid #cbd5e1;
+  border-radius:12px;box-shadow:0 18px 48px rgba(15,23,42,0.18);overflow:hidden}
+.cp-tip-toolbar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:10px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb}
+.cp-tip-title{font:600 14px/1.2 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#111827}
+.cp-tip-close{box-sizing:border-box;width:34px;height:34px;margin:0;padding:0;border-radius:8px;
+  border:1px solid #cbd5e1;background:#ffffff;color:#111827;cursor:pointer;font-size:18px;line-height:1}
+.cp-tip-close:hover{background:#f3f4f6}
+.cp-tip-content{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 14px;color:#111827;font-size:12px;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.cp-tip-hdr{font:700 13px/1.35 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#111827;margin:0 0 10px 0}
+.cp-tip-tbl{width:100%;border-collapse:separate;border-spacing:0;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.cp-tip-tbl th,.cp-tip-tbl td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;vertical-align:top;color:#111827}
+.cp-tip-tbl th{background:#f3f4f6;color:#111827;font-weight:700}
+.cp-tip-tbl tr:nth-child(even) td{background:#f9fafb}
+.cp-tip-empty{opacity:0.92;margin:0;color:#374151}
+.cp-status-hit{display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:28px;
+  cursor:pointer;border-radius:6px;padding:2px}
+.cp-status-hit:hover,.cp-status-hit:focus-visible{outline:2px solid #94a3b8;outline-offset:1px;background:rgba(148,163,184,0.12)}
+</style>
+<div id="cp-tip-overlay" class="cp-tip-overlay" aria-hidden="true">
+  <div class="cp-tip-panel" role="dialog" aria-modal="true">
+    <div class="cp-tip-toolbar">
+      <span class="cp-tip-title">Детализация по вехе</span>
+      <button type="button" class="cp-tip-close" id="cp-tip-close" title="Закрыть">×</button>
+    </div>
+    <div id="cp-tip-content" class="cp-tip-content"></div>
+  </div>
+</div>
+<script>
+(function(){
+  function padB64(s){ var p=s.length%4; if(!p) return s; return s+'===='.slice(p); }
+  function utf8FromB64(b64){
+    try{
+      b64=padB64(String(b64).replace(/-/g,'+').replace(/_/g,'/'));
+      var bin=atob(b64);
+      var bytes=new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+      return new TextDecoder('utf-8').decode(bytes);
+    }catch(e){
+      return '<p class="cp-tip-empty">Не удалось открыть детализацию.</p>';
+    }
+  }
+  function openTip(html){
+    var ov=document.getElementById('cp-tip-overlay');
+    var bd=document.getElementById('cp-tip-content');
+    if(!ov||!bd) return;
+    bd.innerHTML=html;
+    ov.classList.add('is-open');
+    ov.setAttribute('aria-hidden','false');
+  }
+  function closeTip(){
+    var ov=document.getElementById('cp-tip-overlay');
+    if(!ov) return;
+    ov.classList.remove('is-open');
+    ov.setAttribute('aria-hidden','true');
+  }
+  function openFromEl(el){
+    var b64=el.getAttribute('data-cp-b64');
+    if(!b64) return;
+    openTip(utf8FromB64(b64));
+  }
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    if(t&&t.id==='cp-tip-overlay'){ closeTip(); }
+  },true);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape') closeTip();
+  },true);
+  document.addEventListener('click',function(e){
+    var x=e.target&&e.target.closest&&e.target.closest('#cp-tip-close');
+    if(x) closeTip();
+  },true);
+  document.addEventListener('click',function(e){
+    var el=e.target&&e.target.closest&&e.target.closest('.cp-status-hit');
+    if(!el) return;
+    e.preventDefault(); e.stopPropagation();
+    openFromEl(el);
+  },true);
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Enter'&&e.key!==' ') return;
+    var el=e.target&&e.target.closest&&e.target.closest('.cp-status-hit');
+    if(!el) return;
+    e.preventDefault();
+    openFromEl(el);
+  },true);
+})();
+</script>
+"""
+)
+
+
+def _control_points_popover_fragment(theme: str = "dark") -> str:
+    if str(theme or "").strip().lower() == "light":
+        return _CONTROL_POINTS_POPOVER_FRAGMENT_LIGHT
+    return _CONTROL_POINTS_POPOVER_FRAGMENT
+
+
 _CONTROL_POINTS_SORT_SCRIPT = """
 <script>
 (function(){
@@ -5302,96 +6284,18 @@ def render_control_points_dashboard(st, mdf: pd.DataFrame, table_css: str) -> No
 
     import streamlit.components.v1 as _components
 
-    _cp_css_raw = _CONTROL_POINTS_CSS.replace("<style>", "").replace("</style>", "")
-    _p = _iframe_chrome_palette()
-    _sticky_css = f"""
-*{{box-sizing:border-box}}
-html,body{{margin:0;padding:0;background:{_p['page_bg']};overflow-x:hidden;overflow-y:auto;
-  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  opacity:1!important;filter:none!important;isolation:isolate}}
-.matrix-fs-root,.matrix-fs-body{{min-width:0!important;max-width:100%!important;width:100%!important}}
-.cp-tables-stack{{display:flex!important;flex-direction:column!important;align-items:stretch!important;
-  gap:40px!important;width:100%!important;padding:8px 8px 18px!important;box-sizing:border-box!important}}
-.cp-table-wrap.cp-table-block{{background:{_p['block_bg']}!important;border:2px solid {_p['block_border']}!important;
-  border-radius:10px!important;padding:12px 14px!important;box-shadow:{_p['block_shadow']}!important;
-  isolation:isolate!important}}
-.cp-table-wrap{{width:100%!important;max-width:100%!important;min-width:0!important;
-  overflow-x:auto!important;overflow-y:hidden!important;
-  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
-  scrollbar-width:thin;scrollbar-color:{_p['scrollbar_thumb']} {_p['scrollbar_track']}}}
-.cp-table-wrap::-webkit-scrollbar{{height:10px}}
-.cp-table-wrap::-webkit-scrollbar-track{{background:{_p['scrollbar_track']};border-radius:5px}}
-.cp-table-wrap::-webkit-scrollbar-thumb{{background:{_p['scrollbar_thumb']};border-radius:5px;border:2px solid {_p['scrollbar_track']}}}
-.cp-table-wrap::-webkit-scrollbar-thumb:hover{{background:rgba(121,154,192,0.65)}}
-.cp-table-wrap .rendered-table{{
-  border-collapse:separate!important;border-spacing:0!important;
-  width:max-content!important;min-width:100%!important;
-  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;
-  font-size:13px!important;font-weight:700!important}}
-.cp-table-wrap .rendered-table tbody td{{
-  font-size:13px!important;font-weight:700!important;line-height:1.35!important;
-  color:{_p['body_text']}!important;padding:6px 8px!important;text-align:center!important}}
-.cp-table-wrap .rendered-table th{{
-  font-size:17px!important;font-weight:700!important;color:{_p['head_text']}!important;padding:10px 10px!important}}
-.cp-table-wrap .rendered-table th.cp-sub{{color:{_p['head_text']}!important;font-size:16px!important}}
-.cp-table-wrap .rendered-table th.cp-ghead{{font-size:17px!important;color:{_p['head_text']}!important}}
-.cp-table-wrap .rendered-table thead th.cp-col-project{{font-size:17px!important;color:{_p['head_text']}!important}}
-.cp-table-wrap .rendered-table{{border:3px solid {_p['strong_border']}!important}}
-.cp-table-wrap .rendered-table th,
-.cp-table-wrap .rendered-table td{{
-  border-width:1px!important;border-style:solid!important;
-  border-color:{_p['grid_border']}!important;background-clip:padding-box!important}}
-.cp-table-wrap .rendered-table tbody td{{background-color:{_p['cell_bg']}!important}}
-.cp-table-wrap .rendered-table th.cp-col-project,
-.cp-table-wrap .rendered-table td.cp-col-project{{
-  position:sticky!important;left:0!important;
-  width:200px!important;min-width:200px!important;max-width:200px!important;
-  white-space:normal!important;word-break:break-word!important;
-  border-right:3px solid {_p['strong_border']}!important}}
-.cp-table-wrap .rendered-table thead th.cp-col-project{{
-  border-top:3px solid {_p['strong_border']}!important;border-left:3px solid {_p['strong_border']}!important;
-  border-bottom:3px solid {_p['strong_border']}!important}}
-.cp-table-wrap .rendered-table th.cp-col-project{{
-  z-index:5!important;background:{_p['project_col_bg']}!important}}
-.cp-table-wrap .rendered-table td.cp-col-project{{
-  z-index:4!important;background:{_p['project_col_bg']}!important;
-  text-align:left!important;color:{_p['project_col_text']}!important;padding:6px 10px!important;
-  font-size:15px!important}}
-.cp-table-wrap .rendered-table td.cp-td-pct-done{{color:#f09355!important}}
-.cp-table-wrap .rendered-table td.cp-otkl-ok{{color:#28a745!important}}
-.cp-table-wrap .rendered-table td.cp-otkl-late{{color:#d9534f!important}}
-.cp-table-wrap .rendered-table th.cp-sub-status,
-.cp-table-wrap .rendered-table td.cp-col-cell-status{{
-  width:34px!important;min-width:34px!important;
-  text-align:center!important;padding:4px 4px!important}}
-.cp-table-wrap .rendered-table th.cp-sub,
-.cp-table-wrap .rendered-table td{{
-  min-width:96px;white-space:nowrap}}
-.cp-table-wrap .rendered-table th.cp-sub-status,
-.cp-table-wrap .rendered-table td.cp-col-cell-status{{
-  min-width:34px!important}}
-.cp-table-wrap .rendered-table th.cp-col-project,
-.cp-table-wrap .rendered-table td.cp-col-project{{
-  min-width:200px!important;white-space:normal!important}}
-.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block{{
-  border-left:3px solid {_p['strong_border']}!important;border-right:3px solid {_p['strong_border']}!important;
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}}
-.cp-table-wrap .rendered-table th.cp-ms-first,
-.cp-table-wrap .rendered-table td.cp-ms-first{{
-  border-left:3px solid {_p['strong_border']}!important;box-shadow:inset 3px 0 0 #fff}}
-.cp-table-wrap .rendered-table th.cp-ms-last,
-.cp-table-wrap .rendered-table td.cp-ms-last{{
-  border-right:3px solid {_p['strong_border']}!important;box-shadow:inset -3px 0 0 #fff}}
-.cp-table-wrap .rendered-table thead th.cp-col-project,
-.cp-table-wrap .rendered-table tbody td.cp-col-project{{box-shadow:inset -3px 0 0 #fff}}
-.cp-table-wrap .rendered-table th.cp-ms-sep,
-.cp-table-wrap .rendered-table td.cp-ms-sep{{border-left:16px solid {_p['sep_gap']}!important}}
-.cp-table-wrap .rendered-table th.cp-ghead.cp-ms-block.cp-ms-sep{{
-  box-shadow:inset 3px 0 0 #fff,inset -3px 0 0 #fff}}
-.cp-table-wrap .rendered-table th.cp-ms-first.cp-ms-sep,
-.cp-table-wrap .rendered-table td.cp-ms-first.cp-ms-sep{{box-shadow:inset 3px 0 0 #fff}}
-"""
-    _head_styles = _cp_css_raw + _sticky_css + _control_points_showcase_overrides(_p)
+    _cp_theme = "dark"
+    try:
+        from dashboards.light_theme import is_light_preview_active
+
+        if is_light_preview_active():
+            _cp_theme = "light"
+    except Exception:
+        pass
+
+    _cp_css_raw = _control_points_css_raw(_cp_theme)
+    _sticky_css = _control_points_iframe_sticky_css(_cp_theme)
+    _head_styles = _cp_css_raw + _sticky_css
 
     project_w = "width:200px;min-width:200px;max-width:200px"
     table_blocks: List[str] = []
@@ -5524,12 +6428,15 @@ html,body{{margin:0;padding:0;background:{_p['page_bg']};overflow-x:hidden;overf
     _iframe_html = _matrix_iframe_html_document(
         _head_styles,
         _scroll_block,
-        extra_body_suffix=_CONTROL_POINTS_POPOVER_FRAGMENT + _CONTROL_POINTS_SORT_SCRIPT,
+        extra_body_suffix=_control_points_popover_fragment(_cp_theme) + _CONTROL_POINTS_SORT_SCRIPT,
         body_class="cp-body-stack",
+        color_scheme=_cp_theme,
     )
     _gap = 40 * max(0, len(table_blocks) - 1)
     _card_pad = 24 * len(table_blocks)
     _iframe_h = min(3200, 52 + len(table_blocks) * _table_h_each + _gap + _card_pad)
+    if _cp_theme == "light":
+        st.markdown(_DEV_MATRIX_STREAMLIT_HOST_CSS_LIGHT, unsafe_allow_html=True)
     _components.html(_iframe_html, height=_iframe_h, scrolling=False)
 
     drop_ok = [
@@ -5558,7 +6465,7 @@ html,body{{margin:0;padding:0;background:{_p['page_bg']};overflow-x:hidden;overf
 
 _DEV_MATRIX_CACHE_KEY = "_dev_matrix_cache_v1"
 # Инкремент при изменении логики `dedupe_msp_for_developer_projects` (сброс session-кэша dedupe).
-_DEV_DEDUPE_CACHE_VER = 2
+_DEV_DEDUPE_CACHE_VER = 7
 
 
 def _matrix_project_scope_tag(df: pd.DataFrame) -> str:
@@ -5581,6 +6488,8 @@ def _df_fingerprint(df: Optional[pd.DataFrame]) -> Tuple[Any, ...]:
     Не использует hash содержимого (дорого на больших MSP). Берёт shape, id
     объекта и хэш кортежа из (первый/последний индекс, первое/последнее
     значение в первом столбце). Если DataFrame подменён — отпечаток меняется.
+    Включает max(snapshot_date) и набор source-файлов — иначе после подмешивания
+    старого MSP-месяца кэш мог отдавать матрицу со «старыми» нулевыми Откл.
     """
     if df is None:
         return ("none",)
@@ -5593,6 +6502,31 @@ def _df_fingerprint(df: Optional[pd.DataFrame]) -> Tuple[Any, ...]:
         c0 = df.columns[0] if len(df.columns) else None
         first_val = "" if c0 is None else str(df.iloc[0, 0])[:64]
         last_val = "" if c0 is None else str(df.iloc[-1, 0])[:64]
+        snap_max = ""
+        if "snapshot_date" in df.columns:
+            try:
+                _sm = pd.to_datetime(df["snapshot_date"], errors="coerce").max()
+                if pd.notna(_sm):
+                    snap_max = pd.Timestamp(_sm).strftime("%Y-%m-%d")
+            except Exception:
+                snap_max = ""
+        src_tag = ""
+        src_col = next(
+            (c for c in ("__source_file", "source_file", "_source_file") if c in df.columns),
+            None,
+        )
+        if src_col is not None:
+            try:
+                srcs = sorted(
+                    {
+                        str(x).replace("\\", "/").split("/")[-1].strip().lower()
+                        for x in df[src_col].dropna().astype(str).tolist()
+                        if str(x).strip()
+                    }
+                )
+                src_tag = "|".join(srcs)[:400]
+            except Exception:
+                src_tag = ""
         return (
             id(df),
             tuple(df.shape),
@@ -5601,6 +6535,8 @@ def _df_fingerprint(df: Optional[pd.DataFrame]) -> Tuple[Any, ...]:
             str(last_idx),
             first_val,
             last_val,
+            snap_max,
+            src_tag,
         )
     except Exception:
         return ("err", id(df))

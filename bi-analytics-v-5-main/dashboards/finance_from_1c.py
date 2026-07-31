@@ -12,40 +12,6 @@ import numpy as np
 import pandas as pd
 
 
-def _finance_showcase_mode() -> bool:
-    try:
-        from config import is_showcase_mode
-
-        return is_showcase_mode()
-    except Exception:
-        return False
-
-
-def _to_month_period_value(x: Any) -> Any:
-    """Legacy: сопоставление периодов только по месяцам (production)."""
-    if isinstance(x, pd.Period):
-        return x.asfreq("M") if x.freq != "M" else x
-    if pd.isna(x):
-        return pd.NaT
-    try:
-        return pd.Period(str(x), freq="M")
-    except Exception:
-        pass
-    try:
-        ts = pd.Timestamp(x)
-        if pd.notna(ts):
-            return ts.to_period("M")
-    except Exception:
-        pass
-    return pd.NaT
-
-
-def _turnover_period_value(x: Any, target_freq: str) -> Any:
-    if _finance_showcase_mode():
-        return _coerce_period_value(x, target_freq)
-    return _to_month_period_value(x)
-
-
 def _turnover_article_has_lot_and_sublot(raw) -> bool:
     """
     ТЗ БДДС/БДР (1С): в расчёт включаются строки, где в «СтатьяОборотов» явно
@@ -98,7 +64,11 @@ def _turnover_article_has_lot_and_sublot(raw) -> bool:
 def _filter_1c_frame_by_article_lot_sublot(frame: pd.DataFrame, *, art_col: Optional[str]) -> pd.DataFrame:
     if frame is None or getattr(frame, "empty", True) or not art_col or art_col not in frame.columns:
         return frame
-    m = frame[art_col].map(_turnover_article_has_lot_and_sublot).fillna(False)
+    # «СтатьяОборотов» имеет низкую кардинальность (~60 уникальных) при тысячах строк —
+    # считаем regex-предикат один раз на уникальное значение, затем map по словарю.
+    col = frame[art_col]
+    lut = {v: _turnover_article_has_lot_and_sublot(v) for v in pd.unique(col)}
+    m = col.map(lut).fillna(False).astype(bool)
     if not bool(m.any()):
         return frame.iloc[0:0].copy()
     return frame.loc[m].copy()
@@ -255,12 +225,17 @@ def _parse_1c_period_series(raw: pd.Series) -> pd.Series:
     if raw is None:
         return pd.Series(dtype="datetime64[ns]")
     s = raw.astype(str).str.strip()
-    dt = pd.to_datetime(s, errors="coerce", dayfirst=False)
-    need_fallback = dt.isna()
-    if bool(need_fallback.any()):
-        dt_fb = pd.to_datetime(s[need_fallback], errors="coerce", dayfirst=True)
-        dt.loc[need_fallback] = dt_fb
-    return dt
+    # Даты периодов 1С сильно повторяются (помесячные обороты) — парсим только
+    # уникальные значения dateutil-ом, затем разворачиваем обратно по позициям.
+    uniq, inverse = np.unique(s.to_numpy(), return_inverse=True)
+    parsed = pd.to_datetime(uniq, errors="coerce", dayfirst=False)
+    need_fallback = parsed.isna()
+    if bool(np.asarray(need_fallback).any()):
+        fb = pd.to_datetime(uniq[np.asarray(need_fallback)], errors="coerce", dayfirst=True)
+        parsed_vals = parsed.to_numpy(copy=True)
+        parsed_vals[np.asarray(need_fallback)] = fb.to_numpy()
+        parsed = pd.DatetimeIndex(parsed_vals)
+    return pd.Series(parsed.to_numpy()[inverse], index=s.index)
 
 
 def _pick_col(df: pd.DataFrame, needles: tuple[str, ...]) -> Optional[str]:
@@ -542,7 +517,70 @@ def try_approved_budget_from_1c_dannye(
     return out
 
 
+def _ref_1c_fingerprint(df: Optional[pd.DataFrame]) -> tuple:
+    """Дешёвый отпечаток кадра оборотов 1С для in-session мемоизации (без хэша содержимого)."""
+    if df is None:
+        return ("none",)
+    try:
+        if getattr(df, "empty", True):
+            return ("empty",)
+        c0 = df.columns[0] if len(df.columns) else None
+        return (
+            tuple(df.shape),
+            tuple(map(str, df.columns[:8])),
+            str(df.index[0]),
+            str(df.index[-1]),
+            "" if c0 is None else str(df.iloc[0, 0])[:48],
+            "" if c0 is None else str(df.iloc[-1, 0])[:48],
+        )
+    except Exception:
+        return ("err", id(df))
+
+
 def try_synthetic_budget_from_1c_dannye(
+    *,
+    reference_1c_dannye: Optional[pd.DataFrame] = None,
+    impute_plan: bool = True,
+) -> Optional[pd.DataFrame]:
+    """In-session мемо-обёртка: за один рендер БДДС/Девелоперских функция зовётся
+    5–8 раз с тем же кадром 1С. Кешируем результат по дешёвому отпечатку кадра
+    (+ флаг impute_plan); сама сборка — в _try_synthetic_budget_from_1c_dannye_uncached.
+    """
+    ref = reference_1c_dannye
+    if ref is None:
+        try:
+            import streamlit as st
+
+            ref = st.session_state.get("reference_1c_dannye")
+        except Exception:
+            ref = None
+    if ref is None or not isinstance(ref, pd.DataFrame) or ref.empty:
+        return None
+    _memo = None
+    _key = None
+    try:
+        import streamlit as st
+
+        _memo = st.session_state.setdefault("_syn_budget_memo_v1", {})
+        _key = (_ref_1c_fingerprint(ref), bool(impute_plan))
+        if _key in _memo:
+            _c = _memo[_key]
+            return _c.copy() if isinstance(_c, pd.DataFrame) else _c
+    except Exception:
+        _memo = None
+        _key = None
+    _res = _try_synthetic_budget_from_1c_dannye_uncached(
+        reference_1c_dannye=ref, impute_plan=impute_plan
+    )
+    if _memo is not None and _key is not None:
+        try:
+            _memo[_key] = _res.copy() if isinstance(_res, pd.DataFrame) else _res
+        except Exception:
+            pass
+    return _res
+
+
+def _try_synthetic_budget_from_1c_dannye_uncached(
     *,
     reference_1c_dannye: Optional[pd.DataFrame] = None,
     impute_plan: bool = True,
@@ -597,17 +635,16 @@ def try_synthetic_budget_from_1c_dannye(
     if not per:
         return None
 
-    def _no_bdr(row) -> bool:
-        a = str(row.get(art, "") if art else "").casefold()
-        if "(бдр)" in a or a.strip() == "бдр":
-            return False
-        if typ and typ in row.index:
-            tl = str(row.get(typ, "")).casefold()
-            if "бдр" in tl and "бддс" not in tl:
-                return False
-        return True
-
-    t = t[t.apply(_no_bdr, axis=1)].copy()
+    # Векторный эквивалент построчного _no_bdr (исключаем статьи (БДР)/«бдр» и
+    # тип статьи с «бдр» без «бддс»). Раньше — t.apply(..., axis=1) по всему кадру.
+    keep = pd.Series(True, index=t.index)
+    if art and art in t.columns:
+        a = t[art].astype(str).str.casefold()
+        keep &= ~(a.str.contains("(бдр)", regex=False) | a.str.strip().eq("бдр"))
+    if typ and typ in t.columns:
+        tl = t[typ].astype(str).str.casefold()
+        keep &= ~(tl.str.contains("бдр", regex=False) & ~tl.str.contains("бддс", regex=False))
+    t = t[keep].copy()
     if t.empty:
         return None
     if art:
@@ -966,6 +1003,101 @@ def try_synthetic_bdr_from_1c_dannye(
     return odf
 
 
+def restrict_project_filter_labels_to_finance_data(
+    labels: list[str],
+    msp_df: Optional[pd.DataFrame] = None,
+    *,
+    kind: str = "bdds",
+) -> list[str]:
+    """
+    Оставить в фильтре БДДС/БДР только проекты с ненулевыми суммами:
+    в колонках MSP и/или в синтетике из ``reference_1c_dannye``.
+
+    Иначе в списке остаются MSP-проекты без оборотов 1С (например «Новорижский»).
+    Если ни MSP, ни 1С не дают сумм — возвращает labels без изменений.
+    """
+    if not labels:
+        return list(labels or [])
+
+    from dashboards._renderers import (
+        _project_filter_norm_key,
+        _project_norm_key_matches_msp_keys,
+    )
+
+    data_keys: set[str] = set()
+    kind_l = (kind or "bdds").strip().lower()
+
+    if msp_df is not None and not getattr(msp_df, "empty", True):
+        if "project name" in msp_df.columns:
+            if kind_l == "bdr":
+                money_cols = [
+                    c
+                    for c in (
+                        "bdr_plan_expense",
+                        "bdr_fact_expense",
+                        "bdr_income",
+                        "bdr_expense",
+                        "доходы",
+                        "расходы",
+                        "доход",
+                        "расход",
+                        "income",
+                        "expense",
+                    )
+                    if c in msp_df.columns
+                ]
+            else:
+                money_cols = [
+                    c
+                    for c in ("budget plan", "budget fact")
+                    if c in msp_df.columns
+                ]
+            if money_cols:
+                tmp = msp_df[["project name", *money_cols]].copy()
+                amt = None
+                for c in money_cols:
+                    s = pd.to_numeric(tmp[c], errors="coerce").fillna(0.0).abs()
+                    amt = s if amt is None else (amt + s)
+                tmp["_amt"] = amt if amt is not None else 0.0
+                for pname, total in (
+                    tmp.groupby("project name", dropna=False)["_amt"].sum().items()
+                ):
+                    if float(total) <= 0.0:
+                        continue
+                    pk = _project_filter_norm_key(pname)
+                    if pk:
+                        data_keys.add(pk)
+
+    try:
+        syn = (
+            try_synthetic_bdr_from_1c_dannye()
+            if kind_l == "bdr"
+            else try_synthetic_budget_from_1c_dannye()
+        )
+    except Exception:
+        syn = None
+    if syn is not None and not getattr(syn, "empty", True) and "project name" in syn.columns:
+        for pname in syn["project name"].dropna().unique():
+            pk = _project_filter_norm_key(pname)
+            if pk:
+                data_keys.add(pk)
+
+    if not data_keys:
+        return list(labels)
+
+    out: list[str] = []
+    for lab in labels:
+        s = str(lab).strip()
+        if not s:
+            continue
+        lk = _project_filter_norm_key(s)
+        if not lk:
+            continue
+        if _project_norm_key_matches_msp_keys(lk, data_keys):
+            out.append(s)
+    return out
+
+
 def ensure_budget_frame_with_fallback(
     df: pd.DataFrame,
     *,
@@ -1009,20 +1141,23 @@ def ensure_budget_frame_with_fallback(
         _project_norm_key_matches_msp_keys,
     )
 
+    nt = (narrow_to_project_norm_key or "").strip()
     if restrict_projects_from_df and "project name" in work.columns:
         nz = work["project name"].dropna()
-        if nz.empty:
+        # MSP пуст после фильтра периода, но выбран проект — тянем 1С по narrow key.
+        if nz.empty and not nt:
             return work, False
 
-        keys = {_project_filter_norm_key(x) for x in nz.unique()}
+        keys = {_project_filter_norm_key(x) for x in nz.unique()} if not nz.empty else set()
         keys.discard("")
+        if nt:
+            keys.add(nt)
         if keys:
             _rk = syn["project name"].map(_project_filter_norm_key)
             syn = syn[
                 _rk.map(lambda rk: _project_norm_key_matches_msp_keys(rk, keys))
             ].copy()
 
-    nt = (narrow_to_project_norm_key or "").strip()
     if nt and not syn.empty and "project name" in syn.columns:
         _rk_n = syn["project name"].map(_project_filter_norm_key)
         syn = syn[
@@ -1157,87 +1292,6 @@ def expand_budget_month_grid(
     return _expand_chunk(df)
 
 
-def _period_freq_rank(freq: str) -> int:
-    f = str(freq or "").upper()
-    if f.startswith("Y") or f.startswith("A"):
-        return 3
-    if f.startswith("Q"):
-        return 2
-    return 1
-
-
-def _infer_period_freq_from_series(series: pd.Series) -> str:
-    """Доминирующая частота Period в сводке (год > квартал > месяц)."""
-    from collections import Counter
-
-    counts: Counter[str] = Counter()
-    for x in series.dropna().head(500):
-        if isinstance(x, pd.Period):
-            fs = str(getattr(x, "freqstr", None) or x.freq or "")
-            if fs:
-                counts[fs] += 1
-            continue
-        try:
-            p = pd.Period(str(x))
-            fs = str(getattr(p, "freqstr", None) or p.freq or "")
-            if fs:
-                counts[fs] += 1
-        except Exception:
-            pass
-    if not counts:
-        return "M"
-    return max(counts.keys(), key=lambda f: (_period_freq_rank(f), counts[f]))
-
-
-def _coerce_period_value(x: Any, target_freq: str) -> Any:
-    """Приводит значение периода к единой частоте (M / Q / Y-DEC)."""
-    if x is None or (isinstance(x, float) and pd.isna(x)):
-        return pd.NaT
-    tf = str(target_freq or "M").strip() or "M"
-    try:
-        if isinstance(x, pd.Period):
-            p = x
-        else:
-            p = pd.Period(str(x))
-        cur = str(getattr(p, "freqstr", None) or p.freq or "")
-        if cur == tf:
-            return p
-        return p.asfreq(tf)
-    except Exception:
-        pass
-    try:
-        ts = pd.Timestamp(x)
-        if pd.notna(ts):
-            return ts.to_period(tf)
-    except Exception:
-        pass
-    return pd.NaT
-
-
-def _aggregate_budget_syn_by_period(
-    syn: pd.DataFrame,
-    *,
-    target_freq: str,
-) -> pd.DataFrame:
-    """Суммирует помесячные строки 1С до квартала/года для сводки с такой группировкой."""
-    if syn is None or syn.empty or str(target_freq or "M") == "M":
-        return syn
-    work = syn.copy()
-    work["_overlay_period"] = work["plan_month"].map(lambda m: _coerce_period_value(m, target_freq))
-    group_keys = ["project name", "_overlay_period"]
-    agg: dict[str, str] = {
-        "budget plan": "sum",
-        "budget fact": "sum",
-    }
-    for col in work.columns:
-        if col in group_keys or col in agg or col == "plan_month":
-            continue
-        agg[col] = "first"
-    grouped = work.groupby(group_keys, dropna=False).agg(agg).reset_index()
-    grouped["plan_month"] = grouped["_overlay_period"]
-    return grouped.drop(columns=["_overlay_period"], errors="ignore")
-
-
 def merge_budget_summary_by_norm_project_month(
     summary: pd.DataFrame,
     *,
@@ -1246,9 +1300,8 @@ def merge_budget_summary_by_norm_project_month(
     project_col: str = "project name",
     fill_columns: tuple[str, ...] = ("budget plan", "budget fact", "reserve budget"),
     canonical_project_name: str | None = None,
-    period_freq: str | None = None,
 ) -> pd.DataFrame:
-    """Склеивает строки MSP и 1С с разными подписями проекта в одну серию по периодам."""
+    """Склеивает строки MSP и 1С с разными подписями проекта в одну серию по месяцам."""
     if summary is None or summary.empty or project_col not in summary.columns:
         return summary
     if period_original_col not in summary.columns:
@@ -1256,11 +1309,6 @@ def merge_budget_summary_by_norm_project_month(
     from dashboards._renderers import _project_filter_norm_key
 
     out = summary.copy()
-    if _finance_showcase_mode():
-        target_freq = period_freq or _infer_period_freq_from_series(out[period_original_col])
-        out[period_original_col] = out[period_original_col].map(
-            lambda x: _coerce_period_value(x, target_freq)
-        )
     out["_norm_pk"] = out[project_col].map(_project_filter_norm_key)
     name_map: dict[str, str] = {}
     for nm in out[project_col].dropna().unique():
@@ -1372,126 +1420,10 @@ def finalize_budget_summary_for_display(
         out,
         period_col=period_col,
     )
-    out = zero_budget_plan_for_projects_without_1c_plan(
+    return zero_budget_plan_for_projects_without_1c_plan(
         out,
         reference_1c_dannye=reference_1c_dannye,
     )
-    if _finance_showcase_mode():
-        out = _showcase_mix_bdds_plan_fact(out)
-    return out
-
-
-def _showcase_mix_bdds_plan_fact(
-    summary: pd.DataFrame,
-    *,
-    seed_tag: str = "bdds",
-) -> pd.DataFrame:
-    """Showcase: чередуем факт ниже/выше плана по периодам (детерминированно)."""
-    import hashlib
-
-    if summary is None or getattr(summary, "empty", True):
-        return summary
-    if "budget plan" not in summary.columns or "budget fact" not in summary.columns:
-        return summary
-
-    out = summary.copy()
-    plan = pd.to_numeric(out["budget plan"], errors="coerce").fillna(0.0)
-    fact = pd.to_numeric(out["budget fact"], errors="coerce").fillna(0.0)
-    new_fact = fact.copy()
-
-    for idx in out.index:
-        p = float(plan.at[idx])
-        if p <= 50_000.0:
-            continue
-        proj = str(out.at[idx, "project name"]) if "project name" in out.columns else ""
-        if "period_original" in out.columns:
-            per = str(out.at[idx, "period_original"])
-        elif "plan_month" in out.columns:
-            per = str(out.at[idx, "plan_month"])
-        elif "month" in out.columns:
-            per = str(out.at[idx, "month"])
-        else:
-            per = str(idx)
-        seed = f"{proj}|{per}|{seed_tag}"
-        h = int(hashlib.md5(seed.encode("utf-8")).hexdigest()[:8], 16)
-        pct = 0.06 + (h % 23) / 100.0
-        if (h // 23) % 2 == 0:
-            new_fact.at[idx] = p * (1.0 - pct)
-        else:
-            new_fact.at[idx] = p * (1.0 + pct)
-
-    out["budget fact"] = new_fact
-    if "reserve budget" in out.columns:
-        out["reserve budget"] = new_fact - plan
-    return out
-
-
-def _showcase_mix_bdr_tz_expenses(
-    df: pd.DataFrame,
-    *,
-    period_col: str = "plan end",
-) -> pd.DataFrame:
-    """Showcase БДР: чередуем факт ниже/выше плана расходов по строкам."""
-    import hashlib
-
-    if df is None or getattr(df, "empty", True):
-        return df
-    if "_plan_exp" not in df.columns or "_fact_exp" not in df.columns:
-        return df
-
-    out = df.copy()
-    plan = pd.to_numeric(out["_plan_exp"], errors="coerce").fillna(0.0)
-    fact = pd.to_numeric(out["_fact_exp"], errors="coerce").fillna(0.0)
-    new_fact = fact.copy()
-
-    for idx in out.index:
-        p = float(plan.at[idx])
-        if p <= 50_000.0:
-            continue
-        proj = str(out.at[idx, "project name"]) if "project name" in out.columns else ""
-        per = ""
-        if period_col in out.columns:
-            per = str(out.at[idx, period_col])
-        seed = f"{proj}|{per}|bdr"
-        h = int(hashlib.md5(seed.encode("utf-8")).hexdigest()[:8], 16)
-        pct = 0.06 + (h % 23) / 100.0
-        if (h // 23) % 2 == 0:
-            new_fact.at[idx] = p * (1.0 - pct)
-        else:
-            new_fact.at[idx] = p * (1.0 + pct)
-
-    out["_fact_exp"] = new_fact
-    if "_dev" in out.columns:
-        out["_dev"] = new_fact - plan
-    return out
-
-
-def _showcase_mix_forecast_bddcs_monthly(df: pd.DataFrame) -> pd.DataFrame:
-    """Showcase «Прогнозный бюджет»: разнообразим факт и прогноз относительно плана."""
-    if df is None or getattr(df, "empty", True):
-        return df
-    if not _finance_showcase_mode():
-        return df
-    need = {"bdds_plan_msp", "bdds_fact", "bdds_forecast"}
-    if not need.issubset(set(df.columns)):
-        return df
-
-    out = df.copy()
-    if "period_original" not in out.columns:
-        out["period_original"] = out["month"].astype(str) if "month" in out.columns else out.index.astype(str)
-
-    fact_mix = out.rename(
-        columns={"bdds_plan_msp": "budget plan", "bdds_fact": "budget fact"}
-    )
-    fact_mix = _showcase_mix_bdds_plan_fact(fact_mix, seed_tag="fc_fact")
-    out["bdds_fact"] = fact_mix["budget fact"]
-
-    frc_mix = out.rename(
-        columns={"bdds_plan_msp": "budget plan", "bdds_forecast": "budget fact"}
-    )
-    frc_mix = _showcase_mix_bdds_plan_fact(frc_mix, seed_tag="fc_forecast")
-    out["bdds_forecast"] = frc_mix["budget fact"]
-    return out.drop(columns=["period_original"], errors="ignore")
 
 
 def resolve_reference_1c_dannye(
@@ -1598,10 +1530,33 @@ def _bdds_month_label_short(ts: pd.Timestamp) -> str:
     return pd.Timestamp(ts).strftime("%m.%y")
 
 
-def _bdds_month_label_short(ts: pd.Timestamp) -> str:
-    if ts is None or pd.isna(ts):
-        return ""
-    return pd.Timestamp(ts).strftime("%m.%y")
+def bdds_project_turnover_date_bounds(
+    project_name: str,
+    *,
+    reference_1c_dannye: Optional[pd.DataFrame] = None,
+) -> tuple[Any | None, Any | None]:
+    """Мин/макс даты оборотов 1С по проекту (для дефолта периода БДДС)."""
+    ref = resolve_budget_turnover_dannye(reference_1c_dannye)
+    if ref is None or ref.empty or not str(project_name or "").strip():
+        return None, None
+    from dashboards._renderers import _project_filter_norm_key, _project_norm_key_matches_msp_keys
+
+    proj = _pick_col(ref, ("Проект", "project", "проект"))
+    per = _pick_col(ref, ("Период", "period"))
+    if not proj or not per:
+        return None, None
+    pk = _project_filter_norm_key(project_name)
+    t = ref[
+        ref[proj]
+        .map(_project_filter_norm_key)
+        .map(lambda rk: _project_norm_key_matches_msp_keys(rk, {pk}))
+    ].copy()
+    if t.empty:
+        return None, None
+    d = _parse_1c_period_series(t[per]).dropna()
+    if d.empty:
+        return None, None
+    return d.min().date(), d.max().date()
 
 
 def _bdds_turnover_g_for_project(
@@ -1638,17 +1593,15 @@ def _bdds_turnover_g_for_project(
     if t.empty:
         return None
 
-    def _no_bdr(row) -> bool:
-        a = str(row.get(art, "") if art else "").casefold()
-        if "(бдр)" in a or a.strip() == "бдр":
-            return False
-        if typ and typ in row.index:
-            tl = str(row.get(typ, "")).casefold()
-            if "бдр" in tl and "бддс" not in tl:
-                return False
-        return True
-
-    t = t[t.apply(_no_bdr, axis=1)].copy()
+    # Векторный эквивалент построчного _no_bdr (см. try_synthetic_budget_from_1c_dannye).
+    keep = pd.Series(True, index=t.index)
+    if art and art in t.columns:
+        a = t[art].astype(str).str.casefold()
+        keep &= ~(a.str.contains("(бдр)", regex=False) | a.str.strip().eq("бдр"))
+    if typ and typ in t.columns:
+        tl = t[typ].astype(str).str.casefold()
+        keep &= ~(tl.str.contains("бдр", regex=False) & ~tl.str.contains("бддс", regex=False))
+    t = t[keep].copy()
     if art:
         t = _filter_1c_frame_by_article_lot_sublot(t, art_col=art)
     if t.empty:
@@ -1709,16 +1662,17 @@ def _bdds_turnover_g_for_project(
         fc = float(month_totals.loc[m, "_fact"])
         if pl + fc <= 0.0:
             continue
+        # Подозрительный «план без факта» (демо/ошибочная выгрузка) — обнуляем план.
         if pl > 500_000_000.0 and fc < pl * 0.05:
             pl = 0.0
         if pl + fc <= 0.0:
             continue
-        if int(m.year) >= 2025 and max(pl, fc) > 100_000_000.0:
-            continue
         months_active.append(m)
-    m2024 = sorted(x for x in months_active if int(x.year) == 2024)
-    m2026 = sorted(x for x in months_active if int(x.year) == 2026)
-    months = (m2024 + m2026)[: max(1, int(max_months))]
+    # Все активные месяцы (раньше ошибочно брали только 2024+2026 и резали
+    # суммы >100 млн за 2025+ — «Ленинский» и др. проекты с оборотами 2025+ ломались).
+    months = months_active[: max(1, int(max_months))]
+    if not months:
+        return None
 
     if rd and rd in t.columns:
         rs = t[rd].astype(str).str.casefold()
@@ -1763,7 +1717,8 @@ def build_bdds_plan_fact_analysis_table(
     max_months: int = 24,
 ) -> Optional[pd.DataFrame]:
     """
-    Матрица «Статья × месяц» (план/факт/откл.) для таблицы «План-фактный анализ» на БДДС.
+    План-фактный анализ БДДС: по месяцам (заголовок) → статьи с П/Ф/Δ.
+    Длинный формат (не широкая матрица), чтобы не было пустых колонок слева.
     """
     prep = _bdds_turnover_g_for_project(
         project_name=project_name,
@@ -1775,71 +1730,89 @@ def build_bdds_plan_fact_analysis_table(
     if prep is None:
         return None
     g, months, art, _proj_nm = prep
-    from utils import format_million_rub
+    from utils import format_million_rub, format_period_ru
 
-    def _section_rank(s: str) -> int:
-        return 0 if str(s) == "Поступления" else 1
+    if not months:
+        return None
 
-    articles: list[tuple[str, str]] = []
-    for sec in sorted(g["_section"].unique(), key=_section_rank):
-        arts = (
-            g.loc[g["_section"] == sec, art]
-            .dropna()
-            .astype(str)
-            .unique()
-            .tolist()
-        )
-        for a in sorted(arts):
-            articles.append((str(sec), a))
+    g = g[g["_m"].isin(months)].copy()
+    if g.empty:
+        return None
+
+    _min_show = 50_000.0
+
+    def _fmt(v: float) -> str:
+        return format_million_rub(v, decimals=1) if abs(v) >= _min_show else ""
 
     rows: list[dict] = []
-    col_names: list[str] = []
     for m in months:
-        lbl = _bdds_month_label_short(m.to_timestamp())
-        for suffix, key in (("П", "_plan"), ("Ф", "_fact"), ("Δ", "_dev")):
-            cn = f"{lbl} {suffix}"
-            col_names.append(cn)
-
-    def _cell(plan_v: float, fact_v: float, kind: str) -> str:
-        if kind == "_plan":
-            return format_million_rub(plan_v, decimals=1) if abs(plan_v) >= 50_000 else ""
-        if kind == "_fact":
-            return format_million_rub(fact_v, decimals=1) if abs(fact_v) >= 50_000 else ""
-        dev = fact_v - plan_v
-        if abs(dev) < 50_000:
-            return ""
-        return format_million_rub(dev, decimals=1)
-
-    for sec, art_name in articles:
-        hdr = {"Статья": sec, "_row_kind": "project"}
-        for cn in col_names:
-            hdr[cn] = ""
-        rows.append(hdr)
-        body = {"Статья": f"  {art_name}", "_row_kind": ""}
-        sub = g[(g["_section"] == sec) & (g[art].astype(str) == art_name)]
-        for m in months:
-            lbl = _bdds_month_label_short(m.to_timestamp())
-            chunk = sub.loc[sub["_m"] == m]
-            pl = float(chunk["_plan"].sum()) if not chunk.empty else 0.0
-            fc = float(chunk["_fact"].sum()) if not chunk.empty else 0.0
-            body[f"{lbl} П"] = _cell(pl, fc, "_plan")
-            body[f"{lbl} Ф"] = _cell(pl, fc, "_fact")
-            body[f"{lbl} Δ"] = _cell(pl, fc, "_dev")
-        rows.append(body)
-
-    tot = {"Статья": "ИТОГО", "_row_kind": "total"}
-    for m in months:
-        lbl = _bdds_month_label_short(m.to_timestamp())
         chunk_m = g[g["_m"] == m]
-        pl = float(chunk_m["_plan"].sum())
-        fc = float(chunk_m["_fact"].sum())
-        tot[f"{lbl} П"] = _cell(pl, fc, "_plan")
-        tot[f"{lbl} Ф"] = _cell(pl, fc, "_fact")
-        tot[f"{lbl} Δ"] = _cell(pl, fc, "_dev")
-    rows.append(tot)
+        m_plan = float(chunk_m["_plan"].sum())
+        m_fact = float(chunk_m["_fact"].sum())
+        if abs(m_plan) + abs(m_fact) < _min_show:
+            continue
+        try:
+            m_lbl = format_period_ru(m)
+        except Exception:
+            m_lbl = _bdds_month_label_short(m.to_timestamp())
 
-    out = pd.DataFrame(rows)
-    return out
+        rows.append(
+            {
+                "Статья": m_lbl,
+                "План, млн. руб.": "",
+                "Факт, млн. руб.": "",
+                "Отклонение, млн. руб.": "",
+                "_row_kind": "project",
+            }
+        )
+
+        # Статьи месяца с ненулевым оборотом (родители и подлоты).
+        arts = (
+            chunk_m.groupby(art, dropna=False)[["_plan", "_fact"]]
+            .sum()
+            .reset_index()
+        )
+        arts["_abs"] = arts["_plan"].abs() + arts["_fact"].abs()
+        arts = arts[arts["_abs"] >= _min_show].sort_values("_abs", ascending=False)
+        for _, ar in arts.iterrows():
+            pl = float(ar["_plan"])
+            fc = float(ar["_fact"])
+            rows.append(
+                {
+                    "Статья": f"  {ar[art]}",
+                    "План, млн. руб.": _fmt(pl),
+                    "Факт, млн. руб.": _fmt(fc),
+                    "Отклонение, млн. руб.": _fmt(fc - pl),
+                    "_row_kind": "",
+                }
+            )
+
+        rows.append(
+            {
+                "Статья": f"  Итого {m_lbl}",
+                "План, млн. руб.": _fmt(m_plan),
+                "Факт, млн. руб.": _fmt(m_fact),
+                "Отклонение, млн. руб.": _fmt(m_fact - m_plan),
+                "_row_kind": "total",
+            }
+        )
+
+    if not rows:
+        return None
+
+    # Общий итог
+    all_plan = float(g["_plan"].sum())
+    all_fact = float(g["_fact"].sum())
+    rows.append(
+        {
+            "Статья": "ИТОГО",
+            "План, млн. руб.": _fmt(all_plan),
+            "Факт, млн. руб.": _fmt(all_fact),
+            "Отклонение, млн. руб.": _fmt(all_fact - all_plan),
+            "_row_kind": "total",
+        }
+    )
+    return pd.DataFrame(rows)
 
 
 def overlay_turnover_monthly_on_budget_summary(
@@ -1887,40 +1860,27 @@ def overlay_turnover_monthly_on_budget_summary(
     if "period_original" not in out.columns and period_col in out.columns:
         out["period_original"] = out[period_col]
 
-    _showcase = _finance_showcase_mode()
-    target_freq = (
-        _infer_period_freq_from_series(out["period_original"]) if _showcase else "M"
-    )
-
-    def _to_target_period(x):
-        return _turnover_period_value(x, target_freq)
+    def _to_month_period(x):
+        if isinstance(x, pd.Period):
+            return x.asfreq("M") if x.freq != "M" else x
+        if pd.isna(x):
+            return pd.NaT
+        try:
+            return pd.Period(str(x), freq="M")
+        except Exception:
+            pass
+        try:
+            ts = pd.Timestamp(x)
+            if pd.notna(ts):
+                return ts.to_period("M")
+        except Exception:
+            pass
+        return pd.NaT
 
     merged_any = False
     extra_rows: list[dict] = []
-    if _showcase:
-        period_months: dict[Any, list] = {}
-        for m in months:
-            try:
-                if int(m.year) >= 2025:
-                    continue
-            except Exception:
-                pass
-            tp = _to_target_period(m)
-            if pd.isna(tp):
-                continue
-            period_months.setdefault(tp, []).append(m)
-        period_iter = ((tp, mlist) for tp, mlist in period_months.items())
-    else:
-        period_iter = ((m, [m]) for m in months)
-
-    for tp, mlist in period_iter:
-        if not _showcase:
-            try:
-                if int(tp.year) >= 2025:
-                    continue
-            except Exception:
-                pass
-        chunk_m = g[g["_m"].isin(mlist)]
+    for m in months:
+        chunk_m = g[g["_m"] == m]
         syn_plan = float(chunk_m["_plan"].sum())
         syn_fact = float(chunk_m["_fact"].sum())
         if syn_plan + syn_fact <= 50_000.0:
@@ -1933,8 +1893,8 @@ def overlay_turnover_monthly_on_budget_summary(
         else:
             row_mask = pd.Series(False, index=out.index)
 
-        per_vals = out["period_original"].map(_to_target_period)
-        hit = row_mask & (per_vals == tp)
+        per_vals = out["period_original"].map(_to_month_period)
+        hit = row_mask & (per_vals == m)
         if bool(hit.any()):
             existing_pl = float(out.loc[hit, "budget plan"].fillna(0.0).sum())
             existing_fc = float(out.loc[hit, "budget fact"].fillna(0.0).sum())
@@ -1957,8 +1917,8 @@ def overlay_turnover_monthly_on_budget_summary(
             extra_rows.append(
                 {
                     "project name": _proj_nm,
-                    period_col: format_period_ru(tp),
-                    "period_original": tp,
+                    period_col: format_period_ru(m),
+                    "period_original": m,
                     "budget plan": syn_plan,
                     "budget fact": syn_fact,
                     "reserve budget": syn_fact - syn_plan,
@@ -1982,7 +1942,6 @@ def overlay_turnover_monthly_on_budget_summary(
         out,
         period_col=period_col,
         canonical_project_name=canon,
-        **({"period_freq": target_freq} if _showcase else {}),
     )
     return out, True
 
@@ -2046,18 +2005,6 @@ def overlay_demo_turnover_on_budget_summary(
     if nt:
         keys.add(nt)
 
-    _showcase = _finance_showcase_mode()
-    if _showcase:
-        target_freq = _infer_period_freq_from_series(out["period_original"])
-        syn = _aggregate_budget_syn_by_period(syn, target_freq=target_freq)
-    else:
-        target_freq = "M"
-
-    def _to_target_period(x):
-        if _showcase:
-            return _coerce_period_value(x, target_freq)
-        return _to_month_period_value(x)
-
     merged_any = False
     extra_rows: list[dict] = []
     for _, sr in syn.iterrows():
@@ -2075,11 +2022,8 @@ def overlay_demo_turnover_on_budget_summary(
             )
         except Exception:
             continue
-        syn_period = _to_target_period(syn_month) if _showcase else syn_month
-        if _showcase and pd.isna(syn_period):
-            continue
         try:
-            syn_year = int((syn_period if _showcase else syn_month).year)
+            syn_year = int(syn_month.year)
         except Exception:
             syn_year = 0
         if max_year is not None and syn_year > int(max_year):
@@ -2102,8 +2046,25 @@ def overlay_demo_turnover_on_budget_summary(
         else:
             row_mask = pd.Series(False, index=out.index)
 
-        per_vals = out["period_original"].map(_to_target_period)
-        hit = row_mask & (per_vals == (syn_period if _showcase else syn_month))
+        def _to_month_period(x):
+            if isinstance(x, pd.Period):
+                return x.asfreq("M") if x.freq != "M" else x
+            if pd.isna(x):
+                return pd.NaT
+            try:
+                return pd.Period(str(x), freq="M")
+            except Exception:
+                pass
+            try:
+                ts = pd.Timestamp(x)
+                if pd.notna(ts):
+                    return ts.to_period("M")
+            except Exception:
+                pass
+            return pd.NaT
+
+        per_vals = out["period_original"].map(_to_month_period)
+        hit = row_mask & (per_vals == syn_month)
         if bool(hit.any()):
             existing_pl = float(out.loc[hit, "budget plan"].fillna(0.0).sum())
             existing_fc = float(out.loc[hit, "budget fact"].fillna(0.0).sum())
@@ -2126,8 +2087,8 @@ def overlay_demo_turnover_on_budget_summary(
             extra_rows.append(
                 {
                     "project name": _proj_nm,
-                    period_col: format_period_ru(syn_period if _showcase else syn_month),
-                    "period_original": syn_period if _showcase else syn_month,
+                    period_col: format_period_ru(syn_month),
+                    "period_original": syn_month,
                     "budget plan": syn_plan,
                     "budget fact": syn_fact,
                     "reserve budget": syn_fact - syn_plan,
@@ -2147,12 +2108,10 @@ def overlay_demo_turnover_on_budget_summary(
             if _project_norm_key_matches_msp_keys(_project_filter_norm_key(nm), {nt}):
                 canon = str(nm)
                 break
-    _merge_kw = {"period_freq": target_freq} if _showcase else {}
     out = merge_budget_summary_by_norm_project_month(
         out,
         period_col=period_col,
         canonical_project_name=canon,
-        **_merge_kw,
     )
     return out, True
 
@@ -2224,20 +2183,6 @@ def overlay_1c_on_budget_summary(
                     return str(nm)
         return fallback
 
-    from utils import format_period_ru
-
-    _showcase = _finance_showcase_mode()
-    if _showcase:
-        target_freq = _infer_period_freq_from_series(out["period_original"])
-        syn = _aggregate_budget_syn_by_period(syn, target_freq=target_freq)
-    else:
-        target_freq = "M"
-
-    def _to_target_period(x):
-        if _showcase:
-            return _coerce_period_value(x, target_freq)
-        return _to_month_period_value(x)
-
     extra_rows: list[dict] = []
     merged_any = False
     for _, sr in syn.iterrows():
@@ -2251,9 +2196,6 @@ def overlay_1c_on_budget_summary(
             syn_month = pd.Period(syn_month, freq="M") if not isinstance(syn_month, pd.Period) else syn_month
         except Exception:
             continue
-        syn_period = _to_target_period(syn_month) if _showcase else syn_month
-        if _showcase and pd.isna(syn_period):
-            continue
         syn_plan = float(pd.to_numeric(sr.get("budget plan"), errors="coerce") or 0.0)
         syn_fact = float(pd.to_numeric(sr.get("budget fact"), errors="coerce") or 0.0)
         if "project name" in out.columns:
@@ -2262,9 +2204,25 @@ def overlay_1c_on_budget_summary(
             )
         else:
             row_mask = pd.Series(True, index=out.index)
+        def _to_month_period(x):
+            if isinstance(x, pd.Period):
+                return x.asfreq("M") if x.freq != "M" else x
+            if pd.isna(x):
+                return pd.NaT
+            try:
+                return pd.Period(str(x), freq="M")
+            except Exception:
+                pass
+            try:
+                ts = pd.Timestamp(x)
+                if pd.notna(ts):
+                    return ts.to_period("M")
+            except Exception:
+                pass
+            return pd.NaT
 
-        per_vals = out["period_original"].map(_to_target_period)
-        hit = row_mask & (per_vals == (syn_period if _showcase else syn_month))
+        per_vals = out["period_original"].map(_to_month_period)
+        hit = row_mask & (per_vals == syn_month)
         if bool(hit.any()):
             out.loc[hit, "budget plan"] = syn_plan
             out.loc[hit, "budget fact"] = syn_fact
@@ -2272,12 +2230,14 @@ def overlay_1c_on_budget_summary(
                 out.loc[hit, "reserve budget"] = syn_fact - syn_plan
             merged_any = True
         else:
+            from utils import format_period_ru
+
             _proj_nm = _canonical_name_for_syn_pk(syn_pk, str(sr.get("project name") or ""))
             extra_rows.append(
                 {
                     "project name": _proj_nm,
-                    period_col: format_period_ru(syn_period if _showcase else syn_month),
-                    "period_original": syn_period if _showcase else syn_month,
+                    period_col: format_period_ru(syn_month),
+                    "period_original": syn_month,
                     "budget plan": syn_plan,
                     "budget fact": syn_fact,
                     "reserve budget": syn_fact - syn_plan,
@@ -2295,12 +2255,10 @@ def overlay_1c_on_budget_summary(
             if _project_norm_key_matches_msp_keys(_project_filter_norm_key(nm), {nt}):
                 canon = str(nm)
                 break
-    _merge_kw = {"period_freq": target_freq} if _showcase else {}
     out = merge_budget_summary_by_norm_project_month(
         out,
         period_col=period_col,
         canonical_project_name=canon,
-        **_merge_kw,
     )
     out = zero_budget_plan_for_projects_without_1c_plan(
         out,

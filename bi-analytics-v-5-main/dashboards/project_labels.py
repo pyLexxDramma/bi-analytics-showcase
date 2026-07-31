@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
 import pandas as pd
@@ -105,24 +104,6 @@ def latin_msp_slug_to_cyrillic(raw: object) -> str:
     return "".join(out)
 
 
-def projekts_json_dirs() -> List[Path]:
-    """Каталоги со справочником 1С (``*_Projekts.json``).
-
-    Showcase: только ``showcase_data/web`` — демо не читает клиентские выгрузки.
-    """
-    try:
-        from config import get_runtime_web_dir, is_showcase_mode
-    except Exception:
-        return [Path("web"), Path(__file__).resolve().parent.parent / "web"]
-    if is_showcase_mode():
-        try:
-            runtime = get_runtime_web_dir()
-        except Exception:
-            return []
-        return [Path(runtime)] if runtime is not None else []
-    return [Path("web"), Path(__file__).resolve().parent.parent / "web"]
-
-
 def _projekts_russian_names() -> List[str]:
     """Все русские наименования проектов из БД / web/*_Projekts.json."""
     names: list[str] = []
@@ -148,9 +129,14 @@ def _projekts_russian_names() -> List[str]:
     # может быть неполным / без поля «Наименование».
     try:
         import json
+        from pathlib import Path
 
+        roots = [
+            Path("web"),
+            Path(__file__).resolve().parent.parent / "web",
+        ]
         paths: list[Path] = []
-        for root in projekts_json_dirs():
+        for root in roots:
             if not root.is_dir():
                 continue
             paths.extend(root.glob("*_Projekts.json"))

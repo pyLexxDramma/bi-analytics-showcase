@@ -10,7 +10,7 @@ import hashlib
 from contextlib import contextmanager
 from datetime import date, datetime
 from html import escape as html_escape
-from typing import Any, Generator, List, Optional, Sequence, Tuple
+from typing import Any, Generator, List, Mapping, Optional, Sequence, Tuple
 
 Chip = Tuple[str, str]
 
@@ -22,13 +22,60 @@ def suppress_caption(*_args, **_kwargs) -> None:
 
 # --- Единый блок фильтров ---------------------------------------------------------
 
-_SESSION_CSS_FLAG_KEY = "_bi_unified_filters_css_v6"
+_SESSION_CSS_FLAG_KEY = "_bi_unified_filters_css_v12"
 _DEFAULT_FIELD_MIN_PX = 260
 
 UNIFIED_FILTERS_CSS = """
 <style>
 [data-testid="stMain"] .bi-filters-scope {
-    --bi-filter-rhythm: 16px;
+    --bi-filter-rhythm: 8px;
+}
+/* Не схлопывать selectbox в узкой 5-колоночной строке (Есипово и др.) */
+.bi-filters-selectors [data-testid="stSelectbox"],
+.bi-filters-scope [data-testid="stSelectbox"],
+.bi-filters-selectors [data-testid="stDateInput"],
+.bi-filters-scope [data-testid="stDateInput"] {
+    min-width: 0 !important;
+    min-height: 4.25rem !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+.bi-filters-selectors [data-testid="stSelectbox"] [data-baseweb="select"],
+.bi-filters-scope [data-testid="stSelectbox"] [data-baseweb="select"],
+.bi-filters-selectors [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+.bi-filters-scope [data-testid="stSelectbox"] [data-baseweb="select"] > div {
+    min-height: 2.4rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+.bi-filters-selectors [data-testid="stWidgetLabel"],
+.bi-filters-scope [data-testid="stWidgetLabel"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    line-height: 1.25 !important;
+    margin-bottom: 0.15rem !important;
+}
+/* Явный wrap селекта «Функциональный блок» в «Причины отклонений» */
+div[class*="st-key-devcombo_block_wrap"],
+div[class*="st-key-devcombo_block"] {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+}
+div[class*="st-key-devcombo_block_wrap"] [data-testid="stSelectbox"],
+div[class*="st-key-devcombo_block"] [data-baseweb="select"],
+div[class*="st-key-devcombo_block"] [data-baseweb="select"] > div {
+    display: block !important;
+    width: 100% !important;
+    min-height: 2.4rem !important;
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 /* Popover: равные колонки с ограничением ширины поля */
 [data-testid="stMain"] [data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"],
@@ -38,21 +85,21 @@ UNIFIED_FILTERS_CSS = """
     min-width: """ + str(_DEFAULT_FIELD_MIN_PX) + """px !important;
     max-width: 320px !important;
 }
-/* Expander «Фilters»: строка селекторов — равные колонки и одинаковый gap */
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child),
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child),
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child),
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) {
+/* Expander «Фilters»: строка селекторов — равные колонки (не чекбоксы!) */
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child),
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child),
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child),
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) {
     display: flex !important;
     flex-wrap: nowrap !important;
     gap: 12px !important;
     column-gap: 12px !important;
     width: 100% !important;
 }
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) > div[data-testid="column"],
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) > div[data-testid="column"],
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) > div[data-testid="column"],
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) > div[data-testid="column"] {
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) > div[data-testid="column"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) > div[data-testid="column"],
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) > div[data-testid="column"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) > div[data-testid="column"] {
     flex: 1 1 0% !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -60,16 +107,51 @@ UNIFIED_FILTERS_CSS = """
     padding-left: 0 !important;
     padding-right: 0 !important;
 }
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stSelectbox"],
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stMultiSelect"],
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stSelectbox"],
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stMultiSelect"],
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stSelectbox"],
-[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stMultiSelect"],
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stSelectbox"],
-[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stMultiSelect"] {
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stSelectbox"],
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stMultiSelect"],
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stDateInput"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stSelectbox"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stMultiSelect"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(5):last-child) [data-testid="stDateInput"],
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stSelectbox"],
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stMultiSelect"],
+[data-testid="stMain"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stDateInput"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stSelectbox"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stMultiSelect"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] .bi-filters-selectors div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child) [data-testid="stDateInput"] {
     max-width: none !important;
     width: 100% !important;
+}
+/* Чекбоксы в expander: ширина колонок — auto (перебивает общие правила) */
+html body section.main [data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"] [data-testid="stCheckbox"]) > div[data-testid="column"],
+html body section.main div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"] [data-testid="stCheckbox"]) > div[data-testid="column"],
+[data-testid="stExpanderDetails"] .bi-filters-toggles div[data-testid="stHorizontalBlock"] > div[data-testid="column"],
+[data-testid="stExpanderDetails"] .bi-filters-scope div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"] [data-testid="stCheckbox"]) > div[data-testid="column"] {
+    flex: 1 1 14rem !important;
+    min-width: 10rem !important;
+    max-width: none !important;
+    width: auto !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+[data-testid="stExpanderDetails"] .bi-filters-toggles [data-testid="stCheckbox"] label[data-baseweb="checkbox"],
+html body section.main [data-testid="stExpanderDetails"] [data-testid="stCheckbox"] label[data-baseweb="checkbox"],
+html body section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"] {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+    max-width: none !important;
+}
+[data-testid="stExpanderDetails"] .bi-filters-toggles [data-testid="stCheckbox"] label[data-baseweb="checkbox"] p,
+[data-testid="stExpanderDetails"] .bi-filters-toggles [data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:last-child,
+html body section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"] p {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    white-space: normal !important;
+    word-break: normal !important;
 }
 [data-testid="stMain"] [data-testid="stPopoverBody"] [data-testid="stVerticalBlock"] > label,
 [data-testid="stMain"] .bi-filters-scope [data-testid="stVerticalBlock"] > label {
@@ -106,7 +188,7 @@ UNIFIED_FILTERS_CSS = """
     color: #86efac;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin: 8px 0 6px 0;
+    margin: 4px 0 3px 0;
 }
 
 .bi-filters-selectors {
@@ -149,10 +231,10 @@ UNIFIED_FILTERS_CSS = """
     width: 100% !important;
 }
 .bi-filters-toggles div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    flex: 1 1 0% !important;
-    min-width: 0 !important;
+    flex: 1 1 14rem !important;
+    min-width: 10rem !important;
     max-width: none !important;
-    width: 0 !important;
+    width: auto !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
 }
@@ -211,10 +293,10 @@ UNIFIED_FILTERS_CSS = """
     align-items: flex-start !important;
 }
 .bi-filters-scope div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"] [data-testid="stCheckbox"]) > div[data-testid="column"] {
-    flex: 1 1 0% !important;
-    min-width: 0 !important;
+    flex: 1 1 14rem !important;
+    min-width: 10rem !important;
     max-width: none !important;
-    width: 0 !important;
+    width: auto !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
 }
@@ -233,10 +315,23 @@ def inject_unified_filters_css(st: Any) -> None:
     """Подключить общие стили сетки фильтров (идемпотентно по session_state)."""
     if not hasattr(st, "session_state"):
         return
-    if st.session_state.get(_SESSION_CSS_FLAG_KEY):
+    _light = False
+    try:
+        from dashboards.light_theme import is_light_preview_active
+
+        _light = is_light_preview_active()
+    except Exception:
+        pass
+    if st.session_state.get(_SESSION_CSS_FLAG_KEY) and not _light:
         return
     st.markdown(UNIFIED_FILTERS_CSS, unsafe_allow_html=True)
     st.session_state[_SESSION_CSS_FLAG_KEY] = True
+    try:
+        from dashboards.light_theme import maybe_inject_light_filter_widgets
+
+        maybe_inject_light_filter_widgets(st)
+    except Exception:
+        pass
 
 
 def _reset_button_key(keys: Sequence[str]) -> str:
@@ -266,22 +361,123 @@ def _filters_expander_session_key(
     return f"bi_filters_exp_{digest}"
 
 
-def _collapse_filters_expander_on_dashboard_open(st: Any, expander_key: str) -> None:
-    """При переходе на другой дашборд — блок «Фильтры» свёрнут."""
+def _collapse_filters_expander_on_dashboard_open(
+    st: Any,
+    expander_key: str,
+    *,
+    default_expanded: bool = False,
+) -> None:
+    """При переходе на другой дашборд — задать состояние expander «Фильтры».
+
+    По умолчанию свёрнут; для РД/ПД передают ``default_expanded=True``,
+    чтобы фильтры снова были видны как раньше (не «исчезли»).
+    """
     if not hasattr(st, "session_state"):
         return
     cur_dash = str(st.session_state.get("current_dashboard") or "")
     if st.session_state.get(_FILTERS_LAST_DASHBOARD_KEY) != cur_dash:
         st.session_state[_FILTERS_LAST_DASHBOARD_KEY] = cur_dash
-        st.session_state[expander_key] = False
+        st.session_state[expander_key] = bool(default_expanded)
 
 
-def reset_filter_widgets(st: Any, keys: Sequence[str]) -> None:
-    """Сбросить значения виджетов по ключам session_state."""
+def _infer_filter_reset_value(key: str, previous: Any) -> Any:
+    """Подобрать дефолт после сброса, если явный ``defaults`` не задан.
+
+    Streamlit после ``pop`` по key часто оставляет прежний выбор в UI —
+    нужно явно записать значение в session_state (особенно multiselect/selectbox).
+    """
+    if isinstance(previous, list):
+        return []
+    if isinstance(previous, bool):
+        kl = str(key).lower()
+        # hide_zero / hide_overdue в дашбордах по умолчанию включены (True)
+        if "hide_zero" in kl or "hide_overdue" in kl:
+            return True
+        return False
+    if isinstance(previous, str):
+        kl = str(key).lower()
+        if previous in (FILTER_ALL, "Все", "Все проекты", PROJECT_FILTER_PLACEHOLDER):
+            return FILTER_ALL
+        for tip in (
+            "project",
+            "block",
+            "building",
+            "contractor",
+            "counterparty",
+            "kontr",
+            "reason",
+            "section",
+            "stage",
+            "object",
+            "contr",
+            "kind",
+        ):
+            if tip in kl:
+                return FILTER_ALL
+        if previous in ("Месяц", "Квартал", "Год", "День"):
+            return "Месяц"
+        if previous in ("По месяцам", "Накопительно"):
+            return "По месяцам"
+        if previous in (PERIOD_MODE_ALL_TIME, PERIOD_MODE_CUSTOM):
+            return PERIOD_MODE_ALL_TIME
+        if previous == "Весь период":
+            return "Весь период"
+    # date range / числа / служебные tuple — не трогаем: виджет возьмёт свой value=
+    return None
+
+
+def reset_filter_widgets(
+    st: Any,
+    keys: Sequence[str],
+    *,
+    defaults: Optional[Mapping[str, Any]] = None,
+) -> None:
+    """Сбросить значения виджетов по ключам session_state.
+
+    Ключ, оканчивающийся на ``*`` или ``_``, трактуется как префикс: чистятся все
+    ключи session_state с таким началом. Это нужно для дашбордов с динамическими
+    ключами (напр. Гант: ``gantt_block_filter_v2_{хэш_проекта}``), где точное имя
+    заранее неизвестно.
+
+    ``defaults`` — явные значения после очистки (selectbox в Streamlit иначе
+    может сохранить последний выбор в UI). Если не переданы — для list/bool и
+    типичных фильтров («Проект» → «Все») значения выводятся автоматически.
+    """
     if not hasattr(st, "session_state"):
         return
+    prefixes: list[str] = []
+    exact: list[str] = []
     for k in keys:
-        st.session_state.pop(str(k), None)
+        s = str(k)
+        if s.endswith("*"):
+            prefixes.append(s[:-1])
+        elif s.endswith("_"):
+            prefixes.append(s)
+        else:
+            exact.append(s)
+
+    cleared: dict[str, Any] = {}
+    for k in exact:
+        if k in st.session_state:
+            cleared[k] = st.session_state[k]
+        st.session_state.pop(k, None)
+    if prefixes:
+        for existing in list(st.session_state.keys()):
+            es = str(existing)
+            if any(es.startswith(p) for p in prefixes):
+                cleared[es] = st.session_state[existing]
+                st.session_state.pop(existing, None)
+
+    inferred: dict[str, Any] = {}
+    for k, prev in cleared.items():
+        cand = _infer_filter_reset_value(k, prev)
+        if cand is not None:
+            inferred[k] = cand
+    if defaults:
+        for k, v in defaults.items():
+            inferred[str(k)] = v
+    for k, v in inferred.items():
+        st.session_state[k] = v
 
 
 def render_filter_chips(st: Any, chips: Optional[Sequence[Chip]]) -> None:
@@ -364,6 +560,7 @@ def filters_popover(
     *,
     active_count: int = 0,
     reset_keys: Optional[Sequence[str]] = None,
+    reset_defaults: Optional[Mapping[str, Any]] = None,
     panel_key: Optional[str] = None,
     expanded: bool = False,
 ) -> Generator[_FiltersPopoverHandle, None, None]:
@@ -378,18 +575,30 @@ def filters_popover(
     chip_slot = st.empty()
     handle = _FiltersPopoverHandle(st, chip_slot)
     _exp_key = _filters_expander_session_key(st, pop_label, reset_keys, panel_key)
-    _collapse_filters_expander_on_dashboard_open(st, _exp_key)
+    _collapse_filters_expander_on_dashboard_open(
+        st, _exp_key, default_expanded=bool(expanded)
+    )
     with st.expander(pop_label, expanded=expanded, key=_exp_key):
         if reset_keys:
+            _rk = [str(k) for k in reset_keys]
+            _rd = dict(reset_defaults) if reset_defaults else None
+
+            def _on_filters_reset(
+                _keys: Sequence[str] = _rk,
+                _defs: Optional[Mapping[str, Any]] = _rd,
+            ) -> None:
+                # on_click выполняется до отрисовки виджетов — так session_state
+                # успевает обновиться до multiselect/selectbox.
+                reset_filter_widgets(st, _keys, defaults=_defs)
+
             _rb_col, _ = st.columns([1, 4])
             with _rb_col:
-                if st.button(
+                st.button(
                     "Сбросить",
-                    key=_reset_button_key(reset_keys),
+                    key=_reset_button_key(_rk),
                     help="Сбросить фильтры этого отчёта к значениям по умолчанию",
-                ):
-                    reset_filter_widgets(st, reset_keys)
-                    st.rerun()
+                    on_click=_on_filters_reset,
+                )
         yield handle
 
 
@@ -406,6 +615,7 @@ def filters_panel(
     title: str = "Фильтры",
     *,
     reset_keys: Optional[Sequence[str]] = None,
+    reset_defaults: Optional[Mapping[str, Any]] = None,
     panel_key: Optional[str] = None,
     expanded: bool = False,
 ) -> Generator[None, None, None]:
@@ -414,7 +624,12 @@ def filters_panel(
     Новые отчёты с чипами — ``filters_popover`` напрямую.
     """
     with filters_popover(
-        st, label=title, reset_keys=reset_keys, panel_key=panel_key, expanded=expanded
+        st,
+        label=title,
+        reset_keys=reset_keys,
+        reset_defaults=reset_defaults,
+        panel_key=panel_key,
+        expanded=expanded,
     ) as _fp:
         inject_unified_filters_css(st)
         st.markdown('<div class="bi-filters-scope">', unsafe_allow_html=True)
@@ -448,86 +663,56 @@ PERIOD_MODE_ALL_TIME = "Весь период (за всё время)"
 PERIOD_MODE_CUSTOM = "Выбор диапазона дат"
 
 
-PERIOD_MODE_CUSTOM = "Выбор диапазона дат"
-
-
-def _ui_showcase_mode() -> bool:
-    try:
-        from config import is_showcase_mode
-
-        return is_showcase_mode()
-    except Exception:
-        return False
-
-
-def _normalize_date_bound(value: Any) -> Optional[date]:
-    """Приводит значение к ``datetime.date`` для ``st.date_input``."""
+def _normalize_date_like(value: Any) -> Optional[date]:
+    """Привести значение к ``datetime.date`` или ``None`` (для session_state / date_input)."""
     if value is None:
         return None
     if isinstance(value, date) and not isinstance(value, datetime):
         return value
     if isinstance(value, datetime):
         return value.date()
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        if raw.casefold() == "today":
+            return date.today()
+        try:
+            return date.fromisoformat(raw[:10])
+        except ValueError:
+            return None
     try:
         import pandas as pd
 
-        if isinstance(value, pd.Period):
-            ts = value.to_timestamp(how="end")
-            if pd.notna(ts):
-                return ts.date()
-        if isinstance(value, pd.Timestamp):
-            if pd.notna(value):
-                return value.date()
+        if pd.isna(value):
+            return None
     except Exception:
         pass
     if hasattr(value, "to_pydatetime"):
         try:
-            return value.to_pydatetime().date()
+            dt = value.to_pydatetime()
+            if isinstance(dt, datetime):
+                return dt.date()
         except Exception:
-            pass
+            return None
     if hasattr(value, "date") and callable(value.date):
         try:
             d = value.date()
+            if isinstance(d, datetime):
+                return d.date()
             if isinstance(d, date):
                 return d
         except Exception:
-            pass
-    if isinstance(value, str):
-        s = value.strip()
-        if not s or s.lower() in ("nat", "none", "nan"):
             return None
-        try:
-            import pandas as pd
-
-            ts = pd.to_datetime(s, dayfirst=True, errors="coerce")
-            if pd.notna(ts):
-                return ts.date()
-        except Exception:
-            pass
     return None
 
 
-def _normalize_date_range_pair(
-    pair: Any,
-) -> Optional[Tuple[Optional[date], Optional[date]]]:
-    if isinstance(pair, (list, tuple)) and len(pair) == 2:
-        start = _normalize_date_bound(pair[0])
-        end = _normalize_date_bound(pair[1])
-        if start is None and end is None:
-            return None
-        return start, end
-    one = _normalize_date_bound(pair)
-    if one is None:
-        return None
-    return one, one
-
-
 def _clamp_date_to_bounds(value: Any, min_value: Any, max_value: Any) -> Optional[date]:
-    d = _normalize_date_bound(value)
+    d = _normalize_date_like(value)
     if d is None:
         return None
-    min_d = _normalize_date_bound(min_value)
-    max_d = _normalize_date_bound(max_value)
+    min_d = _normalize_date_like(min_value)
+    max_d = _normalize_date_like(max_value)
     if min_d is not None and d < min_d:
         return min_d
     if max_d is not None and d > max_d:
@@ -540,124 +725,15 @@ def _clamp_date_range_pair(
     min_value: Any,
     max_value: Any,
 ) -> Tuple[Optional[date], Optional[date]]:
-    norm = _normalize_date_range_pair(pair)
-    if norm is None:
-        return None, None
-    start = _clamp_date_to_bounds(norm[0], min_value, max_value)
-    end = _clamp_date_to_bounds(norm[1], min_value, max_value)
-    if start is not None and end is not None and start > end:
-        start, end = end, start
-    return start, end
-
-
-def _clamp_date_to_bounds_legacy(value: Any, min_value: Any, max_value: Any) -> Any:
-    if value is None:
-        return value
-    d = value.date() if hasattr(value, "date") and callable(value.date) else value
-    if min_value is not None and d < min_value:
-        return min_value
-    if max_value is not None and d > max_value:
-        return max_value
-    return d
-
-
-def _clamp_date_range_pair_legacy(
-    pair: Any,
-    min_value: Any,
-    max_value: Any,
-) -> Tuple[Any, Any]:
-    if isinstance(pair, tuple) and len(pair) == 2:
-        start = _clamp_date_to_bounds_legacy(pair[0], min_value, max_value)
-        end = _clamp_date_to_bounds_legacy(pair[1], min_value, max_value)
+    if isinstance(pair, (tuple, list)) and len(pair) == 2:
+        start = _clamp_date_to_bounds(pair[0], min_value, max_value)
+        end = _clamp_date_to_bounds(pair[1], min_value, max_value)
         if start is not None and end is not None and start > end:
             start, end = end, start
         return start, end
-    if hasattr(pair, "year"):
-        d = _clamp_date_to_bounds_legacy(pair, min_value, max_value)
-        return d, d
-    return pair, pair
-
-
-def _period_date_range_input_showcase(
-    st: Any,
-    key: str,
-    *,
-    min_value: Any,
-    max_value: Any,
-    default: Optional[Tuple[Any, Any]] = None,
-    label: str = LABEL_PERIOD,
-    help: Optional[str] = None,
-    date_format: str = "DD.MM.YYYY",
-) -> Tuple[Optional[date], Optional[date]]:
-    min_d = _normalize_date_bound(min_value)
-    max_d = _normalize_date_bound(max_value)
-    if min_d is None or max_d is None:
-        return None, None
-    if min_d > max_d:
-        min_d, max_d = max_d, min_d
-    ss = getattr(st, "session_state", {})
-    if key in ss:
-        start, end = _clamp_date_range_pair(ss[key], min_d, max_d)
-        if start is None or end is None:
-            ss.pop(key, None)
-        else:
-            ss[key] = (start, end)
-    default_pair: Optional[Tuple[date, date]] = None
-    if default is not None:
-        ds, de = _clamp_date_range_pair(default, min_d, max_d)
-        if ds is not None and de is not None:
-            default_pair = (ds, de)
-    kw: dict = {
-        "label": label,
-        "min_value": min_d,
-        "max_value": max_d,
-        "key": key,
-        "format": date_format,
-    }
-    if default_pair is not None and key not in ss:
-        kw["value"] = default_pair
-    dr = st.date_input(**kw, help=help)
-    if isinstance(dr, tuple) and len(dr) == 2:
-        return _normalize_date_bound(dr[0]), _normalize_date_bound(dr[1])
-    one = _normalize_date_bound(dr)
-    if one is not None:
-        return one, one
-    return None, None
-
-
-def _period_date_range_input_legacy(
-    st: Any,
-    key: str,
-    *,
-    min_value: Any,
-    max_value: Any,
-    default: Optional[Tuple[Any, Any]] = None,
-    label: str = LABEL_PERIOD,
-    help: Optional[str] = None,
-    date_format: str = "DD.MM.YYYY",
-) -> Tuple[Optional[Any], Optional[Any]]:
-    if min_value is None or max_value is None:
-        return None, None
-    ss = getattr(st, "session_state", {})
-    if key in ss:
-        start, end = _clamp_date_range_pair_legacy(ss[key], min_value, max_value)
-        ss[key] = (start, end)
-    if default is not None:
-        default = _clamp_date_range_pair_legacy(default, min_value, max_value)
-    kw: dict = {
-        "label": label,
-        "min_value": min_value,
-        "max_value": max_value,
-        "key": key,
-        "format": date_format,
-    }
-    if default is not None and key not in ss:
-        kw["value"] = default
-    dr = st.date_input(**kw, help=help)
-    if isinstance(dr, tuple) and len(dr) == 2:
-        return dr[0], dr[1]
-    if hasattr(dr, "year"):
-        return dr, dr
+    single = _clamp_date_to_bounds(pair, min_value, max_value)
+    if single is not None:
+        return single, single
     return None, None
 
 
@@ -676,27 +752,34 @@ def period_date_range_input(
     Единый фильтр периода: один ``st.date_input`` с календарём и выбором диапазона.
     Возвращает (start, end) или (None, None), если даты недоступны.
     """
-    if _ui_showcase_mode():
-        return _period_date_range_input_showcase(
-            st,
-            key,
-            min_value=min_value,
-            max_value=max_value,
-            default=default,
-            label=label,
-            help=help,
-            date_format=date_format,
-        )
-    return _period_date_range_input_legacy(
-        st,
-        key,
-        min_value=min_value,
-        max_value=max_value,
-        default=default,
-        label=label,
-        help=help,
-        date_format=date_format,
-    )
+    if min_value is None or max_value is None:
+        return None, None
+    ss = getattr(st, "session_state", {})
+    if key in ss:
+        start, end = _clamp_date_range_pair(ss[key], min_value, max_value)
+        if start is None or end is None:
+            ss.pop(key, None)
+        else:
+            ss[key] = (start, end)
+    if default is not None:
+        default = _clamp_date_range_pair(default, min_value, max_value)
+        if default[0] is None or default[1] is None:
+            default = None
+    kw: dict = {
+        "label": label,
+        "min_value": min_value,
+        "max_value": max_value,
+        "key": key,
+        "format": date_format,
+    }
+    if default is not None and key not in ss:
+        kw["value"] = default
+    dr = st.date_input(**kw, help=help)
+    if isinstance(dr, tuple) and len(dr) == 2:
+        return dr[0], dr[1]
+    if hasattr(dr, "year"):
+        return dr, dr
+    return None, None
 
 
 def period_mode_and_range(

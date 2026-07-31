@@ -71,8 +71,10 @@ def _is_numeric_status_label(val: Any) -> bool:
     return bool(s) and bool(_NUMERIC_STATUS_RE.fullmatch(s))
 
 
+_KRSTATE_NAME_MAP_CACHE: dict[tuple, dict[str, str]] = {}
+
+
 def tessa_krstate_name_map(krstates_df: Optional[pd.DataFrame] = None) -> dict[str, str]:
-    out = dict(_KRSTATE_STATIC_MAP)
     if krstates_df is None:
         try:
             import streamlit as st
@@ -80,6 +82,18 @@ def tessa_krstate_name_map(krstates_df: Optional[pd.DataFrame] = None) -> dict[s
             krstates_df = st.session_state.get("reference_krstates")
         except Exception:
             krstates_df = None
+    # Кеш: функция вызывается на каждую строку через krstate_raw_to_label (тысячи
+    # раз за рендер), а сборка идёт iterrows по справочнику. Ключ — id+размер df
+    # (в рамках одного рендера объект справочника из session стабилен).
+    try:
+        _key = (id(krstates_df), int(len(krstates_df))) if krstates_df is not None else (0, 0)
+    except Exception:
+        _key = None
+    if _key is not None:
+        _hit = _KRSTATE_NAME_MAP_CACHE.get(_key)
+        if _hit is not None:
+            return dict(_hit)
+    out = dict(_KRSTATE_STATIC_MAP)
     if krstates_df is not None and not getattr(krstates_df, "empty", True):
         for _, row in krstates_df.iterrows():
             name = str(row.get("Название", "")).strip()
@@ -91,6 +105,10 @@ def tessa_krstate_name_map(krstates_df: Optional[pd.DataFrame] = None) -> dict[s
             if en and ru:
                 out[en] = ru
                 out[en.casefold()] = ru
+    if _key is not None:
+        if len(_KRSTATE_NAME_MAP_CACHE) > 8:
+            _KRSTATE_NAME_MAP_CACHE.clear()
+        _KRSTATE_NAME_MAP_CACHE[_key] = dict(out)
     return out
 
 

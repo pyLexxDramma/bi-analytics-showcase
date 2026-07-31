@@ -129,9 +129,14 @@ TABLE_TOTAL_ROW_FONT_CSS = (
 )
 # Фон области графиков Plotly — как карточка контента (.main .block-container: rgba(18,56,92,0.8))
 CHART_BG_COLOR = "rgba(18, 56, 92, 0.88)"
-CHART_GRID_COLOR = "rgba(255,255,255,0.08)"
-CHART_AXIS_LINE_COLOR = "rgba(255,255,255,0.25)"
-CHART_ZEROLINE_COLOR = "rgba(255,255,255,0.2)"
+CHART_GRID_COLOR = "rgba(148, 163, 184, 0.45)"
+CHART_AXIS_LINE_COLOR = "rgba(100, 116, 139, 0.65)"
+CHART_ZEROLINE_COLOR = "rgba(100, 116, 139, 0.55)"
+CHART_AXIS_TICK_FONT_SIZE = 22
+CHART_AXIS_TITLE_FONT_SIZE = 24
+CHART_LAYOUT_FONT_SIZE = 26
+CHART_LEGEND_FONT_SIZE = 24
+CHART_UNIFORMTEXT_MINSIZE = 8
 TABLE_TEXT_COLOR = "#ffffff"
 TABLE_CELL_BORDER = "1px solid #5a7a9a"
 FINANCE_TABLE_CELL_BORDER = "1px solid #7a9ec4"
@@ -140,7 +145,11 @@ TABLE_CELL_BORDER_CSS = f"border: {TABLE_CELL_BORDER};"
 
 def _table_cell_style(background: str, color: str, *, extra: str = "") -> str:
     """Inline-стиль ячейки Styler: фон + цвет + граница (apply() затирает set_properties)."""
-    parts = [f"background-color: {background}", f"color: {color}", TABLE_CELL_BORDER_CSS]
+    parts = [
+        f"background-color: {background} !important",
+        f"color: {color} !important",
+        TABLE_CELL_BORDER_CSS,
+    ]
     if extra:
         parts.append(extra.strip())
     return "; ".join(parts)
@@ -149,33 +158,6 @@ DEVIATION_NEUTRAL_PCT = 0.10
 DEVIATION_CLASS_RED = "bd-cell-red"
 DEVIATION_CLASS_GREEN = "bd-cell-green"
 DEVIATION_CLASS_YELLOW = "bd-cell-yellow"
-BD_CELL_GREEN_COLOR = "hsl(148,100%,63%)"
-BD_CELL_GREEN_COLOR_LIGHT = "hsl(148, 72%, 36%)"
-BD_CELL_GREEN_READABILITY_CSS = (
-    "-webkit-text-stroke: 0.28px #111827; paint-order: stroke fill; "
-    "text-shadow: -0.28px 0 #111827, 0.28px 0 #111827, 0 -0.28px #111827, 0 0.28px #111827;"
-)
-BD_CELL_RED_COLOR_LIGHT = "hsl(348, 82%, 42%)"
-SHOWCASE_TABLE_BG_COLOR = "#ffffff"
-SHOWCASE_TABLE_TEXT_COLOR = "#111827"
-SHOWCASE_TABLE_HEADER_BG_COLOR = "#f3f4f6"
-SHOWCASE_TABLE_GROUP_ROW_BG_COLOR = "#e8ecf1"
-SHOWCASE_TABLE_CELL_BORDER = "1px solid #cbd5e1"
-
-
-def _budget_table_use_light_theme() -> bool:
-    try:
-        from config import is_showcase_mode
-
-        return bool(is_showcase_mode())
-    except Exception:
-        return False
-
-
-def _bd_cell_green_css(*, light_bg: bool) -> str:
-    color = BD_CELL_GREEN_COLOR_LIGHT if light_bg else BD_CELL_GREEN_COLOR
-    stroke = BD_CELL_GREEN_READABILITY_CSS if light_bg else ""
-    return f"color: {color} !important; -webkit-text-fill-color: {color} !important; {stroke}"
 
 # Единый размер колонок HTML-таблиц (format_dataframe_as_html, plan_fact_dates и т.д.)
 HTML_TABLE_TH_MAX_EM = 24
@@ -250,6 +232,16 @@ table.bi-sortable-table td.col-pf-dur {
   text-align: center !important;
   vertical-align: middle !important;
 }
+.bi-sortable-html-root table.bi-sortable-table th.col-gantt-task,
+.bi-sortable-html-root table.bi-sortable-table td.col-gantt-task,
+table.bi-sortable-table th.col-gantt-task,
+table.bi-sortable-table td.col-gantt-task {
+  white-space: nowrap !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
+  max-width: none !important;
+  text-align: left !important;
+}
 .bi-sortable-html-root table.bi-sortable-table th.col-pf-start .bi-sort-label,
 .bi-sortable-html-root table.bi-sortable-table th.col-pf-end .bi-sort-label,
 .bi-sortable-html-root table.bi-sortable-table th.col-pf-dur .bi-sort-label,
@@ -270,12 +262,11 @@ BI_RESPONSIVE_DASHBOARD_CSS = """
 /* BI Analytics: узкие экраны — таблицы и графики (все дашборды) */
 .rendered-table-wrap,.bi-styled-table-wrap,.exec-doc-table-wrap,.pf-dates-table-wrap,
 .budget-deviation-table-wrap,.budget-table-scroll,.dev-reasons-wrap,.pred-detail-wrap,
-.gdrs-table-wrap,.gdrs-summary-table-wrap,.fc-table-scroll-wrap,.bi-sortable-html-root,
+.gdrs-table-wrap,.gdrs-summary-table-wrap,.bi-sortable-html-root,
 div[data-testid="stElementContainer"]:has(iframe[title="streamlit_components_v1"]),
 div[data-testid="stHtml"]{max-width:100%!important;min-width:0!important;box-sizing:border-box!important}
 .rendered-table-wrap,.pf-dates-table-wrap,.exec-doc-table-wrap,.bi-styled-table-wrap,
-.budget-deviation-table-wrap,.budget-table-scroll,.dev-reasons-wrap,.pred-detail-wrap,
-.fc-table-scroll-wrap,.gdrs-table-wrap,.gdrs-summary-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
+.dev-reasons-wrap,.gdrs-table-wrap,.gdrs-summary-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
 table.bi-sortable-table th,.bi-sortable-html-root table.bi-sortable-table th{
   text-align:center!important;vertical-align:middle!important}
 table.bi-sortable-table thead th>div,.bi-sortable-html-root table.bi-sortable-table thead th>div{
@@ -284,29 +275,7 @@ table.bi-sortable-table thead th .bi-sort-label{text-align:center!important}
 [data-testid="stPlotlyChart"],[data-testid="stPlotlyChart"]>div,[data-testid="stPlotlyChart"] iframe{
   max-width:100%!important;width:100%!important;box-sizing:border-box!important}
 .pf-fbar-wrap,.pf-gantt-view{overflow-x:auto!important;max-width:100%!important;-webkit-overflow-scrolling:touch!important}
-div[data-testid="stElementContainer"]:has(iframe[title="streamlit_components_v1"]){
-  overflow:visible!important;width:100%!important;max-width:100%!important}
 @media (max-width:1100px){
-  .rendered-table-wrap,.budget-deviation-table-wrap,.budget-table-scroll,
-  .pf-dates-table-wrap,.pf-dates-scroll-wrap,.exec-doc-table-wrap,.bi-styled-table-wrap,
-  .dev-reasons-wrap,.gdrs-table-wrap,.gdrs-summary-table-wrap,.fc-table-scroll-wrap,
-  .pred-detail-wrap,.bi-sortable-html-root:has(table.bi-sortable-table){
-    overflow-x:auto!important;overflow-y:auto!important;
-    max-height:min(70vh,640px)!important;
-    -webkit-overflow-scrolling:touch!important;scrollbar-gutter:stable}
-  .rendered-table-wrap .rendered-table,.rendered-table-wrap table,
-  .budget-deviation-table-wrap table,.budget-table-scroll table,
-  .pf-dates-table-wrap .pf-dates-table,.pf-dates-table-wrap table,
-  .exec-doc-table-wrap table,.bi-styled-table-wrap table,.dev-reasons-wrap table,
-  .gdrs-table-wrap table,.gdrs-summary-table-wrap table,.fc-table-scroll-wrap table,
-  .pred-detail-wrap table{
-    width:max-content!important;min-width:100%!important;table-layout:auto!important}
-  .rendered-table-wrap thead th,.budget-deviation-table-wrap thead th,
-  .budget-table-scroll thead th,.pf-dates-table-wrap thead th,.pf-dates-scroll-wrap thead th,
-  .exec-doc-table-wrap thead th,.bi-styled-table-wrap thead th,.dev-reasons-wrap thead th,
-  .gdrs-table-wrap thead th,.fc-table-scroll-wrap thead th,.pred-detail-wrap thead th,
-  table.bi-sortable-table thead th,.bi-sortable-html-root table.bi-sortable-table thead th{
-    position:sticky!important;top:0!important;z-index:5!important}
   table.bi-sortable-table th,.bi-sortable-html-root table.bi-sortable-table th{
     font-size:9px!important;padding:6px 4px!important;white-space:normal!important;word-wrap:break-word!important;max-width:none!important}
   table.bi-sortable-table td{font-size:11px!important;padding:5px 6px!important}
@@ -337,18 +306,131 @@ TABLE_CAPTION_STYLE_LIGHT = (
 )
 
 
-def format_table_title(name: str, filters_suffix: str | None = None) -> str:
-    """«Таблица …» + опционально фильтры в скобках."""
-    s = str(name or "").strip()
-    if not s:
-        s = "данные"
-    if not s.casefold().startswith("таблица"):
-        s = f"Таблица {s}"
+def _title_has_table_keyword(name: str) -> bool:
+    """True, если в названии уже есть «Таблица» или «Гистограмма» — префикс не нужен."""
+    low = str(name or "").casefold()
+    return "таблица" in low or "гистограмма" in low
+
+
+def _title_has_chart_keyword(name: str) -> bool:
+    """True, если в названии уже есть «График» или «Гистограмма» — префикс «График» не нужен."""
+    low = str(name or "").casefold()
+    return low.startswith("график") or "гистограмма" in low
+
+
+def format_report_granularity_label(period_label: str, *, cumulative: bool = False) -> str:
+    """Гранулярность для шаблона «… {отчёт} {гранулярность}»."""
+    if cumulative:
+        return "накопительно"
+    pl = str(period_label or "").strip().casefold()
+    _map = {
+        "месяц": "по месяцам",
+        "квартал": "по кварталам",
+        "год": "по годам",
+        "день": "по дням",
+    }
+    if pl in _map:
+        return _map[pl]
+    if pl.startswith("по "):
+        return pl
+    return f"по {pl}" if pl else ""
+
+
+def format_date_range_title_suffix(start: Any, end: Any) -> str | None:
+    """Диапазон дат для скобок в заголовке: «23.03.2024 – 31.01.2028»."""
+    if start is None or end is None:
+        return None
+    try:
+        ts = pd.Timestamp(start).date()
+        te = pd.Timestamp(end).date()
+        return f"{ts.strftime('%d.%m.%Y')} – {te.strftime('%d.%m.%Y')}"
+    except Exception:
+        return None
+
+
+def report_title_name(report_name: str, granularity: str | None = None) -> str:
+    """«{отчёт} {гранулярность}» без префикса Таблица/График."""
+    r = str(report_name or "").strip()
+    g = str(granularity or "").strip()
+    if not r:
+        return "данные"
+    if g and g.casefold() not in r.casefold():
+        return f"{r} {g}".strip()
+    return r
+
+
+def report_title_parts(
+    report_name: str,
+    period_label: str | None = None,
+    *,
+    cumulative: bool = False,
+    granularity: str | None = None,
+    date_start: Any = None,
+    date_end: Any = None,
+) -> tuple[str, str | None]:
+    """Имя блока и суффикс дат для render_table_subheader."""
+    gran = (
+        granularity
+        if granularity is not None
+        else (
+            format_report_granularity_label(period_label or "", cumulative=cumulative)
+            if period_label
+            else ""
+        )
+    )
+    return report_title_name(report_name, gran or None), format_date_range_title_suffix(
+        date_start, date_end
+    )
+
+
+def report_chart_caption_body(
+    report_name: str,
+    period_label: str | None = None,
+    *,
+    cumulative: bool = False,
+    granularity: str | None = None,
+    date_start: Any = None,
+    date_end: Any = None,
+) -> str:
+    """Тело caption_below (префикс «График» добавит _chart_caption_below)."""
+    name, date_suffix = report_title_parts(
+        report_name,
+        period_label,
+        cumulative=cumulative,
+        granularity=granularity,
+        date_start=date_start,
+        date_end=date_end,
+    )
+    return _append_title_suffix(name, date_suffix)
+
+
+def _append_title_suffix(title: str, filters_suffix: str | None) -> str:
+    s = str(title or "").strip()
     if filters_suffix:
         fs = str(filters_suffix).strip().strip("()")
         if fs and f"({fs})" not in s:
             s = f"{s} ({fs})"
-    return sanitize_display_label(s)
+    return s
+
+
+def format_table_title(name: str, filters_suffix: str | None = None) -> str:
+    """«Таблица {отчёт} {гранулярность}» + опционально диапазон дат в скобках."""
+    s = str(name or "").strip()
+    if not s:
+        s = "данные"
+    if not _title_has_table_keyword(s):
+        s = f"Таблица {s}"
+    return sanitize_display_label(_append_title_suffix(s, filters_suffix))
+
+
+def format_chart_title(name: str, filters_suffix: str | None = None) -> str:
+    """«График {отчёт} {гранулярность}» + опционально диапазон дат в скобках."""
+    s = str(name or "").strip()
+    if not s:
+        s = "данные"
+    if not _title_has_chart_keyword(s):
+        s = f"График {s}"
+    return sanitize_display_label(_append_title_suffix(s, filters_suffix))
 
 
 def render_table_subheader(st: Any, name: str, filters_suffix: str | None = None) -> None:
@@ -405,7 +487,30 @@ def mark_html_table_sortable(html: str) -> str:
             )
         return tag[:-1] + ' class="bi-sortable-table bi-sort-click-only"' + tag[-1]
 
-    return re.sub(r"<table\b[^>]*>", _patch_table_tag, html, flags=re.I)
+    out = re.sub(r"<table\b[^>]*>", _patch_table_tag, html, flags=re.I)
+
+    def _inject_th_sort_label(m: re.Match) -> str:
+        attrs, inner = m.group(1) or "", m.group(2) or ""
+        if re.search(r"\bdata-sort-label\s*=", attrs, flags=re.I):
+            return m.group(0)
+        label = re.sub(r"<[^>]+>", "", inner)
+        label = html_module.unescape(label).strip()
+        label = re.sub(r"\s*[\u21C5\u25B2\u25BC\u2191\u2193]+\s*$", "", label).strip()
+        if not label:
+            return m.group(0)
+        esc = html_module.escape(label, quote=True)
+        return f"<th{attrs} data-sort-label=\"{esc}\">{inner}</th>"
+
+    out = re.sub(r"<th(\b[^>]*)>(.*?)</th>", _inject_th_sort_label, out, flags=re.I | re.S)
+    try:
+        from dashboards.light_theme import is_light_preview_active
+
+        _dash = str(st.session_state.get("current_dashboard") or "").strip()
+        if is_light_preview_active() and "bi-light-table" not in out and "gdrs-light-table" not in out:
+            out = f'<div class="bi-light-table">{out}</div>'
+    except Exception:
+        pass
+    return out
 
 
 
@@ -445,6 +550,7 @@ TABLE_COL_TEXT_KEYS = (
     "контрагент", "подряд", "шифр", "объект", "ковенант", "функц", "наимен", "документ",
     "предпис", "договор", "исполнит", "мероприят", "описан", "коммент", "этап", "вех", "вид", "note", "name",
     "task", "partner", "контраг", "секци", "подраздел", "строение", "участок", "работ",
+    "статья",
 )
 
 
@@ -841,6 +947,138 @@ def format_period_ru(period_val) -> str:
     return out
 
 
+def finance_axis_tick_font_size(n_periods: int) -> int:
+    """Размер подписей оси (×2 от прежних 8–10 px)."""
+    n = int(n_periods)
+    if n > 28:
+        return 16
+    if n > 18:
+        return 18
+    return 20
+
+
+def _fig_has_pie_trace(fig) -> bool:
+    try:
+        for tr in fig.data:
+            if getattr(tr, "type", None) == "pie":
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def pie_layout_for_bottom_legend(
+    n_slices: int,
+    *,
+    font_size: int | None = None,
+    items_per_row: int = 3,
+    outside_labels: bool = False,
+) -> dict:
+    """Отступы и domain pie под горизонтальную легенду снизу по центру."""
+    fs = int(font_size if font_size is not None else CHART_LEGEND_FONT_SIZE)
+    n = max(1, int(n_slices))
+    rows = max(1, (n + items_per_row - 1) // items_per_row)
+    margin_bottom = int(64 + rows * (fs + 18))
+    legend_y = -0.08 - min(0.28, 0.028 * rows)
+    domain_y_top = 0.64 if outside_labels and n > 4 else 0.72
+    return {
+        "margin_bottom": margin_bottom,
+        "margin_top": 44,
+        "domain_x": (0.08, 0.92),
+        "domain_y": (0.08, domain_y_top),
+        "legend_y": legend_y,
+        "fig_extra_h": max(0, margin_bottom - 72),
+    }
+
+
+def chart_layout_for_bottom_legend(
+    n_traces: int,
+    *,
+    font_size: int | None = None,
+    items_per_row: int = 4,
+) -> dict:
+    """Нижняя легенда и margin.b для bar/line/stacked графиков."""
+    fs = int(font_size if font_size is not None else CHART_LEGEND_FONT_SIZE)
+    n = max(1, int(n_traces))
+    rows = max(1, (n + items_per_row - 1) // items_per_row)
+    margin_bottom = int(64 + rows * (fs + 18))
+    legend_y = -0.08 - min(0.28, 0.028 * rows)
+    return {
+        "margin_bottom": margin_bottom,
+        "legend_y": legend_y,
+    }
+
+
+def _fig_legend_trace_count(fig) -> int:
+    try:
+        n = 0
+        for tr in fig.data or []:
+            if getattr(tr, "showlegend", True) is False:
+                continue
+            name = getattr(tr, "name", None)
+            if name is not None and str(name).strip():
+                n += 1
+            else:
+                n += 1
+        return max(1, n) if n else 0
+    except Exception:
+        return 1
+
+
+def standard_pie_chart_legend(**overrides) -> dict:
+    """Легенда под круговой диаграммой (горизонтально, по центру)."""
+    leg = dict(
+        orientation="h",
+        yanchor="top",
+        y=-0.08,
+        xanchor="center",
+        x=0.5,
+        bgcolor="rgba(0,0,0,0)",
+        borderwidth=0,
+        tracegroupgap=6,
+        itemwidth=30,
+        font=dict(size=CHART_LEGEND_FONT_SIZE),
+    )
+    leg.update(overrides)
+    if "title" not in leg and "title_text" not in leg:
+        leg["title_text"] = ""
+    return leg
+
+
+def standard_chart_legend(**overrides) -> dict:
+    """Единое размещение легенды Plotly: горизонтально под областью графика, по центру."""
+    leg = dict(
+        orientation="h",
+        yanchor="top",
+        y=-0.08,
+        xanchor="center",
+        x=0.5,
+        bgcolor="rgba(0,0,0,0)",
+        borderwidth=0,
+        tracegroupgap=6,
+        itemwidth=30,
+        font=dict(size=CHART_LEGEND_FONT_SIZE),
+    )
+    leg.update(overrides)
+    if "title" not in leg and "title_text" not in leg:
+        leg["title_text"] = ""
+    return leg
+
+
+def _merge_prev_legend_title(prev_leg, legend_kwargs: dict) -> None:
+    if prev_leg is None:
+        return
+    prev_title = getattr(prev_leg, "title", None)
+    if prev_title is None:
+        return
+    if hasattr(prev_title, "to_plotly_json"):
+        legend_kwargs["title"] = prev_title.to_plotly_json()
+    else:
+        txt = getattr(prev_title, "text", None)
+        if txt is not None and str(txt).strip():
+            legend_kwargs["title"] = dict(text=str(txt))
+
+
 def apply_chart_background(fig, *, skip_uniformtext: bool = False):
     """
     Применяет единый стиль (тёмная тема) ко всем графикам Plotly.
@@ -850,18 +1088,13 @@ def apply_chart_background(fig, *, skip_uniformtext: bool = False):
     Нужно для Ганта с подписями textposition='outside' у концов полос, если
     внешние настройки не подходят.
     """
-    # Если дашборд уже задал вертикальную легенду и/или увеличенные поля — не затираем
-    # (иначе глобальная горизонтальная легенда и margin b=100/r=30 ломают вёрстку).
     layout = fig.layout
     prev_leg = getattr(layout, "legend", None) if layout is not None else None
     prev_m = getattr(layout, "margin", None) if layout is not None else None
-    keep_vertical_legend = (
-        prev_leg is not None and getattr(prev_leg, "orientation", None) == "v"
-    )
     margin_l = 60
     margin_r = 30
-    margin_t = 62
-    margin_b = 118
+    margin_t = 72
+    margin_b = 72
     if prev_m is not None:
         for attr, default in (("l", margin_l), ("r", margin_r), ("t", margin_t), ("b", margin_b)):
             v = getattr(prev_m, attr, None)
@@ -875,7 +1108,57 @@ def apply_chart_background(fig, *, skip_uniformtext: bool = False):
                 elif attr == "b":
                     margin_b = float(v)
 
-    # Базовый стиль
+    legend_kwargs = dict(font=dict(color=TABLE_TEXT_COLOR, size=CHART_LEGEND_FONT_SIZE))
+    if prev_leg is not None:
+        prev_font = getattr(prev_leg, "font", None)
+        if prev_font is not None:
+            for fk in ("color", "family", "size"):
+                fv = getattr(prev_font, fk, None)
+                if fv is not None:
+                    legend_kwargs.setdefault("font", {})[fk] = fv
+        _merge_prev_legend_title(prev_leg, legend_kwargs)
+
+    showlegend = getattr(layout, "showlegend", True) if layout is not None else True
+
+    is_pie = _fig_has_pie_trace(fig)
+    if is_pie:
+        leg_out = standard_pie_chart_legend(**legend_kwargs)
+        if prev_leg is not None:
+            py = getattr(prev_leg, "y", None)
+            try:
+                if py is not None and float(py) < 0.2:
+                    leg_out["y"] = float(py)
+            except (TypeError, ValueError):
+                pass
+        if is_pie and margin_t > 60:
+            margin_t = max(44.0, min(margin_t, 56.0))
+    elif showlegend:
+        n_leg = _fig_legend_trace_count(fig)
+        chart_lo = chart_layout_for_bottom_legend(n_leg)
+        leg_out = standard_chart_legend(**legend_kwargs, y=chart_lo["legend_y"])
+        if prev_leg is not None:
+            py = getattr(prev_leg, "y", None)
+            pyref = getattr(prev_leg, "yref", None)
+            pyanchor = getattr(prev_leg, "yanchor", None)
+            try:
+                if py is not None:
+                    _py = float(py)
+                    _def_y = float(chart_lo["legend_y"])
+                    if _py < 0.2 or _py < _def_y:
+                        leg_out["y"] = _py
+            except (TypeError, ValueError):
+                pass
+            if pyref and str(pyref) != "paper":
+                leg_out["yref"] = pyref
+            elif "yref" in leg_out and str(pyref or "") == "paper":
+                leg_out.pop("yref", None)
+            if pyanchor:
+                leg_out["yanchor"] = pyanchor
+        if float(margin_b) < float(chart_lo["margin_bottom"]):
+            margin_b = float(chart_lo["margin_bottom"])
+    else:
+        leg_out = standard_chart_legend(**legend_kwargs)
+
     layout_kwargs = dict(
         template=None,
         plot_bgcolor=CHART_BG_COLOR,
@@ -884,101 +1167,19 @@ def apply_chart_background(fig, *, skip_uniformtext: bool = False):
         font=dict(
             family="Inter, system-ui, sans-serif",
             color=TABLE_TEXT_COLOR,
-            size=13,
+            size=CHART_LAYOUT_FONT_SIZE,
         ),
-        # text обязателен: иначе во фронтенде Plotly иногда показывает строку «undefined»
         title=dict(
             text="",
-            font=dict(color=TABLE_TEXT_COLOR, size=15),
+            font=dict(color=TABLE_TEXT_COLOR, size=CHART_AXIS_TITLE_FONT_SIZE + 6),
             pad=dict(t=4),
         ),
         margin=dict(l=margin_l, r=margin_r, t=margin_t, b=margin_b),
+        legend=leg_out,
+        showlegend=bool(showlegend),
     )
     if not skip_uniformtext:
-        layout_kwargs["uniformtext"] = dict(minsize=8, mode="show")
-    if keep_vertical_legend:
-        legend_merged = dict(
-            font=dict(color=TABLE_TEXT_COLOR, size=12),
-            bgcolor="rgba(0,0,0,0)",
-            orientation="v",
-        )
-        if prev_leg is not None:
-            for key in (
-                "x", "y", "xanchor", "yanchor", "xref", "yref",
-                "orientation", "title", "traceorder", "itemsizing",
-            ):
-                val = getattr(prev_leg, key, None)
-                if val is None:
-                    continue
-                if key == "title" and hasattr(val, "to_plotly_json"):
-                    legend_merged[key] = val.to_plotly_json()
-                else:
-                    legend_merged[key] = val
-        layout_kwargs["legend"] = legend_merged
-        prev_showlegend = getattr(layout, "showlegend", None) if layout is not None else None
-        if prev_showlegend is not None:
-            layout_kwargs["showlegend"] = bool(prev_showlegend)
-    else:
-        # Дефолт — полоска легенды под графиком. Если дашборд уже задал y/yanchor (напр. y<0, yanchor=top),
-        # не затирать — иначе легенда снова уезжает «вверх»/в центр после этого вызова.
-        legend_base = dict(
-            font=dict(color=TABLE_TEXT_COLOR, size=12),
-            bgcolor="rgba(0,0,0,0)",
-            orientation="h",
-            yanchor="bottom",
-            y=-0.25,
-            xanchor="center",
-            x=0.5,
-        )
-        if prev_leg is not None:
-            py = getattr(prev_leg, "y", None)
-            ya = getattr(prev_leg, "yanchor", None)
-            try:
-                py_f = float(py) if py is not None else None
-            except (TypeError, ValueError):
-                py_f = None
-            # Легенда под графиком (y<0) или спец. якорь — не затираем.
-            custom_below = (py_f is not None and py_f < 0) or ya == "top"
-            # Легенда НАД графиком (типично y≈1…1.15, yanchor=bottom) — тоже сохраняем,
-            # иначе глобальный y=-0.25 наезжает на наклонные подписи оси X (ГДРС и т.п.).
-            legend_above_plot = (
-                py_f is not None
-                and py_f >= 0.85
-                and str(ya or "").lower() == "bottom"
-                and getattr(prev_leg, "orientation", None) == "h"
-            )
-            if custom_below or legend_above_plot:
-                for key in ("x", "y", "xanchor", "yanchor", "xref", "yref", "orientation"):
-                    val = getattr(prev_leg, key, None)
-                    if val is not None:
-                        legend_base[key] = val
-            if legend_above_plot:
-                margin_t = max(margin_t, 90.0)
-                tick_angle = 0.0
-                try:
-                    xa = fig.layout.xaxis
-                    ta = getattr(xa, "tickangle", None) if xa is not None else None
-                    if ta is not None:
-                        tick_angle = float(ta)
-                except (TypeError, ValueError):
-                    tick_angle = 0.0
-                need_x_pad = abs(tick_angle) >= 25
-                user_b = None
-                if prev_m is not None and getattr(prev_m, "b", None) is not None:
-                    try:
-                        user_b = float(prev_m.b)
-                    except (TypeError, ValueError):
-                        user_b = None
-                if need_x_pad:
-                    margin_b = max(margin_b, 188.0)
-                else:
-                    floor_b = 52.0
-                    if user_b is not None:
-                        margin_b = max(floor_b, user_b)
-                    else:
-                        margin_b = min(margin_b, 72.0)
-        layout_kwargs["margin"] = dict(l=margin_l, r=margin_r, t=margin_t, b=margin_b)
-        layout_kwargs["legend"] = legend_base
+        layout_kwargs["uniformtext"] = dict(minsize=CHART_UNIFORMTEXT_MINSIZE, mode="show")
     fig.update_layout(**layout_kwargs)
     # Подписи на графике — без всплывающих подсказок (требование UX).
     fig.update_layout(hovermode=False)
@@ -992,11 +1193,10 @@ def apply_chart_background(fig, *, skip_uniformtext: bool = False):
 
     # Оси X
     fig.update_xaxes(
-        showgrid=True,
         gridcolor=CHART_GRID_COLOR,
         linecolor=CHART_AXIS_LINE_COLOR,
-        tickfont=dict(color=TABLE_TEXT_COLOR, size=11),
-        title=dict(font=dict(color=TABLE_TEXT_COLOR, size=12)),
+        tickfont=dict(color=TABLE_TEXT_COLOR, size=CHART_AXIS_TICK_FONT_SIZE),
+        title=dict(font=dict(color=TABLE_TEXT_COLOR, size=CHART_AXIS_TITLE_FONT_SIZE)),
         zerolinecolor=CHART_ZEROLINE_COLOR,
         automargin=True,
         ticklabelstandoff=8,
@@ -1004,11 +1204,10 @@ def apply_chart_background(fig, *, skip_uniformtext: bool = False):
 
     # Оси Y
     fig.update_yaxes(
-        showgrid=True,
         gridcolor=CHART_GRID_COLOR,
         linecolor=CHART_AXIS_LINE_COLOR,
-        tickfont=dict(color=TABLE_TEXT_COLOR, size=11),
-        title=dict(font=dict(color=TABLE_TEXT_COLOR, size=12)),
+        tickfont=dict(color=TABLE_TEXT_COLOR, size=CHART_AXIS_TICK_FONT_SIZE),
+        title=dict(font=dict(color=TABLE_TEXT_COLOR, size=CHART_AXIS_TITLE_FONT_SIZE)),
         zerolinecolor=CHART_ZEROLINE_COLOR,
         automargin=True,
     )
@@ -1016,14 +1215,19 @@ def apply_chart_background(fig, *, skip_uniformtext: bool = False):
     return fig
 
 
-def format_million_rub(value, *, decimals: int = 2) -> str:
-    """Форматирует сумму в рублях как млн руб. (по умолчанию 2 знака)."""
+def format_million_rub(value, *, decimals: int = 2, unit_suffix: str | None = " млн. руб.") -> str:
+    """Форматирует сумму в рублях как млн руб. (по умолчанию 2 знака).
+
+    unit_suffix=None или \"\" — только число (для узких колонок матрицы план-факт).
+    """
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return ""
     try:
         x = float(value) / MILLION
         d = max(0, int(decimals))
-        return f"{x:.{d}f} млн. руб."
+        num = f"{x:.{d}f}"
+        suf = "" if unit_suffix is None else str(unit_suffix)
+        return f"{num}{suf}"
     except (TypeError, ValueError):
         return ""
 
@@ -1187,52 +1391,93 @@ def style_dataframe_for_dark_theme(
             return val
         return val
 
-    def _days_cell_color(series):
-        result = []
-        for v in series:
-            num = _parse_signed_days_display(v)
-            if num is None or (isinstance(num, float) and pd.isna(num)):
-                result.append(_table_cell_style(TABLE_BG_COLOR, TABLE_TEXT_COLOR))
-            elif days_positive_is_ahead:
-                if float(num) > 0:
-                    result.append(_table_cell_style("#27ae60", "#ffffff"))
-                elif float(num) < 0:
-                    result.append(_table_cell_style("#c0392b", "#ffffff"))
-                else:
-                    result.append(_table_cell_style(TABLE_BG_COLOR, TABLE_TEXT_COLOR))
-            elif float(num) > 0:
-                result.append(_table_cell_style("#c0392b", "#ffffff"))
+    def _days_gradient_cell_style(v, *, vmax: float):
+        num = _parse_signed_days_display(v)
+        if num is None or (isinstance(num, float) and pd.isna(num)):
+            return _table_cell_style(TABLE_BG_COLOR, TABLE_TEXT_COLOR)
+        try:
+            from dashboards.light_theme import is_light_preview_active
+
+            _light = is_light_preview_active()
+        except Exception:
+            _light = False
+        if float(num) == 0.0:
+            if _light:
+                return _table_cell_style(
+                    "rgba(34,197,94,0.18)", "#15803d", extra="font-weight: 600"
+                )
+            return _table_cell_style(
+                "rgba(70,214,138,0.35)", "#b8f5c8", extra="font-weight: 600"
+            )
+        t = min(abs(float(num)) / vmax, 1.0)
+        if days_positive_is_ahead and float(num) > 0:
+            alpha = 0.18 + 0.28 * t
+            if _light:
+                bg = f"rgba(34,197,94,{alpha:.3f})"
+                fg = "#15803d"
             else:
-                result.append(_table_cell_style("#27ae60", "#ffffff"))
-        return result
+                bg = f"rgba(70,214,138,{alpha:.3f})"
+                fg = "#00e676"
+        elif float(num) < 0 or not days_positive_is_ahead:
+            alpha = 0.24 + 0.36 * t
+            if _light:
+                bg = f"rgba(248,113,113,{0.16 + 0.24 * t:.3f})"
+                fg = "#b91c1c"
+            else:
+                bg = f"rgba(255,84,84,{alpha:.3f})"
+                fg = "#ff6b6b"
+        else:
+            if _light:
+                bg = "rgba(34,197,94,0.16)"
+                fg = "#15803d"
+            else:
+                bg = "rgba(70,214,138,0.22)"
+                fg = "#00e676"
+        return _table_cell_style(bg, fg, extra="font-weight: 700")
 
     def _days_gradient_style(series):
         nums = series.map(_parse_signed_days_display)
         valid = pd.to_numeric(nums, errors="coerce").dropna()
         vmax = float(valid.abs().max()) if not valid.empty else 1.0
         vmax = max(vmax, 1.0)
-        out = []
+        return [ _days_gradient_cell_style(v, vmax=vmax) for v in series ]
+
+    def _days_cell_color(series):
+        result = []
         for v in series:
             num = _parse_signed_days_display(v)
-            if num is None or (isinstance(num, float) and pd.isna(num)) or float(num) == 0.0:
-                out.append(_table_cell_style(TABLE_BG_COLOR, TABLE_TEXT_COLOR))
-                continue
-            t = min(abs(float(num)) / vmax, 1.0)
-            if days_positive_is_ahead and float(num) > 0:
-                r = int(46 + (39 - 46) * t)
-                g = int(204 + (174 - 204) * t)
-                b = int(113 + (96 - 113) * t)
-            elif float(num) < 0 or not days_positive_is_ahead:
-                r = int(255 + (192 - 255) * t)
-                g = int(179 + (57 - 179) * t)
-                b = int(179 + (43 - 179) * t)
+            if num is None or (isinstance(num, float) and pd.isna(num)):
+                result.append(_table_cell_style(TABLE_BG_COLOR, TABLE_TEXT_COLOR))
+            elif float(num) == 0.0:
+                result.append(
+                    _table_cell_style(
+                        "rgba(70,214,138,0.35)", "#b8f5c8", extra="font-weight: 600"
+                    )
+                )
+            elif days_positive_is_ahead:
+                if float(num) > 0:
+                    result.append(
+                        _table_cell_style(
+                            "rgba(70,214,138,0.22)", "#00e676", extra="font-weight: 700"
+                        )
+                    )
+                elif float(num) < 0:
+                    result.append(
+                        _table_cell_style(
+                            "rgba(255,84,84,0.28)", "#ff6b6b", extra="font-weight: 700"
+                        )
+                    )
+                else:
+                    result.append(
+                        _table_cell_style(
+                            "rgba(70,214,138,0.22)", TABLE_TEXT_COLOR, extra="font-weight: 600"
+                        )
+                    )
+            elif float(num) > 0:
+                result.append(_table_cell_style("#c0392b", "#ffffff"))
             else:
-                r, g, b = 46, 204, 113
-            fg = "#ffffff"
-            out.append(
-                _table_cell_style(f"rgb({r},{g},{b})", fg, extra="font-weight: 600")
-            )
-        return out
+                result.append(_table_cell_style("#27ae60", "#ffffff"))
+        return result
 
     _dev_day_cols = []
     if days_column and days_column in df.columns:
@@ -1241,21 +1486,39 @@ def style_dataframe_for_dark_theme(
         for _c in extra_days_columns:
             if _c and _c in df.columns and _c not in _dev_day_cols:
                 _dev_day_cols.append(_c)
-    for _dc in _dev_day_cols:
+    if _dev_day_cols:
         if days_deviation_gradient:
-            base = base.apply(
-                lambda c, _name=_dc: _days_gradient_style(c)
-                if c.name == _name
-                else [""] * len(c),
-                axis=0,
-            )
+            _all_parsed = []
+            for _dc in _dev_day_cols:
+                _all_parsed.extend(df[_dc].map(_parse_signed_days_display).tolist())
+            _valid = [
+                abs(float(v))
+                for v in _all_parsed
+                if v is not None
+                and not (isinstance(v, float) and pd.isna(v))
+                and float(v) != 0.0
+            ]
+            _dev_vmax = max(_valid, default=1.0)
+            _dev_vmax = max(_dev_vmax, 1.0)
+
+            def _apply_all_dev_day_gradients(data: pd.DataFrame) -> pd.DataFrame:
+                out = pd.DataFrame("", index=data.index, columns=data.columns)
+                for _dc in _dev_day_cols:
+                    out[_dc] = data[_dc].map(
+                        lambda v, _vm=_dev_vmax: _days_gradient_cell_style(v, vmax=_vm)
+                    )
+                return out
+
+            base = base.apply(_apply_all_dev_day_gradients, axis=None)
         else:
-            base = base.apply(
-                lambda c, _name=_dc: _days_cell_color(c)
-                if c.name == _name
-                else [""] * len(c),
-                axis=0,
-            )
+
+            def _apply_all_dev_day_colors(data: pd.DataFrame) -> pd.DataFrame:
+                out = pd.DataFrame("", index=data.index, columns=data.columns)
+                for _dc in _dev_day_cols:
+                    out[_dc] = _days_cell_color(data[_dc])
+                return out
+
+            base = base.apply(_apply_all_dev_day_colors, axis=None)
 
     # Подсветка финансовых отклонений
     if finance_deviation_column and finance_deviation_column in df.columns:
@@ -1431,7 +1694,7 @@ def _column_uses_fact_plan_colors(
 
 def _is_table_label_column(col: Any) -> bool:
     cl = str(col).casefold().strip()
-    return cl in ("проект", "период")
+    return cl in ("проект", "период", "статья")
 
 
 def _parse_finance_value(v) -> Optional[float]:
@@ -1522,11 +1785,6 @@ def budget_table_to_html(
     if df is None or df.empty:
         return "<p>Нет данных для отображения.</p>"
 
-    _light_tbl = _budget_table_use_light_theme()
-    _tbl_bg = SHOWCASE_TABLE_BG_COLOR if _light_tbl else TABLE_BG_COLOR
-    _tbl_text = SHOWCASE_TABLE_TEXT_COLOR if _light_tbl else TABLE_TEXT_COLOR
-    _hdr_bg = SHOWCASE_TABLE_HEADER_BG_COLOR if _light_tbl else TABLE_HEADER_BG_COLOR
-    _grp_bg = SHOWCASE_TABLE_GROUP_ROW_BG_COLOR if _light_tbl else TABLE_GROUP_ROW_BG_COLOR
     _hdr_css = header_font_css or TABLE_HEADER_FONT_CSS
     _grp_css = group_row_font_css or f"font-weight:700;font-size:{float(emphasize_row_font_em or 1.12):.2f}em;"
     _tot_bg = total_row_bg_color or TABLE_TOTAL_ROW_BG_COLOR
@@ -1538,28 +1796,49 @@ def budget_table_to_html(
     _lbl_col_css = label_columns_font_css or ""
     _scroll_vh = float(table_scroll_max_height_vh) if table_scroll_max_height_vh else None
     wrap_id = "bdt_" + str(id(df))
-    _cell_border = SHOWCASE_TABLE_CELL_BORDER if _light_tbl else FINANCE_TABLE_CELL_BORDER
-    _green_css = _bd_cell_green_css(light_bg=_light_tbl)
-    _red_color = BD_CELL_RED_COLOR_LIGHT if _light_tbl else "hsl(348,100%,63%)"
+    _cell_border = FINANCE_TABLE_CELL_BORDER
+    _dev_red_color = "hsl(348,100%,63%)"
+    _dev_green_color = "hsl(148,100%,63%)"
+    try:
+        from dashboards.light_theme import finance_dev_negative_color, is_light_preview_active
+
+        _dev_green_color = finance_dev_negative_color()
+        if is_light_preview_active():
+            _dev_red_color = "#b91c1c"
+    except Exception:
+        pass
+    _n_visible = sum(1 for c in df.columns if c != row_kind_column)
+    _wide_matrix = _n_visible >= 12
     _style_css = (
-        f'#{wrap_id} table {{ table-layout: auto; font-size: {_tbl_px}px; width: max-content; min-width: 100%; '
+        f'#{wrap_id} table {{ table-layout: auto; font-size: {_tbl_px}px; width: max-content !important; min-width: 100%; '
         f'border-collapse: separate !important; border-spacing: 0 !important; border: {_cell_border} !important; }}'
         f'#{wrap_id} th, #{wrap_id} td {{ min-width: 11em; max-width: 24em; padding: {_pad_y}px {_pad_x}px; box-sizing: border-box; '
         f'border-right: {_cell_border} !important; border-bottom: {_cell_border} !important; '
         f'border-top: none !important; border-left: none !important; }}'
         f'#{wrap_id} thead tr:first-child th {{ border-top: {_cell_border} !important; }}'
         f'#{wrap_id} tr th:first-child, #{wrap_id} tr td:first-child {{ border-left: {_cell_border} !important; }}'
-        f'#{wrap_id} th:first-child, #{wrap_id} td:first-child {{ min-width: 14em; max-width: 32em; }}'
+        f'#{wrap_id} th:first-child, #{wrap_id} td:first-child {{ min-width: 14em; max-width: 32em; '
+        f'position: sticky; left: 0; z-index: 3; background-color: {TABLE_BG_COLOR} !important; }}'
+        f'#{wrap_id} thead th:first-child {{ z-index: 6; background-color: {TABLE_HEADER_BG_COLOR} !important; }}'
+        f'#{wrap_id} tr.bd-group-row td:first-child {{ background-color: {TABLE_GROUP_ROW_BG_COLOR} !important; }}'
+        f'#{wrap_id} tr.bd-total-row td:first-child {{ background-color: {_tot_bg} !important; z-index: 5; }}'
         f'#{wrap_id} th:not(:first-child), #{wrap_id} td:not(:first-child) {{ min-width: 9em; max-width: 16em; }}'
-        f'#{wrap_id} td.bd-cell-red, #{wrap_id} td.bd-cell-red * {{ color: {_red_color} !important; }} '
-        f'#{wrap_id} td.bd-cell-green, #{wrap_id} td.bd-cell-green * {{ {_green_css} }}'
+        + (
+            f'#{wrap_id} th.col-num, #{wrap_id} td.col-num {{ min-width: 7.5em !important; max-width: 11em !important; }}'
+            if _wide_matrix
+            else ""
+        )
+        + (
+        f'#{wrap_id} td.bd-cell-red, #{wrap_id} td.bd-cell-red * {{ color: {_dev_red_color} !important; }} '
+        f'#{wrap_id} td.bd-cell-green, #{wrap_id} td.bd-cell-green * {{ color: {_dev_green_color} !important; }}'
         f'#{wrap_id} td.bd-cell-yellow, #{wrap_id} td.bd-cell-yellow * {{ color: hsl(48,95%,62%) !important; }}'
-        f'#{wrap_id} thead th {{ background-color: {_hdr_bg} !important; color: {_tbl_text} !important; {_hdr_css}; {HTML_TABLE_TH_WRAP_CSS} max-width:11em; }}'
-        f'#{wrap_id} tr.bd-group-row td {{ background-color: {_grp_bg} !important; color: {_tbl_text} !important; }}'
-        f'#{wrap_id} tbody td {{ {HTML_TABLE_TD_TEXT_CSS} max-width:28em; color: {_tbl_text}; }}'
+        f'#{wrap_id} thead th {{ background-color: {TABLE_HEADER_BG_COLOR} !important; {_hdr_css}; {HTML_TABLE_TH_WRAP_CSS} max-width:11em; }}'
+        f'#{wrap_id} tbody td {{ {HTML_TABLE_TD_TEXT_CSS} max-width:28em; }}'
         f'{f"#{wrap_id} tbody td:first-child, #{wrap_id} tbody td:nth-child(2) {{ {_lbl_col_css} }}" if _lbl_col_css else ""}'
+        f'#{wrap_id} tr.bd-group-row td {{ background-color: {TABLE_GROUP_ROW_BG_COLOR} !important; }}'
         f'#{wrap_id} tr.bd-total-row td {{ background-color: {_tot_bg} !important; {_tot_font} }}'
         f'#{wrap_id} tr.bd-total-row td, #{wrap_id} tr.bd-total-row td * {{ {_tot_font} }}'
+        )
         + (
             f'#{wrap_id} th.bd-fin-dev-col, #{wrap_id} td.bd-fin-dev-col '
             f'{{ min-width: 10.5em; max-width: 12em; {HTML_TABLE_TD_COMPACT_CSS} isolation: isolate; }}'
@@ -1568,13 +1847,14 @@ def budget_table_to_html(
         )
         + (
             f'#{wrap_id} .budget-table-scroll {{ height: 100%; max-height: 100%; min-height: 0; '
-            f'overflow: auto; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }}'
+            f'overflow: auto; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; '
+            f'box-sizing: border-box; padding-bottom: 14px; scroll-padding-bottom: 14px; }}'
             f'#{wrap_id}.budget-deviation-table-wrap {{ display: flex; flex-direction: column; '
             f'height: 100%; min-height: 0; overflow: hidden; width: 100%; }}'
             f'#{wrap_id} thead th {{ position: sticky; top: 0; z-index: 5; }}'
             f'#{wrap_id} tr.bd-total-row td {{ position: sticky; bottom: 0; z-index: 4; '
             f'box-shadow: 0 -3px 10px rgba(0,0,0,0.35); }}'
-            f'#{wrap_id} .budget-table-scroll table {{ width: max-content; min-width: 100%; }}'
+            f'#{wrap_id} .budget-table-scroll table {{ width: max-content !important; min-width: 100%; }}'
             if _scroll_vh
             else ""
         )
@@ -1584,9 +1864,9 @@ def budget_table_to_html(
         )
     )
     _wrap_style = (
-        "overflow: hidden; min-width: 0; max-width: 100%; margin: 0; padding: 0; height: 100%;"
+        "overflow: hidden; min-width: 0; margin: 0; padding: 0; height: 100%;"
         if _scroll_vh
-        else "overflow-x: auto; overflow-y: visible; min-width: 0; max-width: 100%; margin: 0; padding: 0;"
+        else "overflow-x: auto; overflow-y: visible; min-width: 0; margin: 0; padding: 0; height: auto;"
     )
     parts = [
         _html_table_caption(table_caption),
@@ -1595,7 +1875,7 @@ def budget_table_to_html(
         (
             f'<div class="budget-table-scroll" data-scroll-vh="{_scroll_vh:.1f}">' if _scroll_vh else ""
         ),
-        f'<table class="bi-sortable-table bi-sort-click-only" style="width:100%; border-collapse: collapse; background-color: {_tbl_bg}; color: {_tbl_text}; font-size: {_tbl_px}px;">',
+        f'<table class="bi-sortable-table bi-sort-click-only" style="width:max-content;min-width:100%;border-collapse:collapse;background-color:{TABLE_BG_COLOR};color:{TABLE_TEXT_COLOR};font-size:{_tbl_px}px;">',
         "<thead><tr>",
     ]
     header_cols = [c for c in df.columns if c != row_kind_column]
@@ -1609,7 +1889,7 @@ def budget_table_to_html(
         _cc = table_column_css_class(col)
         _col_cls = f"{_col_cls} {_cc}".strip()
         parts.append(
-            f'<th class="{_col_cls}" style="padding: {_pad_y}px {_pad_x}px; background-color: {_hdr_bg}; color: {_tbl_text}; {_hdr_css} text-align:center;vertical-align:bottom;" data-sort-label="{col_esc}">'
+            f'<th class="{_col_cls}" style="padding: {_pad_y}px {_pad_x}px; background-color: {TABLE_HEADER_BG_COLOR}; {_hdr_css} text-align:center;vertical-align:bottom;" data-sort-label="{col_esc}">'
             f'<span class="bi-sort-label">{col_esc} \u21c5</span></th>'
         )
     parts.append("</tr></thead><tbody>")
@@ -1659,11 +1939,18 @@ def budget_table_to_html(
                 if label_columns_font_css and _is_row_label_col
                 else ""
             )
+            _cl_col = str(col).casefold()
+            _is_plan_or_fact_col = (
+                ("план" in _cl_col or "факт" in _cl_col)
+                and "отклон" not in _cl_col
+                and col != finance_deviation_column
+            )
+            _plan_fact_weight = "font-weight:700;" if _is_plan_or_fact_col else ""
             if _column_uses_fact_plan_colors(
                 col, finance_deviation_column, color_fact_column=color_fact_column
             ):
                 num = _parse_finance_value(val)
-                cl = str(col).casefold()
+                cl = _cl_col
                 if (
                     finance_deviation_column
                     and col == finance_deviation_column
@@ -1674,9 +1961,9 @@ def budget_table_to_html(
                     if abs(float(_fact_n) - float(_plan_n)) < float(deviation_abs_min_mln):
                         cell_class = None
                     elif float(_fact_n) < float(_plan_n):
-                        cell_class = DEVIATION_CLASS_GREEN
-                    elif float(_fact_n) > float(_plan_n):
                         cell_class = DEVIATION_CLASS_RED
+                    elif float(_fact_n) > float(_plan_n):
+                        cell_class = DEVIATION_CLASS_GREEN
                     else:
                         cell_class = None
                 elif (
@@ -1749,18 +2036,16 @@ def budget_table_to_html(
                     _cc = table_column_css_class(col)
                     _td_css = HTML_TABLE_TD_COMPACT_CSS if _cc == "col-num" else HTML_TABLE_TD_TEXT_CSS
                     _align = "text-align:center;vertical-align:middle;" if _cc == "col-num" else "text-align:left;vertical-align:top;"
-                    _plain_color = "inherit" if is_total_row_st else TABLE_TEXT_COLOR
                     parts.append(
-                        f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {_plain_color}; '
-                        f'background-color: {_cell_bg}; {_td_css} {_align} {_label_css}"{_sort_attr}>{val_esc}</td>'
+                        f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {TABLE_TEXT_COLOR}; '
+                        f'background-color: {_cell_bg}; {_td_css} {_align} {_plan_fact_weight} {_label_css}"{_sort_attr}>{val_esc}</td>'
                     )
             else:
                 _cc = table_column_css_class(col)
                 _td_css = HTML_TABLE_TD_COMPACT_CSS if _cc == "col-num" else HTML_TABLE_TD_TEXT_CSS
                 _align = "text-align:center;vertical-align:middle;" if _cc == "col-num" else "text-align:left;vertical-align:top;"
-                _plain_color = "inherit" if is_total_row_st else TABLE_TEXT_COLOR
                 parts.append(
-                    f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {_plain_color}; background-color: {_cell_bg}; {_td_css} {_align} {_label_css}"{_sort_attr}>{val_esc}</td>'
+                    f'<td class="{_cc}" style="padding: {_pad_y}px {_pad_x}px; color: {TABLE_TEXT_COLOR}; background-color: {_cell_bg}; {_td_css} {_align} {_plan_fact_weight} {_label_css}"{_sort_attr}>{val_esc}</td>'
                 )
         parts.append("</tr>")
     parts.append("</tbody></table>")
@@ -1874,6 +2159,25 @@ def render_styled_table_to_html(styler, hide_index: bool = True) -> str:
         )
     except Exception:
         return ""
+
+
+def wrap_styled_table_full_width(html: str, n_rows: int) -> str:
+    """Растянуть styler-таблицу на 100% ширины (как fc-table-scroll-wrap)."""
+    if not html or n_rows <= 0:
+        return html
+    html = html.replace(
+        'class="bi-styled-table-wrap"',
+        f'class="fc-table-scroll-wrap bi-styled-table-wrap" data-bi-rows="{int(n_rows)}"',
+        1,
+    )
+    return html.replace(
+        ".bi-styled-table-wrap table{border-collapse:collapse!important;",
+        ".fc-table-scroll-wrap.bi-styled-table-wrap{width:100%!important;max-width:100%!important;"
+        "display:block!important;}"
+        ".fc-table-scroll-wrap.bi-styled-table-wrap table{width:100%!important;"
+        "min-width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;",
+        1,
+    )
 
 
 def get_report_param_value(report_name: str, parameter_key: str, default: Any = None) -> Any:
@@ -1996,19 +2300,34 @@ def format_dataframe_as_html(
         f"<table class='bi-sortable-table bi-sort-click-only' style='width:100%;min-width:max-content;border-collapse:collapse;background-color:{TABLE_BG_COLOR};"
         f"color:{TABLE_TEXT_COLOR};font-size:13px;'>"
     )
+    _fmt_wrap_id = "fmt_" + str(abs(id(df)))
     if _scroll_vh:
+        _dev_green = "hsl(148,100%,63%)"
+        try:
+            from dashboards.light_theme import finance_dev_negative_color
+
+            _dev_green = finance_dev_negative_color()
+        except Exception:
+            pass
+        _box_h = int(min(640, max(280, _scroll_vh * 10 + 56)))
+        _scroll_css = (
+            f"#{_fmt_wrap_id} table {{ width: max-content; min-width: 100%; }}"
+            f"#{_fmt_wrap_id} .budget-table-scroll {{ height: {_box_h}px !important; max-height: {_box_h}px !important; min-height: 0; "
+            f"overflow: auto; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; "
+            f"box-sizing: border-box; padding-bottom: 14px; scroll-padding-bottom: 14px; }}"
+            f"#{_fmt_wrap_id}.budget-deviation-table-wrap {{ display: block; "
+            f"overflow: hidden; width: 100%; margin: 0.35em 0 0 0; }}"
+            f"#{_fmt_wrap_id} thead th {{ position: sticky; top: 0; z-index: 5; "
+            f"background-color: {TABLE_HEADER_BG_COLOR} !important; }}"
+            f"#{_fmt_wrap_id} td.bd-cell-red, #{_fmt_wrap_id} td.bd-cell-red * "
+            f"{{ color: hsl(348,100%,63%) !important; }}"
+            f"#{_fmt_wrap_id} td.bd-cell-green, #{_fmt_wrap_id} td.bd-cell-green * "
+            f"{{ color: {_dev_green} !important; }}"
+        )
         html_table = (
-            f'<div class="fc-table-scroll-wrap" data-bi-rows="{len(df)}">'
-            f"<style>"
-            f".fc-table-scroll-wrap{{display:block;width:100%;max-width:100%;margin:0.35em 0 0 0;"
-            f"height:100%;max-height:100%;min-height:0;"
-            f"overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;"
-            f"scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#4a5568 #1a1c23;"
-            f"border:1px solid rgba(255,255,255,0.25);border-radius:10px;}}"
-            f".fc-table-scroll-wrap thead th{{position:sticky;top:0;z-index:5;"
-            f"background-color:{TABLE_HEADER_BG_COLOR}!important;}}"
-            f"</style>"
-            f"<div class='fc-table-scroll-inner' style='min-width:0;'>"
+            f'<div id="{_fmt_wrap_id}" class="budget-deviation-table-wrap" data-bi-rows="{len(df)}">'
+            f"<style>{_scroll_css}</style>"
+            f'<div class="budget-table-scroll" data-scroll-vh="{_scroll_vh:.1f}" data-scroll-box-h="{_box_h}">'
             + _tbl_open
         )
     else:
@@ -2090,6 +2409,21 @@ def format_dataframe_as_html(
                     except Exception:
                         pass
                 _cc_td = table_column_css_class(col)
+                _dev_cls = ""
+                if isinstance(value, (int, float)) and is_scalar and not pd.isna(value):
+                    if float(value) > 0:
+                        _dev_cls = f" {DEVIATION_CLASS_RED}"
+                    elif float(value) < 0:
+                        _dev_cls = f" {DEVIATION_CLASS_GREEN}"
+                elif is_scalar and not (isinstance(value, (int, float)) and pd.isna(value)):
+                    try:
+                        _fv = float(str(value).replace(",", ".").replace(" ", ""))
+                        if _fv > 0:
+                            _dev_cls = f" {DEVIATION_CLASS_RED}"
+                        elif _fv < 0:
+                            _dev_cls = f" {DEVIATION_CLASS_GREEN}"
+                    except (TypeError, ValueError):
+                        pass
                 if _is_tot:
                     # Итоговая строка: фон и шрифт как у соседних итоговых ячеек,
                     # но цвет значения оставляем красным/зелёным.
@@ -2106,7 +2440,7 @@ def format_dataframe_as_html(
                     _td_st = _td_st.replace(HTML_TABLE_TD_TEXT_CSS, HTML_TABLE_TD_COMPACT_CSS) + "text-align:center;vertical-align:middle;"
                 else:
                     _td_st += "text-align:left;vertical-align:top;"
-                html_table += f"<td class='{_cc_td}' style='{_td_st}'>{formatted_value}</td>"
+                html_table += f"<td class='{_cc_td}{_dev_cls}' style='{_td_st}'>{formatted_value}</td>"
             else:
                 if isinstance(value, (int, float)) and is_scalar and not pd.isna(value):
                     col_lower = str(col).lower()
@@ -2172,38 +2506,231 @@ def format_dataframe_as_html(
     return mark_html_table_sortable(html_table)
 
 
+@st.cache_data(show_spinner=False)
+def _read_css_file_cached(path_str: str, _mtime: float) -> str:
+    """Содержимое CSS-файла, кешированное по (путь, mtime).
+
+    load_custom_css вызывается несколько раз за rerun; без кеша это даёт лишние
+    чтения с диска каждый прогон. Инъекция <style> через st.markdown остаётся
+    у вызывающего (DOM Streamlit пересоздаётся на каждом rerun).
+    """
+    try:
+        with open(path_str, encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
 def load_custom_css() -> None:
-    """Загружает CSS. В showcase — светлая тема (``showcase/theme.py``), иначе production."""
+    """Загружает CSS. Для светлых превью — без тёмного style.css."""
     from pathlib import Path
 
+    _light_preview = False
     try:
-        from config import is_showcase_mode
+        from dashboards.light_theme import apply_light_table_constants, inject_light_preview_css, is_light_preview_active
+
+        _dash = str(st.session_state.get("current_dashboard") or "").strip()
+        if not _dash:
+            try:
+                _qp = st.query_params.get("report", "")
+                _dash = str(_qp[0] if isinstance(_qp, list) and _qp else _qp or "").strip()
+            except Exception:
+                pass
+        _light_preview = is_light_preview_active()
+        if _light_preview:
+            apply_light_table_constants()
+            inject_light_preview_css(st)
+        else:
+            from dashboards.light_theme import apply_dark_table_constants
+
+            apply_dark_table_constants()
     except Exception:
-        is_showcase_mode = lambda: False  # type: ignore[assignment,misc]
-
-    if is_showcase_mode():
-        try:
-            from showcase.theme import load_showcase_theme
-
-            load_showcase_theme()
-        except Exception:
-            pass
-        base = Path(__file__).resolve().parent
-        for name in ("bi-responsive.css",):
-            css_path = base / "static" / "css" / name
-            if css_path.exists():
-                with open(css_path, encoding="utf-8") as f:
-                    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-        st.markdown(BI_TABLE_LAYOUT_CSS + BI_RESPONSIVE_DASHBOARD_CSS, unsafe_allow_html=True)
-        return
+        pass
 
     base = Path(__file__).resolve().parent
-    for name in ("style.css", "bi-responsive.css"):
+    css_names = ("bi-responsive.css",) if _light_preview else ("style.css", "bi-responsive.css")
+    for name in css_names:
         css_path = base / "static" / "css" / name
-        if css_path.exists():
-            with open(css_path, encoding="utf-8") as f:
-                st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        try:
+            _mtime = css_path.stat().st_mtime
+        except OSError:
+            continue
+        css_text = _read_css_file_cached(str(css_path), _mtime)
+        if css_text:
+            st.markdown(f"<style>{css_text}</style>", unsafe_allow_html=True)
     st.markdown(BI_TABLE_LAYOUT_CSS + BI_RESPONSIVE_DASHBOARD_CSS, unsafe_allow_html=True)
+    if _light_preview:
+        st.markdown(
+            """
+<style id="bi-light-style-overrides">
+html body.gdrs-light-preview section.main div[data-testid="column"]:has([data-testid="stCheckbox"]) {
+  flex: 1 1 14rem !important;
+  min-width: 11rem !important;
+  width: auto !important;
+  max-width: none !important;
+}
+html body.gdrs-light-preview .stCheckbox > label,
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"],
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"] p {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] li[data-highlighted="true"],
+html body.gdrs-light-preview div[data-baseweb="popover"] li[aria-selected="true"],
+html body.gdrs-light-preview div[data-baseweb="menu"] li[data-highlighted="true"],
+html body.gdrs-light-preview div[data-baseweb="popover"] [role="option"][aria-selected="true"] {
+  background-color: #e5e7eb !important;
+  color: #111827 !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] li[data-highlighted="true"] *,
+html body.gdrs-light-preview div[data-baseweb="popover"] li[aria-selected="true"] * {
+  background-color: transparent !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] [role="listbox"] [role="option"][data-highlighted="true"],
+html body.gdrs-light-preview div[data-baseweb="popover"] [role="listbox"] [role="option"][aria-selected="true"] {
+  background-color: #e5e7eb !important;
+  color: #111827 !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="calendar"],
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="datepicker"],
+html body.gdrs-light-preview div[data-baseweb="popover"] [role="grid"] {
+  background-color: #ffffff !important;
+  color-scheme: light !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="calendar"] [role="grid"] [role="gridcell"]::before,
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="calendar"] [role="grid"] [role="gridcell"]::after {
+  content: none !important;
+  display: none !important;
+  background: transparent !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"] > div:first-child {
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  margin: 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 9999px !important;
+  color: #111827 !important;
+  background: transparent !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"]:hover > div:first-child,
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"][tabindex="0"] > div:first-child {
+  background-color: #f3f4f6 !important;
+}
+html body.gdrs-light-preview div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"][data-bi-selected="1"] > div:first-child {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"] > input + div {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  border: 2px solid #64748b !important;
+  border-radius: 4px !important;
+  background-color: #ffffff !important;
+  flex-shrink: 0 !important;
+}
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"] p,
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"] [data-testid="stMarkdownContainer"],
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"] [data-testid="stMarkdownContainer"] * {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > input + div:not(:has(p)) {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > input + div:has(p) {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+  display: inline-flex !important;
+  align-items: flex-start !important;
+  gap: 0.5rem !important;
+}
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > input + div:has(p) > div:first-child:not(:has(p)) {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  border: 2px solid #2563eb !important;
+  border-radius: 4px !important;
+  background-color: #2563eb !important;
+  flex-shrink: 0 !important;
+}
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked),
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:has(p),
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) p {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #111827 !important;
+}
+html body.gdrs-light-preview section.main [data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:has(p) {
+  background: transparent !important;
+  border: none !important;
+  width: auto !important;
+  flex: 1 1 auto !important;
+}
+html body.gdrs-light-preview [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+html body.gdrs-light-preview [data-testid="stAlert"] [data-testid="stMarkdownContainer"] p,
+html body.gdrs-light-preview [data-testid="stAlert"] [data-testid="stMarkdownContainer"] * {
+  color: #92400e !important;
+  -webkit-text-fill-color: #92400e !important;
+}
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+html body.gdrs-light-preview div[data-testid="stVerticalBlockBorderWrapper"]:has([data-testid="stPlotlyChart"]) {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+html body.gdrs-light-preview section.main,
+html body.gdrs-light-preview [data-testid="stMain"],
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] {
+  overflow-y: auto !important;
+}
+html body.gdrs-light-preview .bi-light-table .rendered-table th,
+html body.gdrs-light-preview .bi-sortable-html-root .bi-light-table .rendered-table th {
+  background: #e5e7eb !important;
+  color: #111827 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+}
+html body.gdrs-light-preview .bi-light-table .rendered-table td,
+html body.gdrs-light-preview .bi-sortable-html-root .bi-light-table .rendered-table td {
+  color: #111827 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+html body.gdrs-light-preview .bi-light-table .rendered-table tr.bd-total-row td {
+  background: #e5e7eb !important;
+  color: #111827 !important;
+  border-top: 2px solid #94a3b8 !important;
+}
+html body.gdrs-light-preview .bi-light-table .rendered-table tr:hover td {
+  background: #f3f4f6 !important;
+}
+</style>
+""",
+            unsafe_allow_html=True,
+        )
+
+    try:
+        from dashboards.light_theme import sync_light_preview_theme
+
+        sync_light_preview_theme(st)
+    except Exception:
+        pass
 
 
 def dataframe_to_csv_bytes_for_excel(
@@ -2290,32 +2817,155 @@ def _scroll_box_table_html(html: str) -> bool:
     return (
         "fc-table-scroll-wrap" in b
         or "pd-dynamics-scroll-wrap" in b
+        or ("pd-dynamics-table-wrap" in b and "budget-table-scroll" in b)
         or "pred-detail-wrap" in b
+        or "pred-detail-scroll" in b
         or ("budget-deviation-table-wrap" in b and "budget-table-scroll" in b)
+        or ("gantt-schedule-scroll-wrap" in b and 'data-scroll-box-h="' in b)
+        or ("dev-reasons-wrap" in b and 'data-scroll-box-h="' in b)
+        or ("dev-maket-table-wrap" in b and 'data-scroll-box-h="' in b)
+        or ("exec-doc-scroll-wrap" in b and 'data-scroll-box-h="' in b)
+    )
+
+
+def _scroll_box_fits_content(html: str, *, cap: int = 640) -> bool:
+    """scroll-таблицы (fc/dev-reasons/dev-maket) рендерим по self-size пути.
+
+    Такие таблицы не получают жёстко фиксированный scroll-box: высота iframe
+    подгоняется по фактическому контенту (внутри iframe стоит max-height-кап,
+    поэтому длинные таблицы всё равно скроллятся, а короткие — садятся вплотную,
+    и кнопка «Скачать таблицу» идёт сразу под таблицей без пустоты).
+    """
+    b = _html_body_without_style(html)
+    return (
+        "fc-table-scroll-wrap" in b
+        or ("dev-reasons-wrap" in b and 'data-scroll-box-h="' in b)
+        or ("dev-maket-table-wrap" in b and 'data-scroll-box-h="' in b)
     )
 
 
 def _scroll_box_height_px(html: str, *, cap: int = 640) -> int:
     """Высота scroll-box под iframe: для budget-table-scroll — по vh из разметки таблицы."""
     _body = html or ""
-    if "budget-table-scroll" in _body:
+    _m_box = re.search(r'data-scroll-box-h="(\d+)"', _body)
+    if _m_box:
+        return int(_m_box.group(1))
+    if "budget-table-scroll" in _body or "fc-table-scroll-wrap" in _body:
         _m_vh = re.search(r'data-scroll-vh="([\d.]+)"', _body) or re.search(
             r"max-height:\s*([\d.]+)vh", _body
         )
         if _m_vh:
             _vh = float(_m_vh.group(1))
             return int(min(cap, max(280, _vh * 10 + 56)))
-    if "pd-dynamics-scroll-wrap" in _body:
-        _rows_m = re.search(r'data-bi-rows="(\d+)"', html or "")
-        _rows_n = int(_rows_m.group(1)) if _rows_m else 0
-        _est = 84 + _rows_n * 34
-        return int(min(720, max(520, _est)))
+    if "pd-dynamics-scroll-wrap" in _body or (
+        "pd-dynamics-table-wrap" in _body and "budget-table-scroll" in _body
+    ):
+        _m_box = re.search(r'data-scroll-box-h="(\d+)"', _body) or re.search(
+            r'data-pd-box-h="(\d+)"', _body
+        )
+        if _m_box:
+            return int(_m_box.group(1))
+        _m_vh = re.search(r'data-scroll-vh="([\d.]+)"', _body)
+        if _m_vh:
+            _vh = float(_m_vh.group(1))
+            return int(min(640, max(280, _vh * 10 + 56)))
+        return 576
     _rows_m = re.search(r'data-bi-rows="(\d+)"', html or "")
     _rows_n = int(_rows_m.group(1)) if _rows_m else 0
     _est = 84 + _rows_n * 34
     return min(cap, max(220, _est))
 
 
+
+
+def _render_exec_detail_html_table(
+    html: str,
+    export_df: pd.DataFrame | None,
+    *,
+    file_stem: str,
+    key_prefix: str,
+    popover_key: str,
+) -> None:
+    from dashboards.table_sort_inject import render_sortable_html_block
+
+    _exec_h = int(_scroll_box_height_px(html))
+    _iframe_h = _exec_h + 8
+    _wrap_key = "bitblwrap_" + str(key_prefix).replace(" ", "_")
+    st.markdown(
+        "<style>"
+        f"div[class*='st-key-{_wrap_key}'] div[data-testid='stVerticalBlock']{{gap:0!important;}}"
+        f"div[class*='st-key-{_wrap_key}'] div[data-testid='stElementContainer']:has(iframe){{"
+        f"height:{_iframe_h}px!important;min-height:{_iframe_h}px!important;max-height:{_iframe_h}px!important;"
+        "margin:0!important;padding:0!important;overflow:hidden!important;width:100%!important;}}"
+        f"div[class*='st-key-{_wrap_key}'] iframe{{"
+        f"height:{_iframe_h}px!important;min-height:{_iframe_h}px!important;width:100%!important;"
+        "max-width:100%!important;display:block!important;border:0!important;}}"
+        f"div[class*='st-key-{_wrap_key}'] [data-testid='stPopover']{{margin-top:8px!important;}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+    try:
+        _outer = st.container(border=False, gap=None, key=_wrap_key)
+    except TypeError:
+        _outer = st.container(border=False)
+    with _outer:
+        try:
+            render_sortable_html_block(html, compact_iframe=True)
+        except Exception:
+            st.markdown(html, unsafe_allow_html=True)
+        if export_df is not None:
+            render_dataframe_excel_csv_downloads(
+                export_df,
+                file_stem=file_stem,
+                key_prefix=key_prefix,
+                popover_key=popover_key,
+            )
+
+
+def _render_pred_detail_html_table(
+    html: str,
+    export_df: pd.DataFrame | None,
+    *,
+    file_stem: str,
+    key_prefix: str,
+    popover_key: str,
+) -> None:
+    """Детальная таблица предписаний: фиксированная высота iframe + внутренний scroll-box."""
+    from dashboards.table_sort_inject import render_sortable_html_block
+
+    _pred_h = int(_scroll_box_height_px(html))
+    # +16px: место под горизонтальный scrollbar (иначе обрезается низом iframe).
+    _iframe_h = _pred_h + 16
+    _wrap_key = "bitblwrap_" + str(key_prefix).replace(" ", "_")
+    st.markdown(
+        "<style>"
+        f"div[class*='st-key-{_wrap_key}'] div[data-testid='stVerticalBlock']{{gap:0!important;}}"
+        f"div[class*='st-key-{_wrap_key}'] div[data-testid='stElementContainer']:has(iframe){{"
+        f"height:{_iframe_h}px!important;min-height:{_iframe_h}px!important;max-height:{_iframe_h}px!important;"
+        "margin:0!important;padding:0!important;overflow:hidden!important;width:100%!important;}}"
+        f"div[class*='st-key-{_wrap_key}'] iframe{{"
+        f"height:{_iframe_h}px!important;min-height:{_iframe_h}px!important;width:100%!important;"
+        "max-width:100%!important;display:block!important;border:0!important;}}"
+        f"div[class*='st-key-{_wrap_key}'] [data-testid='stPopover']{{margin-top:8px!important;}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+    try:
+        _outer = st.container(border=False, gap=None, key=_wrap_key)
+    except TypeError:
+        _outer = st.container(border=False)
+    with _outer:
+        try:
+            render_sortable_html_block(html, compact_iframe=True)
+        except Exception:
+            st.markdown(html, unsafe_allow_html=True)
+        if export_df is not None:
+            render_dataframe_excel_csv_downloads(
+                export_df,
+                file_stem=file_stem,
+                key_prefix=key_prefix,
+                popover_key=popover_key,
+            )
 
 
 def _render_pd_dynamics_html_table(
@@ -2331,10 +2981,10 @@ def _render_pd_dynamics_html_table(
 
     _pd_h = int(_scroll_box_height_px(html))
     _wrap_key = "bitblwrap_" + str(key_prefix).replace(" ", "_")
-    if "data-pd-box-h=" not in (html or ""):
+    if "data-pd-box-h=" not in (html or "") and 'data-scroll-box-h="' not in (html or ""):
         html = (html or "").replace(
-            "pd-dynamics-scroll-wrap",
-            f'pd-dynamics-scroll-wrap" data-pd-box-h="{_pd_h}',
+            'class="budget-table-scroll pd-dynamics-scroll-wrap"',
+            f'class="budget-table-scroll pd-dynamics-scroll-wrap" data-scroll-box-h="{_pd_h}"',
             1,
         )
     st.markdown(
@@ -2392,8 +3042,43 @@ def render_report_html_table(
     _kp = key_prefix or f"tbl_{_export_file_stem(file_stem)}"
     _pop_key = f"{_kp}_dl"
     _wrap_key = "bitblwrap_" + str(_kp).replace(' ', '_')
+    if file_stem == "exec_doc_kinds":
+        st.markdown(
+            "<style>"
+            "div[data-testid='stExpander'] .bd-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}"
+            "div[data-testid='stExpander'] .bi-sortable-table{width:100%;min-width:max-content;}"
+            "</style>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(html, unsafe_allow_html=True)
+        if export_df is not None:
+            render_dataframe_excel_csv_downloads(
+                export_df,
+                file_stem=file_stem,
+                key_prefix=_kp,
+                popover_key=_pop_key,
+            )
+        return
     if file_stem == "pd_dynamics_table":
         _render_pd_dynamics_html_table(
+            html,
+            export_df,
+            file_stem=file_stem,
+            key_prefix=_kp,
+            popover_key=_pop_key,
+        )
+        return
+    if file_stem == "predpisania" and "pred-detail-scroll" in _html_body_without_style(html):
+        _render_pred_detail_html_table(
+            html,
+            export_df,
+            file_stem=file_stem,
+            key_prefix=_kp,
+            popover_key=_pop_key,
+        )
+        return
+    if file_stem == "executive_docs" and "exec-doc-scroll-wrap" in _html_body_without_style(html):
+        _render_exec_detail_html_table(
             html,
             export_df,
             file_stem=file_stem,
@@ -2508,9 +3193,44 @@ def render_report_html_table(
             "</style>",
             unsafe_allow_html=True,
         )
-        if _scroll_box and "pd-dynamics-scroll-wrap" not in _html_body_without_style(html):
+        _short_scroll = _scroll_box_fits_content(html)
+        if (
+            _scroll_box
+            and not _short_scroll
+            and "pd-dynamics-scroll-wrap" not in _html_body_without_style(html)
+        ):
             # a29a014: scroll-box + кнопка сразу под нim (fc / pred / budget scroll).
             _fc_box_h = _scroll_box_height_px(html)
+            _body_no_style = _html_body_without_style(html)
+            if (
+                "budget-table-scroll" in _body_no_style
+                or "fc-table-scroll-wrap" in _body_no_style
+                or (
+                    "gantt-schedule-scroll-wrap" in _body_no_style
+                    and 'data-scroll-box-h="' in _body_no_style
+                )
+                or (
+                    "dev-reasons-wrap" in _body_no_style
+                    and 'data-scroll-box-h="' in _body_no_style
+                )
+                or (
+                    "dev-maket-table-wrap" in _body_no_style
+                    and 'data-scroll-box-h="' in _body_no_style
+                )
+            ):
+                st.markdown(
+                    "<style>"
+                    f"div[class*='st-key-{_wrap_key}'] div[data-testid='stVerticalBlock']{{gap:0!important;}}"
+                    f"div[class*='st-key-{_wrap_key}'] div[data-testid='stElementContainer']:has(iframe){{"
+                    f"height:{_fc_box_h}px!important;min-height:{_fc_box_h}px!important;max-height:{_fc_box_h}px!important;"
+                    "margin:0!important;padding:0!important;overflow:hidden!important;width:100%!important;}}"
+                    f"div[class*='st-key-{_wrap_key}'] iframe{{"
+                    f"height:{_fc_box_h}px!important;min-height:{_fc_box_h}px!important;width:100%!important;"
+                    "max-width:100%!important;display:block!important;border:0!important;}}"
+                    f"div[class*='st-key-{_wrap_key}'] [data-testid='stPopover']{{margin-top:8px!important;}}"
+                    "</style>",
+                    unsafe_allow_html=True,
+                )
             try:
                 _tbl_outer = st.container(border=False, gap=None, key=_wrap_key)
             except TypeError:
@@ -2556,7 +3276,7 @@ def render_report_html_table(
             "div[data-testid='stElementContainer']:has([data-testid='stHtml']) "
             "{margin-bottom:0!important;padding-bottom:0!important;}"
             "div[data-testid='stVerticalBlock']:has([data-testid='stPopover']) "
-            "{margin-top:0!important;padding-top:0!important;}"
+            "{margin-top:6px!important;padding-top:0!important;}"
             "</style>",
             unsafe_allow_html=True,
         )

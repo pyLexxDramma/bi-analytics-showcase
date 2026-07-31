@@ -119,8 +119,10 @@ def gdrs_deviation_vs_plan_text_and_color(plan_v, fact_v, theme: GdrsTheme) -> t
 
 
 def is_gdrs_light_preview_report(report_name: str) -> bool:
-    n = str(report_name or "").strip().casefold()
-    return n.startswith("гдрс") and "превью" in n and "светл" in n
+    """True на светлой теме (в т.ч. канонические имена без суффикса превью)."""
+    from dashboards.light_theme import is_light_preview_active
+
+    return is_light_preview_active()
 
 
 
@@ -196,9 +198,17 @@ html body [data-testid="stAppViewContainer"] > section {{
   color-scheme: light !important;
 }}
 html body .stApp,
-html body [data-testid="stAppViewContainer"] {{
+html body [data-testid="stAppViewContainer"],
+html body.gdrs-light-preview,
+html body.gdrs-light-preview .stApp {{
   --themeFontColor: {g_text} !important;
+  --themeBackgroundColor: {g_white} !important;
+  --themeDarkBackgroundColor: #f3f4f6 !important;
+  --themeSecondaryBackgroundColor: #f3f4f6 !important;
+  --primary-color: #16a34a !important;
+  --secondary-background-color: #e5e7eb !important;
   --theColor: 220, 13%, 18% !important;
+  color-scheme: light !important;
 }}
 html body .main,
 html body section.main,
@@ -219,6 +229,44 @@ html body .main [data-testid="stMarkdownContainer"] h1 * {{
   font-weight: 800 !important;
   font-size: 1.85rem !important;
   opacity: 1 !important;
+}}
+/* Отступы заголовков и фильтров — style.css на превью не грузится */
+html body.gdrs-light-preview [data-testid="stMain"],
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] {{
+  --bi-filter-rhythm: 8px;
+  --bi-page-top-gap: 8px;
+}}
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] {{
+  padding-top: var(--bi-page-top-gap) !important;
+}}
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] > div[data-testid="stVerticalBlock"] {{
+  gap: var(--bi-filter-rhythm) !important;
+  row-gap: var(--bi-filter-rhythm) !important;
+}}
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] [data-testid="stHeadingWithActionElements"] {{
+  margin-bottom: var(--bi-filter-rhythm) !important;
+  padding-bottom: 0 !important;
+}}
+html body.gdrs-light-preview h1.main-header,
+html body.gdrs-light-preview h1.bi-light-preview-heading,
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] h1.main-header {{
+  margin-top: 0 !important;
+  margin-bottom: var(--bi-filter-rhythm) !important;
+}}
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] [data-testid="stExpander"] {{
+  margin-top: 0 !important;
+  margin-bottom: var(--bi-filter-rhythm) !important;
+}}
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] [data-testid="stExpander"] summary {{
+  padding: 5px 14px !important;
+}}
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
+  padding: var(--bi-filter-rhythm) 16px var(--bi-filter-rhythm) !important;
+}}
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] [data-testid="stExpander"] details [data-testid="stVerticalBlock"],
+html body.gdrs-light-preview [data-testid="stMainBlockContainer"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] [data-testid="stVerticalBlock"] {{
+  gap: var(--bi-filter-rhythm) !important;
+  row-gap: var(--bi-filter-rhythm) !important;
 }}
 html body .main h2,
 html body .main h3,
@@ -264,6 +312,40 @@ html body [data-testid="stAppViewContainer"] [data-testid="stMainBlockContainer"
   color: {g_text} !important;
   -webkit-text-fill-color: {g_text} !important;
   opacity: 1 !important;
+}}
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"] p,
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"] [data-testid="stMarkdownContainer"],
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"] [data-testid="stMarkdownContainer"] * {{
+  background: transparent !important;
+  background-color: transparent !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+}}
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > input + div:not(:has(p)) {{
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  background-color: #2563eb !important;
+  border: 2px solid #2563eb !important;
+  border-radius: 4px !important;
+}}
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > input + div:has(p) {{
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+}}
+html body.gdrs-light-preview [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > input + div:has(p) > div:first-child:not(:has(p)) {{
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  background-color: #2563eb !important;
+  border: 2px solid #2563eb !important;
+  border-radius: 4px !important;
 }}
 html body [data-testid="stAppViewContainer"] [data-testid="stMainBlockContainer"] [data-testid="stWidgetLabel"],
 html body [data-testid="stAppViewContainer"] [data-testid="stMainBlockContainer"] [data-testid="stWidgetLabel"] * {{
@@ -377,6 +459,18 @@ html body .main [data-testid="stExpander"] [data-testid="stVerticalBlock"],
 html body section.main [data-testid="stExpander"] [data-testid="stVerticalBlock"] {{
   background-color: {g_white} !important;
 }}
+html body.gdrs-light-preview [data-testid="stExpanderDetails"] [data-testid="stMarkdownContainer"],
+html body.gdrs-light-preview [data-testid="stExpanderDetails"] [data-testid="stMarkdownContainer"] *,
+html body.gdrs-light-preview section.main [data-testid="stExpander"] [data-testid="stExpanderDetails"] p,
+html body.gdrs-light-preview section.main [data-testid="stExpander"] [data-testid="stExpanderDetails"] li,
+html body.gdrs-light-preview section.main [data-testid="stExpander"] [data-testid="stExpanderDetails"] strong,
+html body.gdrs-light-preview section.main [data-testid="stExpander"] [data-testid="stExpanderDetails"] em,
+html body.gdrs-light-preview section.main [data-testid="stExpander"] [data-testid="stExpanderDetails"] ol,
+html body.gdrs-light-preview section.main [data-testid="stExpander"] [data-testid="stExpanderDetails"] ul {{
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  opacity: 1 !important;
+}}
 html body [data-testid="stSelectbox"] [data-baseweb="select"] > div,
 html body [data-baseweb="select"] > div,
 html body [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
@@ -421,9 +515,13 @@ html body [data-baseweb="tag"] span {{
   font-weight: 600 !important;
 }}
 
-/* Кнопки в контенте: «Скачать таблицу» и др. */
+/* Кнопки в контенте: «Скачать таблицу», «Сбросить» в фильтрах и др. */
 html body .main .stButton > button,
 html body .main [data-testid="stButton"] button,
+html body section.main [data-testid="stButton"] button,
+html body [data-testid="stMainBlockContainer"] [data-testid="stButton"] button,
+html body [data-testid="stExpander"] [data-testid="stButton"] button,
+html body [data-testid="stExpanderDetails"] [data-testid="stButton"] button,
 html body [data-testid="stPopover"] > button,
 html body [data-testid="stPopover"] button,
 html body [data-testid="stPopoverBody"] .stButton > button,
@@ -436,6 +534,10 @@ html body [data-testid="stPopoverBody"] [data-testid="stButton"] button {{
 }}
 html body .main .stButton > button:hover,
 html body .main [data-testid="stButton"] button:hover,
+html body section.main [data-testid="stButton"] button:hover,
+html body [data-testid="stMainBlockContainer"] [data-testid="stButton"] button:hover,
+html body [data-testid="stExpander"] [data-testid="stButton"] button:hover,
+html body [data-testid="stExpanderDetails"] [data-testid="stButton"] button:hover,
 html body [data-testid="stPopover"] > button:hover,
 html body [data-testid="stPopover"] button:hover,
 html body [data-testid="stPopoverBody"] .stButton > button:hover,
@@ -443,6 +545,61 @@ html body [data-testid="stPopoverBody"] [data-testid="stButton"] button:hover {{
   background-color: {g_hover} !important;
   color: {g_text} !important;
   border-color: #94a3b8 !important;
+}}
+
+/* Primary-кнопки в контенте: админка, профиль, формы (зелёный акцент светлой темы) */
+html body .main .stButton > button[kind="primary"],
+html body .main [data-testid="stButton"] button[kind="primary"],
+html body section.main [data-testid="stButton"] button[kind="primary"],
+html body [data-testid="stMainBlockContainer"] [data-testid="stButton"] button[kind="primary"],
+html body [data-testid="stMainBlockContainer"] button[data-testid^="stBaseButton-primary"],
+html body [data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-primary"],
+html body [data-testid="stMainBlockContainer"] [data-testid="stFormSubmitButton"] button[data-testid^="stBaseButton-primary"],
+html body [data-testid="stExpander"] [data-testid="stButton"] button[kind="primary"],
+html body [data-testid="stExpanderDetails"] [data-testid="stButton"] button[kind="primary"],
+html body [data-testid="stExpander"] button[data-testid^="stBaseButton-primary"],
+html body [data-testid="stExpanderDetails"] button[data-testid^="stBaseButton-primary"] {{
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  background-color: #ecfdf5 !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border: 1.5px solid #6ee7b7 !important;
+  border-left: 5px solid #16a34a !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 6px rgba(22, 163, 74, 0.18) !important;
+}}
+html body .main .stButton > button[kind="primary"] *,
+html body .main [data-testid="stButton"] button[kind="primary"] *,
+html body section.main [data-testid="stButton"] button[kind="primary"] *,
+html body [data-testid="stMainBlockContainer"] [data-testid="stButton"] button[kind="primary"] *,
+html body [data-testid="stMainBlockContainer"] button[data-testid^="stBaseButton-primary"] *,
+html body [data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-primary"] *,
+html body [data-testid="stMainBlockContainer"] [data-testid="stFormSubmitButton"] button[data-testid^="stBaseButton-primary"] *,
+html body [data-testid="stExpander"] [data-testid="stButton"] button[kind="primary"] *,
+html body [data-testid="stExpanderDetails"] [data-testid="stButton"] button[kind="primary"] *,
+html body [data-testid="stExpander"] button[data-testid^="stBaseButton-primary"] *,
+html body [data-testid="stExpanderDetails"] button[data-testid^="stBaseButton-primary"] * {{
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  font-weight: 700 !important;
+}}
+html body .main .stButton > button[kind="primary"]:hover,
+html body .main [data-testid="stButton"] button[kind="primary"]:hover,
+html body section.main [data-testid="stButton"] button[kind="primary"]:hover,
+html body [data-testid="stMainBlockContainer"] [data-testid="stButton"] button[kind="primary"]:hover,
+html body [data-testid="stMainBlockContainer"] button[data-testid^="stBaseButton-primary"]:hover,
+html body [data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-primary"]:hover,
+html body [data-testid="stMainBlockContainer"] [data-testid="stFormSubmitButton"] button[data-testid^="stBaseButton-primary"]:hover,
+html body [data-testid="stExpander"] [data-testid="stButton"] button[kind="primary"]:hover,
+html body [data-testid="stExpanderDetails"] [data-testid="stButton"] button[kind="primary"]:hover,
+html body [data-testid="stExpander"] button[data-testid^="stBaseButton-primary"]:hover,
+html body [data-testid="stExpanderDetails"] button[data-testid^="stBaseButton-primary"]:hover {{
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%) !important;
+  background-color: #d1fae5 !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28) !important;
 }}
 html body .main .bi-filter-chip,
 html body section.main .bi-filter-chip {{
@@ -475,6 +632,14 @@ html body [data-testid="stSidebar"] p.sidebar-section-title,
 html body [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p.sidebar-section-title {{
   color: #374151 !important;
   -webkit-text-fill-color: #374151 !important;
+  font-weight: 800 !important;
+}}
+html body [data-testid="stSidebar"] div[class*="st-key-web_version_pick_scope"] [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+html body [data-testid="stSidebar"] div[class*="st-key-web_version_pick_scope"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+  border: 2px solid #92400e !important;
+  border-color: #92400e !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 0 1px rgba(146, 64, 14, 0.12) !important;
 }}
 html body [data-testid="stSidebar"] hr {{
   border-color: {g_border} !important;
@@ -524,23 +689,6 @@ html body [data-testid="stSidebar"] [data-testid="stLinkButton"] button {{
   border: 1px solid {g_border} !important;
   font-weight: 600 !important;
 }}
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] .stButton > button,
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid="stButton"] button,
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid="stBaseButton-primary"],
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid="stBaseButton-secondary"],
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"],
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"] *,
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"],
-html body [data-testid="stSidebar"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"] * {{
-  font-weight: 700 !important;
-}}
-html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] .stButton > button,
-html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] [data-testid="stButton"] button,
-html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] [data-testid^="stBaseButton"],
-html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"],
-html body [data-testid="stSidebar"] [data-testid="stExpanderDetails"] div[class*="st-key-menu_report_"] button [data-testid="stMarkdownContainer"] * {{
-  font-weight: 500 !important;
-}}
 html body [data-testid="stSidebar"] .stButton > button:hover,
 html body [data-testid="stSidebar"] [data-testid="stButton"] button:hover,
 html body [data-testid="stSidebar"] [data-testid="stLinkButton"] a:hover,
@@ -549,19 +697,166 @@ html body [data-testid="stSidebar"] [data-testid="stLinkButton"] button:hover {{
   color: {g_text} !important;
   border-color: #94a3b8 !important;
 }}
-html body [data-testid="stSidebar"] .stButton > button[kind="primary"],
-html body [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"] {{
-  background-color: {g_hover} !important;
+html body.gdrs-light-preview [data-testid="stSidebar"] .stButton > button[kind="primary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stBaseButton-primary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="stBaseButton-primary"] {{
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  background-color: #ecfdf5 !important;
   color: {g_text} !important;
   -webkit-text-fill-color: {g_text} !important;
-  border: 1px solid #94a3b8 !important;
+  border: 1.5px solid #6ee7b7 !important;
+  border-left: 5px solid #16a34a !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 6px rgba(22, 163, 74, 0.18) !important;
+}}
+html body.gdrs-light-preview [data-testid="stSidebar"] .stButton > button[kind="primary"] *,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"] *,
+html body.gdrs-light-preview [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] *,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stBaseButton-primary"] *,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="stBaseButton-primary"] * {{
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
   font-weight: 700 !important;
 }}
-html body [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover,
-html body [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"]:hover {{
-  background-color: #d1d5db !important;
+html body.gdrs-light-preview [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"]:hover,
+html body.gdrs-light-preview [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hover,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stBaseButton-primary"]:hover,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="stBaseButton-primary"]:hover {{
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%) !important;
+  background-color: #d1fae5 !important;
   color: {g_text} !important;
-  border-color: #64748b !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28) !important;
+}}
+html body.gdrs-light-preview [data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"]:disabled,
+html body.gdrs-light-preview [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:disabled,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stBaseButton-primary"]:disabled,
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="stBaseButton-primary"]:disabled {{
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  background-color: #ecfdf5 !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border: 1.5px solid #6ee7b7 !important;
+  border-left: 5px solid #16a34a !important;
+  opacity: 1 !important;
+  cursor: default !important;
+  box-shadow: 0 1px 6px rgba(22, 163, 74, 0.18) !important;
+}}
+html body.gdrs-light-preview [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] .stButton > button[kind="secondary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"],
+html body.gdrs-light-preview [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="stBaseButton-secondary"] {{
+  background-color: {g_white} !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border: 1px solid {g_border} !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}}
+
+/* Sidebar: «ИИ помощник» — мягкий акцент светлой темы (не путать с active report) */
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] button,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] a,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] button {{
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+  background-color: #eff6ff !important;
+  color: #1e40af !important;
+  -webkit-text-fill-color: #1e40af !important;
+  border: 1.5px solid #60a5fa !important;
+  border-left: 5px solid #2563eb !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 6px rgba(37, 99, 235, 0.18) !important;
+}}
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] button *,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] a *,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] button * {{
+  color: #1e40af !important;
+  -webkit-text-fill-color: #1e40af !important;
+  font-weight: 700 !important;
+}}
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] button:hover,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] a:hover,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] button:hover {{
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
+  background-color: #dbeafe !important;
+  color: #1e3a8a !important;
+  -webkit-text-fill-color: #1e3a8a !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28) !important;
+}}
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] button:hover *,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] a:hover *,
+html body [data-testid="stSidebar"] div[class*="sidebar_ai_assistant"] [data-testid="stLinkButton"] button:hover * {{
+  color: #1e3a8a !important;
+  -webkit-text-fill-color: #1e3a8a !important;
+}}
+
+/* Sidebar: «Выйти» — мягкий красный акцент */
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] button,
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] [data-testid="stBaseButton-secondary"],
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] button[data-testid^="stBaseButton-"] {{
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+  background-color: #fef2f2 !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border: 1.5px solid #fca5a5 !important;
+  border-left: 5px solid #dc2626 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 6px rgba(220, 38, 38, 0.18) !important;
+}}
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] button *,
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] [data-testid="stBaseButton-secondary"] * {{
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  font-weight: 700 !important;
+}}
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] button:hover,
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] button[data-testid^="stBaseButton-"]:hover {{
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  background-color: #fee2e2 !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border-color: #f87171 !important;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.28) !important;
+}}
+html body [data-testid="stSidebar"] div[class*="sidebar_logout"] button:hover * {{
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+}}
+
+/* Login form: «Войти» / «Забыли пароль?» — зелёный акцент светлой темы */
+html body div[class*="login_form"] [data-testid="stFormSubmitButton"] button {{
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  background-color: #ecfdf5 !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border: 1.5px solid #6ee7b7 !important;
+  border-left: 5px solid #16a34a !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 6px rgba(22, 163, 74, 0.18) !important;
+}}
+html body div[class*="login_form"] [data-testid="stFormSubmitButton"] button * {{
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  font-weight: 700 !important;
+}}
+html body div[class*="login_form"] [data-testid="stFormSubmitButton"] button:hover {{
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%) !important;
+  background-color: #d1fae5 !important;
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28) !important;
+}}
+html body div[class*="login_form"] [data-testid="stFormSubmitButton"] button:hover * {{
+  color: {g_text} !important;
+  -webkit-text-fill-color: {g_text} !important;
 }}
 
 /* Заголовки графиков/таблиц (st.subheader, emotion-классы Streamlit) */
@@ -617,15 +912,63 @@ html body.gdrs-light-preview [data-testid="stPlotlyChart"] .annotation-text-g te
   stroke-width: 0 !important;
   paint-order: fill !important;
   font-weight: 400 !important;
-  -webkit-text-fill-color: unset !important;
   -webkit-text-stroke: 0 !important;
-  color: unset !important;
+}}
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .xtick text,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .ytick text,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .legend text,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] g.xtitle text,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] g.ytitle text,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .barlayer text,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] g.textpoint text,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .bartext text {{
+  fill: #111827 !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
 }}
 html body [data-testid="stPlotlyChart"] {{
 
   background-color: {g_white} !important;
   border: 1px solid {g_border} !important;
   isolation: isolate !important;
+}}
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar-container,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar-group {{
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  display: flex !important;
+}}
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar {{
+  background: rgba(255, 255, 255, 0.92) !important;
+}}
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar-btn,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] a.modebar-btn {{
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-block !important;
+}}
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar-btn path,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar-btn svg path,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] a.modebar-btn path {{
+  fill: #334155 !important;
+  stroke: #334155 !important;
+  opacity: 1 !important;
+}}
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar-btn:hover path,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] .modebar-btn.active path,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] a.modebar-btn:hover path,
+html body.gdrs-light-preview [data-testid="stPlotlyChart"] a.modebar-btn.active path {{
+  fill: #0f766e !important;
+  stroke: #0f766e !important;
+}}
+html body.gdrs-light-preview .gdrs-summary-table-wrap tr.gdrs-total-row td,
+html body.gdrs-light-preview .gdrs-summary-table-wrap tr.bd-total-row td {{
+  background-color: {g_hover} !important;
+  border-top: 2px solid {g_border} !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
 }}
 
 /* Шапка Streamlit — inject только на светлом превью ГДРС */
@@ -682,7 +1025,7 @@ html body .gdrs-loading-banner {{
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  margin: 0 0 1rem 0;
+  margin: 0 0 var(--bi-filter-rhythm, 8px) 0;
   padding: 0.65rem 1rem;
   background: #eff6ff;
   border: 1px solid #93c5fd;
@@ -701,6 +1044,39 @@ html body .gdrs-loading-icon {{
 @keyframes gdrs-loading-spin {{
   from {{ transform: rotate(0deg); }}
   to {{ transform: rotate(360deg); }}
+}}
+/* st.tabs — на светлом превью без style.css подписи иначе белые на белом */
+html body section.main [data-testid="stTabs"] button[data-baseweb="tab"],
+html body .stTabs button[data-baseweb="tab"] {{
+  color: #4b5563 !important;
+  -webkit-text-fill-color: #4b5563 !important;
+}}
+html body section.main [data-testid="stTabs"] button[data-baseweb="tab"]:hover,
+html body .stTabs button[data-baseweb="tab"]:hover {{
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}}
+html body section.main [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"],
+html body .stTabs button[data-baseweb="tab"][aria-selected="true"] {{
+  color: #16a34a !important;
+  -webkit-text-fill-color: #16a34a !important;
+}}
+html body section.main [data-testid="stTabs"] button[data-baseweb="tab"] p,
+html body .stTabs button[data-baseweb="tab"] p {{
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+}}
+html body section.main [data-testid="stTabs"] div[data-baseweb="tab-highlight"],
+html body .stTabs div[data-baseweb="tab-highlight"] {{
+  background-color: #16a34a !important;
+}}
+html body section.main [data-testid="stTabs"] div[data-baseweb="tab-border"],
+html body .stTabs div[data-baseweb="tab-border"] {{
+  background-color: #cbd5e1 !important;
+}}
+html body section.main [data-testid="stTabs"] [data-baseweb="tab-panel"],
+html body .stTabs [data-baseweb="tab-panel"] {{
+  margin-top: 1rem !important;
 }}
 </style>
 <script>
@@ -766,7 +1142,7 @@ def gdrs_clear_loading_banner(holder) -> None:
 
 def gdrs_bar_label_size(theme: GdrsTheme) -> int:
     """Размер подписей над столбцами (светлое превью ~16px)."""
-    return 16 if theme.name == "light" else 10
+    return 16 if theme.name == "light" else 12
 
 
 def gdrs_bar_label_yshift(theme: GdrsTheme) -> int:
@@ -803,17 +1179,35 @@ def gdrs_apply_grouped_bar_labels(
     theme: GdrsTheme,
     xs: list,
     series: list[tuple[list, Any]],
+    *,
+    bar_indices: list[int] | None = None,
 ) -> Any:
     """Подписи строго над столбцами — нативный bar.text (Plotly сам центрирует в group)."""
     sz = gdrs_bar_label_size(theme)
     for seq, (texts, color) in enumerate(series):
-        if seq >= len(fig.data):
+        if bar_indices is not None:
+            if seq >= len(bar_indices):
+                break
+            ti = int(bar_indices[seq])
+        else:
+            ti = seq
+        if ti >= len(fig.data):
             break
-        tr = fig.data[seq]
+        tr = fig.data[ti]
         if getattr(tr, "type", None) != "bar":
             continue
         ys = list(tr.y) if tr.y is not None else []
         label_texts = _gdrs_bar_label_texts(list(texts), ys)
+        # Если заранее переданные text пустые, но y есть — подпись из y.
+        if not any(str(t).strip() for t in label_texts) and ys:
+            label_texts = []
+            for y in ys:
+                try:
+                    yf = float(y)
+                except (TypeError, ValueError):
+                    label_texts.append("")
+                    continue
+                label_texts.append(f"{yf:.1f}" if abs(yf) >= 0.05 else "")
         if isinstance(color, (list, tuple)):
             cols = list(color)
         else:
@@ -833,21 +1227,30 @@ def gdrs_apply_grouped_bar_labels(
 
 
 def gdrs_apply_bar_outside_labels(fig: Any, theme: GdrsTheme) -> Any:
-    """Совместимость: собрать подписи из bar.text и перевести в annotations."""
-    bar_idx = [i for i, tr in enumerate(fig.data) if getattr(tr, "type", None) == "bar" and tr.text]
+    """Подписи bar: нормализует text/outsidetextfont (не затирает text при сбое)."""
+    bar_idx: list[int] = []
+    for i, tr in enumerate(fig.data):
+        if getattr(tr, "type", None) != "bar":
+            continue
+        # Не используем bool(tr.text): у ndarray это ValueError.
+        raw = getattr(tr, "text", None)
+        if raw is None:
+            continue
+        try:
+            texts = list(raw)
+        except Exception:
+            texts = [raw]
+        bar_idx.append(i)
     if not bar_idx:
-        fig.update_traces(
-            selector=dict(type="bar"),
-            text=None,
-            textposition=None,
-            texttemplate=None,
-        )
         return fig
-    xs = list(fig.data[bar_idx[0]].x)
+    xs = list(fig.data[bar_idx[0]].x) if fig.data[bar_idx[0]].x is not None else []
     series: list[tuple[list, Any]] = []
     for ti in bar_idx:
         tr = fig.data[ti]
-        texts = list(tr.text) if tr.text is not None else []
+        try:
+            texts = list(tr.text) if tr.text is not None else []
+        except Exception:
+            texts = []
         col = theme.text
         try:
             if tr.textfont is not None and getattr(tr.textfont, "color", None) is not None:
@@ -855,7 +1258,7 @@ def gdrs_apply_bar_outside_labels(fig: Any, theme: GdrsTheme) -> Any:
         except Exception:
             pass
         series.append((texts, col))
-    return gdrs_apply_grouped_bar_labels(fig, theme, xs, series)
+    return gdrs_apply_grouped_bar_labels(fig, theme, xs, series, bar_indices=bar_idx)
 
 
 def gdrs_sanitize_bar_text_labels(fig: Any, theme: GdrsTheme) -> Any:
@@ -863,15 +1266,68 @@ def gdrs_sanitize_bar_text_labels(fig: Any, theme: GdrsTheme) -> Any:
     return gdrs_apply_bar_outside_labels(fig, theme)
 
 
+def gdrs_apply_bottom_chart_legend(
+    fig: Any,
+    theme: GdrsTheme,
+    *,
+    min_margin_b: float | None = None,
+) -> Any:
+    """Горизонтальная легенда под осью X (после всех правок layout)."""
+    from utils import (
+        CHART_LEGEND_FONT_SIZE,
+        _fig_legend_trace_count,
+        chart_layout_for_bottom_legend,
+        standard_chart_legend,
+    )
+
+    layout = fig.layout
+    prev_m = getattr(layout, "margin", None)
+    margin_l = float(getattr(prev_m, "l", 56) or 56)
+    margin_r = float(getattr(prev_m, "r", 24) or 24)
+    margin_t = float(getattr(prev_m, "t", 88) or 88)
+    margin_b = float(getattr(prev_m, "b", 72) or 72)
+    if min_margin_b is not None:
+        margin_b = max(margin_b, float(min_margin_b))
+    n_leg = _fig_legend_trace_count(fig)
+    chart_lo = chart_layout_for_bottom_legend(n_leg)
+    # ГДРС: крупные подписи проектов на оси X — легенду ниже стандартного отступа.
+    legend_y = float(chart_lo["legend_y"]) - 0.18
+    extra_b = 52
+    if min_margin_b is not None and float(min_margin_b) >= 100:
+        legend_y -= 0.06
+        extra_b += 24
+    margin_b = max(margin_b, float(chart_lo["margin_bottom"])) + extra_b
+    fig.update_layout(
+        showlegend=True,
+        legend=standard_chart_legend(
+            font=dict(color=theme.text, size=CHART_LEGEND_FONT_SIZE),
+            y=legend_y,
+        ),
+        margin=dict(l=margin_l, r=margin_r, t=margin_t, b=margin_b),
+    )
+    return fig
+
+
 def apply_gdrs_chart_background(fig: Any, theme: GdrsTheme, *, skip_uniformtext: bool = False) -> Any:
     """Локальный аналог apply_chart_background с палитрой ГДРС."""
+    from utils import (
+        CHART_AXIS_TICK_FONT_SIZE,
+        CHART_AXIS_TITLE_FONT_SIZE,
+        CHART_LAYOUT_FONT_SIZE,
+        CHART_LEGEND_FONT_SIZE,
+        CHART_UNIFORMTEXT_MINSIZE,
+        _fig_has_pie_trace,
+        _fig_legend_trace_count,
+        _merge_prev_legend_title,
+        chart_layout_for_bottom_legend,
+        standard_chart_legend,
+        standard_pie_chart_legend,
+    )
+
     layout = fig.layout
     prev_leg = getattr(layout, "legend", None) if layout is not None else None
     prev_m = getattr(layout, "margin", None) if layout is not None else None
-    keep_vertical_legend = (
-        prev_leg is not None and getattr(prev_leg, "orientation", None) == "v"
-    )
-    margin_l, margin_r, margin_t, margin_b = 60, 30, 62, 118
+    margin_l, margin_r, margin_t, margin_b = 60, 30, 72, 72
     if prev_m is not None:
         for attr, default in (("l", margin_l), ("r", margin_r), ("t", margin_t), ("b", margin_b)):
             v = getattr(prev_m, attr, None)
@@ -898,15 +1354,65 @@ def apply_gdrs_chart_background(fig: Any, theme: GdrsTheme, *, skip_uniformtext:
                 prev_title_size = int(float(_ps))
             except (TypeError, ValueError):
                 pass
+
+    legend_kwargs = dict(font=dict(color=theme.text, size=CHART_LEGEND_FONT_SIZE))
+    if prev_leg is not None:
+        prev_font = getattr(prev_leg, "font", None)
+        if prev_font is not None:
+            for fk in ("color", "family"):
+                fv = getattr(prev_font, fk, None)
+                if fv is not None:
+                    legend_kwargs.setdefault("font", {})[fk] = fv
+        _merge_prev_legend_title(prev_leg, legend_kwargs)
+
+    showlegend = getattr(layout, "showlegend", True) if layout is not None else True
+
+    is_pie = _fig_has_pie_trace(fig)
+    _fig_w = getattr(layout, "width", None) if layout is not None else None
+    _fig_h = getattr(layout, "height", None) if layout is not None else None
+    _pie_fixed_size = (
+        is_pie
+        and _fig_w is not None
+        and _fig_h is not None
+        and float(_fig_w) > 0
+        and float(_fig_h) > 0
+    )
+    if is_pie:
+        leg_out = standard_pie_chart_legend(**legend_kwargs)
+        if prev_leg is not None:
+            py = getattr(prev_leg, "y", None)
+            try:
+                if py is not None and float(py) < 0.2:
+                    leg_out["y"] = float(py)
+            except (TypeError, ValueError):
+                pass
+        if margin_t > 60 and not _pie_fixed_size:
+            margin_t = max(44.0, min(margin_t, 56.0))
+    elif showlegend:
+        n_leg = _fig_legend_trace_count(fig)
+        chart_lo = chart_layout_for_bottom_legend(n_leg)
+        leg_out = standard_chart_legend(**legend_kwargs, y=chart_lo["legend_y"])
+        if prev_leg is not None:
+            py = getattr(prev_leg, "y", None)
+            try:
+                if py is not None and float(py) < 0.2:
+                    leg_out["y"] = float(py)
+            except (TypeError, ValueError):
+                pass
+        if float(margin_b) < float(chart_lo["margin_bottom"]):
+            margin_b = float(chart_lo["margin_bottom"])
+    else:
+        leg_out = standard_chart_legend(**legend_kwargs)
+
     layout_kwargs = dict(
         template=None,
         plot_bgcolor=theme.chart_bg,
         paper_bgcolor=theme.chart_bg,
-        autosize=True,
+        autosize=not _pie_fixed_size,
         font=dict(
             family="Inter, system-ui, sans-serif",
             color=theme.text,
-            size=13,
+            size=CHART_LAYOUT_FONT_SIZE,
         ),
         title=dict(
             text=prev_title_text,
@@ -914,47 +1420,14 @@ def apply_gdrs_chart_background(fig: Any, theme: GdrsTheme, *, skip_uniformtext:
             pad=dict(t=4),
         ),
         margin=dict(l=margin_l, r=margin_r, t=margin_t, b=margin_b),
+        legend=leg_out,
+        showlegend=bool(showlegend),
     )
+    if _pie_fixed_size:
+        layout_kwargs["width"] = float(_fig_w)
+        layout_kwargs["height"] = float(_fig_h)
     if not skip_uniformtext:
-        layout_kwargs["uniformtext"] = dict(minsize=8, mode="show")
-    if keep_vertical_legend:
-        layout_kwargs["legend"] = dict(
-            font=dict(color=theme.text, size=12),
-            bgcolor="rgba(0,0,0,0)",
-        )
-    else:
-        legend_base = dict(
-            font=dict(color=theme.text, size=12),
-            bgcolor="rgba(0,0,0,0)",
-            orientation="h",
-            yanchor="bottom",
-            y=-0.25,
-            xanchor="center",
-            x=0.5,
-        )
-        if prev_leg is not None:
-            py = getattr(prev_leg, "y", None)
-            ya = getattr(prev_leg, "yanchor", None)
-            try:
-                py_f = float(py) if py is not None else None
-            except (TypeError, ValueError):
-                py_f = None
-            custom_below = (py_f is not None and py_f < 0) or ya == "top"
-            legend_above_plot = (
-                py_f is not None
-                and py_f >= 0.85
-                and str(ya or "").lower() == "bottom"
-                and getattr(prev_leg, "orientation", None) == "h"
-            )
-            if custom_below or legend_above_plot:
-                for key in ("x", "y", "xanchor", "yanchor", "xref", "yref", "orientation"):
-                    val = getattr(prev_leg, key, None)
-                    if val is not None:
-                        legend_base[key] = val
-            if legend_above_plot:
-                margin_t = max(margin_t, 90.0)
-        layout_kwargs["margin"] = dict(l=margin_l, r=margin_r, t=margin_t, b=margin_b)
-        layout_kwargs["legend"] = legend_base
+        layout_kwargs["uniformtext"] = dict(minsize=CHART_UNIFORMTEXT_MINSIZE, mode="show")
     fig.update_layout(**layout_kwargs)
     fig.update_layout(hovermode=False)
     try:
@@ -964,23 +1437,24 @@ def apply_gdrs_chart_background(fig: Any, theme: GdrsTheme, *, skip_uniformtext:
             fig.update_traces(hoverinfo="skip")
         except Exception:
             pass
-    fig.update_xaxes(
-        gridcolor=theme.chart_grid,
-        linecolor=theme.chart_axis,
-        tickfont=dict(color=theme.text, size=11),
-        title=dict(font=dict(color=theme.text, size=12)),
-        zerolinecolor=theme.chart_axis,
-        automargin=True,
-        ticklabelstandoff=8,
-    )
-    fig.update_yaxes(
-        gridcolor=theme.chart_grid,
-        linecolor=theme.chart_axis,
-        tickfont=dict(color=theme.text, size=11),
-        title=dict(font=dict(color=theme.text, size=12)),
-        zerolinecolor=theme.chart_axis,
-        automargin=True,
-    )
+    if not is_pie:
+        fig.update_xaxes(
+            gridcolor=theme.chart_grid,
+            linecolor=theme.chart_axis,
+            tickfont=dict(color=theme.text, size=CHART_AXIS_TICK_FONT_SIZE),
+            title=dict(font=dict(color=theme.text, size=CHART_AXIS_TITLE_FONT_SIZE)),
+            zerolinecolor=theme.chart_axis,
+            automargin=True,
+            ticklabelstandoff=8,
+        )
+        fig.update_yaxes(
+            gridcolor=theme.chart_grid,
+            linecolor=theme.chart_axis,
+            tickfont=dict(color=theme.text, size=CHART_AXIS_TICK_FONT_SIZE),
+            title=dict(font=dict(color=theme.text, size=CHART_AXIS_TITLE_FONT_SIZE)),
+            zerolinecolor=theme.chart_axis,
+            automargin=True,
+        )
     return fig
 
 
@@ -1105,6 +1579,9 @@ html, body {{
   color: inherit !important;
 }}
 #{w} .gdrs-matrix-table thead th {{
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
   background: #e5e7eb !important;
   color: #111827 !important;
   font-size: 14px !important;

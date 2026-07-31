@@ -128,17 +128,37 @@ _OVERLAY_JS = """
             return (el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0);
         }
 
-        function isBusy() {
-            // Только индикатор выполнения Streamlit в шапке (Running…).
-            // st.spinner внутри отчёта НЕ учитываем: иначе overlay дублирует
-            // «Загрузка отчёта…» и блокирует экран на всё время тяжёлого рендера
-            // (График проекта + «Показать причины отклонений» → зависание вкладки).
+        function statusWidgetBusy() {
             var sw = doc.querySelector('[data-testid="stStatusWidget"]');
             if (!sw || !isVisible(sw)) return false;
             return !!(
                 sw.querySelector('svg, img, [data-testid="stStatusWidgetRunningIcon"]') ||
                 (sw.textContent || '').trim().length > 0
             );
+        }
+
+        function appStatusBusy() {
+            var as = doc.querySelector('[data-testid="stAppStatus"]');
+            if (!as || !isVisible(as)) return false;
+            return !!(
+                as.querySelector('svg, img, [data-testid="stStatusWidgetRunningIcon"]') ||
+                (as.textContent || '').trim().length > 0
+            );
+        }
+
+        function headerSpinnerBusy() {
+            var hdr = doc.querySelector('[data-testid="stHeader"]');
+            if (!hdr) return false;
+            var spin = hdr.querySelector('[data-testid="stSpinner"], [data-testid="stStatusWidget"]');
+            return spin && isVisible(spin);
+        }
+
+        function isBusy() {
+            // Только индикаторы выполнения Streamlit в шапке (Running…).
+            // st.spinner внутри отчёта НЕ учитываем: иначе overlay дублирует
+            // «Загрузка отчёта…» и блокирует экран на всё время тяжёлого рендера
+            // (График проекта + «Показать причины отклонений» → зависание вкладки).
+            return statusWidgetBusy() || appStatusBusy() || headerSpinnerBusy();
         }
 
         var busySince = 0;
@@ -236,7 +256,7 @@ def pulse_loading_overlay() -> None:
 
 
 def inject_loading_overlay() -> None:
-    """Навесить overlay на родительский документ (вызывать один раз на rerun)."""
+    """Навесить overlay на родительский документ (вызывать на каждый rerun)."""
     if not loading_overlay_enabled():
         return
     js = (

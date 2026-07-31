@@ -76,8 +76,6 @@ def switch_page_app(path: str) -> None:
     # страница дашбордов может быть зарегистрирована под корневым файлом.
     if normalized.endswith("project_visualization_app.py"):
         candidates.append("streamlit_app.py")
-        if is_showcase_mode():
-            candidates.append("showcase_app.py")
 
     # Для совместимости добавляем вариант по basename для страниц из папки pages/.
     if "/" in normalized:
@@ -155,8 +153,6 @@ def get_extra_web_dirs_from_env() -> List[Path]:
             else:
                 path = path.resolve()
             if path.is_dir():
-                if not is_showcase_mode() and is_prohibited_production_data_path(path):
-                    continue
                 key = str(path)
                 if key not in seen:
                     seen.add(key)
@@ -198,75 +194,6 @@ def _env_truthy(name: str) -> bool:
 
 def _env_falsy(name: str) -> bool:
     return _read_env_or_secret(name).lower() in ("0", "false", "no", "off")
-
-
-def is_showcase_mode() -> bool:
-    """
-    Демо-инстанс (отдельный ``showcase_app.py``): фейковые данные, без FTP и без ``web/`` клиента.
-
-    Включается только переменной ``BI_ANALYTICS_SHOWCASE_MODE=1`` (выставляется в ``showcase/bootstrap.py``
-    до загрузки основного приложения). Production ``streamlit_app.py`` эту переменную не задаёт.
-    """
-    return _env_truthy("BI_ANALYTICS_SHOWCASE_MODE")
-
-
-def get_showcase_web_dir() -> Optional[Path]:
-    """``<корень репозитория>/showcase_data/web`` — единственный источник данных в showcase."""
-    if not is_showcase_mode():
-        return None
-    return (BASE_PATH.parent / "showcase_data" / "web").resolve()
-
-
-def is_prohibited_production_data_path(path: str | Path) -> bool:
-    """
-    Пути демо-данных showcase: production (8501, main, release, FTP) их не читает.
-
-    - ``showcase_data/`` — каталог демо-выгрузок
-    - ``web/showcase/`` — черновики demo внутри клиентского web/ (не FTP)
-    """
-    s = str(path).replace("\\", "/").lower()
-    if "showcase_data" in s:
-        return True
-    if "/showcase/" in s or s.endswith("/showcase") or s.startswith("showcase/"):
-        return True
-    return False
-
-
-def get_runtime_web_dir() -> Path:
-    """
-    Каталог CSV/JSON для runtime-чтений (GDRS, Projekts.json и т.п.).
-
-    Showcase → только ``showcase_data/web``; production → ``bi-analytics-v-5-main/web/``.
-    """
-    if is_showcase_mode():
-        sd = get_showcase_web_dir()
-        if sd is not None and sd.is_dir():
-            return sd
-    return (BASE_PATH / "web").resolve()
-
-
-def enforce_production_data_isolation() -> None:
-    """
-    Вызывается из ``streamlit_app.py`` до загрузки приложения.
-
-    Сбрасывает случайный ``BI_ANALYTICS_SHOWCASE_MODE=1`` из shell/.env и пути БД
-    из ``showcase_data/``, чтобы демо не попало на 8501 / main / release.
-    """
-    os.environ["BI_ANALYTICS_SHOWCASE_MODE"] = "0"
-    for env_key in ("WEB_DB_PATH", "BI_ANALYTICS_DB_PATH"):
-        val = os.environ.get(env_key, "")
-        if val and is_prohibited_production_data_path(val):
-            os.environ.pop(env_key, None)
-
-
-SHOWCASE_DISPLAY_TITLE = "Демо: панель аналитики проектов"
-
-
-def get_app_display_title() -> str:
-    """Заголовок H1 на главной: нейтральное имя в showcase, иначе как раньше."""
-    if is_showcase_mode():
-        return SHOWCASE_DISPLAY_TITLE
-    return ""
 
 
 @lru_cache(maxsize=1)
@@ -346,14 +273,34 @@ def is_release_client_mode() -> bool:
     return False
 
 
+def use_light_theme_globally() -> bool:
+    """
+    Единственная светлая тема (cutover 2026-06, решение заказчика).
+
+    Откат на тёмную: ``BI_ANALYTICS_DARK_THEME=1``.
+    """
+    if _env_truthy("BI_ANALYTICS_DARK_THEME"):
+        return False
+    return True
+
+
+def show_light_preview_reports() -> bool:
+    """
+    Дубли вкладок «(превью — светлая)» — отключены после cutover.
+
+    Dev-only dual-tab: ``BI_ANALYTICS_LIGHT_PREVIEW=1``.
+    """
+    if _env_truthy("BI_ANALYTICS_LIGHT_PREVIEW"):
+        return True
+    return False
+
+
 def show_data_ops_ui_for_role(role: Optional[str]) -> bool:
     """
     Показывать панель «Источник данных», FTP, «Загрузить из web/», «Версия данных».
 
     Только admin / superadmin / analyst; на release (клиент) — False.
     """
-    if is_showcase_mode():
-        return False
     if is_release_client_mode():
         return False
     try:
@@ -404,9 +351,8 @@ def _opencode_workspace_url(public_base: str) -> str:
     return f"{base}/L3dvcmtzcGFjZQ/"
 
 
-# OpenCode Web UI: только поддомен в корне (slug = 1-й сегмент пути → /workspace).
-# Подпуть /opencode/ ломает SPA: первый сегмент = "opencode" → OpenCode открывает root /.
-AI_ASSISTANT_URL_SUBDOMAIN_DEFAULT = "https://opencode.ai.conall.ru/L3dvcmtzcGFjZQ/"
+# OpenCode Web UI: slug /workspace — первый сегмент пути, поддомен в корне.
+AI_ASSISTANT_URL_SUBDOMAIN_DEFAULT = "https://opencode.conall.ru/L3dvcmtzcGFjZQ/"
 AI_ASSISTANT_URL_PATH_FALLBACK = "https://ai.conall.ru/opencode/L3dvcmtzcGFjZQ/"
 AI_ASSISTANT_WEB_UI_DEFAULT = AI_ASSISTANT_URL_SUBDOMAIN_DEFAULT
 AI_ASSISTANT_URL_DEV_DEFAULT = AI_ASSISTANT_WEB_UI_DEFAULT
@@ -453,11 +399,23 @@ def _normalize_ai_assistant_public_url(url: str) -> str:
     return u
 
 
+def _ai_assistant_use_streamlit_embedded() -> bool:
+    """
+    Streamlit-страница /_opencode_ai — только явный opt-in (локальная отладка чата).
+
+    ``AI_ASSISTANT_TARGET=embedded`` на Streamlit Cloud / release больше не включает обёртку:
+    кнопка открывает нативный Web UI OpenCode (поддомен).
+    """
+    if not _env_truthy("AI_ASSISTANT_USE_EMBEDDED"):
+        return False
+    target = _read_env_or_secret("AI_ASSISTANT_TARGET").strip().lower()
+    return target in ("embedded", "streamlit", "wrap", "wrapper")
+
+
 def is_ai_assistant_embedded_page() -> bool:
     """True only for in-app Streamlit chat (/_opencode_ai), not native OpenCode Web UI."""
-    target = _read_env_or_secret("AI_ASSISTANT_TARGET").strip().lower()
-    if target == "embedded":
-        return True
+    if not _ai_assistant_use_streamlit_embedded():
+        return False
     url = (get_ai_assistant_open_url() or "").strip().lower()
     return "_opencode_ai" in url
 
@@ -469,12 +427,10 @@ def get_ai_assistant_open_url() -> str:
     Приоритет:
     1. AI_ASSISTANT_URL (или XCA_AI_CHAT_URL / AI_CHAT_PUBLIC_URL)
     2. AI_ASSISTANT_TARGET=dev|prod|embedded|off|auto (по умолчанию auto)
-       - dev → AI_ASSISTANT_URL_DEV; release → AI_ASSISTANT_URL_PROD (один Web UI OpenCode)
-       - embedded на release → тоже Web UI; embedded только на dev/local без release_mode
+       - dev → AI_ASSISTANT_URL_DEV; release → AI_ASSISTANT_URL_PROD (Web UI OpenCode, поддомен)
+       - embedded без AI_ASSISTANT_USE_EMBEDDED=1 → тот же Web UI, не Streamlit /_opencode_ai
+       - Streamlit-обёртка: AI_ASSISTANT_USE_EMBEDDED=1 и AI_ASSISTANT_TARGET=embedded (локально)
     """
-    if is_showcase_mode():
-        return ""
-
     for key in ("AI_ASSISTANT_URL", "XCA_AI_CHAT_URL", "AI_CHAT_PUBLIC_URL"):
         u = _read_env_or_secret(key).strip()
         if u:
@@ -495,10 +451,13 @@ def get_ai_assistant_open_url() -> str:
         return prod_url
 
     if target == "embedded":
-        # release client — тот же Web UI OpenCode, что и dev (не Streamlit /_opencode_ai)
+        if _ai_assistant_use_streamlit_embedded():
+            return _embedded_ai_url_for_current_app()
         if is_release_client_mode():
             return prod_url
-        return _embedded_ai_url_for_current_app()
+        if _is_streamlit_dev_deployment() or _is_streamlit_cloud_deployment():
+            return dev_url
+        return dev_url
 
     if target == "dev":
         return dev_url
@@ -538,34 +497,13 @@ def web_load_latest_snapshots_only() -> bool:
     return True
 
 
-DB_PATH: str = os.environ.get("BI_ANALYTICS_DB_PATH") or os.path.join(BASE_DIR, "users.db")
+DB_PATH: str = os.path.join(BASE_DIR, "users.db")
 ETL_DB_ENGINE: str = os.environ.get("DB_ENGINE", "sqlite").strip().lower()
 ETL_SQLITE_DB_PATH: str = os.environ.get(
     "SQLITE_DB_PATH",
     os.path.join(BASE_DIR, "data", "etl.db"),
 )
 DATA_MODE: str = os.environ.get("DATA_MODE", "auto").strip().lower()
-
-def get_msp_project_filter_exclude_names() -> FrozenSet[str]:
-    """Имена проектов, скрытые из фильтров. В showcase — пусто (нет клиентских дубликатов)."""
-    if is_showcase_mode():
-        return frozenset()
-    return MSP_PROJECT_FILTER_EXCLUDE_NAMES
-
-
-SHOWCASE_MSP_PROJECT_NAME_MAP: Dict[str, str] = {
-    "zhk_severny": "ЖК Северный",
-    "bc_gorizont": "БЦ Горизонт",
-    "kvartal_alfa": "Квартал Альфа",
-}
-
-
-def get_msp_project_name_map() -> Dict[str, str]:
-    """Маппинг кодов MSP → подпись. В showcase — демо-проекты, без клиента."""
-    if is_showcase_mode():
-        return SHOWCASE_MSP_PROJECT_NAME_MAP
-    return MSP_PROJECT_NAME_MAP
-
 
 # Точные подписи «project name», которые не показываем в фильтрах (устаревший дубликат написания).
 # Важно: сравнение по строке, не по norm-key — иначе скрывались бы и «Дмитровский 1», если в исключении «Дмитровский-1».
@@ -604,6 +542,39 @@ MSP_PROJECT_NAME_MAP: Dict[str, str] = {
     "л1": "Ленинский",
     "l1": "Ленинский",
 }
+
+# Выгрузка файлов на FTP (1С / MSP / TESSA) — согласованное расписание заказчика.
+FTP_EXPORT_HOUR_MSK: int = int(os.environ.get("BI_FTP_EXPORT_HOUR_MSK", "7") or 7)
+FTP_EXPORT_MINUTE_MSK: int = int(os.environ.get("BI_FTP_EXPORT_MINUTE_MSK", "0") or 0)
+FTP_EXPORT_GRACE_MINUTES: int = int(os.environ.get("BI_FTP_EXPORT_GRACE_MIN", "15") or 15)
+
+
+def ftp_export_schedule_label() -> str:
+    """Человекочитаемое расписание выгрузки на FTP."""
+    return f"ежедневно в {FTP_EXPORT_HOUR_MSK:02d}:{FTP_EXPORT_MINUTE_MSK:02d} (МСК)"
+
+
+def _moscow_now():
+    from datetime import datetime
+
+    try:
+        import pytz
+
+        return datetime.now(pytz.timezone("Europe/Moscow"))
+    except Exception:
+        from datetime import timedelta, timezone
+
+        return datetime.now(timezone(timedelta(hours=3)))
+
+
+def is_before_today_ftp_export_window(*, grace_minutes: Optional[int] = None) -> bool:
+    """True, если по МСК ещё рано ждать сегодняшнюю выгрузку на FTP."""
+    grace = FTP_EXPORT_GRACE_MINUTES if grace_minutes is None else int(grace_minutes)
+    now = _moscow_now()
+    export_min = FTP_EXPORT_HOUR_MSK * 60 + FTP_EXPORT_MINUTE_MSK + max(0, grace)
+    cur_min = now.hour * 60 + now.minute
+    return cur_min < export_min
+
 
 # Русские названия месяцев (для графиков и отчётов)
 RUSSIAN_MONTHS: Dict[int, str] = {

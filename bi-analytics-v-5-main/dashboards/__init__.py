@@ -11,6 +11,18 @@ MAIN_PANEL_TIMELINE_CATEGORY = "Сроки"
 MAIN_PANEL_FINANCE_CATEGORY = "Финансы"
 
 
+def get_report_categories() -> List[Tuple[str, List[str]]]:
+    """Категории отчётов для меню (одна вкладка на экран, светлая тема)."""
+    from dashboards.light_theme import filter_reports_hide_light_preview
+
+    out: List[Tuple[str, List[str]]] = []
+    for title, reports in REPORT_CATEGORIES:
+        filtered = filter_reports_hide_light_preview(list(reports))
+        if filtered:
+            out.append((title, filtered))
+    return out
+
+
 def get_main_panel_report_lists(role: str) -> Tuple[List[str], List[str], List[str]]:
     """
     Возвращает (отчёты «Сроки», отчёты «Финансы», все остальные отчёты) с учётом RBAC.
@@ -20,13 +32,13 @@ def get_main_panel_report_lists(role: str) -> Tuple[List[str], List[str], List[s
 
     timeline: List[str] = []
     finance: List[str] = []
-    for title, reps in REPORT_CATEGORIES:
+    for title, reps in get_report_categories():
         if title == MAIN_PANEL_TIMELINE_CATEGORY:
             timeline = list(reps)
         elif title == MAIN_PANEL_FINANCE_CATEGORY:
             finance = list(reps)
     all_flat: List[str] = []
-    for _, reps in REPORT_CATEGORIES:
+    for _, reps in get_report_categories():
         all_flat.extend(list(reps))
     other = [r for r in all_flat if r not in timeline and r not in finance]
     return (
@@ -37,14 +49,16 @@ def get_main_panel_report_lists(role: str) -> Tuple[List[str], List[str], List[s
 
 
 REPORT_CATEGORIES: List[Tuple[str, List[str]]] = [
-    ("Девелоперские проекты", ["Девелоперские проекты"]),
+    ("Девелоперские проекты", [
+        "Девелоперские проекты",
+    ]),
     (
         "Финансы",
         [
-            "БДДС",
-            "БДР",
+            "БДДС (расходы)",
+            "БДР (расходы)",
             "Утверждённый бюджет план/факт",
-            "Прогнозный бюджет",
+            "БДДС расходы (план, факт, уточненный план)",
         ],
     ),
     (
@@ -68,15 +82,25 @@ REPORT_CATEGORIES: List[Tuple[str, List[str]]] = [
         [
             "ГДРС (люди)",
             "ГДРС (техника)",
-            "ГДРС (превью — светлая, люди)",
-            "ГДРС (превью — светлая, техника)",
         ],
     ),
-    ("Предписания", ["Предписания по подрядчикам"]),
-    ("Исполнительная документация", ["Исполнительная документация"]),
+    (
+        "Предписания",
+        [
+            "Предписания по подрядчикам",
+        ],
+    ),
+    (
+        "Исполнительная документация",
+        [
+            "Исполнительная документация",
+        ],
+    ),
     (
         "Дебиторская и кредиторская задолженность",
-        ["Дебиторская и кредиторская задолженность подрядчиков"],
+        [
+            "Дебиторская и кредиторская задолженность подрядчиков",
+        ],
     ),
 ]
 
@@ -182,6 +206,13 @@ def _get_dashboards() -> Dict[str, Callable]:
 
     dashboard_predpisania = _renderers.dashboard_predpisania
     dashboard_developer_projects = _renderers.dashboard_developer_projects
+    dashboard_developer_projects_preview_light = getattr(
+        _renderers, "dashboard_developer_projects_preview_light", None
+    )
+    if dashboard_developer_projects_preview_light is None and dashboard_developer_projects is not None:
+        dashboard_developer_projects_preview_light = lambda df: dashboard_developer_projects(  # noqa: E731
+            df, theme="light"
+        )
     dashboard_control_points = getattr(_renderers, "dashboard_control_points", None)
     dashboard_project_schedule_chart = getattr(_renderers, "dashboard_project_schedule_chart", None)
     dashboard_pravki_report_hidden = getattr(_renderers, "dashboard_pravki_report_hidden", None)
@@ -214,18 +245,28 @@ def _get_dashboards() -> Dict[str, Callable]:
     raw: Dict[str, Callable] = {
         # Сроки: каноническое имя «Причины отклонений» + обратная совместимость
         "Причины отклонений": dashboard_deviations_combined,
+        "Причины отклонений (превью — светлая)": dashboard_deviations_combined,
         "Динамика отклонений": dashboard_deviations_combined,
         "Динамика причин отклонений": dashboard_deviations_combined,
         "Контрольные точки": dashboard_control_points,
+        "Контрольные точки (превью — светлая)": dashboard_control_points,
         "График проекта": dashboard_project_schedule_chart,
+        "График проекта (превью — светлая)": dashboard_project_schedule_chart,
+        "БДДС (расходы)": dashboard_budget_by_period,
+        "БДДС (расходы) (превью — светлая)": dashboard_budget_by_period,
         "БДДС": dashboard_budget_by_period,
+        "БДДС (превью — светлая)": dashboard_budget_by_period,
         "БДДС по месяцам": dashboard_budget_by_period,
+        "БДР (расходы)": dashboard_bdr,
+        "БДР (расходы) (превью — светлая)": dashboard_bdr,
         "БДР": dashboard_bdr,
+        "БДР (превью — светлая)": dashboard_bdr,
         "Бюджет по лотам": dashboard_budget_by_period,
         # «Утверждённый бюджет план/факт» — каноническое имя по ТЗ заказчика (2026-05-07).
         # Старые имена «Бюджет план/факт» / «Бюджет План/Прогноз/Факт» оставлены как алиасы,
         # чтобы не сломать сохранённые deep-link'и/закладки/настройки.
         "Утверждённый бюджет план/факт": dashboard_budget_by_type,
+        "Утверждённый бюджет план/факт (превью — светлая)": dashboard_budget_by_type,
         "Бюджет план/факт": dashboard_budget_by_type,
         "Бюджет План/Прогноз/Факт": dashboard_budget_by_type,
         # Правки куратора 08.05.2026: вкладка «Утверждённый бюджет» удалена,
@@ -236,16 +277,22 @@ def _get_dashboards() -> Dict[str, Callable]:
         "Бюджет по проекту": dashboard_budget_by_type,
         "БДДС (утверждённый/прогнозный)": dashboard_forecast_budget,
         "Прогнозный БДДС": dashboard_forecast_budget,
+        "БДДС расходы (план, факт, уточненный план)": dashboard_forecast_budget,
+        "БДДС расходы (план, факт, уточненный план) (превью — светлая)": dashboard_forecast_budget,
         "Прогнозный бюджет": dashboard_forecast_budget,
+        "Прогнозный бюджет (превью — светлая)": dashboard_forecast_budget,
         "Отклонение от базового плана": dashboard_plan_fact_dates,
+        "Отклонение от базового плана (превью — светлая)": dashboard_plan_fact_dates,
         "Значения отклонений от базового плана": dashboard_pravki_report_hidden,
         "Рабочая/Проектная документация": dashboard_documentation,
         "Рабочая документация": dashboard_working_documentation,
+        "Рабочая документация (превью — светлая)": dashboard_working_documentation,
         "Проектная документация": dashboard_project_documentation,
+        "Проектная документация (превью — светлая)": dashboard_project_documentation,
         # ГДРС: общий экран (выбор люди/техника) + отдельные пункты «(люди)» / «(техника)».
         "ГДРС": dashboard_gdrs,
-        "ГДРС (люди)": dashboard_gdrs_people,
-        "ГДРС (техника)": dashboard_gdrs_equipment_v2,
+        "ГДРС (люди)": dashboard_gdrs_people_preview_light or dashboard_gdrs_people,
+        "ГДРС (техника)": dashboard_gdrs_equipment_preview_light or dashboard_gdrs_equipment_v2,
         "ГДРС (превью — светлая, люди)": dashboard_gdrs_people_preview_light,
         "ГДРС (превью — светлая, техника)": dashboard_gdrs_equipment_preview_light,
         # Алиасы (старые deep-link/настройки).
@@ -257,13 +304,17 @@ def _get_dashboards() -> Dict[str, Callable]:
         "Проектные работы": dashboard_technique,
         "Дебиторская и кредиторская задолженность": dashboard_debit_credit,
         "Дебиторская и кредиторская задолженность подрядчиков": dashboard_debit_credit,
+        "Дебиторская и кредиторская задолженность подрядчиков (превью — светлая)": dashboard_debit_credit,
         "Исполнительная документация": dashboard_executive_documentation,
+        "Исполнительная документация (превью — светлая)": dashboard_executive_documentation,
         "Просрочка выдачи РД": dashboard_rd_delay,
         "Просрочка выдачи ПД": dashboard_pd_delay,
         "Неустраненные предписания": dashboard_predpisania,
         # Обратная совместимость со старым именем отчёта.
         "Предписания по подрядчикам": dashboard_predpisania,
-        "Девелоперские проекты": dashboard_developer_projects,
+        "Предписания по подрядчикам (превью — светлая)": dashboard_predpisania,
+        "Девелоперские проекты": dashboard_developer_projects_preview_light or dashboard_developer_projects,
+        "Девелоперские проекты (превью — светлая)": dashboard_developer_projects_preview_light,
     }
     return raw
 
@@ -271,10 +322,48 @@ def _get_dashboards() -> Dict[str, Callable]:
 # Ленивая загрузка, чтобы при импорте dashboards не тянуть project_visualization_app
 # Увеличьте версию при изменении реестра отчётов — иначе долгоживущий процесс Streamlit
 # может держать устаревший словарь в памяти.
-_DASHBOARDS_REGISTRY_VERSION = 100
+_DASHBOARDS_REGISTRY_VERSION = 110
 _dashboards_cache: Dict[str, Callable] = {}
 _dashboards_cache_version: int = 0
 _renderers_mtime: float = 0.0
+
+
+def _dev_hot_reload_enabled() -> bool:
+    """Dev-only: подхватывать правки _renderers/gantt без рестарта процесса.
+
+    В проде выключено — иначе на каждый rerun (при малейшем сдвиге mtime, напр.
+    при деплое/checkout) выполняется ``importlib.reload`` модуля _renderers на
+    ~47k строк, что даёт заметную задержку прогрузки дашбордов. Включается
+    переменной окружения ``BI_ANALYTICS_DEV_RELOAD=1``.
+    """
+    import os
+
+    return str(os.environ.get("BI_ANALYTICS_DEV_RELOAD", "")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _reload_renderer_dependencies() -> None:
+    """Hot-reload модулей, от которых зависит _renderers (только dev, см. _dev_hot_reload_enabled).
+
+    ``importlib.reload(_renderers)`` перечитывает только сам _renderers; функции
+    внутри него делают ленивый ``from dashboards.gantt_grouped_figure import ...``,
+    поэтому без явной перезагрузки этих модулей в памяти остаётся старый код
+    (например, построение полос Ганта), и правки не видны без рестарта процесса.
+    """
+    import importlib
+    import sys
+
+    for _mod_name in ("dashboards.gantt_grouped_figure",):
+        _mod = sys.modules.get(_mod_name)
+        if _mod is not None:
+            try:
+                importlib.reload(_mod)
+            except Exception:
+                pass
 
 
 def get_dashboards() -> Dict[str, Callable]:
@@ -290,20 +379,21 @@ def get_dashboards() -> Dict[str, Callable]:
     _stale = (
         not _dashboards_cache
         or _dashboards_cache_version != _DASHBOARDS_REGISTRY_VERSION
-        or _mt != _renderers_mtime
     )
     if _stale:
-        importlib.reload(_renderers)
+        # Первичное построение: _renderers уже импортирован выше — повторный
+        # importlib.reload здесь только тратит время (перечитывание ~47k строк).
         _renderers_mtime = _mt
         _dashboards_cache = _get_dashboards()
         _dashboards_cache_version = _DASHBOARDS_REGISTRY_VERSION
-    else:
-        # На каждый rerun подхватываем правки _renderers.py без ручного рестарта.
+    elif _dev_hot_reload_enabled():
+        # Dev: подхватываем правки _renderers.py без ручного рестарта.
         try:
             _mt_live = float(os.path.getmtime(_path)) if _path else 0.0
         except OSError:
             _mt_live = _renderers_mtime
         if _mt_live > _renderers_mtime:
+            _reload_renderer_dependencies()
             importlib.reload(_renderers)
             _renderers_mtime = _mt_live
             _dashboards_cache = _get_dashboards()
@@ -317,7 +407,7 @@ def get_dashboard_renderer(name: str) -> Callable:
 
 def get_all_report_names() -> List[str]:
     """Возвращает плоский список всех имён отчётов (для report_params, filters и т.д.)."""
-    return [r for _, reports in REPORT_CATEGORIES for r in reports]
+    return [r for _, reports in get_report_categories() for r in reports]
 
 
 
