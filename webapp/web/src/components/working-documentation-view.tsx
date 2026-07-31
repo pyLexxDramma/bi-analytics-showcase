@@ -758,7 +758,10 @@ export function WorkingDocumentationView() {
                 </label>
               ) : null}
               <div className="flex items-center gap-3 text-sm">
-                {(data?.filters.metric_modes ?? INITIAL.metricMode).map((m) => (
+                {(data?.filters.metric_modes ?? [
+                  "Количество разделов",
+                  "% от общего объёма",
+                ]).map((m) => (
                   <label key={m} className="inline-flex items-center gap-1.5">
                     <input
                       type="radio"
@@ -811,7 +814,7 @@ export function WorkingDocumentationView() {
 
           {tab === "main" ? (
             <>
-              <FullscreenPanel title="Исполнение РД" className="mb-6">
+              <FullscreenPanel fill className="mb-6">
                 <Card className="rounded-xl">
                   <Title>Исполнение РД</Title>
                   <DonutChart
@@ -826,7 +829,7 @@ export function WorkingDocumentationView() {
                 </Card>
               </FullscreenPanel>
 
-              <FullscreenPanel title="Динамика по месяцам" className="mb-6">
+              <FullscreenPanel fill className="mb-6">
                 <Card className="rounded-xl">
                   <Title>Динамика по месяцам</Title>
                   <BarChart
@@ -890,7 +893,7 @@ export function WorkingDocumentationView() {
                     </p>
                   </div>
                 </Grid>
-                <FullscreenPanel title="Динамика выдачи РД (график)">
+                <FullscreenPanel fill>
                   <LineChart
                     className="h-80"
                     data={dynamics}
@@ -912,7 +915,7 @@ export function WorkingDocumentationView() {
             </>
           ) : (
             <>
-              <FullscreenPanel title="График Просрочка выдачи РД" className="mb-6">
+              <FullscreenPanel fill className="mb-6">
                 <Card className="rounded-xl p-0">
                   <div className="px-4 pt-4">
                     <Title>График Просрочка выдачи РД</Title>
@@ -925,7 +928,7 @@ export function WorkingDocumentationView() {
                 </Card>
               </FullscreenPanel>
 
-              <FullscreenPanel title="Динамика по месяцам" className="mb-6">
+              <FullscreenPanel fill className="mb-6">
                 <Card className="rounded-xl">
                   <Title>Динамика по месяцам</Title>
                   <BarChart
