@@ -81,6 +81,26 @@ def _real_streamlit_importable() -> bool:
         return False
 
 
+def _ensure_streamlit_submodules() -> None:
+    """Подмодули, которые [main] импортирует напрямую (напр. streamlit.components.v1)."""
+    parent = sys.modules.get("streamlit")
+    if parent is None:
+        return
+    components = sys.modules.get("streamlit.components")
+    if components is None:
+        components = ModuleType("streamlit.components")
+        sys.modules["streamlit.components"] = components
+        parent.components = components  # type: ignore[attr-defined]
+    v1 = sys.modules.get("streamlit.components.v1")
+    if v1 is None:
+        v1 = ModuleType("streamlit.components.v1")
+        v1.html = _NullNode()  # type: ignore[attr-defined]
+        v1.iframe = _NullNode()  # type: ignore[attr-defined]
+        v1.declare_component = lambda *a, **k: _NullNode()  # type: ignore[attr-defined]
+        sys.modules["streamlit.components.v1"] = v1
+        components.v1 = v1  # type: ignore[attr-defined]
+
+
 def _fill_stub(module: ModuleType) -> ModuleType:
     if getattr(module, "session_state", None) is None:
         module.session_state = _SessionState()  # type: ignore[attr-defined]
@@ -90,6 +110,8 @@ def _fill_stub(module: ModuleType) -> ModuleType:
     if getattr(module, "__getattr__", None) is None:
         module.__getattr__ = lambda name: _NullNode()  # type: ignore[attr-defined]
     setattr(module, _STUB_FLAG, True)
+    sys.modules["streamlit"] = module
+    _ensure_streamlit_submodules()
     return module
 
 
@@ -119,8 +141,7 @@ def ensure_streamlit_stub() -> ModuleType:
     stub.info = lambda *a, **kw: None  # type: ignore[attr-defined]
     stub.success = lambda *a, **kw: None  # type: ignore[attr-defined]
     stub.write = lambda *a, **kw: None  # type: ignore[attr-defined]
-    sys.modules["streamlit"] = _fill_stub(stub)
-    return sys.modules["streamlit"]
+    return _fill_stub(stub)
 
 
 def ensure_core_path() -> Path:

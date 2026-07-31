@@ -1,6 +1,8 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.18.0
 # нужен коду main, который переиспользуется через core_bridge (utils.py, logger.py)
 pytz>=2024.1
 pydantic>=2.0.0
