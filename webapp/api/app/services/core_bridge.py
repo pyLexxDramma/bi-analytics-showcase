@@ -38,6 +38,15 @@ class _NullNode:
     def __bool__(self) -> bool:
         return False
 
+    def __iter__(self):
+        return iter(())
+
+    def __len__(self) -> int:
+        return 0
+
+    def __getitem__(self, key: Any) -> "_NullNode":
+        return self
+
 
 class _SessionState(dict):
     def __getattr__(self, name: str) -> Any:
