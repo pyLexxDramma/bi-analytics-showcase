@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - "webapp/**"
+      - "bi-analytics-v-5-main/**"
       - ".github/workflows/webapp.yml"
   pull_request:
     paths:
       - "webapp/**"
+      - "bi-analytics-v-5-main/**"
   workflow_dispatch:
 
 concurrency:
