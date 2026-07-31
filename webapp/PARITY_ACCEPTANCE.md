@@ -43,7 +43,7 @@
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; доля+динамика Tremor; см. §8 |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; Plotly end-bars РД; см. §9 |
 | 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx (3 таблицы) | ✓ | БД через core_bridge; обе вкладки; см. §10 |
-| 11 | Рабочая документация | `/docs/working-documentation` | 🔄 задеплоено 31.07.2026, ждёт приёмки на стенде | ✓ CSV+xlsx | ✓ | БД rd_plan+tessa; обе вкладки; см. §11 |
+| 11 | Рабочая документация | `/docs/working-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД rd_plan+tessa; обе вкладки; см. §11 |
 | 12 | ГДРС (люди) | `/gdrs/people` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §12 |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §13 |
 | 14 | Предписания по подрядчикам | `/prescriptions` | ⬜ | ✗ | ✗ | читает `web/` — техдолг |
@@ -401,7 +401,7 @@ Plotly+зум, две таблицы, Скачать, жёлтый баннер.
 
 ### Черновик 31.07.2026
 
-Статус: 🔄 задеплоено 31.07.2026, ждёт приёмки на стенде.
+Статус: ✅ принято на стенде 31.07.2026.
 
 - Источник: активная версия `web_data.db` через `core_bridge.load_version_df` — `rd_plan`, `tessa`, `tessa_tasks`, `debit_credit`. Файловый `_r23_12_load_rd_plan_lookup` (чтение `web/`) отключён; даты договора/прогноза — `_rd_plan_db_contract_lookup`.
 - Маршрут: `/docs/working-documentation`; API `GET /api/working-documentation`.
