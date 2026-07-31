@@ -473,7 +473,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     const rows = data?.project_rows ?? [];
     if (!rows.length) return null;
     return {
-      header: ["Проект", "План", "Факт", "Отклонение", "Отклонение %"],
+      header: [["Проект", "План", "Факт", "Отклонение", "Отклонение %"]],
       rows: rows.map(
         (r): ExportCell[] => [
           r.project,
@@ -507,7 +507,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       ),
     ];
     return {
-      header,
+      header: [header],
       rows: rows.map((r): ExportCell[] => [
         r.label,
         r.vid_raboty,
@@ -525,7 +525,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     const rows = data?.dynamics_rows ?? [];
     if (!rows.length) return null;
     return {
-      header: ["Период", "План", "Факт", "Отклонение", "Отклонение %"],
+      header: [["Период", "План", "Факт", "Отклонение", "Отклонение %"]],
       rows: rows.map(
         (r): ExportCell[] => [
           r.period,
@@ -542,7 +542,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     const rows = data?.contractor_rows ?? [];
     if (!rows.length) return null;
     return {
-      header: ["Контрагент", "План", "Факт", "Отклонение", "Доля %"],
+      header: [["Контрагент", "План", "Факт", "Отклонение", "Доля %"]],
       rows: rows.map(
         (r): ExportCell[] => [
           r.contractor,
