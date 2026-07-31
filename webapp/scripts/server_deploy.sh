@@ -24,11 +24,28 @@ elif docker ps -a --format '{{.Names}}' | grep -qx cloudpub-tunnel; then
   fi
 fi
 
-echo "==> health"
-sleep 3
-curl -fsS "http://127.0.0.1:3080/api/health" || true
-echo
+echo "==> health (wait up to 90s)"
+ok=0
+for i in $(seq 1 30); do
+  if curl -fsS "http://127.0.0.1:3080/api/health" >/tmp/webapp_health.json 2>/dev/null; then
+    echo "health ok (attempt $i): $(cat /tmp/webapp_health.json)"
+    ok=1
+    break
+  fi
+  echo "health wait $i/30..."
+  sleep 3
+done
 curl -fsS -o /dev/null -w "UI %{http_code}\n" "http://127.0.0.1:3080/" || true
+
+if [[ "$ok" -ne 1 ]]; then
+  echo "==> HEALTH FAILED — diagnostics"
+  docker compose ps -a || true
+  docker compose logs api --tail 200 || true
+  docker inspect "$(docker compose ps -q api)" \
+    --format 'api State={{.State.Status}} Exit={{.State.ExitCode}} OOM={{.State.OOMKilled}} Err={{.State.Error}}' \
+    2>/dev/null || true
+  exit 1
+fi
 
 # Данные стенда обновляются только по кнопке «FTP + перезагрузить БД», а она требует
 # admin-токен. Внутри контейнера токен не нужен, поэтому синк делаем на деплое —
@@ -39,13 +56,16 @@ else
   echo "==> data sync (FTP -> web/ -> web_data.db)"
   docker compose exec -T api python -c \
     'from app.services.ftp_ingest import run_ftp_then_db_ingest; print(run_ftp_then_db_ingest(force=False))' \
-    || echo "data sync FAILED (docker compose logs api)"
+    || {
+      echo "data sync FAILED"
+      docker compose logs api --tail 100 || true
+    }
 fi
 
 # Прогрев только HTTP (не в процессе API) и только дефолтные фильтры:
 # первый клик по фильтру всё равно считается заново — известное ограничение.
 echo "==> warmup (default filters)"
-for path in "/api/developer-projects" "/api/bdds" "/api/bdr"; do
+for path in "/api/developer-projects" "/api/bdds" "/api/bdr" "/api/debit-credit"; do
   curl -fsS -o /dev/null -m 600 -w "warm ${path} %{http_code} %{time_total}s\n" \
     "http://127.0.0.1:3080${path}" || echo "warm ${path} FAILED"
 done

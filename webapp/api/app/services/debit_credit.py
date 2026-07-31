@@ -9,10 +9,8 @@ import pandas as pd
 from app.config import DATA_MODE
 from app.services.core_bridge import (
     active_version_id,
-    import_dashboard_module,
     load_version_df,
     prepare_web_db,
-    session_state,
 )
 
 _KS2_ARTICLES = {
@@ -25,6 +23,41 @@ _KS2_ARTICLES = {
 def _clean(value: Any, empty: str = "—") -> str:
     text = str(value or "").strip()
     return empty if not text or text.casefold() in {"nan", "none", "nat", "<na>"} else text
+
+
+def _find_col(df: pd.DataFrame, names: list[str]) -> str | None:
+    """Как main `_find_col`: частичное совпадение без учёта регистра."""
+    cols_lower = [str(c).lower().strip() for c in df.columns]
+    for name in names:
+        needle = name.lower().strip()
+        for i, col in enumerate(cols_lower):
+            if needle in col or col in needle:
+                return str(df.columns[i])
+    return None
+
+
+def _to_num(series: pd.Series) -> pd.Series:
+    """Как main `_to_num`: пробелы; запятая — десятичный или тысячный разделитель."""
+    s = (
+        series.astype(str)
+        .str.replace("\u00a0", "", regex=False)
+        .str.replace(" ", "", regex=False)
+        .str.strip()
+    )
+    both = s.str.contains(",") & s.str.contains(r"\.")
+    s = s.where(~both, s.str.replace(",", "", regex=False))
+    s = s.str.replace(",", ".", regex=False)
+    return pd.to_numeric(s, errors="coerce").fillna(0.0)
+
+
+def _dogovor_lookup() -> dict[str, dict]:
+    try:
+        prepare_web_db()
+        from web_db_read import load_dogovor_lookup_from_db  # type: ignore
+
+        return load_dogovor_lookup_from_db() or {}
+    except Exception:
+        return {}
 
 
 def _empty(message: str | None = None) -> dict[str, Any]:
@@ -89,7 +122,7 @@ def _semaphore(delta: float, contract_sum: float) -> dict[str, Any]:
 
 
 def _prepare_frame(version_id: int) -> pd.DataFrame:
-    renderer = import_dashboard_module("_renderers")
+    # Не тянем dashboards._renderers (~40k строк) — OOM на VPS (mem_limit ~1200m).
     work = load_version_df(version_id, "debit_credit")
     reference = load_version_df(version_id, "reference_dannye")
     if reference is None or reference.empty:
@@ -99,20 +132,11 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
 
     work = work.copy()
     work.columns = [str(c).strip() for c in work.columns]
-    reference = (
-        reference.copy()
-        if reference is not None
-        else pd.DataFrame()
-    )
+    reference = reference.copy() if reference is not None else pd.DataFrame()
     if not reference.empty:
         reference.columns = [str(c).strip() for c in reference.columns]
-    session_state()["reference_1c_dannye"] = reference
-    session_state()["reference_dannye"] = reference
 
-    find = renderer._find_col
-    to_num = renderer._to_num
-
-    contractor_col = find(
+    contractor_col = _find_col(
         work,
         [
             "Название контрагента",
@@ -122,18 +146,18 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
             "contractor",
         ],
     )
-    partner_id_col = find(
+    partner_id_col = _find_col(
         work, ["ID_Контрагента", "Контрагент_ID_Контрагента", "Контрагент.ID_Контрагента"]
     )
-    contract_col = find(work, ["Номер договора", "НомерДоговора", "Договор", "contract"])
-    dog_id_col = find(
+    contract_col = _find_col(work, ["Номер договора", "НомерДоговора", "Договор", "contract"])
+    dog_id_col = _find_col(
         work, ["ID_Договора", "Договор_ID_Договора", "Договор.ID_Договора", "1C_ID_DOG"]
     )
-    project_col = find(
+    project_col = _find_col(
         work, ["Наименование_Проекта", "Проект", "project name", "Project"]
     )
-    date_col = find(work, ["Дата договора", "ДатаДоговора", "Дата Договора"])
-    sum_col = find(
+    date_col = _find_col(work, ["Дата договора", "ДатаДоговора", "Дата Договора"])
+    sum_col = _find_col(
         work,
         [
             "Сумма в договоре",
@@ -143,12 +167,12 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
             "Сумма договора",
         ],
     )
-    advance_col = find(work, ["Аванс", "Авансированная сумма", "ВсегоОплат_Аванс", "advance"])
-    advance_alt_col = find(
+    advance_col = _find_col(work, ["Аванс", "Авансированная сумма", "ВсегоОплат_Аванс", "advance"])
+    advance_alt_col = _find_col(
         work, ["ОстатокНаКонецПериодаПоАвансам", "Остаток на конец периода по авансам"]
     )
-    paid_col = find(work, ["Выплачено", "Выплаченная сумма", "ВсегоОплат", "paid"])
-    gross_col = find(
+    paid_col = _find_col(work, ["Выплачено", "Выплаченная сумма", "ВсегоОплат", "paid"])
+    gross_col = _find_col(
         work, ["ОстатокНаКонецПериода", "Остаток на конец периода", "ОстатокНаКонец"]
     )
 
@@ -157,11 +181,7 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
         if dog_id_col
         else pd.Series("", index=work.index)
     )
-    dog_lookup = renderer._load_dogovor_lookup() or {}
-    try:
-        renderer._pred_projekts_1c_lookup()
-    except Exception:
-        pass
+    dog_lookup = _dogovor_lookup()
 
     contractors = (
         work[contractor_col].map(_clean)
@@ -178,7 +198,7 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
         if project_col
         else pd.Series("—", index=work.index)
     )
-    contract_sum = to_num(work[sum_col]) if sum_col else pd.Series(0.0, index=work.index)
+    contract_sum = _to_num(work[sum_col]) if sum_col else pd.Series(0.0, index=work.index)
     for index, dog_id in dog_ids.items():
         record = dog_lookup.get(str(dog_id)) or {}
         if contracts.at[index] == "—":
@@ -187,22 +207,22 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
             projects.at[index] = _clean(record.get("Наименование_Проекта"))
         if not float(contract_sum.at[index] or 0):
             contract_sum.at[index] = float(
-                to_num(pd.Series([record.get("Сумма_Договора")])).iloc[0]
+                _to_num(pd.Series([record.get("Сумма_Договора")])).iloc[0]
             )
 
     ks2 = pd.Series(0.0, index=work.index)
     if not reference.empty:
-        article_col = find(reference, ["СтатьяОборотов", "Статья оборотов", "turnover item"])
-        amount_col = find(reference, ["Сумма", "СуммаОборота", "amount"])
-        ref_dog_col = find(reference, ["ID_Договора", "id_договора", "id_dogovora"])
-        ref_partner_col = find(
+        article_col = _find_col(reference, ["СтатьяОборотов", "Статья оборотов", "turnover item"])
+        amount_col = _find_col(reference, ["Сумма", "СуммаОборота", "amount"])
+        ref_dog_col = _find_col(reference, ["ID_Договора", "id_договора", "id_dogovora"])
+        ref_partner_col = _find_col(
             reference, ["ID_Контрагента", "id_контрагента", "id_kontragenta"]
         )
         if article_col and amount_col:
             so = reference[article_col].astype(str).str.strip().str.casefold()
             filtered = reference.loc[so.isin(_KS2_ARTICLES)].copy()
             if not filtered.empty:
-                filtered["_sum"] = to_num(filtered[amount_col])
+                filtered["_sum"] = _to_num(filtered[amount_col])
                 if ref_dog_col and ref_dog_col in filtered.columns:
                     by_dog = (
                         filtered.assign(
@@ -233,13 +253,13 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
                         ks2.ne(0), partner_ids.map(by_partner.to_dict()).fillna(0.0)
                     )
 
-    advance = to_num(work[advance_col]) if advance_col else pd.Series(0.0, index=work.index)
+    advance = _to_num(work[advance_col]) if advance_col else pd.Series(0.0, index=work.index)
     if float(advance.abs().sum()) < 1e-9 and advance_alt_col:
-        advance = to_num(work[advance_alt_col])
-    paid = to_num(work[paid_col]) if paid_col else pd.Series(0.0, index=work.index)
-    gross = to_num(work[gross_col]) if gross_col else pd.Series(0.0, index=work.index)
+        advance = _to_num(work[advance_alt_col])
+    paid = _to_num(work[paid_col]) if paid_col else pd.Series(0.0, index=work.index)
+    gross = _to_num(work[gross_col]) if gross_col else pd.Series(0.0, index=work.index)
     adv_end = (
-        to_num(work[advance_alt_col])
+        _to_num(work[advance_alt_col])
         if advance_alt_col
         else pd.Series(0.0, index=work.index)
     )
@@ -313,7 +333,6 @@ def build_debit_credit_payload(
             | view.contract_date.lt(pd.Timestamp(date_to) + pd.Timedelta(days=1))
         ]
 
-    # Chart always by contractor (main), top 20
     chart_src = (
         view.groupby("contractor", as_index=False)[["advance", "ks2"]]
         .sum()
