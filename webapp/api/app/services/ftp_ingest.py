@@ -5,14 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from app.config import CORE_APP_DIR, DATA_MODE, WEB_DATA_DIR
-from app.services.debit_credit import load_debit_credit_frame, _source_mtime_key
 from app.services.db_ingest import db_status, run_db_ingest
 from app.services.report_cache import cache_clear
 
 
 def clear_data_caches() -> None:
-    load_debit_credit_frame.cache_clear()
-    _source_mtime_key.cache_clear()
     try:
         from app.services.gdrs import clear_gdrs_caches
 
