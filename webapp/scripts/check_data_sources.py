@@ -22,8 +22,7 @@ ETL_FILES = {"db_ingest.py", "ftp_ingest.py", "data_paths.py"}
 KNOWN_DEBT = {
     # #2 БДДС переведён на web_data.db (services/finance_1c.py); остались #3 БДР и #5 план/факт
     "finance_period.py": "#3 БДР и #5 план/факт: latest_web_file('_dannye.json') → фазы 2.3/2.5",
-    # #10 ПД / #11 РД: documentation.py → project_documentation.py (web_data.db), debt снят
-    "gdrs.py": "#12–#13 ГДРС (нужен отдельный perf-план) → фаза 4",
+    # #10 ПД / #11 РД / #12–#13 ГДРС: переведены на web_data.db, debt снят
     "prescriptions.py": "#14 предписания → фаза 4",
     "executive_docs.py": "#15 исполнительная документация → фаза 4",
     "debit_credit.py": "#16 ДЗ/КЗ → фаза 4",

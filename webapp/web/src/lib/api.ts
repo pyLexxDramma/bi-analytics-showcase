@@ -1194,10 +1194,20 @@ export type GdrsPayload = {
     data_mode: string;
     resource_kind: "people" | "equipment";
     unit: string;
+    unit_gen?: string;
     period_label: string;
     rows: number;
     resursi_files: number;
+    version_id?: number | null;
+    source?: string;
+    parity?: string;
     warning: string | null;
+    error?: string | null;
+    show_week_columns?: boolean;
+    week_labels?: string[];
+    dyn_title?: string;
+    pie_title?: string;
+    matrix_title?: string;
   };
   filters: {
     projects: string[];
@@ -1205,12 +1215,15 @@ export type GdrsPayload = {
     months: string[];
     default_months: string[];
     agg_options: string[];
+    dyn_agg_options?: string[];
     selected: {
       projects: string[];
       contractors: string[];
       months: string[];
       plan_agg: string;
       skud_agg: string;
+      dyn_agg?: string;
+      only_with_plan?: boolean;
     };
   };
   kpis: {
@@ -1232,6 +1245,13 @@ export type GdrsPayload = {
       fact: number;
       deviation: number;
     }>;
+    pie?: Array<{ name: string; value: number }>;
+    dynamics?: Array<{
+      period: string;
+      plan: number;
+      fact: number;
+      name?: string;
+    }>;
   };
   project_rows: Array<{
     project: string;
@@ -1247,12 +1267,38 @@ export type GdrsPayload = {
     deviation: number;
     share_pct: number;
   }>;
+  pie_rows?: Array<{ name: string; value: number }>;
   matrix_rows: Array<{
     kind: string;
     label: string;
     vid_raboty: string;
     plan: number;
     skud: number;
+    deviation: number;
+    delta_pct: number | null;
+    p1?: number;
+    p2?: number;
+    p3?: number;
+    p4?: number;
+    p5?: number;
+    p6?: number;
+    w1?: number;
+    w2?: number;
+    w3?: number;
+    w4?: number;
+    w5?: number;
+    w6?: number;
+  }>;
+  matrix_meta?: {
+    show_week_columns: boolean;
+    week_labels: string[];
+    week_plan_keys: string[];
+    week_skud_keys: string[];
+  };
+  dynamics_rows?: Array<{
+    period: string;
+    plan: number;
+    fact: number;
     deviation: number;
     delta_pct: number | null;
   }>;
@@ -1264,6 +1310,8 @@ export type GdrsQuery = {
   months?: string[];
   plan_agg?: string;
   skud_agg?: string;
+  dyn_agg?: string;
+  only_with_plan?: boolean;
 };
 
 /** ГДРС тяжелее прочих экранов — отдельный, больший таймаут. */

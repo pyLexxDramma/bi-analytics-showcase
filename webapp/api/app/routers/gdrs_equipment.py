@@ -16,6 +16,8 @@ def gdrs_equipment_report(
     months: Optional[str] = Query(None, description="Месяцы через запятую, напр. Июль 2026"),
     plan_agg: Optional[str] = Query("Среднее за месяц", description="План: Среднее за месяц | N неделя"),
     skud_agg: Optional[str] = Query("Среднее за месяц", description="СКУД: Среднее за месяц | N неделя"),
+    dyn_agg: Optional[str] = Query("День", description="Группировка динамики: День|Неделя|Месяц"),
+    only_with_plan: bool = Query(False, description="Только с планом"),
 ):
     return build_gdrs_payload(
         resource_kind="equipment",
@@ -24,4 +26,6 @@ def gdrs_equipment_report(
         months=months,
         plan_agg=plan_agg,
         skud_agg=skud_agg,
+        dyn_agg=dyn_agg,
+        only_with_plan=only_with_plan,
     )

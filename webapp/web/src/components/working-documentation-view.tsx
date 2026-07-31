@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  BarChart,
   Card,
   DonutChart,
   Grid,
@@ -23,31 +22,9 @@ import { CHART_RU } from "@/lib/chart-ru";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const TH =
-  "whitespace-nowrap border border-[#cbd5e1] bg-[#f3f4f6] px-2.5 py-2 text-center font-bold text-[#111827] dark:border-[#334155] dark:bg-[hsl(209,72%,6%)] dark:text-[#fafafa]";
+  "whitespace-nowrap px-2.5 py-2 text-center text-[13px] font-bold leading-tight text-[#111827] dark:text-[#fafafa]";
 const TD =
-  "border border-[#cbd5e1] px-2.5 py-1.5 text-center align-middle dark:border-[#334155]";
-
-/** Как `_RD_PIE_STATUS_COLORS` в main — фон ячейки «Статус». */
-const STATUS_BG: Record<string, string> = {
-  "Выдано в производство работ":
-    "bg-[rgba(39,174,96,0.28)] text-[#14532d] dark:bg-[rgba(39,174,96,0.32)] dark:text-[#b8f5c8]",
-  "На рассмотрении у ГИП":
-    "bg-[rgba(241,196,15,0.32)] text-[#854d0e] dark:bg-[rgba(241,196,15,0.28)] dark:text-[#fde68a]",
-  "Возвращено на доработку":
-    "bg-[rgba(192,57,43,0.28)] text-[#7f1d1d] dark:bg-[rgba(192,57,43,0.32)] dark:text-[#fecaca]",
-  "Не выдано":
-    "bg-[rgba(245,169,192,0.45)] text-[#9d174d] dark:bg-[rgba(245,169,192,0.28)] dark:text-[#fbcfe8]",
-  "Не выдан":
-    "bg-[rgba(245,169,192,0.45)] text-[#9d174d] dark:bg-[rgba(245,169,192,0.28)] dark:text-[#fbcfe8]",
-  "Передано подрядчику":
-    "bg-[rgba(142,68,173,0.28)] text-[#581c87] dark:bg-[rgba(142,68,173,0.32)] dark:text-[#e9d5ff]",
-  "Выдано подрядчику":
-    "bg-[rgba(142,68,173,0.28)] text-[#581c87] dark:bg-[rgba(142,68,173,0.32)] dark:text-[#e9d5ff]",
-  "На рассмотрении":
-    "bg-[rgba(241,196,15,0.32)] text-[#854d0e] dark:bg-[rgba(241,196,15,0.28)] dark:text-[#fde68a]",
-  "На доработке":
-    "bg-[rgba(230,126,34,0.28)] text-[#9a3412] dark:bg-[rgba(230,126,34,0.32)] dark:text-[#fdba74]",
-};
+  "px-2.5 py-1.5 text-center align-middle text-[13px] text-[#111827] dark:text-[#e8eef5]";
 
 type TabId = "main" | "delay";
 type SortState = { key: string; asc: boolean } | null;
@@ -99,7 +76,7 @@ function deviationCellStyle(
     };
   }
   if (num > 0) {
-    const alpha = 0.18 + 0.28 * t;
+    const alpha = 0.14 + 0.22 * t;
     return {
       className: "font-bold",
       style: dark
@@ -113,7 +90,7 @@ function deviationCellStyle(
           },
     };
   }
-  const alphaLight = 0.16 + 0.24 * t;
+  const alphaLight = 0.18 + 0.28 * t;
   const alphaDark = 0.24 + 0.36 * t;
   return {
     className: "font-bold",
@@ -156,15 +133,26 @@ function SortHeader({
   sortKey,
   sort,
   onSort,
+  dark,
 }: {
   label: string;
   sortKey: string;
   sort: SortState;
   onSort: (key: string) => void;
+  dark: boolean;
 }) {
   const active = sort?.key === sortKey;
   return (
-    <th className={TH}>
+    <th
+      className={TH}
+      style={{
+        border: dark ? "1px solid #334155" : "1px solid #d1d5db",
+        backgroundColor: dark ? "hsl(209,72%,6%)" : "#f3f4f6",
+        position: "sticky",
+        top: 0,
+        zIndex: 2,
+      }}
+    >
       <button
         type="button"
         title="Сортировать по колонке"
@@ -172,21 +160,19 @@ function SortHeader({
         className="inline-flex w-full items-center justify-center gap-1"
       >
         <span>{label}</span>
-        <span className={active ? "text-emerald-700 dark:text-emerald-300" : "opacity-60"}>
+        <span
+          className={
+            active
+              ? "font-bold text-emerald-700 dark:text-emerald-300"
+              : "opacity-70"
+          }
+          aria-hidden
+        >
           {active ? (sort?.asc ? "↑" : "↓") : "⇅"}
         </span>
       </button>
     </th>
   );
-}
-
-function statusCellClass(status: string): string {
-  const exact = STATUS_BG[status];
-  if (exact) return exact;
-  const key = Object.keys(STATUS_BG).find((k) =>
-    status.toLowerCase().includes(k.toLowerCase()),
-  );
-  return key ? STATUS_BG[key] : "";
 }
 
 function fmtNum(value: number | null | undefined, digits = 0): string {
@@ -460,68 +446,160 @@ function DetailTable({
   }, [sortedRows, columns]);
 
   return (
-    <Card className="rounded-xl p-0">
-      <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              {columns.map((c) => (
-                <SortHeader
-                  key={c}
-                  label={c}
-                  sortKey={c}
-                  sort={sort}
-                  onSort={onSort}
-                />
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRows.map((row, i) => (
-              <tr key={i} className="hover:bg-black/[0.03] dark:hover:bg-white/[0.03]">
-                {columns.map((c) => {
-                  const isDev = c.toLowerCase().includes("отклонен");
-                  const isStatus = c.toLowerCase() === "статус";
-                  const num = isDev ? parseSortableNumber(row[c]) : null;
-                  const label =
-                    (row[`${c}__label`] as string | undefined) ??
-                    (row[c] == null
-                      ? "—"
-                      : isDev && typeof row[c] === "number"
-                        ? (row[c] as number) > 0
-                          ? `+${row[c]}`
-                          : String(row[c])
-                        : String(row[c]));
-                  const tint = isDev
-                    ? deviationCellStyle(num, vmaxByCol[c] ?? 1, dark)
-                    : { className: "", style: undefined };
-                  const statusCls =
-                    isStatus && label && label !== "—" ? statusCellClass(label) : "";
-                  return (
-                    <td
+    <FullscreenPanel disabled={!sortedRows.length}>
+      <Card className="overflow-hidden rounded-xl p-0">
+        <div className="max-h-[32rem] overflow-auto">
+          {!sortedRows.length || !columns.length ? (
+            <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+              Нет строк по фильтрам.
+            </div>
+          ) : (
+            <table
+              className="min-w-full text-sm"
+              style={{
+                borderCollapse: "collapse",
+                width: "100%",
+                border: dark ? "1px solid #334155" : "1px solid #d1d5db",
+              }}
+            >
+              <thead>
+                <tr>
+                  {columns.map((c) => (
+                    <SortHeader
                       key={c}
-                      className={`${TD} ${tint.className} ${statusCls} ${
-                        isDev && !tint.style ? deviationClass(num) : ""
-                      }`}
-                      style={tint.style}
-                    >
-                      {label}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      label={c}
+                      sortKey={c}
+                      sort={sort}
+                      onSort={onSort}
+                      dark={dark}
+                    />
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.map((row, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      backgroundColor:
+                        i % 2 === 0
+                          ? dark
+                            ? "rgba(255,255,255,0.02)"
+                            : "#ffffff"
+                          : dark
+                            ? "transparent"
+                            : "#fafafa",
+                    }}
+                  >
+                    {columns.map((c) => {
+                      const isDev = c.toLowerCase().includes("отклонен");
+                      const num = isDev ? parseSortableNumber(row[c]) : null;
+                      const label =
+                        (row[`${c}__label`] as string | undefined) ??
+                        (row[c] == null
+                          ? "—"
+                          : isDev && typeof row[c] === "number"
+                            ? (row[c] as number) > 0
+                              ? `+${row[c]}`
+                              : String(row[c])
+                            : String(row[c]));
+                      const tint = isDev
+                        ? deviationCellStyle(num, vmaxByCol[c] ?? 1, dark)
+                        : { className: "", style: undefined as CSSProperties | undefined };
+                      const cellBorder = dark
+                        ? "1px solid #334155"
+                        : "1px solid #e5e7eb";
+                      return (
+                        <td
+                          key={c}
+                          className={`${TD} ${tint.className} ${
+                            isDev && !tint.style ? deviationClass(num) : ""
+                          }`}
+                          style={{
+                            border: cellBorder,
+                            ...(tint.style ?? {}),
+                          }}
+                        >
+                          {label}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+          <DownloadTableButton
+            getTable={exportTable}
+            fileStem={fileStem}
+            disabled={!sortedRows.length}
+          />
+        </div>
+      </Card>
+    </FullscreenPanel>
+  );
+}
+
+/** Накопительные гориз. полосы Plan/Fact + «+N» — как `_render_rd_monthly_overlay_chart`. */
+function MonthlyOverlayChart({
+  rows,
+}: {
+  rows: Array<{
+    month_label: string;
+    plan: number;
+    fact: number;
+    fact_inc?: number;
+  }>;
+}) {
+  if (!rows.length) {
+    return (
+      <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+        Нет данных по месяцам.
       </div>
-      <div className="px-4 py-3">
-        <DownloadTableButton
-          getTable={exportTable}
-          fileStem={fileStem}
-          disabled={!sortedRows.length}
-        />
+    );
+  }
+  const xmax = Math.max(1, ...rows.map((r) => Math.max(r.plan || 0, r.fact || 0)));
+  return (
+    <div className="space-y-2 px-2 py-2">
+      <div className="mb-2 flex flex-wrap gap-4 text-xs text-tremor-content dark:text-dark-tremor-content">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#F1C40F]" /> {CHART_RU.plan}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#27AE60]" /> {CHART_RU.fact}
+        </span>
       </div>
-    </Card>
+      {rows.map((row) => {
+        const planPct = Math.min(100, ((row.plan || 0) / xmax) * 100);
+        const factPct = Math.min(100, ((row.fact || 0) / xmax) * 100);
+        const inc = row.fact_inc ?? 0;
+        return (
+          <div
+            key={row.month_label}
+            className="grid grid-cols-[7.5rem_1fr_2.5rem] items-center gap-2"
+          >
+            <div className="truncate text-right text-xs font-medium">{row.month_label}</div>
+            <div className="relative h-6 rounded bg-tremor-background-muted dark:bg-dark-tremor-background-muted">
+              <div
+                className="absolute inset-y-1 left-0 rounded-sm bg-[#F1C40F]/90"
+                style={{ width: `${planPct}%` }}
+                title={`План ${fmtNum(row.plan)}`}
+              />
+              <div
+                className="absolute inset-y-1 left-0 rounded-sm bg-[#27AE60]/85"
+                style={{ width: `${factPct}%` }}
+                title={`Факт ${fmtNum(row.fact)}`}
+              />
+            </div>
+            <div className="text-xs font-semibold tabular-nums text-[#15803d] dark:text-[#46d68a]">
+              {inc > 0 ? `+${fmtNum(inc)}` : ""}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -604,9 +682,9 @@ export function WorkingDocumentationView() {
     () =>
       (data?.tremor.monthly ?? []).map((m) => ({
         month_label: m.month_label,
-        [CHART_RU.plan]: m.plan,
-        [CHART_RU.fact]: m.fact,
-        "+факт": m.fact_inc ?? 0,
+        plan: m.plan,
+        fact: m.fact,
+        fact_inc: m.fact_inc ?? 0,
       })),
     [data?.tremor.monthly],
   );
@@ -832,16 +910,12 @@ export function WorkingDocumentationView() {
               <FullscreenPanel fill className="mb-6">
                 <Card className="rounded-xl">
                   <Title>Динамика по месяцам</Title>
-                  <BarChart
-                    className="mt-4 h-80"
-                    data={monthly}
-                    index="month_label"
-                    categories={[CHART_RU.plan, CHART_RU.fact]}
-                    colors={["amber", "emerald"]}
-                    layout="vertical"
-                    valueFormatter={(v) => fmtNum(v)}
-                    showLegend
-                  />
+                  <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
+                    График Выдача рабочей документации по месяцам
+                  </Text>
+                  <div className="mt-3">
+                    <MonthlyOverlayChart rows={monthly} />
+                  </div>
                 </Card>
               </FullscreenPanel>
 
@@ -931,16 +1005,12 @@ export function WorkingDocumentationView() {
               <FullscreenPanel fill className="mb-6">
                 <Card className="rounded-xl">
                   <Title>Динамика по месяцам</Title>
-                  <BarChart
-                    className="mt-4 h-80"
-                    data={monthly}
-                    index="month_label"
-                    categories={[CHART_RU.plan, CHART_RU.fact]}
-                    colors={["amber", "emerald"]}
-                    layout="vertical"
-                    valueFormatter={(v) => fmtNum(v)}
-                    showLegend
-                  />
+                  <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
+                    График Выдача рабочей документации по месяцам
+                  </Text>
+                  <div className="mt-3">
+                    <MonthlyOverlayChart rows={monthly} />
+                  </div>
                 </Card>
               </FullscreenPanel>
 

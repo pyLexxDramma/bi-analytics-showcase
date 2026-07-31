@@ -662,6 +662,43 @@ def check_working_documentation(base: str, timeout: float) -> list[tuple[str, An
     ]
 
 
+def _check_gdrs(base: str, timeout: float, *, path: str, kind: str) -> list[tuple[str, Any, Any, bool]]:
+    vid, _ = _reference_frame()
+    api = _api_get(base, path, timeout)
+    meta = api.get("meta") or {}
+    filters = api.get("filters") or {}
+    selected = (filters.get("selected") or {})
+    kpis = api.get("kpis") or {}
+    tremor = api.get("tremor") or {}
+    by_project = tremor.get("by_project") or []
+    rows = int(meta.get("rows") or 0)
+    return [
+        _info_row("активная версия", vid, meta.get("version_id")),
+        _meta_row("meta.error", None, meta.get("error") or None),
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_dashboard_gdrs", meta.get("parity")),
+        _meta_row("resource_kind", kind, meta.get("resource_kind")),
+        _bool_row("months in filter > 0", len(filters.get("months") or []) > 0),
+        _bool_row("agg_options > 0", len(filters.get("agg_options") or []) > 0),
+        _bool_row("KPI plan ≥ 0", int(kpis.get("plan") or 0) >= 0),
+        _bool_row("KPI fact ≥ 0", int(kpis.get("fact") or 0) >= 0),
+        _bool_row("by_project non-empty if data", (rows == 0) or (len(by_project) > 0)),
+        _bool_row("matrix_rows ≥ 0", len(api.get("matrix_rows") or []) >= 0),
+        _bool_row("pie ≥ 0", len(tremor.get("pie") or api.get("pie_rows") or []) >= 0),
+        _bool_row("dynamics ≥ 0", len(tremor.get("dynamics") or []) >= 0),
+        _meta_row("dyn_agg default", "День", selected.get("dyn_agg") or "День"),
+        _meta_row("only_with_plan default", False, bool(selected.get("only_with_plan"))),
+    ]
+
+
+def check_gdrs_people(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    return _check_gdrs(base, timeout, path="/api/gdrs-people", kind="people")
+
+
+def check_gdrs_equipment(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    return _check_gdrs(base, timeout, path="/api/gdrs-equipment", kind="equipment")
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -695,6 +732,8 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "baseline-deviation": check_baseline_deviation,
     "project-documentation": check_project_documentation,
     "working-documentation": check_working_documentation,
+    "gdrs-people": check_gdrs_people,
+    "gdrs-equipment": check_gdrs_equipment,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,
