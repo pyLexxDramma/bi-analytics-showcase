@@ -1,5 +1,5 @@
-import { ExecutiveDocsView } from "@/components/executive-docs-view";
+import { ExecutiveDocsParityView } from "@/components/executive-docs-parity-view";
 
 export default function Page() {
-  return <ExecutiveDocsView />;
+  return <ExecutiveDocsParityView />;
 }

@@ -730,6 +730,20 @@ def check_prescriptions(base: str, timeout: float) -> list[tuple[str, Any, Any, 
     ]
 
 
+def check_executive_docs(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    api = _api_get(base, "/api/executive-docs", timeout)
+    meta = api.get("meta") or {}
+    kpis = api.get("kpis") or {}
+    tremor = api.get("tremor") or {}
+    return [
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_dashboard_executive_documentation", meta.get("parity")),
+        _bool_row("все KPI есть", all(key in kpis for key in ("total_docs", "declined", "on_agree", "signed", "on_rework", "overdue_total"))),
+        _bool_row("графики есть", all(isinstance(tremor.get(key), list) for key in ("by_status", "by_object", "overdue_contractor", "overdue_customer", "dynamics"))),
+        _bool_row("rows", isinstance(api.get("rows"), list)),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -766,6 +780,7 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "gdrs-people": check_gdrs_people,
     "gdrs-equipment": check_gdrs_equipment,
     "prescriptions": check_prescriptions,
+    "executive-docs": check_executive_docs,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,

@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from app.services.executive_docs import build_executive_docs_payload
+from app.services.executive_docs_db import build_executive_docs_payload
 
 router = APIRouter(prefix="/api/executive-docs", tags=["executive-docs"])
 
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/executive-docs", tags=["executive-docs"])
 def executive_docs_report(
     project: Optional[str] = Query(None, description="Фильтр проекта (ObjectName)"),
     contractor: Optional[str] = Query(None, description="Фильтр контрагента (CONTR)"),
+    doc_kind: Optional[str] = Query(None, description="Группа вида документа ИД"),
     date_from: Optional[date] = Query(None, description="Дата создания с"),
     date_to: Optional[date] = Query(None, description="Дата создания по"),
     granularity: str = Query(
@@ -29,6 +30,7 @@ def executive_docs_report(
     return build_executive_docs_payload(
         project=project,
         contractor=contractor,
+        doc_kind=doc_kind,
         date_from=date_from,
         date_to=date_to,
         granularity=granularity,

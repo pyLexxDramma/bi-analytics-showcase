@@ -1418,21 +1418,25 @@ export type ExecutiveDocsPayload = {
   meta: {
     rows: number;
     table_rows?: number;
+    version_id?: number | null;
     data_mode: string;
-    source: string | null;
-    task_source?: string | null;
+    source: "web_data.db";
+    parity?: string;
     warning: string | null;
     generated_at?: string;
   };
   filters: {
     projects: string[];
     contractors: string[];
+    doc_kinds: string[];
+    catalog: Array<Record<string, string | number>>;
     date_min: string | null;
     date_max: string | null;
     granularities: Array<{ id: string; label: string }>;
     applied: {
       project?: string;
       contractor?: string;
+      doc_kind?: string;
       date_from?: string | null;
       date_to?: string | null;
       granularity?: string;
@@ -1478,6 +1482,8 @@ export type ExecutiveDocsPayload = {
     agree_date: string | null;
     agree_late_days: number | null;
     status: string;
+    status_display?: string;
+    status_chip?: string;
     creation_date: string | null;
   }>;
 };
