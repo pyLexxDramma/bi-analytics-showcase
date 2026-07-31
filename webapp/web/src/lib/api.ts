@@ -1338,9 +1338,10 @@ export async function fetchGdrsEquipment(
 export type PrescriptionsPayload = {
   meta: {
     rows: number;
+    version_id: number | null;
     data_mode: string;
-    source: string | null;
-    task_source?: string | null;
+    source: "web_data.db";
+    parity: "main_dashboard_predpisania";
     warning: string | null;
     generated_at?: string;
   };
@@ -1350,8 +1351,8 @@ export type PrescriptionsPayload = {
     date_min: string | null;
     date_max: string | null;
     applied: {
-      project?: string;
-      contractor?: string;
+      projects: string[];
+      contractors: string[];
       contract_q?: string;
       date_from?: string | null;
       date_to?: string | null;
@@ -1374,10 +1375,15 @@ export type PrescriptionsPayload = {
       overdue: number;
     }>;
     by_status: Array<{
+      name: string;
       status: string;
+      value: number;
       count: number;
       share_pct: number;
     }>;
+    by_object: Array<
+      { object: string; total: number } & Record<string, number | string>
+    >;
   };
   rows: Array<{
     status: string;
@@ -1394,13 +1400,18 @@ export type PrescriptionsPayload = {
     overdue_days: number;
     critical: boolean;
     stop_work: boolean;
+    resolved: boolean;
+    row_tone: "overdue" | "resolved" | "neutral";
+    status_chip: "overdue" | "ok" | "warn";
   }>;
 };
 
 export async function fetchPrescriptions(
   params: QueryParams = {},
 ): Promise<PrescriptionsPayload> {
-  return apiGet<PrescriptionsPayload>("/api/prescriptions", params);
+  return apiGet<PrescriptionsPayload>("/api/prescriptions", params, {
+    arrayFormat: "comma",
+  });
 }
 
 export type ExecutiveDocsPayload = {

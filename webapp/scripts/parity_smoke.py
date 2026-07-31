@@ -699,6 +699,37 @@ def check_gdrs_equipment(base: str, timeout: float) -> list[tuple[str, Any, Any,
     return _check_gdrs(base, timeout, path="/api/gdrs-equipment", kind="equipment")
 
 
+def check_prescriptions(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    api = _api_get(base, "/api/prescriptions", timeout)
+    meta = api.get("meta") or {}
+    kpis = api.get("kpis") or {}
+    tremor = api.get("tremor") or {}
+    rows = api.get("rows") or []
+    return [
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_dashboard_predpisania", meta.get("parity")),
+        _bool_row(
+            "все KPI есть",
+            all(
+                key in kpis
+                for key in (
+                    "total",
+                    "resolved",
+                    "unresolved",
+                    "non_overdue",
+                    "overdue_unresolved",
+                    "critical",
+                    "stop_work",
+                )
+            ),
+        ),
+        _bool_row("tremor.by_contractor", isinstance(tremor.get("by_contractor"), list)),
+        _bool_row("tremor.by_status", isinstance(tremor.get("by_status"), list)),
+        _bool_row("tremor.by_object", isinstance(tremor.get("by_object"), list)),
+        _bool_row("rows", isinstance(rows, list)),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -734,6 +765,7 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "working-documentation": check_working_documentation,
     "gdrs-people": check_gdrs_people,
     "gdrs-equipment": check_gdrs_equipment,
+    "prescriptions": check_prescriptions,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,

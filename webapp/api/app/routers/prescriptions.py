@@ -12,8 +12,8 @@ router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
 
 @router.get("")
 def prescriptions_report(
-    project: Optional[str] = Query(None, description="Фильтр проекта (ObjectName)"),
-    contractor: Optional[str] = Query(None, description="Фильтр подрядчика (CONTR)"),
+    projects: Optional[str] = Query(None, description="Проекты через запятую"),
+    contractors: Optional[str] = Query(None, description="Подрядчики через запятую"),
     contract_q: Optional[str] = Query(None, description="Частичный поиск № договора"),
     date_from: Optional[date] = Query(None, description="Дата выдачи с"),
     date_to: Optional[date] = Query(None, description="Дата выдачи по"),
@@ -21,8 +21,8 @@ def prescriptions_report(
 ):
     """Предписания по подрядчикам (TESSA id + task)."""
     return build_prescriptions_payload(
-        project=project,
-        contractor=contractor,
+        projects=projects,
+        contractors=contractors,
         contract_q=contract_q,
         date_from=date_from,
         date_to=date_to,
