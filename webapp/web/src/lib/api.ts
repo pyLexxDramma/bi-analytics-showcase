@@ -608,42 +608,57 @@ export type ProjectSchedulePayload = {
   meta: {
     rows: number;
     gantt_rows: number;
+    gantt_cap: number;
     source: string;
     data_mode: string;
-    files: number;
+    version_id: number | null;
+    error: string | null;
+    banner: string | null;
     rule?: string;
   };
   filters: {
     projects: string[];
     levels: Array<{ id: string; label: string }>;
     blocks: string[];
+    buildings: string[];
     applied: {
       project: string;
       level: string;
       block: string;
+      building: string;
+      show_reasons: boolean;
+      show_lots: boolean;
+      label_pct: boolean;
       hide_completed: boolean;
       only_delay: boolean;
       level_skipped?: boolean;
+      multi_project?: boolean;
     };
-  };
-  kpis: {
-    tasks: number;
-    avg_pct: number;
-    delayed: number;
-    completed: number;
   };
   gantt: {
     range_start: string | null;
     range_end: string | null;
     capped: boolean;
+    plan_color: string;
+    fact_color: string;
+    label_pct: boolean;
     rows: Array<{
-      project: string;
+      project: string | null;
       task: string;
       label: string;
       pct_complete: number | null;
-      baseline: { start: string | null; end: string | null };
-      current: { start: string | null; end: string | null };
-      dev_end_days: number | null;
+      baseline: {
+        start: string | null;
+        end: string | null;
+        start_label?: string;
+        end_label?: string;
+      };
+      current: {
+        start: string | null;
+        end: string | null;
+        start_label?: string;
+        end_label?: string;
+      };
     }>;
   };
   rows: Array<{
@@ -660,15 +675,22 @@ export type ProjectSchedulePayload = {
     base_end: string | null;
     dev_end: string;
     dev_end_days: number | null;
+    reason?: string;
+    notes?: string;
   }>;
+  columns: string[];
 };
 
 export type ProjectScheduleQuery = {
   project?: string;
   level?: string;
   block?: string;
+  building?: string;
   hide_completed?: boolean;
   only_delay?: boolean;
+  show_reasons?: boolean;
+  show_lots?: boolean;
+  label_pct?: boolean;
 };
 
 export async function fetchProjectSchedule(

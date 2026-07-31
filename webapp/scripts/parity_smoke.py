@@ -490,6 +490,39 @@ def check_control_points(base: str, timeout: float) -> list[tuple[str, Any, Any,
     ]
 
 
+def check_project_schedule(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    vid, _ = _reference_frame()
+    frame = load_msp_frame(vid)
+    api = _api_get(
+        base,
+        "/api/project-schedule?level=%D0%92%D0%B5%D1%80%D1%85%D0%BD%D0%B8%D0%B9%20%D1%83%D1%80%D0%BE%D0%B2%D0%B5%D0%BD%D1%8C&project=%D0%92%D1%81%D0%B5",
+        timeout,
+    )
+    meta = api.get("meta") or {}
+    rows = api.get("rows") or []
+    gantt = api.get("gantt") or {}
+    gantt_rows = gantt.get("rows") or []
+    filters = api.get("filters") or {}
+    applied = filters.get("applied") or {}
+    level4 = 0
+    if frame is not None and not getattr(frame, "empty", True) and "level" in frame.columns:
+        import pandas as pd
+
+        ln = pd.to_numeric(frame["level"], errors="coerce")
+        level4 = int((ln == 4.0).sum())
+    return [
+        _info_row("активная версия", vid, meta.get("version_id")),
+        _meta_row("meta.error", None, meta.get("error") or None),
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _bool_row("строк таблицы > 0", len(rows) > 0),
+        _bool_row("строк ганта > 0", len(gantt_rows) > 0),
+        _bool_row("gantt ≤ cap", len(gantt_rows) <= int(meta.get("gantt_cap") or 600)),
+        _meta_row("уровень", "Верхний уровень", applied.get("level")),
+        _bool_row("MSP level=4 есть в БД", level4 > 0),
+        _bool_row("проектов в фильтре > 1", len(filters.get("projects") or []) > 1),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -518,6 +551,7 @@ def _bool_row(label: str, value: bool) -> tuple[str, Any, Any, bool]:
 CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "developer-projects": check_developer_projects,
     "control-points": check_control_points,
+    "project-schedule": check_project_schedule,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,
