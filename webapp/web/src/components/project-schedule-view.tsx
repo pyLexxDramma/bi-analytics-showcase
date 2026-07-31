@@ -10,7 +10,7 @@ import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { ProjectScheduleGantt } from "@/components/project-schedule-gantt";
-import type { ExportTable } from "@/lib/table-export";
+import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
   project: "Все",
@@ -158,7 +158,7 @@ function buildExport(data: ProjectSchedulePayload): ExportTable {
     "Отклонение окончания",
     ...(showReasons ? ["Причины отклонений", "Заметки"] : []),
   ];
-  const rows = data.rows.map((row) => [
+  const rows: ExportCell[][] = data.rows.map((row) => [
     row.project,
     ...(showLots
       ? [row.task]
@@ -172,7 +172,7 @@ function buildExport(data: ProjectSchedulePayload): ExportTable {
     row.dev_end,
     ...(showReasons ? [row.reason ?? "", row.notes ?? ""] : []),
   ]);
-  return { header, rows, sheetName: "Таблица задач" };
+  return { header: [header], rows, sheetName: "Таблица задач" };
 }
 
 export function ProjectScheduleView() {
@@ -216,7 +216,7 @@ export function ProjectScheduleView() {
   const selectClass =
     "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
   const metaError = data?.meta?.error as string | undefined;
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const showLots = data?.filters.applied.show_lots ?? filters.showLots;
   const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
 
