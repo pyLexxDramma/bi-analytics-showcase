@@ -594,6 +594,37 @@ def check_baseline_deviation(base: str, timeout: float) -> list[tuple[str, Any, 
     ]
 
 
+def check_project_documentation(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    vid, _ = _reference_frame()
+    api = _api_get(base, "/api/project-documentation", timeout)
+    meta = api.get("meta") or {}
+    filters = api.get("filters") or {}
+    applied = filters.get("applied") or {}
+    kpis = api.get("kpis") or {}
+    tremor = api.get("tremor") or {}
+    rows = api.get("rows") or []
+    delay = api.get("delay") or {}
+    gantt = delay.get("gantt") or {}
+    return [
+        _info_row("активная версия", vid, meta.get("version_id")),
+        _meta_row("meta.error", None, meta.get("error") or None),
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_project_documentation", meta.get("parity")),
+        _meta_row("doc_kind", "pd", meta.get("doc_kind")),
+        _bool_row("проектов в фильтре > 1", len(filters.get("projects") or []) > 1),
+        _bool_row("KPI plan_total ≥ 0", int(kpis.get("plan_total") or 0) >= 0),
+        _bool_row("status_mix ≥ 0", len(tremor.get("status_mix") or []) >= 0),
+        _bool_row("dynamics ≥ 0", len(tremor.get("dynamics") or []) >= 0),
+        _bool_row("строк таблицы ≥ 0", len(rows) >= 0),
+        _bool_row("gantt rows ≥ 0", len(gantt.get("rows") or []) >= 0),
+        _bool_row("delay cards ≥ 0", len(delay.get("cards") or []) >= 0),
+        _bool_row("detail rows ≥ 0", len(delay.get("detail_rows") or []) >= 0),
+        _bool_row("summary rows ≥ 0", len(delay.get("summary_rows") or []) >= 0),
+        _meta_row("granularity default", "week", applied.get("granularity") or "week"),
+        _meta_row("view_mode default", "project", applied.get("view_mode") or "project"),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -625,6 +656,7 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "project-schedule": check_project_schedule,
     "deviation-reasons": check_deviation_reasons,
     "baseline-deviation": check_baseline_deviation,
+    "project-documentation": check_project_documentation,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,

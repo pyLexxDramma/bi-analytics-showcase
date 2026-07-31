@@ -13,6 +13,7 @@ export const CHART_RU = {
   planEnd: "Окончание",
   planBp: "План по проекту (БП)",
   forecast: "Прогноз по проекту",
+  factLine: "Факт",
   total: "Всего",
   overdue: "Просрочено",
   newDocs: "Новых документов",
@@ -81,11 +82,16 @@ export function withRuReasonCount<
 }
 
 export function withRuDocDynamics<
-  T extends { plan_bp: number; forecast: number } & Record<string, string | number>,
+  T extends {
+    plan_bp: number;
+    forecast: number;
+    fact?: number;
+  } & Record<string, string | number>,
 >(rows: T[]) {
   return rows.map((row) => ({
     ...row,
     [CHART_RU.planBp]: row.plan_bp,
     [CHART_RU.forecast]: row.forecast,
+    [CHART_RU.factLine]: row.fact ?? 0,
   }));
 }

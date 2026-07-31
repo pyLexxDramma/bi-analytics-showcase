@@ -952,16 +952,25 @@ export type ProjectDocumentationPayload = {
     doc_kind: string;
     title: string;
     rule?: string;
+    parity?: string;
+    version_id?: number | null;
+    error?: string | null;
   };
   filters: {
     projects: string[];
     sections: string[];
+    periods: string[];
     granularities: Array<{ id: string; label: string }>;
+    view_modes: Array<{ id: string; label: string }>;
+    status_legend: Array<{ id: string; label: string; tone: string }>;
     applied: {
       project: string;
       section: string;
+      period: string;
       granularity: string;
       report_date: string;
+      view_mode: string;
+      tab: string;
     };
   };
   kpis: {
@@ -971,17 +980,27 @@ export type ProjectDocumentationPayload = {
     deviation_to_date: number;
     current_productivity: number;
     required_productivity: number;
+    productivity_label?: string;
+    required_label?: string;
   };
   tremor: {
-    status_mix: Array<{ name: string; value: number }>;
+    status_mix: Array<{ name: string; value: number; color?: string }>;
     dynamics: Array<{
       period: string;
       period_label: string;
       plan_bp: number;
       forecast: number;
+      fact?: number;
+    }>;
+    monthly: Array<{
+      month: string;
+      month_label: string;
+      plan: number;
+      fact: number;
     }>;
   };
   rows: Array<{
+    n?: number;
     project: string;
     section: string;
     task: string;
@@ -991,14 +1010,66 @@ export type ProjectDocumentationPayload = {
     dev_end_days: number | null;
     pct_complete: number | null;
     status: string;
+    ahead?: boolean;
   }>;
+  delay: {
+    gantt: {
+      rows: Array<{
+        label: string;
+        start: string;
+        base_finish: string;
+        finish: string | null;
+        delay_end: string | null;
+        base_dur: number;
+        fact_dur: number;
+        delay_dur: number;
+        base_label: string;
+        finish_label: string;
+      }>;
+      range_start: string | null;
+      range_end: string | null;
+      legend?: Array<{ id: string; label: string; color: string }>;
+    };
+    cards: Array<{
+      project: string;
+      overdue: number;
+      label: string;
+      tone: string;
+    }>;
+    detail_rows: Array<{
+      project: string;
+      work_name: string;
+      section: string;
+      status: string;
+      start: string;
+      base_start: string;
+      finish: string;
+      base_finish: string;
+      dev_start: string;
+      dev_start_days: number | null;
+      dev_end: string;
+      dev_end_days: number | null;
+    }>;
+    detail_columns: string[];
+    summary_rows: Array<{
+      project: string;
+      plan: number;
+      fact: number;
+      overdue: number;
+      overdue_label: string;
+    }>;
+    summary_columns: string[];
+  };
 };
 
 export type ProjectDocumentationQuery = {
   project?: string;
   section?: string;
+  period?: string;
   granularity?: string;
   report_date?: string;
+  view_mode?: string;
+  tab?: string;
 };
 
 export async function fetchProjectDocumentation(
