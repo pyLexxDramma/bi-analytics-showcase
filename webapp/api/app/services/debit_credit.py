@@ -61,6 +61,15 @@ def _empty(message: str | None = None) -> dict[str, Any]:
             "advance_ks2": 0,
             "advance_pct": None,
         },
+        "kpis": {
+            "contract_sum": 0,
+            "advance": 0,
+            "ks2": 0,
+            "fulfilled": 0,
+            "paid": 0,
+            "balance": 0,
+            "advance_ks2": 0,
+        },
     }
 
 
@@ -409,4 +418,13 @@ def build_debit_credit_payload(
         },
         "rows": rows,
         "totals": totals,
+        "kpis": {
+            "contract_sum": totals["contract_sum"],
+            "advance": totals["advance"],
+            "ks2": totals["ks2"],
+            "fulfilled": totals["fulfilled"],
+            "paid": totals["paid"],
+            "balance": totals["balance"],
+            "advance_ks2": totals["advance_ks2"],
+        },
     }
