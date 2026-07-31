@@ -42,8 +42,8 @@
 | 7 | График проекта | `/timeline/project-schedule` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; гант: колонка имён слева, без выбросов/нулевых полос |
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; доля+динамика Tremor; см. §8 |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; Plotly end-bars РД; см. §9 |
-| 10 | Проектная документация | `/docs/project-documentation` | 🔄 задеплоено 31.07.2026, ждёт приёмки на стенде | ✓ CSV+xlsx (3 таблицы) | ✓ | БД через core_bridge; обе вкладки; см. §10 |
-| 11 | Рабочая документация | `/docs/working-documentation` | ⬜ | ✗ | ✗ | читает `web/` — техдолг |
+| 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx (3 таблицы) | ✓ | БД через core_bridge; обе вкладки; см. §10 |
+| 11 | Рабочая документация | `/docs/working-documentation` | 🔄 в работе | ✗ | ✗ | читает `web/` — техдолг; см. §11 |
 | 12 | ГДРС (люди) | `/gdrs/people` | ⬜ | ✗ | ✗ | тяжёлый экран, был OOM на VPS |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ⬜ | ✗ | ✗ | тяжёлый экран, был OOM на VPS |
 | 14 | Предписания по подрядчикам | `/prescriptions` | ⬜ | ✗ | ✗ | читает `web/` — техдолг |
@@ -368,7 +368,7 @@ Plotly+зум, две таблицы, Скачать, жёлтый баннер.
 
 ### Черновик 31.07.2026
 
-Статус: 🔄 задеплоено 31.07.2026, ждёт приёмки на стенде.
+Статус: ✅ принято на стенде 31.07.2026.
 
 - Источник: активная версия `web_data.db` через `core_bridge.load_msp_frame` + `project_labels`; чтение `web/` убрано (`KNOWN_DEBT` documentation.py снят).
 - Маршрут: `/docs/project-documentation`; API `GET /api/project-documentation`.
