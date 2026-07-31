@@ -702,22 +702,28 @@ export async function fetchProjectSchedule(
 export type DeviationReasonsPayload = {
   meta: {
     rows: number;
+    chart_rows?: number;
     source: string;
     data_mode: string;
-    files: number;
+    parity?: string;
+    version_id?: number | null;
     rule?: string;
+    error?: string | null;
   };
   filters: {
     projects: string[];
     blocks: string[];
+    buildings: string[];
     reasons: string[];
     period: { min: string | null; max: string | null };
     applied: {
       project: string;
       block: string;
+      building: string;
       reason: string;
       date_from: string | null;
       date_to: string | null;
+      top5: boolean;
     };
   };
   kpis: {
@@ -732,36 +738,78 @@ export type DeviationReasonsPayload = {
       reason_full: string;
       count: number;
       pct: number;
+      label: string;
     }>;
-    reason_mix: Array<{ name: string; value: number }>;
+    reason_mix: Array<{ name: string; value: number; color?: string }>;
+    dynamics: {
+      by_project_charts: Array<{
+        project: string;
+        categories: string[];
+        colors: Record<string, string>;
+        rows: Array<Record<string, string | number>>;
+      }>;
+      project_month_rows: Array<{
+        project: string;
+        period: string;
+        period_key: string;
+        count: number;
+      }>;
+      project_month_total: number;
+      by_project_stack: Array<Record<string, string | number>>;
+      stack_projects: string[];
+      stack_colors: Record<string, string>;
+      summary_rows: Array<{
+        project: string;
+        reason: string;
+        count: number;
+        days: number;
+      }>;
+      summary_totals: { count: number; days: number };
+      period_label: string;
+    };
   };
   rows: Array<{
     task_id: string | null;
     project: string;
     block: string | null;
+    task: string | null;
     building: string | null;
     base_end: string | null;
     plan_end: string | null;
-    end_diff_days: number;
+    end_diff_days: number | null;
     reason: string;
     bucket: string;
     bucket_color: string;
     notes: string | null;
   }>;
+  columns?: string[];
 };
 
 export type DeviationReasonsQuery = {
   project?: string;
   block?: string;
+  building?: string;
   reason?: string;
   date_from?: string;
   date_to?: string;
+  top5?: boolean;
 };
 
 export async function fetchDeviationReasons(
   query: DeviationReasonsQuery = {},
 ): Promise<DeviationReasonsPayload> {
-  return apiGet<DeviationReasonsPayload>("/api/deviation-reasons", { ...query });
+  const params: Record<string, string | undefined> = {
+    project: query.project,
+    block: query.block,
+    building: query.building,
+    reason: query.reason,
+    date_from: query.date_from,
+    date_to: query.date_to,
+  };
+  if (query.top5 !== undefined) {
+    params.top5 = String(query.top5);
+  }
+  return apiGet<DeviationReasonsPayload>("/api/deviation-reasons", params);
 }
 
 export type BaselineDeviationPayload = {

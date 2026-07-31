@@ -523,6 +523,44 @@ def check_project_schedule(base: str, timeout: float) -> list[tuple[str, Any, An
     ]
 
 
+def check_deviation_reasons(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    vid, _ = _reference_frame()
+    api = _api_get(base, "/api/deviation-reasons", timeout)
+    meta = api.get("meta") or {}
+    filters = api.get("filters") or {}
+    applied = filters.get("applied") or {}
+    kpis = api.get("kpis") or {}
+    tremor = api.get("tremor") or {}
+    rows = api.get("rows") or []
+    by_reason = tremor.get("by_reason") or []
+    return [
+        _info_row("активная версия", vid, meta.get("version_id")),
+        _meta_row("meta.error", None, meta.get("error") or None),
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_deviation_reasons", meta.get("parity")),
+        _bool_row("строк таблицы ≥ 0", len(rows) >= 0),
+        _bool_row("проектов в фильтре > 1", len(filters.get("projects") or []) > 1),
+        _bool_row("причин в фильтре ≥ 1", len(filters.get("reasons") or []) >= 1),
+        _meta_row("top5 default", False, bool(applied.get("top5"))),
+        _bool_row(
+            "KPI/график согласованы",
+            (not by_reason and int(kpis.get("main_reason_count") or 0) == 0)
+            or (
+                int(kpis.get("main_reason_count") or 0) == int(by_reason[0].get("count") or 0)
+                if by_reason
+                else True
+            ),
+        ),
+        _bool_row("dynamics object", isinstance(tremor.get("dynamics"), dict)),
+        _bool_row(
+            "dynamics facets/table",
+            isinstance((tremor.get("dynamics") or {}).get("by_project_charts"), list)
+            and isinstance((tremor.get("dynamics") or {}).get("project_month_rows"), list)
+            and isinstance((tremor.get("dynamics") or {}).get("summary_rows"), list),
+        ),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -552,6 +590,7 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "developer-projects": check_developer_projects,
     "control-points": check_control_points,
     "project-schedule": check_project_schedule,
+    "deviation-reasons": check_deviation_reasons,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,
