@@ -1,49 +1,216 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Grid, Metric, Text, Title } from "@tremor/react";
+import { Card, Text, Title } from "@tremor/react";
 import {
   fetchBaselineDeviation,
   type BaselineDeviationPayload,
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
-import { CHART_RU } from "@/lib/chart-ru";
+import { BaselineDeviationChart } from "@/components/baseline-deviation-chart";
+import { DownloadTableButton } from "@/components/download-table-button";
+import { FullscreenPanel } from "@/components/fullscreen-panel";
+import type { ExportCell, ExportTable } from "@/lib/table-export";
 
-function toMs(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? ms : null;
-}
+const INITIAL = {
+  project: "Все",
+  block: "Все",
+  building: "Все",
+  level: "4",
+  reason: "Все",
+  showReasons: true,
+  hideCompleted: false,
+  onlyCovenants: false,
+  onlyNegEnd: false,
+  showDur: true,
+  labelMode: "name",
+};
 
-function endBarStyle(
-  endIso: string | null | undefined,
-  rangeStart: number,
-  rangeSpan: number,
-): { left: string; width: string } | null {
-  const end = toMs(endIso);
-  if (end == null || rangeSpan <= 0) return null;
-  const width = Math.max(((end - rangeStart) / rangeSpan) * 100, 0.4);
-  return {
-    left: "0%",
-    width: `${Math.max(0.4, Math.min(width, 100))}%`,
-  };
-}
+const TH =
+  "whitespace-nowrap border border-[#cbd5e1] bg-[#f3f4f6] px-2.5 py-2 text-center font-bold text-[#111827] dark:border-[#334155] dark:bg-[hsl(209,72%,6%)] dark:text-[#fafafa]";
+const TD =
+  "border border-[#cbd5e1] px-2.5 py-1.5 text-center align-middle dark:border-[#334155]";
+const DATE_BG = "bg-[rgba(156,194,229,0.28)] dark:bg-[rgba(214,234,248,0.14)]";
+const DATE_COLS = new Set([
+  "Окончание",
+  "Базовое окончание",
+  "Отклонение",
+  "Базовое начало",
+  "Начало",
+  "Откл. начала",
+  "Откл. окончания",
+  "Длительность",
+  "Баз. длит.",
+  "Откл. длит.",
+]);
+
+type Row = BaselineDeviationPayload["rows"][number] & { _index: number };
+type SortState = { key: string; asc: boolean } | null;
 
 function deviationClass(days: number | null | undefined): string {
-  if (days == null) return "text-tremor-content dark:text-dark-tremor-content";
-  if (days < 0) return "font-semibold text-rose-700 dark:text-rose-300";
-  if (days === 0) return "font-semibold text-emerald-700 dark:text-emerald-300";
-  return "text-tremor-content-strong dark:text-dark-tremor-content-strong";
+  if (days == null) return "";
+  if (days < 0) return "font-bold text-[hsl(348,100%,45%)] dark:text-[#ff5454]";
+  if (days === 0) return "font-bold text-[#6b7280] dark:text-[#8899aa]";
+  return "font-bold text-[#15803d] dark:text-[#46d68a]";
+}
+
+function plateDevClass(days: number | null | undefined): string {
+  if (days == null) return "";
+  if (days < 0) return "text-rose-600 dark:text-rose-400";
+  if (days === 0) return "text-emerald-600 dark:text-emerald-400";
+  return "";
+}
+
+function cellValue(row: Row, col: string): string | number {
+  switch (col) {
+    case "ID задачи":
+      return row.task_id ?? "";
+    case "Проект":
+      return row.project ?? "";
+    case "Функциональный блок":
+    case "Функц. блок":
+      return row.block ?? "";
+    case "Название":
+    case "Задача":
+      return row.task ?? "";
+    case "Строение":
+      return row.building ?? "";
+    case "Окончание":
+      return row.plan_end ?? "";
+    case "Базовое окончание":
+      return row.base_end ?? "";
+    case "Отклонение":
+    case "Откл. окончания":
+      return row.dev_end_days ?? row.dev_end ?? "";
+    case "Причина отклонения":
+      return row.reason ?? "";
+    case "Заметки":
+      return row.notes ?? "";
+    case "Базовое начало":
+      return row.base_start ?? "";
+    case "Начало":
+      return row.plan_start ?? "";
+    case "Откл. начала":
+      return row.dev_start_days ?? row.dev_start ?? "";
+    case "Длительность":
+      return row.plan_dur_days ?? "";
+    case "Баз. длит.":
+      return row.base_dur_days ?? "";
+    case "Откл. длит.":
+      return row.dev_dur_days ?? row.dev_dur ?? "";
+    default:
+      return "";
+  }
+}
+
+function sortKeyForCol(col: string): string {
+  const map: Record<string, string> = {
+    "ID задачи": "task_id",
+    Проект: "project",
+    "Функциональный блок": "block",
+    "Функц. блок": "block",
+    Название: "task",
+    Задача: "task",
+    Строение: "building",
+    Окончание: "plan_end",
+    "Базовое окончание": "base_end",
+    Отклонение: "dev_end_days",
+    "Откл. окончания": "dev_end_days",
+    "Причина отклонения": "reason",
+    Заметки: "notes",
+    "Базовое начало": "base_start",
+    Начало: "plan_start",
+    "Откл. начала": "dev_start_days",
+    Длительность: "plan_dur_days",
+    "Баз. длит.": "base_dur_days",
+    "Откл. длит.": "dev_dur_days",
+  };
+  return map[col] ?? col;
+}
+
+function compareRows(a: Row, b: Row, key: string): number {
+  const av = (a as Record<string, unknown>)[key];
+  const bv = (b as Record<string, unknown>)[key];
+  if (av == null && bv == null) return a._index - b._index;
+  if (av == null) return 1;
+  if (bv == null) return -1;
+  if (typeof av === "number" && typeof bv === "number") return av - bv;
+  const as = String(av);
+  const bs = String(bv);
+  if (key.includes("end") || key.includes("start") || key.includes("plan") || key.includes("base")) {
+    if (as.includes(".") && bs.includes(".")) {
+      const am = Date.parse(as.split(".").reverse().join("-"));
+      const bm = Date.parse(bs.split(".").reverse().join("-"));
+      if (Number.isFinite(am) && Number.isFinite(bm)) return am - bm;
+    }
+  }
+  return as.localeCompare(bs, "ru", { numeric: true, sensitivity: "base" });
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  tint = false,
+}: {
+  label: string;
+  sortKey: string;
+  sort: SortState;
+  onSort: (key: string) => void;
+  tint?: boolean;
+}) {
+  const active = sort?.key === sortKey;
+  return (
+    <th className={`${TH} ${tint ? DATE_BG : ""}`}>
+      <button
+        type="button"
+        title="Сортировать по колонке"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex w-full items-center justify-center gap-1"
+      >
+        <span>{label}</span>
+        <span className={active ? "text-emerald-700 dark:text-emerald-300" : "opacity-60"}>
+          {active ? (sort?.asc ? "↑" : "↓") : "⇅"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+function displayDev(row: Row, col: string): string {
+  const raw = cellValue(row, col);
+  if (raw === "" || raw == null) return "—";
+  if (typeof raw === "number") {
+    if (col.includes("Откл") || col === "Отклонение") {
+      return raw > 0 ? `+${raw}` : String(raw);
+    }
+    return String(raw);
+  }
+  return String(raw) || "—";
+}
+
+function buildExport(
+  columns: string[],
+  rows: BaselineDeviationPayload["rows"],
+): ExportTable {
+  const body: ExportCell[][] = rows.map((row) =>
+    columns.map((col) => {
+      const indexed = { ...row, _index: 0 };
+      const v = cellValue(indexed, col);
+      return v === "" || v == null ? "" : v;
+    }),
+  );
+  return { header: [columns], rows: body, sheetName: "Отклонение от БП" };
 }
 
 export function BaselineDeviationView() {
-  const [project, setProject] = useState("Все");
-  const [block, setBlock] = useState("Все");
-  const [building, setBuilding] = useState("Все");
-  const [level, setLevel] = useState("4");
+  const [filters, setFilters] = useState(INITIAL);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [data, setData] = useState<BaselineDeviationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tableSort, setTableSort] = useState<SortState>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,321 +218,453 @@ export function BaselineDeviationView() {
     try {
       setData(
         await fetchBaselineDeviation({
-          project,
-          block,
-          building,
-          level,
+          project: filters.project,
+          block: filters.block,
+          building: filters.building,
+          level: filters.level,
+          reason: filters.reason,
+          show_reasons: filters.showReasons,
+          hide_completed: filters.hideCompleted,
+          only_covenants: filters.onlyCovenants,
+          only_neg_end: filters.onlyNegEnd,
+          show_dur: filters.showDur,
+          label_mode: filters.labelMode,
         }),
       );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [project, block, building, level]);
+  }, [filters]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const range = useMemo(() => {
-    const start = toMs(data?.chart.range_start);
-    const end = toMs(data?.chart.range_end);
-    if (start == null || end == null || end <= start) return null;
-    return { start, span: end - start };
-  }, [data]);
-
+  const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);
   const selectClass =
     "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
 
+  const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
+  const showDur = data?.filters.applied.show_dur ?? filters.showDur;
+  const columns = useMemo(() => {
+    if (data?.columns?.length) return data.columns;
+    if (showReasons) {
+      return [
+        "ID задачи",
+        "Проект",
+        "Функциональный блок",
+        "Название",
+        "Строение",
+        "Окончание",
+        "Базовое окончание",
+        "Отклонение",
+        "Причина отклонения",
+        "Заметки",
+      ];
+    }
+    return [
+      "Проект",
+      "Задача",
+      "ID задачи",
+      "Функц. блок",
+      "Строение",
+      "Базовое начало",
+      "Начало",
+      "Откл. начала",
+      "Базовое окончание",
+      "Окончание",
+      "Откл. окончания",
+      "Длительность",
+      "Баз. длит.",
+      ...(showDur ? ["Откл. длит."] : []),
+    ];
+  }, [data?.columns, showReasons, showDur]);
+
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
+  const sortedRows = useMemo(() => {
+    const indexed: Row[] = rows.map((row, index) => ({ ...row, _index: index }));
+    if (!tableSort) return indexed;
+    return [...indexed].sort((a, b) => {
+      const diff = compareRows(a, b, tableSort.key);
+      return tableSort.asc ? diff : -diff;
+    });
+  }, [rows, tableSort]);
+
+  const toggleSort = useCallback((key: string) => {
+    setTableSort((prev) => {
+      if (!prev || prev.key !== key) return { key, asc: true };
+      if (prev.asc) return { key, asc: false };
+      return null;
+    });
+  }, []);
+
+  const exportTable = useMemo(() => buildExport(columns, rows), [columns, rows]);
+  const metaError = data?.meta?.error as string | undefined;
+  const plates = data?.kpis.plates ?? [];
+  const tableTitle = showReasons
+    ? "Причины отклонений (таблица)"
+    : "Отклонение от базового плана (таблица)";
+
   return (
-    <AppShell
-      title="Отклонение от базового плана"
-      subtitle="Сравнение базовых дат и текущего плана MSP (откл. = база − план)"
-    >
+    <AppShell title="Отклонение от базового плана">
       <Card className="mb-6 rounded-xl">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <label className="block text-sm">
-            <Text>Проект</Text>
-            <select
-              className={selectClass}
-              value={project}
-              onChange={(event) => setProject(event.target.value)}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((value) => !value)}
+          aria-expanded={filtersOpen}
+          className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
+        >
+          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
+          Фильтры
+        </button>
+        {filtersOpen ? (
+          <div className="mt-3 space-y-4">
+            <button
+              type="button"
+              disabled={!dirty}
+              onClick={() => setFilters(INITIAL)}
+              className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
             >
-              {(data?.filters.projects ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <Text>Блок</Text>
-            <select
-              className={selectClass}
-              value={block}
-              onChange={(event) => setBlock(event.target.value)}
-            >
-              {(data?.filters.blocks ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <Text>Строение</Text>
-            <select
-              className={selectClass}
-              value={building}
-              onChange={(event) => setBuilding(event.target.value)}
-            >
-              {(data?.filters.buildings ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <Text>Детализация</Text>
-            <select
-              className={selectClass}
-              value={level}
-              disabled={Boolean(data?.filters.applied.level_skipped)}
-              onChange={(event) => setLevel(event.target.value)}
-            >
-              {(data?.filters.levels ?? []).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <Text className="mt-3">
-          Режим данных: <b>{data?.meta.data_mode ?? "…"}</b>
-          {" · "}
-          {loading
-            ? "загрузка…"
-            : `${data?.meta.files ?? 0} файлов · таблица ${data?.meta.rows ?? 0} · гант ${data?.meta.chart_rows ?? 0}`}
-          {data?.chart.capped ? " · график ограничен 400 строками" : null}
-        </Text>
+              Сбросить
+            </button>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <label className="block text-sm">
+                <Text>Проект</Text>
+                <select
+                  className={selectClass}
+                  value={filters.project}
+                  onChange={(event) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      project: event.target.value,
+                      building: "Все",
+                    }))
+                  }
+                >
+                  {(data?.filters.projects ?? ["Все"]).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <Text>Функциональный блок</Text>
+                <select
+                  className={selectClass}
+                  value={filters.block}
+                  onChange={(event) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      block: event.target.value,
+                      building: "Все",
+                    }))
+                  }
+                >
+                  {(data?.filters.blocks ?? ["Все"]).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <Text>Строение</Text>
+                <select
+                  className={selectClass}
+                  value={filters.building}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, building: event.target.value }))
+                  }
+                >
+                  {(data?.filters.buildings ?? ["Все"]).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <Text>Детализация</Text>
+                <select
+                  className={selectClass}
+                  value={filters.level}
+                  disabled={
+                    Boolean(data?.filters.applied.level_skipped) ||
+                    filters.showReasons ||
+                    filters.onlyCovenants
+                  }
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, level: event.target.value }))
+                  }
+                >
+                  {(data?.filters.levels ?? []).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <Text>Причина отклонения (категория)</Text>
+                <select
+                  className={selectClass}
+                  value={filters.reason}
+                  disabled={filters.onlyCovenants || (data?.filters.reasons.length ?? 1) <= 1}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, reason: event.target.value }))
+                  }
+                >
+                  {(data?.filters.reasons ?? ["Все"]).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.showReasons}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, showReasons: event.target.checked }))
+                  }
+                />
+                <Text>Показать причины отклонений</Text>
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.hideCompleted}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, hideCompleted: event.target.checked }))
+                  }
+                />
+                <Text>Скрыть завершённые (100%)</Text>
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.onlyCovenants}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, onlyCovenants: event.target.checked }))
+                  }
+                />
+                <Text>Только ковенанты</Text>
+              </label>
+              <label className="flex items-center gap-2 text-sm md:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={filters.onlyNegEnd}
+                  disabled={filters.showReasons}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, onlyNegEnd: event.target.checked }))
+                  }
+                />
+                <Text>Отображать только диаграммы, где отклонение окончания &lt; 0</Text>
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.showDur}
+                  disabled={filters.showReasons}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, showDur: event.target.checked }))
+                  }
+                />
+                <Text>Показать «Отклонение длительности» в таблице</Text>
+              </label>
+            </div>
+            {(data?.filters.has_lot ?? false) ? (
+              <fieldset className="text-sm">
+                <Text>Подписи на графике и в таблице</Text>
+                <div className="mt-2 flex flex-wrap gap-4">
+                  {(data?.filters.label_modes ?? []).map((mode) => (
+                    <label key={mode.id} className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="label-mode"
+                        checked={filters.labelMode === mode.id}
+                        onChange={() =>
+                          setFilters((prev) => ({ ...prev, labelMode: mode.id }))
+                        }
+                      />
+                      <span>{mode.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+          </div>
+        ) : null}
       </Card>
 
-      {error ? (
+      {error || metaError ? (
         <Card className="mb-6 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">
           <Text className="text-rose-700 dark:text-rose-300">
-            API недоступен. {error}
+            {error ?? metaError}
           </Text>
         </Card>
       ) : null}
 
       <div className="space-y-6">
-        <Grid numItemsSm={1} numItemsLg={2} className="gap-6">
-          <Card className="rounded-xl">
-            <Text>Максимальное отклонение (дней)</Text>
-            <Metric className="mt-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
-              {data?.kpis.max_abs_dev_days ?? 0}
-            </Metric>
-          </Card>
-          <Card className="rounded-xl">
-            <Text>Задач с отставанием окончания</Text>
-            <Metric className="mt-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
-              {data?.meta.rows ?? 0}
-            </Metric>
-          </Card>
-        </Grid>
-
-        <Card className="overflow-hidden rounded-xl p-0">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              ЗОС по проектам
-            </Title>
-            <Text className="mt-1">
-              Базовое окончание / текущее окончание / отклонение
-            </Text>
-          </div>
-          <div className="overflow-x-auto">
-            {(data?.kpis.zos_rows.length ?? 0) === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                Задачи ЗОС не найдены в выбранном срезе.
-              </div>
-            ) : (
-              <table className="min-w-full text-left text-xs">
-                <thead className="bg-tremor-background-subtle text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
-                  <tr>
-                    {["Проект", "Задача", "Баз. окончание", "Окончание", "Откл."].map(
-                      (label) => (
-                        <th key={label} className="px-3 py-2 font-semibold">
-                          {label}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.kpis.zos_rows ?? []).map((row) => (
-                    <tr
-                      key={row.project}
-                      className="border-t border-tremor-border dark:border-dark-tremor-border"
-                    >
-                      <td className="px-3 py-2 font-medium">{row.project}</td>
-                      <td className="max-w-sm truncate px-3 py-2">{row.task}</td>
-                      <td className="px-3 py-2 tabular-nums">{row.base_end ?? "—"}</td>
-                      <td className="px-3 py-2 tabular-nums">{row.plan_end ?? "—"}</td>
-                      <td className={`px-3 py-2 tabular-nums ${deviationClass(row.dev_end_days)}`}>
-                        {row.dev_end}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-
-        <Card className="rounded-xl">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                Базовое окончание vs окончание
-              </Title>
-              <Text className="mt-1">
-                Столбцы от начала шкалы до даты окончания
-              </Text>
-            </div>
-            <div className="flex gap-4 text-sm">
-              <span className="inline-flex items-center gap-2">
-                <span className="inline-block h-2.5 w-6 rounded bg-teal-500" />
-                {CHART_RU.baseEnd}
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="inline-block h-2.5 w-6 rounded bg-orange-400" />
-                {CHART_RU.planEnd}
-              </span>
-            </div>
-          </div>
-
-          {(data?.chart.rows.length ?? 0) === 0 || !range ? (
-            <div className="py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-              Нет задач для графика.
-            </div>
+        <div>
+          <Title className="mb-3 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            {data?.kpis.metric_task ?? "ЗОС"}
+          </Title>
+          {loading && !data ? (
+            <Text>загрузка…</Text>
+          ) : plates.length === 0 ? (
+            <Text>Нет данных для плашек KPI.</Text>
           ) : (
-            <div className="max-h-[34rem] overflow-auto rounded-lg border border-tremor-border dark:border-dark-tremor-border">
-              <div className="min-w-[720px]">
-                {(data?.chart.rows ?? []).map((row) => {
-                  const base = endBarStyle(row.base_end, range.start, range.span);
-                  const plan = endBarStyle(row.plan_end, range.start, range.span);
-                  return (
-                    <div
-                      key={`${row.project}-${row.task}`}
-                      className="grid grid-cols-[minmax(14rem,22rem)_1fr] border-b border-tremor-border dark:border-dark-tremor-border"
-                    >
-                      <div className="sticky left-0 z-10 truncate border-r border-tremor-border bg-tremor-background px-3 py-2 text-xs font-medium dark:border-dark-tremor-border dark:bg-dark-tremor-background">
-                        {row.label}
-                      </div>
-                      <div className="relative h-12 bg-slate-50 px-2 dark:bg-slate-900/40">
-                        {base ? (
-                          <div
-                            className="absolute top-2 h-3 rounded bg-teal-500/90"
-                            style={base}
-                            title={`${CHART_RU.baseEnd}: ${row.base_end}`}
-                          />
-                        ) : null}
-                        {plan ? (
-                          <div
-                            className="absolute bottom-2 h-3 rounded bg-orange-400/90"
-                            style={plan}
-                            title={`${CHART_RU.planEnd}: ${row.plan_end}`}
-                          />
-                        ) : null}
-                      </div>
+            <div className="space-y-2">
+              {plates.map((plate, index) => (
+                <div
+                  key={`${plate.project ?? "one"}-${index}`}
+                  className="grid gap-2 rounded-lg border border-tremor-border bg-tremor-background px-3 py-2.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background md:grid-cols-2 xl:grid-cols-5"
+                >
+                  {plate.project ? (
+                    <div>
+                      <Text className="!text-xs">Проект</Text>
+                      <p className="mt-0.5 text-base font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                        {plate.project}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
+                  ) : null}
+                  <div>
+                    <Text className="!text-xs">План окончания проекта</Text>
+                    <p className="mt-0.5 text-xl font-bold tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                      {plate.plan_end ?? "Н/Д"}
+                    </p>
+                  </div>
+                  <div>
+                    <Text className="!text-xs">Факт окончания проекта</Text>
+                    <p className="mt-0.5 text-xl font-bold tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                      {plate.fact_end ?? "Н/Д"}
+                    </p>
+                  </div>
+                  <div>
+                    <Text className="!text-xs">Отклонение</Text>
+                    <p
+                      className={`mt-0.5 text-xl font-bold tabular-nums ${plateDevClass(plate.dev_days)}`}
+                    >
+                      {plate.dev ?? "Н/Д"}
+                    </p>
+                  </div>
+                  <div>
+                    <Text className="!text-xs">Максимальное отклонение (дней)</Text>
+                    <p
+                      className={`mt-0.5 text-xl font-bold tabular-nums ${
+                        (plate.max_abs_dev_days ?? 0) > 0
+                          ? "text-rose-600 dark:text-rose-400"
+                          : ""
+                      }`}
+                    >
+                      {plate.max_abs_dev_days ?? "Н/Д"}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
+        </div>
+
+        <Card className="rounded-xl">
+          <FullscreenPanel fill disabled={(data?.chart.rows.length ?? 0) === 0}>
+            {(zoomed) =>
+              data && (data.chart.rows.length ?? 0) > 0 ? (
+                <div className="pt-8">
+                  <BaselineDeviationChart data={data} fullscreen={zoomed} />
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                  {loading ? "загрузка…" : "Нет задач для графика."}
+                </div>
+              )
+            }
+          </FullscreenPanel>
         </Card>
 
         <Card className="overflow-hidden rounded-xl p-0">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Отклонение от базового плана (таблица)
-            </Title>
-            <Text className="mt-1">Только задачи с отставанием окончания</Text>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+            <div>
+              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+                {tableTitle}
+              </Title>
+              <Text className="mt-1">
+                {loading
+                  ? "загрузка…"
+                  : `Записей: ${rows.length}${
+                      showReasons
+                        ? " · ур.5 · причина · откл. окончания < 0"
+                        : " · только откл. окончания < 0"
+                    }`}
+              </Text>
+            </div>
           </div>
-          <div className="max-h-[28rem] overflow-auto">
-            {(data?.rows.length ?? 0) === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                Нет строк с отставанием по выбранным фильтрам.
-              </div>
-            ) : (
-              <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
-                <thead className="sticky top-0 z-20 bg-tremor-background-subtle text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
-                  <tr>
-                    {[
-                      "Проект",
-                      "ID",
-                      "Задача",
-                      "Блок",
-                      "Баз. начало",
-                      "Начало",
-                      "Откл. нач.",
-                      "Баз. оконч.",
-                      "Окончание",
-                      "Откл. оконч.",
-                      "Баз. длит.",
-                      "Длит.",
-                      "Откл. длит.",
-                    ].map((label) => (
-                      <th
-                        key={label}
-                        className="whitespace-nowrap border-b border-tremor-border px-3 py-2 font-semibold dark:border-dark-tremor-border"
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.rows ?? []).map((row, index) => (
-                    <tr
-                      key={`${row.project}-${row.task_id ?? row.task}-${index}`}
-                      className="border-b border-tremor-border dark:border-dark-tremor-border"
-                    >
-                      <td className="whitespace-nowrap px-3 py-2 font-medium">
-                        {row.project}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">{row.task_id ?? "—"}</td>
-                      <td className="max-w-xs truncate px-3 py-2">{row.task}</td>
-                      <td className="px-3 py-2">{row.block ?? "—"}</td>
-                      <td className="px-3 py-2 tabular-nums">{row.base_start ?? "—"}</td>
-                      <td className="px-3 py-2 tabular-nums">{row.plan_start ?? "—"}</td>
-                      <td className={`px-3 py-2 tabular-nums ${deviationClass(row.dev_start_days)}`}>
-                        {row.dev_start}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">{row.base_end ?? "—"}</td>
-                      <td className="px-3 py-2 tabular-nums">{row.plan_end ?? "—"}</td>
-                      <td className={`px-3 py-2 tabular-nums ${deviationClass(row.dev_end_days)}`}>
-                        {row.dev_end}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">
-                        {row.base_dur_days ?? "—"}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">
-                        {row.plan_dur_days ?? "—"}
-                      </td>
-                      <td className={`px-3 py-2 tabular-nums ${deviationClass(row.dev_dur_days)}`}>
-                        {row.dev_dur}
-                      </td>
+          <FullscreenPanel disabled={rows.length === 0}>
+            <div className="max-h-[36rem] overflow-auto pt-8">
+              {rows.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                  Нет строк по выбранным фильтрам.
+                </div>
+              ) : (
+                <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
+                  <thead className="sticky top-0 z-20">
+                    <tr>
+                      {columns.map((label) => (
+                        <SortHeader
+                          key={label}
+                          label={label}
+                          sortKey={sortKeyForCol(label)}
+                          sort={tableSort}
+                          onSort={toggleSort}
+                          tint={DATE_COLS.has(label)}
+                        />
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {sortedRows.map((row) => (
+                      <tr key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}>
+                        {columns.map((col) => {
+                          const tint = DATE_COLS.has(col);
+                          const isDev =
+                            col === "Отклонение" ||
+                            col === "Откл. окончания" ||
+                            col === "Откл. начала" ||
+                            col === "Откл. длит.";
+                          const days =
+                            col === "Откл. начала"
+                              ? row.dev_start_days
+                              : col === "Откл. длит."
+                                ? row.dev_dur_days
+                                : row.dev_end_days;
+                          return (
+                            <td
+                              key={col}
+                              className={`${TD} ${tint ? DATE_BG : ""} ${
+                                isDev ? deviationClass(days) : ""
+                              } tabular-nums`}
+                            >
+                              {displayDev(row, col)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </FullscreenPanel>
+          <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+            <DownloadTableButton getTable={() => exportTable} fileStem="baseline_deviation" />
           </div>
         </Card>
       </div>

@@ -818,46 +818,70 @@ export type BaselineDeviationPayload = {
     chart_rows: number;
     source: string;
     data_mode: string;
-    files: number;
+    parity?: string;
+    version_id?: number | null;
     rule?: string;
+    error?: string | null;
+    mode?: string;
+    db?: Record<string, unknown>;
+    files?: number;
   };
   filters: {
     projects: string[];
     blocks: string[];
     buildings: string[];
     levels: Array<{ id: string; label: string }>;
+    reasons: string[];
+    label_modes: Array<{ id: string; label: string }>;
+    has_lot: boolean;
     applied: {
       project: string;
       block: string;
       building: string;
       level: string;
+      reason: string;
+      show_reasons: boolean;
+      hide_completed: boolean;
+      only_covenants: boolean;
+      only_neg_end: boolean;
+      show_dur: boolean;
+      label_mode: string;
       level_skipped?: boolean;
     };
   };
   kpis: {
+    metric_task: string;
     max_abs_dev_days: number;
-    zos_rows: Array<{
-      project: string;
-      task: string;
-      base_end: string | null;
+    plates: Array<{
+      project: string | null;
       plan_end: string | null;
-      dev_end_days: number;
-      dev_end: string;
+      fact_end: string | null;
+      dev_days: number | null;
+      dev: string | null;
+      max_abs_dev_days: number;
+      task?: string | null;
     }>;
   };
   chart: {
     range_start: string | null;
     range_end: string | null;
     capped: boolean;
+    kind: string;
+    caption?: string;
+    base_color?: string;
+    plan_color?: string;
     rows: Array<{
-      project: string;
+      project: string | null;
       task: string;
       label: string;
       base_end: string | null;
+      base_end_label?: string | null;
       plan_end: string | null;
+      plan_end_label?: string | null;
       dev_end_days: number | null;
     }>;
   };
+  columns: string[];
   rows: Array<{
     project: string;
     task_id: string | null;
@@ -866,16 +890,19 @@ export type BaselineDeviationPayload = {
     building: string | null;
     base_start: string | null;
     plan_start: string | null;
-    dev_start: string;
+    dev_start?: string | null;
     dev_start_days: number | null;
     base_end: string | null;
     plan_end: string | null;
-    dev_end: string;
+    dev_end?: string | null;
     dev_end_days: number | null;
     base_dur_days: number | null;
     plan_dur_days: number | null;
-    dev_dur: string;
+    dev_dur?: string | null;
     dev_dur_days: number | null;
+    reason?: string | null;
+    notes?: string | null;
+    level?: number | null;
   }>;
 };
 
@@ -884,14 +911,36 @@ export type BaselineDeviationQuery = {
   block?: string;
   building?: string;
   level?: string;
+  reason?: string;
+  show_reasons?: boolean;
+  hide_completed?: boolean;
+  only_covenants?: boolean;
+  only_neg_end?: boolean;
+  show_dur?: boolean;
+  label_mode?: string;
 };
 
 export async function fetchBaselineDeviation(
   query: BaselineDeviationQuery = {},
 ): Promise<BaselineDeviationPayload> {
-  return apiGet<BaselineDeviationPayload>("/api/baseline-deviation", {
-    ...query,
-  });
+  const params: Record<string, string | undefined> = {
+    project: query.project,
+    block: query.block,
+    building: query.building,
+    level: query.level,
+    reason: query.reason,
+    label_mode: query.label_mode,
+  };
+  if (query.show_reasons !== undefined) params.show_reasons = String(query.show_reasons);
+  if (query.hide_completed !== undefined) {
+    params.hide_completed = String(query.hide_completed);
+  }
+  if (query.only_covenants !== undefined) {
+    params.only_covenants = String(query.only_covenants);
+  }
+  if (query.only_neg_end !== undefined) params.only_neg_end = String(query.only_neg_end);
+  if (query.show_dur !== undefined) params.show_dur = String(query.show_dur);
+  return apiGet<BaselineDeviationPayload>("/api/baseline-deviation", params);
 }
 
 export type ProjectDocumentationPayload = {

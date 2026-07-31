@@ -561,6 +561,39 @@ def check_deviation_reasons(base: str, timeout: float) -> list[tuple[str, Any, A
     ]
 
 
+def check_baseline_deviation(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    vid, _ = _reference_frame()
+    api = _api_get(base, "/api/baseline-deviation", timeout)
+    meta = api.get("meta") or {}
+    filters = api.get("filters") or {}
+    applied = filters.get("applied") or {}
+    kpis = api.get("kpis") or {}
+    plates = kpis.get("plates") or []
+    chart = api.get("chart") or {}
+    chart_rows = chart.get("rows") or []
+    rows = api.get("rows") or []
+    columns = api.get("columns") or []
+    return [
+        _info_row("активная версия", vid, meta.get("version_id")),
+        _meta_row("meta.error", None, meta.get("error") or None),
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_plan_fact_dates", meta.get("parity")),
+        _meta_row("metric_task", "ЗОС", kpis.get("metric_task") or "ЗОС"),
+        _bool_row("плашек ЗОС > 0", len(plates) > 0),
+        _bool_row("строк графика ≥ 0", len(chart_rows) >= 0),
+        _bool_row("chart ≤ cap 400", len(chart_rows) <= 400),
+        _bool_row("строк таблицы ≥ 0", len(rows) >= 0),
+        _bool_row("колонок таблицы > 0", len(columns) > 0),
+        _bool_row("проектов в фильтре > 1", len(filters.get("projects") or []) > 1),
+        _meta_row("show_reasons default", True, bool(applied.get("show_reasons"))),
+        _choice_row(
+            "chart.kind",
+            {"rd_end_bars", "end_bars", "covenant_end_bars"},
+            chart.get("kind"),
+        ),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -591,6 +624,7 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "control-points": check_control_points,
     "project-schedule": check_project_schedule,
     "deviation-reasons": check_deviation_reasons,
+    "baseline-deviation": check_baseline_deviation,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,
