@@ -568,55 +568,33 @@ export type ControlPointsPayload = {
     rows: number;
     source: string;
     data_mode: string;
-    files: number;
-    rule?: string;
+    parity: string;
+    version_id: number | null;
+    cells?: number;
+    error: string | null;
+    db: Record<string, unknown>;
   };
   filters: {
     projects: string[];
     applied: { project: string };
   };
-  kpis: {
-    projects: number;
-    milestones_found: number;
-    completed_pct: number;
-    overdue: number;
-    missing_fact: number;
-  };
-  tremor: {
-    completion_by_project: Array<{
-      project: string;
-      completed: number;
-      total: number;
-      pct: number;
-    }>;
-    status_mix: Array<{ name: string; value: number }>;
-  };
-  matrix: {
+  groups: Array<{
+    id: string;
     milestones: Array<{ slug: string; title: string }>;
-    projects: Array<{
-      project: string;
-      cells: Record<
-        string,
-        {
-          plan: string | null;
-          fact: string | null;
-          otkl: string;
-          otkl_days: number | null;
-          status: "missing" | "done" | "overdue" | "on_track";
-        }
-      >;
-    }>;
-  };
-  rows: Array<{
+  }>;
+  projects: Array<{
     project: string;
-    milestone: string;
-    slug: string;
-    plan: string | null;
-    fact: string | null;
-    otkl_days: number | null;
-    otkl: string;
-    pct_complete: number | null;
-    status: "missing" | "done" | "overdue" | "on_track";
+    cells: Record<
+      string,
+      {
+        plan: string;
+        fact: string;
+        otkl: string;
+        otkl_days: number | null;
+        status: "ok" | "bad";
+        pct_complete_100: boolean;
+      }
+    >;
   }>;
 };
 

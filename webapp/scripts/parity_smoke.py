@@ -466,6 +466,30 @@ def check_developer_projects(base: str, timeout: float) -> list[tuple[str, Any, 
     ]
 
 
+def check_control_points(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    vid, _ = _reference_frame()
+    module = import_dashboard_module("dev_projects_tz_matrix")
+    frame = load_msp_frame(vid)
+    expected = module.build_control_points_df(frame, hide_completed=False)
+    api = _api_get(base, "/api/control-points", timeout)
+    projects = api.get("projects") or []
+    groups = api.get("groups") or []
+    cells_filled = sum(
+        1
+        for project in projects
+        for cell in (project.get("cells") or {}).values()
+        if cell.get("plan") not in (None, "", "Н/Д")
+        or cell.get("fact") not in (None, "", "Н/Д")
+    )
+    return [
+        _info_row("активная версия", vid, (api.get("meta") or {}).get("version_id")),
+        _meta_row("meta.error", None, (api.get("meta") or {}).get("error") or None),
+        _meta_row("проектов", len(expected), len(projects)),
+        _meta_row("групп вех", 3, len(groups)),
+        _bool_row("заполненных ячеек > 0", cells_filled > 0),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -493,6 +517,7 @@ def _bool_row(label: str, value: bool) -> tuple[str, Any, Any, bool]:
 
 CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "developer-projects": check_developer_projects,
+    "control-points": check_control_points,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,
