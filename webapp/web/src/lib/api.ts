@@ -125,9 +125,11 @@ export type DebitCreditPayload = {
   meta: {
     rows: number;
     generated_at?: string;
-    source?: string;
-    data_mode?: string;
-    pilot?: string;
+    version_id: number | null;
+    source: string;
+    data_mode: string;
+    parity: string;
+    warning: string | null;
   };
   filters: {
     projects: string[];
@@ -136,30 +138,17 @@ export type DebitCreditPayload = {
     date_max: string | null;
     applied?: Record<string, string | null | undefined>;
   };
-  kpis: {
-    contracts?: number;
-    contract_sum_mln?: number;
-    advance_mln?: number;
-    ks2_mln?: number;
-    fulfilled_mln?: number;
-    balance_mln?: number;
-    deviation_mln?: number;
-    advance_pct?: number;
-  };
   chart: {
-    categories: string[];
-    unit?: string;
-    series: Array<{
-      key: string;
-      name: string;
-      color: string;
-      values: number[];
+    rows: Array<{
+      label: string;
+      Аванс: number;
+      "КС-2": number;
+      "Отклонение ≥0": number;
+      "Отклонение <0": number;
     }>;
-  };
-  tremor?: {
-    contract_vs_advance: Array<Record<string, string | number>>;
-    advance_by_project: Array<{ project: string; advance: number }>;
-    risk_note?: string;
+    mode: "group" | "stack";
+    caption: string;
+    unit?: string;
   };
   rows: Array<{
     project: string;
@@ -172,8 +161,21 @@ export type DebitCreditPayload = {
     fulfilled: number;
     paid: number;
     balance: number;
-    deviation: number;
+    advance_ks2: number;
+    advance_pct: number | null;
+    advance_tone?: "green" | "yellow" | "red";
   }>;
+  totals: {
+    contract_sum: number;
+    advance: number;
+    ks2: number;
+    fulfilled: number;
+    paid: number;
+    balance: number;
+    advance_ks2: number;
+    advance_pct?: number | null;
+    advance_tone?: "green" | "yellow" | "red";
+  };
 };
 
 export async function fetchDebitCredit(

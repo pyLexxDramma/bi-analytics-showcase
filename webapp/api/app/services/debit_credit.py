@@ -1,305 +1,258 @@
+"""ДЗ/КЗ подрядчиков — паритет с dashboard_debit_credit из web_data.db."""
 from __future__ import annotations
 
-import json
-import math
-import re
 from datetime import date, datetime
-from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from app.services.data_paths import latest_web_file
-
-_UUID_RE = re.compile(
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+from app.config import DATA_MODE
+from app.services.core_bridge import (
+    active_version_id,
+    import_dashboard_module,
+    load_version_df,
+    prepare_web_db,
+    session_state,
 )
-_KS2_MARKERS = (
+
+_KS2_ARTICLES = {
     "поступление товаров и услуг",
     "поступление услуг из переработки",
-)
+    "поступления по основной деятельности",
+}
 
 
-def _finite(v: Any, nd: int | None = None) -> float:
+def _clean(value: Any, empty: str = "—") -> str:
+    text = str(value or "").strip()
+    return empty if not text or text.casefold() in {"nan", "none", "nat", "<na>"} else text
+
+
+def _empty(message: str | None = None) -> dict[str, Any]:
+    return {
+        "meta": {
+            "rows": 0,
+            "version_id": None,
+            "data_mode": DATA_MODE,
+            "source": "web_data.db",
+            "parity": "main_dashboard_debit_credit",
+            "warning": message,
+        },
+        "filters": {
+            "projects": ["Все"],
+            "contractors": ["Все"],
+            "date_min": None,
+            "date_max": None,
+            "applied": {},
+        },
+        "chart": {
+            "rows": [],
+            "mode": "group",
+            "caption": "Топ 0 из 0 контрагентов",
+            "unit": "млн ₽",
+        },
+        "rows": [],
+        "totals": {
+            "contract_sum": 0,
+            "advance": 0,
+            "ks2": 0,
+            "fulfilled": 0,
+            "paid": 0,
+            "balance": 0,
+            "advance_ks2": 0,
+            "advance_pct": None,
+        },
+    }
+
+
+def _semaphore(delta: float, contract_sum: float) -> dict[str, Any]:
+    """Как main `_dc_advance_*`: 🟢 ≤30%, 🟡 30–80%, 🔴 ≥80% от договора при delta>0."""
+    if contract_sum <= 0:
+        return {"tone": "green" if delta <= 0 else "red", "pct": None}
+    if delta <= 0:
+        return {"tone": "green", "pct": round(delta / contract_sum * 100, 1)}
+    ratio = delta / contract_sum
+    pct = round(ratio * 100, 1)
+    if ratio <= 0.30:
+        return {"tone": "green", "pct": pct}
+    if ratio < 0.80:
+        return {"tone": "yellow", "pct": pct}
+    return {"tone": "red", "pct": pct}
+
+
+def _prepare_frame(version_id: int) -> pd.DataFrame:
+    renderer = import_dashboard_module("_renderers")
+    work = load_version_df(version_id, "debit_credit")
+    reference = load_version_df(version_id, "reference_dannye")
+    if reference is None or reference.empty:
+        reference = load_version_df(version_id, "reference_1c_dannye")
+    if work is None or work.empty:
+        return pd.DataFrame()
+
+    work = work.copy()
+    work.columns = [str(c).strip() for c in work.columns]
+    reference = (
+        reference.copy()
+        if reference is not None
+        else pd.DataFrame()
+    )
+    if not reference.empty:
+        reference.columns = [str(c).strip() for c in reference.columns]
+    session_state()["reference_1c_dannye"] = reference
+    session_state()["reference_dannye"] = reference
+
+    find = renderer._find_col
+    to_num = renderer._to_num
+
+    contractor_col = find(
+        work,
+        [
+            "Название контрагента",
+            "Название организации",
+            "Подрядчик",
+            "Контрагент",
+            "contractor",
+        ],
+    )
+    partner_id_col = find(
+        work, ["ID_Контрагента", "Контрагент_ID_Контрагента", "Контрагент.ID_Контрагента"]
+    )
+    contract_col = find(work, ["Номер договора", "НомерДоговора", "Договор", "contract"])
+    dog_id_col = find(
+        work, ["ID_Договора", "Договор_ID_Договора", "Договор.ID_Договора", "1C_ID_DOG"]
+    )
+    project_col = find(
+        work, ["Наименование_Проекта", "Проект", "project name", "Project"]
+    )
+    date_col = find(work, ["Дата договора", "ДатаДоговора", "Дата Договора"])
+    sum_col = find(
+        work,
+        [
+            "Сумма в договоре",
+            "СуммаДоговора",
+            "Сумма_Договора",
+            "Договор_СуммаДоговора",
+            "Сумма договора",
+        ],
+    )
+    advance_col = find(work, ["Аванс", "Авансированная сумма", "ВсегоОплат_Аванс", "advance"])
+    advance_alt_col = find(
+        work, ["ОстатокНаКонецПериодаПоАвансам", "Остаток на конец периода по авансам"]
+    )
+    paid_col = find(work, ["Выплачено", "Выплаченная сумма", "ВсегоОплат", "paid"])
+    gross_col = find(
+        work, ["ОстатокНаКонецПериода", "Остаток на конец периода", "ОстатокНаКонец"]
+    )
+
+    dog_ids = (
+        work[dog_id_col].astype(str).str.strip().str.lower()
+        if dog_id_col
+        else pd.Series("", index=work.index)
+    )
+    dog_lookup = renderer._load_dogovor_lookup() or {}
     try:
-        x = float(v)
-    except (TypeError, ValueError):
-        return 0.0
-    if not math.isfinite(x):
-        return 0.0
-    if nd is None:
-        return x
-    return round(x, nd)
+        renderer._pred_projekts_1c_lookup()
+    except Exception:
+        pass
 
-
-def _parse_money(v: Any) -> float:
-    if v is None or (isinstance(v, float) and pd.isna(v)):
-        return 0.0
-    if isinstance(v, (int, float)):
-        return _finite(v)
-    s = str(v).strip().replace("\u00a0", " ").replace(" ", "")
-    if not s:
-        return 0.0
-    if "," in s and "." in s:
-        # 49,500,000.00
-        s = s.replace(",", "")
-    elif "," in s:
-        parts = s.split(",")
-        if len(parts[-1]) <= 2:
-            s = "".join(parts[:-1]) + "." + parts[-1]
-        else:
-            s = s.replace(",", "")
-    try:
-        return _finite(float(s))
-    except ValueError:
-        return 0.0
-
-
-def _nested_str(obj: Any, *keys: str) -> str:
-    if not isinstance(obj, dict):
-        return str(obj or "").strip()
-    for k in keys:
-        if k in obj and obj[k] not in (None, ""):
-            return str(obj[k]).strip()
-    return ""
-
-
-def _extract_uuid(v: Any) -> str:
-    if v is None:
-        return ""
-    if isinstance(v, dict):
-        for k in (
-            "ID_Договора",
-            "id_договора",
-            "ID_Контрагента",
-            "id_контрагента",
-            "ID_Проекта",
-            "id",
-            "ID",
-        ):
-            if k in v and v[k]:
-                return str(v[k]).strip().lower()
-        return ""
-    m = _UUID_RE.search(str(v))
-    return m.group(0).lower() if m else ""
-
-
-def _load_json_list(path: Path | None) -> list[dict]:
-    if path is None or not path.is_file():
-        return []
-    with path.open(encoding="utf-8") as f:
-        data = json.load(f)
-    if isinstance(data, list):
-        return [x for x in data if isinstance(x, dict)]
-    if isinstance(data, dict):
-        for key in ("data", "rows", "items"):
-            if isinstance(data.get(key), list):
-                return [x for x in data[key] if isinstance(x, dict)]
-    return []
-
-
-def _build_ks2_by_contract(dannye: list[dict]) -> dict[str, float]:
-    out: dict[str, float] = {}
-    for row in dannye:
-        article = str(row.get("СтатьяОборотов") or "").casefold()
-        if not any(m in article for m in _KS2_MARKERS):
-            continue
-        dog_id = str(row.get("ID_Договора") or "").strip().lower()
-        if not dog_id or dog_id.startswith("00000000"):
-            continue
-        out[dog_id] = out.get(dog_id, 0.0) + _parse_money(row.get("Сумма"))
-    return out
-
-
-def _build_project_lookup(projekts: list[dict], dannye: list[dict]) -> dict[str, str]:
-    """Map contract / partner / project id → display name."""
-    by_project_id: dict[str, str] = {}
-    for row in projekts:
-        pid = _extract_uuid(
-            row.get("ID_Проекта")
-            or row.get("Проект")
-            or row
-        )
-        name = _nested_str(
-            row,
-            "НаименованиеПроекта",
-            "Наименование",
-            "Проект",
-            "project name",
-            "name",
-        )
-        if isinstance(row.get("Проект"), dict):
-            pid = pid or _extract_uuid(row["Проект"])
-            name = name or _nested_str(
-                row["Проект"], "НаименованиеПроекта", "Наименование", "name"
+    contractors = (
+        work[contractor_col].map(_clean)
+        if contractor_col
+        else pd.Series("—", index=work.index)
+    )
+    contracts = (
+        work[contract_col].map(_clean)
+        if contract_col
+        else pd.Series("—", index=work.index)
+    )
+    projects = (
+        work[project_col].map(_clean)
+        if project_col
+        else pd.Series("—", index=work.index)
+    )
+    contract_sum = to_num(work[sum_col]) if sum_col else pd.Series(0.0, index=work.index)
+    for index, dog_id in dog_ids.items():
+        record = dog_lookup.get(str(dog_id)) or {}
+        if contracts.at[index] == "—":
+            contracts.at[index] = _clean(record.get("Номер_Договора"))
+        if projects.at[index] == "—":
+            projects.at[index] = _clean(record.get("Наименование_Проекта"))
+        if not float(contract_sum.at[index] or 0):
+            contract_sum.at[index] = float(
+                to_num(pd.Series([record.get("Сумма_Договора")])).iloc[0]
             )
-        if pid and name:
-            by_project_id[pid] = name
 
-    for row in dannye:
-        pid = str(row.get("ID_Проекта") or "").strip().lower()
-        name = str(row.get("Проект") or "").strip()
-        if pid and name and not pid.startswith("00000000"):
-            by_project_id.setdefault(pid, name)
-    return by_project_id
-
-
-def _dogovor_maps(dogovor: list[dict]) -> tuple[dict[str, float], dict[str, str]]:
-    sums: dict[str, float] = {}
-    projects: dict[str, str] = {}
-    for row in dogovor:
-        dog = row.get("Договор") if isinstance(row.get("Договор"), dict) else row
-        dog_id = _extract_uuid(dog) or str(row.get("ID_Договора") or "").strip().lower()
-        if not dog_id:
-            continue
-        amount = _parse_money(
-            (dog or {}).get("СуммаДоговора")
-            if isinstance(dog, dict)
-            else None
-        ) or _parse_money(row.get("СуммаДоговора") or row.get("Сумма договора"))
-        if amount:
-            sums[dog_id] = amount
-        proj = row.get("Проект")
-        if isinstance(proj, dict):
-            pname = _nested_str(proj, "НаименованиеПроекта", "Наименование", "name")
-            if pname:
-                projects[dog_id] = pname
-        elif proj:
-            projects[dog_id] = str(proj).strip()
-        elif row.get("НаименованиеПроекта"):
-            projects[dog_id] = str(row["НаименованиеПроекта"]).strip()
-    return sums, projects
-
-
-@lru_cache(maxsize=1)
-def _source_mtime_key() -> tuple[float, ...]:
-    paths = [
-        latest_web_file("_DK.json"),
-        latest_web_file("_Dogovor.json"),
-        latest_web_file("_dannye.json"),
-        latest_web_file("_Projekts.json"),
-    ]
-    return tuple(p.stat().st_mtime if p and p.is_file() else 0.0 for p in paths)
-
-
-@lru_cache(maxsize=4)
-def load_debit_credit_frame(_mtime_key: tuple[float, ...]) -> pd.DataFrame:
-    del _mtime_key  # cache busting only
-    dk_rows = _load_json_list(latest_web_file("_DK.json"))
-    dog_rows = _load_json_list(latest_web_file("_Dogovor.json"))
-    dannye_rows = _load_json_list(latest_web_file("_dannye.json"))
-    proj_rows = _load_json_list(latest_web_file("_Projekts.json"))
-
-    dog_sums, dog_projects = _dogovor_maps(dog_rows)
-    ks2_by_dog = _build_ks2_by_contract(dannye_rows)
-    project_names = _build_project_lookup(proj_rows, dannye_rows)
-
-    records: list[dict[str, Any]] = []
-    for row in dk_rows:
-        contractor = _nested_str(
-            row.get("Контрагент"),
-            "НаименованиеКонтрагента",
-            "Наименование",
-            "name",
-        ) or str(row.get("Название контрагента") or "").strip()
-        dog = row.get("Договор") if isinstance(row.get("Договор"), dict) else {}
-        contract_no = _nested_str(dog, "НомерДоговора", "Номер договора", "name")
-        dog_id = _extract_uuid(dog) or str(row.get("ID_Договора") or "").strip().lower()
-        contract_date_raw = dog.get("ДатаДоговора") if isinstance(dog, dict) else None
-        contract_sum = _parse_money(dog.get("СуммаДоговора") if isinstance(dog, dict) else None)
-        if not contract_sum and dog_id:
-            contract_sum = dog_sums.get(dog_id, 0.0)
-
-        project = dog_projects.get(dog_id, "")
-        if not project:
-            # fallback: project from dannye by contract
-            for d in dannye_rows:
-                if str(d.get("ID_Договора") or "").strip().lower() == dog_id:
-                    project = str(d.get("Проект") or "").strip()
-                    if project:
-                        break
-        if not project:
-            org = row.get("Организация")
-            project = _nested_str(org, "НаименованиеОрганизации") if isinstance(org, dict) else ""
-
-        paid = _parse_money(row.get("ВсегоОплат") or row.get("Выплачено"))
-        advance = _parse_money(row.get("ВсегоОплат_Аванс") or row.get("Аванс"))
-        end_gross = _parse_money(
-            row.get("ОстатокНаКонецПериода") or row.get("ОстатокНаКонец")
+    ks2 = pd.Series(0.0, index=work.index)
+    if not reference.empty:
+        article_col = find(reference, ["СтатьяОборотов", "Статья оборотов", "turnover item"])
+        amount_col = find(reference, ["Сумма", "СуммаОборота", "amount"])
+        ref_dog_col = find(reference, ["ID_Договора", "id_договора", "id_dogovora"])
+        ref_partner_col = find(
+            reference, ["ID_Контрагента", "id_контрагента", "id_kontragenta"]
         )
-        end_adv = _parse_money(row.get("ОстатокНаКонецПериодаПоАвансам"))
-        if abs(advance) < 1e-6 and abs(end_adv) > 1e-6:
-            advance = end_adv
-        balance_net = end_gross - end_adv if (end_gross or end_adv) else _parse_money(
-            row.get("Остаток на конец периода")
-        )
-        ks2 = ks2_by_dog.get(dog_id, 0.0)
-        period_dt = pd.to_datetime(contract_date_raw, errors="coerce", utc=True)
-        if pd.notna(period_dt) and getattr(period_dt, "year", 9999) <= 1:
-            period_dt = pd.NaT
+        if article_col and amount_col:
+            so = reference[article_col].astype(str).str.strip().str.casefold()
+            filtered = reference.loc[so.isin(_KS2_ARTICLES)].copy()
+            if not filtered.empty:
+                filtered["_sum"] = to_num(filtered[amount_col])
+                if ref_dog_col and ref_dog_col in filtered.columns:
+                    by_dog = (
+                        filtered.assign(
+                            _dog=filtered[ref_dog_col]
+                            .astype(str)
+                            .str.strip()
+                            .str.lower()
+                        )
+                        .groupby("_dog")["_sum"]
+                        .sum()
+                    )
+                    ks2 = dog_ids.map(by_dog.to_dict()).fillna(0.0)
+                if partner_id_col and ref_partner_col:
+                    by_partner = (
+                        filtered.assign(
+                            _p=filtered[ref_partner_col]
+                            .astype(str)
+                            .str.strip()
+                            .str.lower()
+                        )
+                        .groupby("_p")["_sum"]
+                        .sum()
+                    )
+                    partner_ids = (
+                        work[partner_id_col].astype(str).str.strip().str.lower()
+                    )
+                    ks2 = ks2.where(
+                        ks2.ne(0), partner_ids.map(by_partner.to_dict()).fillna(0.0)
+                    )
 
-        records.append(
-            {
-                "contractor": contractor,
-                "project": project or "—",
-                "contract": contract_no or "—",
-                "contract_id": dog_id,
-                "contract_date": (
-                    period_dt.date().isoformat() if pd.notna(period_dt) else None
-                ),
-                "contract_sum": contract_sum,
-                "paid": paid,
-                "advance": advance,
-                "ks2": ks2,
-                "fulfilled": advance + ks2,
-                "balance": balance_net,
-                "deviation": (advance + ks2) - contract_sum if contract_sum else 0.0,
-            }
-        )
-
-    return pd.DataFrame.from_records(records)
-
-
-def get_frame() -> pd.DataFrame:
-    return load_debit_credit_frame(_source_mtime_key()).copy()
-
-
-def _apply_filters(
-    df: pd.DataFrame,
-    *,
-    project: str | None = None,
-    contractor: str | None = None,
-    contract_q: str | None = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
-) -> pd.DataFrame:
-    out = df
-    if project and project != "Все":
-        out = out[out["project"].astype(str).str.strip() == project.strip()]
-    if contractor and contractor != "Все":
-        out = out[out["contractor"].astype(str).str.strip() == contractor.strip()]
-    q = (contract_q or "").strip()
-    if q:
-        ql = q.casefold()
-        out = out[out["contract"].astype(str).map(lambda s: ql in s.casefold())]
-    if date_from or date_to:
-        dts = pd.to_datetime(out["contract_date"], errors="coerce")
-        start = date_from or date.min
-        end = date_to or date.max
-        out = out[
-            dts.isna()
-            | (
-                dts.notna()
-                & (dts.dt.date >= start)
-                & (dts.dt.date <= end)
-            )
-        ]
-    return out
-
-
-def _mln(v: float) -> float:
-    return _finite(float(v or 0.0) / 1_000_000.0, 3)
+    advance = to_num(work[advance_col]) if advance_col else pd.Series(0.0, index=work.index)
+    if float(advance.abs().sum()) < 1e-9 and advance_alt_col:
+        advance = to_num(work[advance_alt_col])
+    paid = to_num(work[paid_col]) if paid_col else pd.Series(0.0, index=work.index)
+    gross = to_num(work[gross_col]) if gross_col else pd.Series(0.0, index=work.index)
+    adv_end = (
+        to_num(work[advance_alt_col])
+        if advance_alt_col
+        else pd.Series(0.0, index=work.index)
+    )
+    balance = gross - adv_end
+    dates = (
+        pd.to_datetime(work[date_col], errors="coerce", dayfirst=True)
+        if date_col
+        else pd.Series(pd.NaT, index=work.index)
+    )
+    return pd.DataFrame(
+        {
+            "project": projects,
+            "contractor": contractors,
+            "contract": contracts,
+            "contract_date": dates,
+            "contract_sum": contract_sum.astype(float),
+            "advance": advance.astype(float),
+            "ks2": ks2.astype(float),
+            "paid": paid.astype(float),
+            "balance": balance.astype(float),
+        }
+    ).assign(fulfilled=lambda df: df.advance + df.ks2)
 
 
 def build_debit_credit_payload(
@@ -309,214 +262,151 @@ def build_debit_credit_payload(
     contract_q: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    display_view: str = "Без группировки",
 ) -> dict[str, Any]:
-    df = get_frame()
-    if df.empty:
-        from app.config import DATA_MODE, WEB_DATA_DIR
-
-        return {
-            "meta": {
-                "rows": 0,
-                "source": str(WEB_DATA_DIR),
-                "data_mode": DATA_MODE,
-                "pilot": "debit_credit",
-            },
-            "filters": {
-                "projects": ["Все"],
-                "contractors": ["Все"],
-                "date_min": None,
-                "date_max": None,
-            },
-            "kpis": {},
-            "chart": {"categories": [], "series": []},
-            "tremor": {
-                "contract_vs_advance": [],
-                "advance_by_project": [],
-                "risk_note": "",
-            },
-            "rows": [],
-        }
+    try:
+        prepare_web_db()
+        version_id = active_version_id()
+        frame = _prepare_frame(int(version_id)) if version_id else pd.DataFrame()
+    except Exception as exc:
+        return _empty(f"Не удалось подготовить данные из web_data.db: {exc}")
+    if frame.empty:
+        payload = _empty("В active version нет строк debit_credit")
+        payload["meta"]["version_id"] = version_id
+        return payload
 
     projects = ["Все"] + sorted(
-        {str(x).strip() for x in df["project"].dropna() if str(x).strip()},
+        {_clean(value) for value in frame.project if _clean(value) != "—"},
         key=str.casefold,
     )
     contractors = ["Все"] + sorted(
-        {str(x).strip() for x in df["contractor"].dropna() if str(x).strip()},
+        {_clean(value) for value in frame.contractor if _clean(value) != "—"},
         key=str.casefold,
     )
-    dts = pd.to_datetime(df["contract_date"], errors="coerce").dropna()
-    date_min = dts.min().date().isoformat() if not dts.empty else None
-    date_max = dts.max().date().isoformat() if not dts.empty else None
+    view = frame.copy()
+    if project and project != "Все":
+        view = view[view.project.eq(project)]
+    if contractor and contractor != "Все":
+        view = view[view.contractor.eq(contractor)]
+    if contract_q:
+        view = view[
+            view.contract.str.casefold().str.contains(
+                contract_q.strip().casefold(), na=False
+            )
+        ]
+    if date_from:
+        view = view[
+            view.contract_date.isna() | view.contract_date.ge(pd.Timestamp(date_from))
+        ]
+    if date_to:
+        view = view[
+            view.contract_date.isna()
+            | view.contract_date.lt(pd.Timestamp(date_to) + pd.Timedelta(days=1))
+        ]
 
-    filtered = _apply_filters(
-        df,
-        project=project,
-        contractor=contractor,
-        contract_q=contract_q,
-        date_from=date_from,
-        date_to=date_to,
-    )
-
-    group_col = "contractor" if contractor in (None, "", "Все") else "contract"
-    grouped = (
-        filtered.groupby(group_col, dropna=False)
-        .agg(
-            advance=("advance", "sum"),
-            ks2=("ks2", "sum"),
-            deviation=("deviation", "sum"),
-            contract_sum=("contract_sum", "sum"),
-            paid=("paid", "sum"),
-            balance=("balance", "sum"),
-            fulfilled=("fulfilled", "sum"),
-        )
-        .reset_index()
-        .rename(columns={group_col: "label"})
-    )
-    grouped = grouped.sort_values("contract_sum", ascending=False)
-
-    categories = grouped["label"].astype(str).tolist()
-    chart = {
-        "categories": categories,
-        "series": [
-            {
-                "key": "advance",
-                "name": "Аванс",
-                "color": "#3B82F6",
-                "values": [_mln(v) for v in grouped["advance"].tolist()],
-            },
-            {
-                "key": "ks2",
-                "name": "КС-2",
-                "color": "#EAB308",
-                "values": [_mln(v) for v in grouped["ks2"].tolist()],
-            },
-            {
-                "key": "deviation_pos",
-                "name": "Отклонение ≥ 0",
-                "color": "#94A3B8",
-                "values": [
-                    _mln(v) if v >= 0 else 0.0 for v in grouped["deviation"].tolist()
-                ],
-            },
-            {
-                "key": "deviation_neg",
-                "name": "Отклонение < 0",
-                "color": "#F1948A",
-                "values": [
-                    _mln(v) if v < 0 else 0.0 for v in grouped["deviation"].tolist()
-                ],
-            },
-        ],
-        "unit": "млн ₽",
-    }
-
-    contract_sum_mln = _mln(float(filtered["contract_sum"].sum()))
-    advance_mln = _mln(float(filtered["advance"].sum()))
-    ks2_mln = _mln(float(filtered["ks2"].sum()))
-    advance_pct = (
-        round((float(filtered["advance"].sum()) / float(filtered["contract_sum"].sum())) * 100, 1)
-        if float(filtered["contract_sum"].sum()) > 0
-        else 0.0
-    )
-    kpis = {
-        "contracts": int(len(filtered)),
-        "contract_sum_mln": contract_sum_mln,
-        "advance_mln": advance_mln,
-        "ks2_mln": ks2_mln,
-        "fulfilled_mln": _mln(float(filtered["fulfilled"].sum())),
-        "balance_mln": _mln(float(filtered["balance"].sum())),
-        "deviation_mln": _mln(float(filtered["deviation"].sum())),
-        "advance_pct": advance_pct,
-    }
-
-    def _short(label: str, n: int = 18) -> str:
-        s = str(label or "").strip()
-        return s if len(s) <= n else s[: n - 1] + "…"
-
-    contract_vs_advance = [
-        {
-            "label": _short(row["label"]),
-            "Стоимость договора": _mln(float(row["contract_sum"])),
-            "Аванс выдан": _mln(float(row["advance"])),
-        }
-        for _, row in grouped.iterrows()
-    ]
-    by_project = (
-        filtered.groupby("project", dropna=False)["advance"]
+    # Chart always by contractor (main), top 20
+    chart_src = (
+        view.groupby("contractor", as_index=False)[["advance", "ks2"]]
         .sum()
-        .reset_index()
-        .sort_values("advance", ascending=False)
+        .rename(columns={"contractor": "label"})
     )
-    advance_by_project = [
-        {
-            "project": str(r["project"] or "—"),
-            "advance": _mln(float(r["advance"])),
-        }
-        for _, r in by_project.iterrows()
-        if float(r["advance"]) > 0
-    ]
-
-    rows = []
-    for _, r in filtered.iterrows():
-        cd = r["contract_date"]
-        if cd is None or (isinstance(cd, float) and not math.isfinite(cd)) or pd.isna(cd):
-            cd_out = None
-        else:
-            cd_out = str(cd)
-        rows.append(
+    chart_src["deviation"] = chart_src.ks2 - chart_src.advance
+    chart_src["_rank"] = chart_src.advance.abs() + chart_src.ks2.abs()
+    chart_src = chart_src.sort_values("_rank", ascending=False, kind="stable").head(20)
+    chart_rows = []
+    for _, row in chart_src.iterrows():
+        adv = float(row.advance) / 1e6
+        ks2 = float(row.ks2) / 1e6
+        dev = float(row.deviation) / 1e6
+        chart_rows.append(
             {
-                "project": r["project"],
-                "contractor": r["contractor"],
-                "contract": r["contract"],
-                "contract_date": cd_out,
-                "contract_sum": _finite(r["contract_sum"], 2),
-                "advance": _finite(r["advance"], 2),
-                "ks2": _finite(r["ks2"], 2),
-                "fulfilled": _finite(r["fulfilled"], 2),
-                "paid": _finite(r["paid"], 2),
-                "balance": _finite(r["balance"], 2),
-                "deviation": _finite(r["deviation"], 2),
+                "label": _clean(row.label),
+                "Аванс": round(adv, 3),
+                "КС-2": round(ks2, 3),
+                "Отклонение ≥0": round(max(dev, 0.0), 3),
+                "Отклонение <0": round(min(dev, 0.0), 3),
             }
         )
 
-    from app.config import DATA_MODE, WEB_DATA_DIR
+    rows: list[dict[str, Any]] = []
+    for _, row in view.iterrows():
+        delta = float(row.advance) - float(row.ks2)
+        contract = float(row.contract_sum)
+        sem = _semaphore(delta, contract)
+        rows.append(
+            {
+                "project": _clean(row.project),
+                "contractor": _clean(row.contractor),
+                "contract": _clean(row.contract),
+                "contract_date": (
+                    row.contract_date.strftime("%d.%m.%Y")
+                    if pd.notna(row.contract_date)
+                    else None
+                ),
+                "contract_sum": round(contract, 2),
+                "advance": round(float(row.advance), 2),
+                "ks2": round(float(row.ks2), 2),
+                "fulfilled": round(float(row.fulfilled), 2),
+                "paid": round(float(row.paid), 2),
+                "balance": round(float(row.balance), 2),
+                "advance_ks2": round(delta, 2),
+                "advance_pct": sem["pct"],
+                "advance_tone": sem["tone"],
+            }
+        )
 
+    totals = {
+        "contract_sum": round(float(view.contract_sum.sum()), 2),
+        "advance": round(float(view.advance.sum()), 2),
+        "ks2": round(float(view.ks2.sum()), 2),
+        "fulfilled": round(float(view.fulfilled.sum()), 2),
+        "paid": round(float(view.paid.sum()), 2),
+        "balance": round(float(view.balance.sum()), 2),
+    }
+    totals["advance_ks2"] = round(totals["advance"] - totals["ks2"], 2)
+    total_sem = _semaphore(totals["advance_ks2"], totals["contract_sum"])
+    totals["advance_pct"] = total_sem["pct"]
+    totals["advance_tone"] = total_sem["tone"]
+
+    mode = "stack" if display_view == "С группировкой" else "group"
     return {
         "meta": {
             "rows": len(rows),
-            "generated_at": datetime.utcnow().isoformat() + "Z",
-            "source": str(WEB_DATA_DIR),
+            "version_id": version_id,
             "data_mode": DATA_MODE,
-            "pilot": "debit_credit",
+            "source": "web_data.db",
+            "parity": "main_dashboard_debit_credit",
+            "warning": None,
+            "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         },
         "filters": {
             "projects": projects,
             "contractors": contractors,
-            "date_min": date_min,
-            "date_max": date_max,
+            "date_min": (
+                frame.contract_date.min().date().isoformat()
+                if frame.contract_date.notna().any()
+                else None
+            ),
+            "date_max": (
+                frame.contract_date.max().date().isoformat()
+                if frame.contract_date.notna().any()
+                else None
+            ),
             "applied": {
                 "project": project or "Все",
                 "contractor": contractor or "Все",
                 "contract_q": contract_q or "",
                 "date_from": date_from.isoformat() if date_from else None,
                 "date_to": date_to.isoformat() if date_to else None,
+                "display_view": display_view,
             },
         },
-        "kpis": kpis,
-        "chart": chart,
-        "tremor": {
-            "contract_vs_advance": contract_vs_advance,
-            "advance_by_project": advance_by_project,
-            "risk_note": (
-                f"По {len(filtered)} договорам авансы {advance_mln:.1f} млн ₽, "
-                f"КС-2 = {ks2_mln:.1f} млн ₽."
-                + (
-                    " Работы по КС-2 пока не закрывают авансы — риск дебиторки."
-                    if ks2_mln <= 0 and advance_mln > 0
-                    else ""
-                )
-            ),
+        "chart": {
+            "rows": chart_rows,
+            "mode": mode,
+            "caption": f"Топ {len(chart_rows)} из {int(view.contractor.nunique())} контрагентов",
+            "unit": "млн ₽",
         },
         "rows": rows,
+        "totals": totals,
     }

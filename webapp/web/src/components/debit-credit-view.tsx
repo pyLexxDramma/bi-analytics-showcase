@@ -1,57 +1,71 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  BarChart,
-  Card,
-  DonutChart,
-  Grid,
-  List,
-  ListItem,
-  Metric,
-  Text,
-  Title,
-} from "@tremor/react";
-import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
-import { formatMln, formatRub } from "@/lib/format";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart, Card, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
-import { CHART_RU } from "@/lib/chart-ru";
+import { DownloadTableButton } from "@/components/download-table-button";
+import { FullscreenPanel } from "@/components/fullscreen-panel";
+import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
+import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
   project: string;
   contractor: string;
   contract_q: string;
+  date_from: string;
+  date_to: string;
+  display_view: "Без группировки" | "С группировкой";
 };
 
-const toneText: Record<string, string> = {
-  neutral: "text-tremor-content-strong dark:text-dark-tremor-content-strong",
-  info: "text-blue-600 dark:text-blue-400",
-  warn: "text-amber-600 dark:text-amber-400",
+const initial: Filters = {
+  project: "Все",
+  contractor: "Все",
+  contract_q: "",
+  date_from: "",
+  date_to: "",
+  display_view: "Без группировки",
 };
+
+const GROUP_CATS = ["Аванс", "КС-2", "Отклонение ≥0", "Отклонение <0"] as const;
+const STACK_CATS = ["Отклонение ≥0", "КС-2", "Аванс"] as const;
+
+function mln(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  return (Number(value) / 1e6).toLocaleString("ru-RU", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  });
+}
+
+function toneDot(tone: string | undefined): string {
+  if (tone === "yellow") return "🟡";
+  if (tone === "red") return "🔴";
+  return "🟢";
+}
 
 export function DebitCreditView() {
-  const [filters, setFilters] = useState<Filters>({
-    project: "Все",
-    contractor: "Все",
-    contract_q: "",
-  });
-  const [draftQ, setDraftQ] = useState("");
+  const [filters, setFilters] = useState<Filters>(initial);
   const [data, setData] = useState<DebitCreditPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
-  const load = useCallback(async (f: Filters) => {
+  const load = useCallback(async (next: Filters) => {
     setLoading(true);
     setError(null);
     try {
-      const payload = await fetchDebitCredit({
-        project: f.project,
-        contractor: f.contractor,
-        contract_q: f.contract_q || undefined,
-      });
-      setData(payload);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setData(
+        await fetchDebitCredit({
+          project: next.project !== "Все" ? next.project : undefined,
+          contractor: next.contractor !== "Все" ? next.contractor : undefined,
+          contract_q: next.contract_q || undefined,
+          date_from: next.date_from || undefined,
+          date_to: next.date_to || undefined,
+          display_view: next.display_view,
+        }),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
       setData(null);
     } finally {
       setLoading(false);
@@ -62,232 +76,301 @@ export function DebitCreditView() {
     void load(filters);
   }, [filters, load]);
 
-  const kpis = data?.kpis || {};
-  const tremor = data?.tremor;
-  const kpiCards = [
-    {
-      title: "Сумма договоров",
-      metric: formatMln(kpis.contract_sum_mln),
-      tone: "neutral",
-    },
-    {
-      title: "Авансы выдано",
-      metric: formatMln(kpis.advance_mln),
-      tone: "info",
-    },
-    {
-      title: "Принято КС-2",
-      metric: formatMln(kpis.ks2_mln),
-      tone: "warn",
-    },
-    {
-      title: "Средний % аванса",
-      metric: `${Number(kpis.advance_pct || 0).toFixed(1)}%`,
-      tone: "neutral",
-    },
-  ];
+  const stacked = filters.display_view === "С группировкой";
+  const categories = useMemo(
+    () => (stacked ? [...STACK_CATS] : [...GROUP_CATS]),
+    [stacked],
+  );
+  const colors = stacked
+    ? (["gray", "amber", "blue"] as const)
+    : (["blue", "amber", "gray", "rose"] as const);
+
+  const exportTable = useCallback((): ExportTable | null => {
+    if (!data?.rows.length) return null;
+    return {
+      header: [
+        [
+          "Проект",
+          "Подрядчик",
+          "Договор",
+          "Договор стоимость",
+          "Всего выполненных обязательств",
+          "Аванс",
+          "Допущения по авансированию %",
+          "Выполнено (КС-2)",
+          "Аванс − КС-2",
+        ],
+      ],
+      rows: data.rows.map((row) => [
+        row.project,
+        row.contractor,
+        row.contract,
+        row.contract_sum,
+        row.fulfilled,
+        row.advance,
+        row.advance_pct ?? "",
+        row.ks2,
+        row.advance_ks2,
+      ]),
+    };
+  }, [data]);
 
   return (
     <AppShell
-      title="Дебиторка подрядчиков"
-      subtitle="Авансы, договоры и приёмка КС-2 · пилот Next.js + FastAPI"
+      title="Дебиторская и кредиторская задолженность подрядчиков"
+      subtitle="Авансы, КС-2 и договоры · млн ₽"
     >
       <Card className="mb-6 rounded-xl">
-        <div className="grid gap-3 md:grid-cols-4">
-          <label className="block text-sm">
-            <Text>Проект</Text>
-            <select
-              className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-              value={filters.project}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, project: e.target.value }))
-              }
-            >
-              {(data?.filters.projects || ["Все"]).map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <Text>Подрядчик</Text>
-            <select
-              className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-              value={filters.contractor}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, contractor: e.target.value }))
-              }
-            >
-              {(data?.filters.contractors || ["Все"]).map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm md:col-span-2">
-            <Text>№ договора</Text>
-            <div className="mt-1 flex gap-2">
-              <input
-                className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                placeholder="Частичный поиск"
-                value={draftQ}
-                onChange={(e) => setDraftQ(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    setFilters((s) => ({ ...s, contract_q: draftQ.trim() }));
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="rounded-tremor-default bg-tremor-brand px-4 py-2 text-tremor-default font-medium text-white"
-                onClick={() =>
-                  setFilters((s) => ({ ...s, contract_q: draftQ.trim() }))
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="flex flex-1 items-center justify-between text-left"
+          >
+            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+              Фильтры
+            </Title>
+            <span>{open ? "▲" : "▼"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilters(initial)}
+            className="rounded-md border border-tremor-border px-3 py-1.5 text-sm dark:border-dark-tremor-border"
+          >
+            Сбросить
+          </button>
+        </div>
+        {open ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+            <label className="block text-sm">
+              <Text>Проект</Text>
+              <select
+                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                value={filters.project}
+                onChange={(e) =>
+                  setFilters((s) => ({ ...s, project: e.target.value }))
                 }
               >
-                Найти
-              </button>
-            </div>
-          </label>
-        </div>
+                {(data?.filters.projects ?? ["Все"]).map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <Text>Подрядчик</Text>
+              <select
+                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                value={filters.contractor}
+                onChange={(e) =>
+                  setFilters((s) => ({ ...s, contractor: e.target.value }))
+                }
+              >
+                {(data?.filters.contractors ?? ["Все"]).map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <Text>№ договора</Text>
+              <input
+                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                placeholder="Частичный поиск"
+                value={filters.contract_q}
+                onChange={(e) =>
+                  setFilters((s) => ({ ...s, contract_q: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm">
+              <Text>Период</Text>
+              <div className="mt-1 flex gap-1">
+                <input
+                  type="date"
+                  className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  min={data?.filters.date_min ?? undefined}
+                  max={data?.filters.date_max ?? undefined}
+                  value={filters.date_from}
+                  onChange={(e) =>
+                    setFilters((s) => ({ ...s, date_from: e.target.value }))
+                  }
+                />
+                <input
+                  type="date"
+                  className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  min={data?.filters.date_min ?? undefined}
+                  max={data?.filters.date_max ?? undefined}
+                  value={filters.date_to}
+                  onChange={(e) =>
+                    setFilters((s) => ({ ...s, date_to: e.target.value }))
+                  }
+                />
+              </div>
+            </label>
+            <label className="block text-sm">
+              <Text>Отображение</Text>
+              <select
+                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                value={filters.display_view}
+                onChange={(e) =>
+                  setFilters((s) => ({
+                    ...s,
+                    display_view: e.target.value as Filters["display_view"],
+                  }))
+                }
+              >
+                <option>Без группировки</option>
+                <option>С группировкой</option>
+              </select>
+            </label>
+          </div>
+        ) : null}
         <Text className="mt-3">
-          Режим данных: <b>{data?.meta.data_mode || "…"}</b>
-          {" · "}
-          {loading ? "загрузка…" : `${data?.meta.rows ?? 0} строк`}
+          {loading ? "загрузка…" : `${data?.meta.rows ?? 0} договоров`}
+          {data?.meta.version_id != null
+            ? ` · version_id=${data.meta.version_id}`
+            : ""}
         </Text>
+        {data?.meta.warning ? (
+          <Text className="mt-1 text-amber-700 dark:text-amber-300">
+            {data.meta.warning}
+          </Text>
+        ) : null}
       </Card>
 
       {error ? (
-        <Card className="mb-6 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">
-          <Text className="text-rose-700 dark:text-rose-300">
-            API недоступен. {error}
-          </Text>
+        <Card className="mb-6 border-rose-300 bg-rose-50 dark:bg-rose-950/30">
+          <Text className="text-rose-700 dark:text-rose-300">{error}</Text>
         </Card>
       ) : null}
 
-      <div className="space-y-6">
-        <Grid numItemsSm={2} numItemsLg={4} className="gap-6">
-          {kpiCards.map((kpi) => (
-            <Card key={kpi.title} className="rounded-xl">
-              <Text>{kpi.title}</Text>
-              <Metric className={`mt-2 ${toneText[kpi.tone]}`}>{kpi.metric}</Metric>
-            </Card>
-          ))}
-        </Grid>
-
-        {tremor?.risk_note ? (
-          <Card className="rounded-xl border-l-4 border-l-amber-500">
-            <Text className="text-tremor-content-strong dark:text-dark-tremor-content-strong">
-              ⚠ {tremor.risk_note}
-            </Text>
-          </Card>
-        ) : null}
-
-        <Grid numItemsLg={3} className="gap-6">
-          <Card className="rounded-xl lg:col-span-2">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Договор против выданного аванса
-            </Title>
-            <Text className="mt-1">По подрядчикам, млн ₽</Text>
-            <BarChart
-              className="mt-6 h-80"
-              data={tremor?.contract_vs_advance || []}
-              index="label"
-              categories={[CHART_RU.contractSum, CHART_RU.advance]}
-              colors={["cyan", "amber"]}
-              valueFormatter={(v) => formatMln(Number(v))}
-              yAxisWidth={56}
-              showLegend
-              showAnimation
-              showGridLines
-            />
-          </Card>
-
-          <Card className="rounded-xl">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Авансы по проектам
-            </Title>
-            <Text className="mt-1">Доля выданных авансов, млн ₽</Text>
-            <DonutChart
-              className="mt-6 h-52"
-              data={tremor?.advance_by_project || []}
-              category="advance"
-              index="project"
-              colors={["blue", "violet", "emerald", "cyan", "amber"]}
-              valueFormatter={(v) => formatMln(Number(v))}
-            />
-            <List className="mt-4">
-              {(tremor?.advance_by_project || []).map((d) => (
-                <ListItem key={d.project}>
-                  <span>{d.project}</span>
-                  <span className="font-medium tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                    {formatMln(d.advance)}
-                  </span>
-                </ListItem>
-              ))}
-            </List>
-          </Card>
-        </Grid>
-
-        <Card className="overflow-hidden rounded-xl p-0 text-tremor-content-strong dark:text-dark-tremor-content-strong">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Таблица договоров
-            </Title>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-tremor-default text-tremor-content-strong dark:text-dark-tremor-content-strong">
-              <thead className="bg-tremor-background-subtle text-tremor-label uppercase text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
-                <tr>
-                  <th className="px-3 py-2">Проект</th>
-                  <th className="px-3 py-2">Подрядчик</th>
-                  <th className="px-3 py-2">Договор</th>
-                  <th className="px-3 py-2">Дата</th>
-                  <th className="px-3 py-2 text-right">Сумма</th>
-                  <th className="px-3 py-2 text-right">Аванс</th>
-                  <th className="px-3 py-2 text-right">КС-2</th>
-                  <th className="px-3 py-2 text-right">Остаток</th>
-                </tr>
-              </thead>
-              <tbody className="bg-tremor-background dark:bg-dark-tremor-background">
-                {(data?.rows || []).map((r, idx) => (
-                  <tr
-                    key={`${r.contract}-${idx}`}
-                    className="border-t border-tremor-border dark:border-dark-tremor-border"
-                  >
-                    <td className="px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {r.project}
-                    </td>
-                    <td className="px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {r.contractor}
-                    </td>
-                    <td className="px-3 py-2 font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {r.contract}
-                    </td>
-                    <td className="px-3 py-2 text-tremor-content dark:text-dark-tremor-content">
-                      {r.contract_date || "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {formatRub(r.contract_sum)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {formatRub(r.advance)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {formatRub(r.ks2)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {formatRub(r.balance)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <FullscreenPanel fill>
+        <Card className="mb-6 rounded-xl">
+          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            Авансы и КС-2
+          </Title>
+          <Text className="mt-1">
+            {data?.chart.caption ?? "…"} · {data?.chart.unit ?? "млн ₽"}
+          </Text>
+          <BarChart
+            className="mt-6 h-96"
+            data={data?.chart.rows ?? []}
+            index="label"
+            categories={categories}
+            colors={[...colors]}
+            stack={stacked}
+            valueFormatter={(v) =>
+              Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })
+            }
+            showLegend
+            showGridLines
+            yAxisWidth={48}
+          />
         </Card>
-      </div>
+      </FullscreenPanel>
+
+      <Card className="overflow-hidden rounded-xl p-0">
+        <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            Таблица по подрядчику и договору
+          </Title>
+        </div>
+        <div className="max-h-[36rem] overflow-auto">
+          <table className="min-w-max border-separate border-spacing-0 text-left text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                {[
+                  "Проект",
+                  "Подрядчик",
+                  "Договор",
+                  "Договор стоимость",
+                  "Всего выполненных обязательств",
+                  "Аванс",
+                  "Допущения по авансированию %",
+                  "Выполнено (КС-2)",
+                  "Аванс − КС-2",
+                ].map((label) => (
+                  <th
+                    key={label}
+                    className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.rows ?? []).map((row, index) => (
+                <tr
+                  key={`${row.contract}-${index}`}
+                  className="border-t border-tremor-border dark:border-dark-tremor-border"
+                >
+                  <td className="whitespace-nowrap px-3 py-2">{row.project}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{row.contractor}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{row.contract}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {mln(row.contract_sum)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {mln(row.fulfilled)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {mln(row.advance)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {toneDot(row.advance_tone)}{" "}
+                    {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {mln(row.ks2)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {mln(row.advance_ks2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="sticky bottom-0 z-10 bg-tremor-background font-semibold dark:bg-dark-tremor-background">
+              <tr>
+                <td className="border-t border-tremor-border px-3 py-3 dark:border-dark-tremor-border" colSpan={3}>
+                  ИТОГО
+                </td>
+                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  {mln(data?.totals.contract_sum)}
+                </td>
+                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  {mln(data?.totals.fulfilled)}
+                </td>
+                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  {mln(data?.totals.advance)}
+                </td>
+                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  {toneDot(data?.totals.advance_tone)}{" "}
+                  {data?.totals.advance_pct == null
+                    ? "—"
+                    : `${data.totals.advance_pct}%`}
+                </td>
+                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  {mln(data?.totals.ks2)}
+                </td>
+                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  {mln(data?.totals.advance_ks2)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div className="space-y-2 border-t border-tremor-border p-4 text-sm dark:border-dark-tremor-border">
+          <Text>
+            Цветовые индикаторы (Аванс − КС-2): 🟢 delta ≤ 0 или ≤ 30% стоимости
+            договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%.
+          </Text>
+          <DownloadTableButton
+            getTable={exportTable}
+            fileStem="debit_credit"
+            disabled={!data?.rows?.length}
+          />
+        </div>
+      </Card>
     </AppShell>
   );
 }

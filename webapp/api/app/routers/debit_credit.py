@@ -17,12 +17,13 @@ def debit_credit_report(
     contract_q: Optional[str] = Query(None, description="Частичный поиск № договора"),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    display_view: str = Query("Без группировки", description="Вид отображения графика"),
 ):
-    """Пилот: дебиторская / кредиторская задолженность подрядчиков."""
     return build_debit_credit_payload(
         project=project,
         contractor=contractor,
         contract_q=contract_q,
         date_from=date_from,
         date_to=date_to,
+        display_view=display_view,
     )

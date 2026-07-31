@@ -744,6 +744,22 @@ def check_executive_docs(base: str, timeout: float) -> list[tuple[str, Any, Any,
     ]
 
 
+def check_debit_credit(base: str, timeout: float) -> list[tuple[str, Any, Any, bool]]:
+    api = _api_get(base, "/api/debit-credit", timeout)
+    meta = api.get("meta") or {}
+    chart = api.get("chart") or {}
+    totals = api.get("totals") or {}
+    return [
+        _meta_row("meta.source", "web_data.db", meta.get("source")),
+        _meta_row("parity", "main_dashboard_debit_credit", meta.get("parity")),
+        _meta_row("view default", "Без группировки", ((api.get("filters") or {}).get("applied") or {}).get("display_view")),
+        _choice_row("chart.mode", {"group", "stack"}, chart.get("mode")),
+        _bool_row("chart rows", isinstance(chart.get("rows"), list)),
+        _bool_row("ИТОГО", all(key in totals for key in ("contract_sum", "advance", "ks2", "balance"))),
+        _bool_row("rows", isinstance(api.get("rows"), list)),
+    ]
+
+
 def _kpi_row(label: str, expected: Any, actual: Any) -> tuple[str, Any, Any, bool]:
     if actual is None:
         return (label, expected, "—", False)
@@ -781,6 +797,7 @@ CHECKS: dict[str, Callable[[str, float], list[tuple[str, Any, Any, bool]]]] = {
     "gdrs-equipment": check_gdrs_equipment,
     "prescriptions": check_prescriptions,
     "executive-docs": check_executive_docs,
+    "debit-credit": check_debit_credit,
     "bdds": check_bdds,
     "bdr": check_bdr,
     "approved-budget": check_approved_budget,
