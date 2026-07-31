@@ -748,7 +748,8 @@ export function DeviationReasonsView() {
             </FullscreenPanel>
             <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <DownloadTableButton
-                table={pmExport}
+                getTable={() => pmExport}
+                fileStem="deviation_reasons_project_month"
                 disabled={!dynamics.project_month_rows?.length}
               />
             </div>
@@ -858,7 +859,8 @@ export function DeviationReasonsView() {
             </FullscreenPanel>
             <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <DownloadTableButton
-                table={sumExport}
+                getTable={() => sumExport}
+                fileStem="deviation_reasons_summary"
                 disabled={!dynamics.summary_rows?.length}
               />
             </div>
@@ -948,7 +950,11 @@ export function DeviationReasonsView() {
             </div>
           </FullscreenPanel>
           <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <DownloadTableButton table={exportTable} disabled={!rows.length} />
+            <DownloadTableButton
+              getTable={() => exportTable}
+              fileStem="deviation_reasons_detail"
+              disabled={!rows.length}
+            />
           </div>
         </Card>
       ) : null}
