@@ -557,60 +557,222 @@ export type BddsPlanFactPayload = {
     rows: number;
     source: string;
     data_mode: string;
-    files: number;
-    rule?: string;
+    parity: string;
+    error?: string | null;
+    version_id?: number | null;
+    rows_1c?: number;
+    db?: { active_version_id?: number | null; exists?: boolean };
   };
   filters: {
     projects: string[];
     date_min: string | null;
     date_max: string | null;
+    groups: Array<{ id: string; label: string }>;
+    views: Array<{ id: string; label: string }>;
+    dev_bases: Array<{ id: string; label: string }>;
     applied: {
       project: string;
       date_from: string | null;
       date_to: string | null;
+      group: "month" | "quarter" | "year";
       view: "monthly" | "cumulative";
+      dev_base: "plan" | "fact";
+      hide_deviation: boolean;
+      hide_zero: boolean;
     };
-  };
-  kpis: {
-    plan_mln: number;
-    fact_mln: number;
-    revised_mln: number;
-    deviation_mln: number;
   };
   tremor: {
     by_period: Array<{
       period: string;
       plan: number;
       fact: number;
-      revised: number;
-    }>;
-    by_project: Array<{
-      project: string;
-      plan: number;
-      fact: number;
-      revised: number;
+      forecast: number;
+      deviation: number;
     }>;
   };
   period_rows: Array<{
     period: string;
     plan: number;
     fact: number;
-    revised: number;
+    forecast: number;
     deviation: number;
+    kind?: "total";
   }>;
-  project_rows: Array<{
+  status_rows: Array<{
+    month: string;
     project: string;
+    plan_mln: number;
+    fact_mln: number;
+    forecast_mln: number;
+    deviation_mln: number;
+    status: string;
+  }>;
+  totals: {
     plan: number;
     fact: number;
-    revised: number;
+    forecast: number;
     deviation: number;
-  }>;
+  };
+  labels: {
+    period_column: string;
+    deviation_column: string;
+    chart_title: string;
+    period_table_title: string;
+    status_table_title: string;
+    total_period: string;
+    edit_banner: string;
+  };
+  hints?: string[];
+  validation_errors?: string[];
+  lot_recalc?: BddsPlanFactLotRecalc | null;
+  applied?: boolean;
+  ok?: boolean;
+};
+
+export type BddsPlanFactEditRow = {
+  "Раздел": string;
+  "Лот": string;
+  "Условие распределения": string;
+  "План. начало": string;
+  "План. окончание": string;
+  "БДДС план (утверждённый), млн руб.": number;
+  "БДДС факт, млн руб.": number;
+  "A, %": number;
+  "B, %": number;
+  "C, %": number;
+};
+
+export type BddsPlanFactEditorPayload = {
+  project: string;
+  project_norm: string;
+  can_edit: boolean;
+  help_md: string;
+  dist_options: string[];
+  columns: string[];
+  rows: BddsPlanFactEditRow[];
+  baseline_rows: BddsPlanFactEditRow[];
+  src_sig: number[];
+  applied: boolean;
+  visible_indices: number[];
+  total_rows: number;
+  visible_rows: number;
+  hidden_struct_rows: number;
+  error?: string;
+};
+
+export type BddsPlanFactLotRecalcRow = {
+  lot: string;
+  plan_mln: number;
+  fact_mln: number;
+  forecast_uniform_mln: number;
+  forecast_cond_mln: number;
+  delta_mln: number;
+};
+
+export type BddsPlanFactLotRecalc = {
+  period_choices: string[];
+  selected_period: string;
+  forecast_uniform_column: string;
+  forecast_cond_column: string;
+  delta_column: string;
+  caption: string;
+  rows: BddsPlanFactLotRecalcRow[];
+};
+
+export type BddsPlanFactEditBody = {
+  project: string;
+  rows: BddsPlanFactEditRow[];
+  date_from?: string;
+  date_to?: string;
+  group?: "month" | "quarter" | "year";
+  view?: "monthly" | "cumulative";
+  dev_base?: "plan" | "fact";
+  hide_deviation?: boolean;
+  hide_zero?: boolean | null;
+  lot_recalc_period?: string;
+};
+
+export type BddsPlanFactQuery = {
+  project?: string;
+  date_from?: string;
+  date_to?: string;
+  group?: "month" | "quarter" | "year";
+  view?: "monthly" | "cumulative";
+  dev_base?: "plan" | "fact";
+  hide_deviation?: boolean;
+  hide_zero?: boolean;
 };
 
 export async function fetchBddsPlanFact(
-  params: QueryParams = {},
+  query: BddsPlanFactQuery = {},
 ): Promise<BddsPlanFactPayload> {
-  return apiGet<BddsPlanFactPayload>("/api/bdds-plan-fact", params);
+  const params: QueryParams = {};
+  if (query.project) params.project = query.project;
+  if (query.date_from) params.date_from = query.date_from;
+  if (query.date_to) params.date_to = query.date_to;
+  if (query.group) params.group = query.group;
+  if (query.view) params.view = query.view;
+  if (query.dev_base) params.dev_base = query.dev_base;
+  if (query.hide_deviation !== undefined) {
+    params.hide_deviation = String(query.hide_deviation);
+  }
+  if (query.hide_zero !== undefined) params.hide_zero = String(query.hide_zero);
+  return apiGet<BddsPlanFactPayload>("/api/bdds-plan-fact", params, {
+    headers: authHeaders(),
+  });
+}
+
+export async function fetchBddsPlanFactEditor(
+  project: string,
+  showStruct = false,
+): Promise<BddsPlanFactEditorPayload> {
+  const params: QueryParams = { project, show_struct: String(showStruct) };
+  return apiGet<BddsPlanFactEditorPayload>("/api/bdds-plan-fact/editor", params, {
+    headers: authHeaders(),
+  });
+}
+
+function bddsEditBody(
+  project: string,
+  rows: BddsPlanFactEditRow[],
+  query: BddsPlanFactQuery & { lot_recalc_period?: string },
+): BddsPlanFactEditBody {
+  return {
+    project,
+    rows,
+    date_from: query.date_from,
+    date_to: query.date_to,
+    group: query.group,
+    view: query.view,
+    dev_base: query.dev_base,
+    hide_deviation: query.hide_deviation,
+    hide_zero: query.hide_zero ?? undefined,
+    lot_recalc_period: query.lot_recalc_period,
+  };
+}
+
+export async function previewBddsPlanFact(
+  project: string,
+  rows: BddsPlanFactEditRow[],
+  query: BddsPlanFactQuery & { lot_recalc_period?: string } = {},
+): Promise<BddsPlanFactPayload> {
+  return apiPost<BddsPlanFactPayload>(
+    "/api/bdds-plan-fact/preview",
+    bddsEditBody(project, rows, query),
+    { headers: authHeaders(), timeoutMs: 120_000 },
+  );
+}
+
+export async function applyBddsPlanFactEdits(
+  project: string,
+  rows: BddsPlanFactEditRow[],
+  query: BddsPlanFactQuery & { lot_recalc_period?: string } = {},
+): Promise<BddsPlanFactPayload> {
+  return apiPost<BddsPlanFactPayload>(
+    "/api/bdds-plan-fact/apply",
+    bddsEditBody(project, rows, query),
+    { headers: authHeaders(), timeoutMs: 120_000 },
+  );
 }
 
 export type DeveloperProjectsCell = {

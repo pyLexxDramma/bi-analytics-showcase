@@ -257,3 +257,25 @@ def load_msp_frame(version_id: int):
 def session_state() -> Any:
     """`st.session_state` активного stub/streamlit: код [main] читает оттуда `reference_1c_dannye`."""
     return ensure_streamlit_stub().session_state
+
+
+def import_renderers_module() -> ModuleType:
+    """Полный `dashboards._renderers` для прогнозного БДДС (обходит lightweight shim)."""
+    ensure_streamlit_stub()
+    ensure_core_path()
+    existing = sys.modules.get("dashboards._renderers")
+    if existing is not None and not getattr(existing, "__bi_showcase_renderers_shim__", False):
+        return existing
+    sys.modules.pop("dashboards._renderers", None)
+    path = (CORE_APP_DIR / "dashboards" / "_renderers.py").resolve()
+    full = "dashboards._renderers"
+    spec = importlib.util.spec_from_file_location(full, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[full] = module
+    spec.loader.exec_module(module)
+    package = sys.modules.get("dashboards")
+    if package is not None:
+        package._renderers = module  # type: ignore[attr-defined]
+    return module

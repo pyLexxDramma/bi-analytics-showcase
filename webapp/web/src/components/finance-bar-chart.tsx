@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   LabelList,
   Legend,
   ResponsiveContainer,
@@ -20,7 +21,17 @@ export type FinanceBarPoint = {
   plan: number;
   fact: number;
   deviation: number;
+  forecast?: number;
 };
+
+const DEFAULT_PLAN = "#3b82f6";
+const DEFAULT_FACT = "#f43f5e";
+const DEFAULT_FORECAST = "#f59e0b";
+const DEFAULT_DEV = "#f59e0b";
+
+const FORECAST_PLAN = "#2E86AB";
+const FORECAST_FACT = "#A23B72";
+const FORECAST_SERIES = "#F18F01";
 
 function useIsNarrow(): boolean {
   const [narrow, setNarrow] = useState(false);
@@ -47,7 +58,6 @@ function useViewportSize(enabled: boolean): { width: number; height: number } {
   return size;
 }
 
-/** Короткая подпись на столбце: «144.3», нули не рисуем. */
 function formatBarLabel(value: unknown, compact: boolean): string {
   const n = Number(value);
   if (!Number.isFinite(n) || Math.abs(n) < 1e-9) return "";
@@ -63,37 +73,49 @@ function formatBarLabel(value: unknown, compact: boolean): string {
   });
 }
 
-const PLAN_COLOR = "#3b82f6";
-const FACT_COLOR = "#f43f5e";
-const DEV_COLOR = "#f59e0b";
+function deviationBarColor(value: number, forecastMode: boolean): string {
+  if (!forecastMode) return DEFAULT_DEV;
+  if (Math.abs(value) < 0.005) return "rgba(148,163,184,0.75)";
+  return value > 0 ? "#22c55e" : "#ef4444";
+}
 
-/**
- * Столбчатый график план/факт(/отклонение).
- * Подписи значений всегда на столбцах (без hover); на mobile — короткий формат + scroll-x.
- */
 export function FinanceBarChart({
   rows,
   planName,
   factName,
+  forecastName = "БДДС прогноз",
+  showForecast = false,
   showDeviation = false,
+  deviationLabel = "Отклонение",
   xAxisTitle,
   emptyText = "Нет периодов для графика",
   fullscreen = false,
+  colors,
 }: {
   rows: FinanceBarPoint[];
   planName: string;
   factName: string;
+  forecastName?: string;
+  showForecast?: boolean;
   showDeviation?: boolean;
+  deviationLabel?: string;
   xAxisTitle: string;
   yAxisTitle?: string;
   emptyText?: string;
-  /** Зум: график занимает весь экран, столбцы шире. */
   fullscreen?: boolean;
+  colors?: {
+    plan?: string;
+    fact?: string;
+    forecast?: string;
+    deviation?: string;
+  };
 }) {
   const narrow = useIsNarrow();
   const viewport = useViewportSize(fullscreen);
   const compact = narrow && !fullscreen;
-  const seriesCount = showDeviation ? 3 : 2;
+  const forecastMode = showForecast;
+  const seriesCount =
+    (showForecast ? 1 : 0) + 2 + (showDeviation ? 1 : 0);
   const slotPx = compact ? 52 : fullscreen ? 110 : 72;
   const chartWidth = Math.max(
     fullscreen ? viewport.width - 48 : 0,
@@ -105,15 +127,23 @@ export function FinanceBarChart({
       ? 280
       : 360;
 
+  const planColor =
+    colors?.plan ?? (forecastMode ? FORECAST_PLAN : DEFAULT_PLAN);
+  const factColor =
+    colors?.fact ?? (forecastMode ? FORECAST_FACT : DEFAULT_FACT);
+  const forecastColor =
+    colors?.forecast ?? (forecastMode ? FORECAST_SERIES : DEFAULT_FORECAST);
+
   const chartData = useMemo(
     () =>
       rows.map((row) => ({
         period: row.period,
         [planName]: row.plan,
         [factName]: row.fact,
-        ...(showDeviation ? { Отклонение: row.deviation } : {}),
+        ...(showForecast ? { [forecastName]: row.forecast ?? 0 } : {}),
+        ...(showDeviation ? { [deviationLabel]: row.deviation } : {}),
       })),
-    [rows, planName, factName, showDeviation],
+    [rows, planName, factName, forecastName, showForecast, showDeviation, deviationLabel],
   );
 
   const labelFont = compact ? 9 : 10;
@@ -206,35 +236,50 @@ export function FinanceBarChart({
             <Legend wrapperStyle={{ fontSize: compact ? 11 : 13 }} />
             <Bar
               dataKey={planName}
-              fill={PLAN_COLOR}
+              fill={planColor}
               radius={[3, 3, 0, 0]}
               isAnimationActive
             >
-              <LabelList
-                dataKey={planName}
-                content={renderValueLabel as never}
-              />
+              <LabelList dataKey={planName} content={renderValueLabel as never} />
             </Bar>
             <Bar
               dataKey={factName}
-              fill={FACT_COLOR}
+              fill={factColor}
               radius={[3, 3, 0, 0]}
               isAnimationActive
             >
-              <LabelList
-                dataKey={factName}
-                content={renderValueLabel as never}
-              />
+              <LabelList dataKey={factName} content={renderValueLabel as never} />
             </Bar>
-            {showDeviation ? (
+            {showForecast ? (
               <Bar
-                dataKey="Отклонение"
-                fill={DEV_COLOR}
+                dataKey={forecastName}
+                fill={forecastColor}
                 radius={[3, 3, 0, 0]}
                 isAnimationActive
               >
                 <LabelList
-                  dataKey="Отклонение"
+                  dataKey={forecastName}
+                  content={renderValueLabel as never}
+                />
+              </Bar>
+            ) : null}
+            {showDeviation ? (
+              <Bar
+                dataKey={deviationLabel}
+                radius={[3, 3, 0, 0]}
+                isAnimationActive
+              >
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={`dev-${index}`}
+                    fill={deviationBarColor(
+                      Number(entry[deviationLabel as keyof typeof entry] ?? 0),
+                      forecastMode,
+                    )}
+                  />
+                ))}
+                <LabelList
+                  dataKey={deviationLabel}
                   content={renderValueLabel as never}
                 />
               </Bar>
