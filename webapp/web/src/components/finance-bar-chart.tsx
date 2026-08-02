@@ -242,11 +242,11 @@ export function FinanceBarChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
-      {compact ? (
-        <p className="mt-1 text-[11px] text-tremor-content dark:text-dark-tremor-content">
-          Подписи — млн ₽ (кратко). Прокрутите график вправо при длинном периоде.
-        </p>
-      ) : null}
+      <p className="mt-1 text-[11px] text-tremor-content dark:text-dark-tremor-content">
+        {compact
+          ? "Подписи на столбцах — млн ₽ (кратко). Прокрутите график вправо при длинном периоде."
+          : "Подписи на столбцах — млн ₽."}
+      </p>
     </div>
   );
 }
