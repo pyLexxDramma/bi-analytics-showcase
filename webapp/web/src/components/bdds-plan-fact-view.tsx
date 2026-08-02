@@ -146,53 +146,55 @@ export function BddsPlanFactView() {
     data?.labels.deviation_column ?? "Откл. (план − прогноз), млн";
   const periodLabel = data?.labels.period_column ?? "Месяц";
 
-  const periodExport: ExportTable = useMemo(
-    () => ({
-      filename: "forecast_bddcs_summary",
-      columns: [
-        { key: "period", header: periodLabel },
-        { key: "plan", header: "БДДС план" },
-        { key: "fact", header: "БДДС факт" },
-        { key: "forecast", header: "БДДС прогноз" },
-        ...(filters.hide_deviation
-          ? []
-          : [{ key: "deviation", header: deviationColumn }]),
-      ],
-      rows: periodRows.map((row) => ({
-        period: row.period,
-        plan: mlnPlain(row.plan),
-        fact: mlnPlain(row.fact),
-        forecast: mlnPlain(row.forecast),
-        deviation: mlnPlain(row.deviation),
-      })),
-    }),
-    [periodRows, periodLabel, deviationColumn, filters.hide_deviation],
-  );
+  const periodExport = useCallback((): ExportTable | null => {
+    if (!periodRows.length) return null;
+    const headers = [
+      periodLabel,
+      "БДДС план",
+      "БДДС факт",
+      "БДДС прогноз",
+      ...(filters.hide_deviation ? [] : [deviationColumn]),
+    ];
+    return {
+      header: [headers],
+      rows: periodRows.map((row) => [
+        row.period,
+        mlnPlain(row.plan),
+        mlnPlain(row.fact),
+        mlnPlain(row.forecast),
+        ...(filters.hide_deviation ? [] : [mlnPlain(row.deviation)]),
+      ]),
+      sheetName: "Прогнозный бюджет",
+    };
+  }, [periodRows, periodLabel, deviationColumn, filters.hide_deviation]);
 
-  const statusExport: ExportTable = useMemo(
-    () => ({
-      filename: "forecast_bddcs_financier_status",
-      columns: [
-        { key: "month", header: "Месяц" },
-        { key: "project", header: "Проект" },
-        { key: "plan_mln", header: "БДДС (план), млн" },
-        { key: "fact_mln", header: "БДДС (факт), млн" },
-        { key: "forecast_mln", header: "БДДС (прогноз), млн" },
-        { key: "deviation_mln", header: "Отклонение по сумме, млн" },
-        { key: "status", header: "Статус" },
+  const statusExport = useCallback((): ExportTable | null => {
+    const statusRows = data?.status_rows ?? [];
+    if (!statusRows.length) return null;
+    return {
+      header: [
+        [
+          "Месяц",
+          "Проект",
+          "БДДС (план), млн",
+          "БДДС (факт), млн",
+          "БДДС (прогноз), млн",
+          "Отклонение по сумме, млн",
+          "Статус",
+        ],
       ],
-      rows: (data?.status_rows ?? []).map((row) => ({
-        month: row.month,
-        project: row.project,
-        plan_mln: row.plan_mln.toFixed(2),
-        fact_mln: row.fact_mln.toFixed(2),
-        forecast_mln: row.forecast_mln.toFixed(2),
-        deviation_mln: row.deviation_mln.toFixed(2),
-        status: row.status,
-      })),
-    }),
-    [data?.status_rows],
-  );
+      rows: statusRows.map((row) => [
+        row.month,
+        row.project,
+        row.plan_mln.toFixed(2),
+        row.fact_mln.toFixed(2),
+        row.forecast_mln.toFixed(2),
+        row.deviation_mln.toFixed(2),
+        row.status,
+      ]),
+      sheetName: "Статус",
+    };
+  }, [data?.status_rows]);
 
   return (
     <AppShell
@@ -420,7 +422,11 @@ export function BddsPlanFactView() {
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               {data?.labels.period_table_title ?? "Таблица Прогнозный бюджет"}
             </Title>
-            <DownloadTableButton table={periodExport} disabled={!periodRows.length} />
+            <DownloadTableButton
+              getTable={periodExport}
+              fileStem="forecast_bddcs_summary"
+              disabled={!periodRows.length}
+            />
           </div>
           <FullscreenPanel disabled={!periodRows.length}>
             <div className="p-1 pt-10">
@@ -554,7 +560,8 @@ export function BddsPlanFactView() {
               {data?.labels.status_table_title ?? "Статус"}
             </Title>
             <DownloadTableButton
-              table={statusExport}
+              getTable={statusExport}
+              fileStem="forecast_bddcs_financier_status"
               disabled={!(data?.status_rows.length ?? 0)}
             />
           </div>

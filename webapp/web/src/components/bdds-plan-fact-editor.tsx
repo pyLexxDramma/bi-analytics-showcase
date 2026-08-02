@@ -14,8 +14,8 @@ import {
 } from "@/lib/api";
 import { getAuthSession } from "@/lib/auth";
 
-type EditorFilters = BddsPlanFactQuery & {
-  hide_zero: boolean | null;
+type EditorFilters = Omit<BddsPlanFactQuery, "hide_zero"> & {
+  hide_zero?: boolean | null;
 };
 
 type Props = {
@@ -152,6 +152,7 @@ export function BddsPlanFactEditor({
       try {
         const payload = await previewBddsPlanFact(project, nextRows, {
           ...filters,
+          hide_zero: filters.hide_zero ?? undefined,
           lot_recalc_period: period || undefined,
         });
         if (seq !== previewSeq.current) return;
@@ -202,6 +203,7 @@ export function BddsPlanFactEditor({
     try {
       const payload = await applyBddsPlanFactEdits(project, rows, {
         ...filters,
+        hide_zero: filters.hide_zero ?? undefined,
         lot_recalc_period: lotPeriod || undefined,
       });
       onDataChange(payload);
