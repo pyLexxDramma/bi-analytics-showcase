@@ -39,16 +39,23 @@ const COL = {
 } as const;
 
 const inputSm =
-  "w-full rounded border border-tremor-border bg-tremor-background px-2 py-1.5 text-xs dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+  "w-full min-w-0 rounded border border-tremor-border bg-tremor-background px-1.5 py-1 text-xs dark:border-dark-tremor-border dark:bg-dark-tremor-background";
 const inputDist =
-  "w-full min-w-[11rem] rounded border border-tremor-border bg-tremor-background px-2 py-1.5 text-xs dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+  "w-full min-w-[9.5rem] rounded border border-tremor-border bg-tremor-background px-1.5 py-1 text-xs dark:border-dark-tremor-border dark:bg-dark-tremor-background";
 const HEAD =
-  "border border-[#cbd5e1] bg-[#e8f0fe] px-2 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8] whitespace-nowrap";
-const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4] px-2 py-1 text-xs";
+  "border border-[#cbd5e1] bg-[#e8f0fe] px-1.5 py-2 text-[11px] font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8] whitespace-nowrap";
+const CELL = "border border-[#cbd5e1] bg-tremor-background px-1.5 py-1 text-xs dark:border-[#7a9ec4] dark:bg-dark-tremor-background";
 const TABLE =
-  "min-w-[1280px] border-collapse border-2 border-[#94a3b8] text-left dark:border-[#7a9ec4]";
+  "w-full min-w-[980px] border-collapse border-2 border-[#94a3b8] text-left dark:border-[#7a9ec4]";
 const FIELD =
   "text-[10px] font-semibold uppercase tracking-wide text-[#64748b] dark:text-slate-400";
+/** Правые A/B/C всегда видны при горизонтальном скролле. */
+const STICKY_C =
+  "sticky right-0 z-20 shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.35)]";
+const STICKY_B = "sticky right-[3.75rem] z-20";
+const STICKY_A = "sticky right-[7.5rem] z-20";
+const STICKY_LOT =
+  "sticky left-0 z-10 max-w-[11rem] shadow-[6px_0_8px_-6px_rgba(15,23,42,0.25)]";
 
 function rowUsesAbc(dist: string): boolean {
   return dist.includes("%");
@@ -315,7 +322,7 @@ export function BddsPlanFactEditor({
           делятся равномерно.
         </Text>
 
-        {/* Mobile: карточки лотов без H-scroll */}
+        {/* Mobile: карточки */}
         <div className="mt-3 flex flex-col gap-3 lg:hidden">
           {visibleIndices.map((rowIndex) => {
             const row = rows[rowIndex];
@@ -324,18 +331,18 @@ export function BddsPlanFactEditor({
             return (
               <section
                 key={rowIndex}
-                className="rounded-lg border-2 border-[#94a3b8] p-3 dark:border-[#7a9ec4]"
+                className="min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 dark:border-[#7a9ec4]"
               >
-                <div className="mb-2 text-sm font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                <div className="mb-1 text-sm font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong">
                   {row[COL.lot] || "—"}
                 </div>
                 {row[COL.section] ? (
-                  <Text className="mb-2 text-xs text-tremor-content dark:text-dark-tremor-content">
+                  <Text className="mb-2 break-words text-xs text-tremor-content dark:text-dark-tremor-content">
                     Раздел: {row[COL.section]}
                   </Text>
                 ) : null}
                 <div className="grid gap-2">
-                  <label className="block">
+                  <label className="block min-w-0">
                     <span className={FIELD}>Условие</span>
                     <select
                       className={`${inputSm} mt-1`}
@@ -355,7 +362,7 @@ export function BddsPlanFactEditor({
                     </select>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
+                    <label className="block min-w-0">
                       <span className={FIELD}>Начало</span>
                       <input
                         className={`${inputSm} mt-1`}
@@ -366,7 +373,7 @@ export function BddsPlanFactEditor({
                         }
                       />
                     </label>
-                    <label className="block">
+                    <label className="block min-w-0">
                       <span className={FIELD}>Конец</span>
                       <input
                         className={`${inputSm} mt-1`}
@@ -377,10 +384,8 @@ export function BddsPlanFactEditor({
                         }
                       />
                     </label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className={FIELD}>БДДС план, млн</span>
+                    <label className="block min-w-0">
+                      <span className={FIELD}>План, млн</span>
                       <input
                         type="number"
                         step="0.0001"
@@ -394,8 +399,8 @@ export function BddsPlanFactEditor({
                         }
                       />
                     </label>
-                    <label className="block">
-                      <span className={FIELD}>БДДС факт, млн</span>
+                    <label className="block min-w-0">
+                      <span className={FIELD}>Факт, млн</span>
                       <input
                         type="number"
                         step="0.0001"
@@ -412,7 +417,7 @@ export function BddsPlanFactEditor({
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {([COL.a, COL.b, COL.c] as const).map((key, i) => (
-                      <label key={key} className="block">
+                      <label key={key} className="block min-w-0">
                         <span className={FIELD}>{["A%", "B%", "C%"][i]}</span>
                         <input
                           type="number"
@@ -435,119 +440,157 @@ export function BddsPlanFactEditor({
           })}
         </div>
 
-        {/* Desktop: широкая таблица */}
-        <div className="mt-3 hidden overflow-x-auto lg:block">
-          <table className={TABLE}>
-            <thead>
-              <tr>
-                <th className={HEAD}>Раздел</th>
-                <th className={HEAD}>Лот</th>
-                <th className={`${HEAD} min-w-[12rem]`}>Условие</th>
-                <th className={HEAD}>Начало</th>
-                <th className={HEAD}>Конец</th>
-                <th className={HEAD}>БДДС план</th>
-                <th className={HEAD}>БДДС факт</th>
-                <th className={HEAD}>A%</th>
-                <th className={HEAD}>B%</th>
-                <th className={HEAD}>C%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleIndices.map((rowIndex) => {
-                const row = rows[rowIndex];
-                if (!row) return null;
-                const abc = rowUsesAbc(String(row[COL.dist] || ""));
-                return (
-                  <tr key={rowIndex}>
-                    <td className={`${CELL} max-w-[8rem] truncate`} title={row[COL.section]}>
-                      {row[COL.section]}
-                    </td>
-                    <td className={`${CELL} max-w-[14rem]`} title={row[COL.lot]}>
-                      {row[COL.lot]}
-                    </td>
-                    <td className={`${CELL} min-w-[12rem]`}>
-                      <select
-                        className={inputDist}
-                        value={row[COL.dist]}
-                        disabled={!canEdit}
-                        onChange={(e) =>
-                          patchRow(rowIndex, { [COL.dist]: e.target.value })
-                        }
+        {/* Desktop: таблица; A/B/C и Лот закреплены — правый край виден без «искать скролл» */}
+        <div className="mt-3 hidden lg:block">
+          <div className="overflow-x-auto overflow-y-visible rounded-md border border-[#94a3b8] dark:border-[#7a9ec4]">
+            <table className={TABLE}>
+              <thead>
+                <tr>
+                  <th className={HEAD}>Раздел</th>
+                  <th className={`${HEAD} ${STICKY_LOT}`}>Лот</th>
+                  <th className={`${HEAD} min-w-[10rem]`}>Условие</th>
+                  <th className={HEAD}>Начало</th>
+                  <th className={HEAD}>Конец</th>
+                  <th className={HEAD}>БДДС план</th>
+                  <th className={HEAD}>БДДС факт</th>
+                  <th className={`${HEAD} ${STICKY_A} w-[3.75rem] min-w-[3.75rem]`}>A%</th>
+                  <th className={`${HEAD} ${STICKY_B} w-[3.75rem] min-w-[3.75rem]`}>B%</th>
+                  <th className={`${HEAD} ${STICKY_C} w-[3.75rem] min-w-[3.75rem]`}>C%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleIndices.map((rowIndex) => {
+                  const row = rows[rowIndex];
+                  if (!row) return null;
+                  const abc = rowUsesAbc(String(row[COL.dist] || ""));
+                  return (
+                    <tr key={rowIndex}>
+                      <td
+                        className={`${CELL} max-w-[7rem] truncate`}
+                        title={row[COL.section]}
                       >
-                        {(editor?.dist_options ?? ["Равномерно", "% Распределения"]).map(
-                          (opt) => (
+                        {row[COL.section]}
+                      </td>
+                      <td
+                        className={`${CELL} ${STICKY_LOT} truncate`}
+                        title={row[COL.lot]}
+                      >
+                        {row[COL.lot]}
+                      </td>
+                      <td className={`${CELL} min-w-[10rem]`}>
+                        <select
+                          className={inputDist}
+                          value={row[COL.dist]}
+                          disabled={!canEdit}
+                          onChange={(e) =>
+                            patchRow(rowIndex, { [COL.dist]: e.target.value })
+                          }
+                        >
+                          {(
+                            editor?.dist_options ?? ["Равномерно", "% Распределения"]
+                          ).map((opt) => (
                             <option key={opt} value={opt}>
                               {opt}
                             </option>
-                          ),
-                        )}
-                      </select>
-                    </td>
-                    <td className={CELL}>
-                      <input
-                        className={`${inputSm} min-w-[7rem]`}
-                        value={row[COL.ps]}
-                        disabled={!canEdit}
-                        onChange={(e) => patchRow(rowIndex, { [COL.ps]: e.target.value })}
-                      />
-                    </td>
-                    <td className={CELL}>
-                      <input
-                        className={`${inputSm} min-w-[7rem]`}
-                        value={row[COL.pe]}
-                        disabled={!canEdit}
-                        onChange={(e) => patchRow(rowIndex, { [COL.pe]: e.target.value })}
-                      />
-                    </td>
-                    <td className={CELL}>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        className={`${inputSm} min-w-[5.5rem] tabular-nums`}
-                        value={row[COL.bp]}
-                        disabled={!canEdit}
-                        onChange={(e) =>
-                          patchRow(rowIndex, {
-                            [COL.bp]: Number(e.target.value || 0),
-                          })
-                        }
-                      />
-                    </td>
-                    <td className={CELL}>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        className={`${inputSm} min-w-[5.5rem] tabular-nums`}
-                        value={row[COL.bf]}
-                        disabled={!canEdit}
-                        onChange={(e) =>
-                          patchRow(rowIndex, {
-                            [COL.bf]: Number(e.target.value || 0),
-                          })
-                        }
-                      />
-                    </td>
-                    {([COL.a, COL.b, COL.c] as const).map((key) => (
-                      <td key={key} className={CELL}>
+                          ))}
+                        </select>
+                      </td>
+                      <td className={CELL}>
+                        <input
+                          className={`${inputSm} w-[6.5rem]`}
+                          value={row[COL.ps]}
+                          disabled={!canEdit}
+                          onChange={(e) =>
+                            patchRow(rowIndex, { [COL.ps]: e.target.value })
+                          }
+                        />
+                      </td>
+                      <td className={CELL}>
+                        <input
+                          className={`${inputSm} w-[6.5rem]`}
+                          value={row[COL.pe]}
+                          disabled={!canEdit}
+                          onChange={(e) =>
+                            patchRow(rowIndex, { [COL.pe]: e.target.value })
+                          }
+                        />
+                      </td>
+                      <td className={CELL}>
                         <input
                           type="number"
-                          step="0.01"
-                          className={`${inputSm} min-w-[3.5rem] tabular-nums`}
-                          value={row[key]}
-                          disabled={!canEdit || !abc}
+                          step="0.0001"
+                          className={`${inputSm} w-[5rem] tabular-nums`}
+                          value={row[COL.bp]}
+                          disabled={!canEdit}
                           onChange={(e) =>
                             patchRow(rowIndex, {
-                              [key]: Number(e.target.value || 0),
+                              [COL.bp]: Number(e.target.value || 0),
                             })
                           }
                         />
                       </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <td className={CELL}>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          className={`${inputSm} w-[5rem] tabular-nums`}
+                          value={row[COL.bf]}
+                          disabled={!canEdit}
+                          onChange={(e) =>
+                            patchRow(rowIndex, {
+                              [COL.bf]: Number(e.target.value || 0),
+                            })
+                          }
+                        />
+                      </td>
+                      <td className={`${CELL} ${STICKY_A} w-[3.75rem]`}>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={`${inputSm} tabular-nums`}
+                          value={row[COL.a]}
+                          disabled={!canEdit || !abc}
+                          onChange={(e) =>
+                            patchRow(rowIndex, {
+                              [COL.a]: Number(e.target.value || 0),
+                            })
+                          }
+                        />
+                      </td>
+                      <td className={`${CELL} ${STICKY_B} w-[3.75rem]`}>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={`${inputSm} tabular-nums`}
+                          value={row[COL.b]}
+                          disabled={!canEdit || !abc}
+                          onChange={(e) =>
+                            patchRow(rowIndex, {
+                              [COL.b]: Number(e.target.value || 0),
+                            })
+                          }
+                        />
+                      </td>
+                      <td className={`${CELL} ${STICKY_C} w-[3.75rem]`}>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={`${inputSm} tabular-nums`}
+                          value={row[COL.c]}
+                          disabled={!canEdit || !abc}
+                          onChange={(e) =>
+                            patchRow(rowIndex, {
+                              [COL.c]: Number(e.target.value || 0),
+                            })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {canEdit ? (
@@ -603,21 +646,23 @@ export function BddsPlanFactEditor({
               {lotRecalc.rows.map((row) => (
                 <section
                   key={row.lot}
-                  className="rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
+                  className="min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
                 >
-                  <div className="mb-2 font-semibold leading-snug">{row.lot}</div>
+                  <div className="mb-2 break-words font-semibold leading-snug">
+                    {row.lot}
+                  </div>
                   <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
                     <dt>План</dt>
                     <dd className="text-right tabular-nums">{row.plan_mln.toFixed(1)}</dd>
                     <dt>Факт</dt>
                     <dd className="text-right tabular-nums">{row.fact_mln.toFixed(1)}</dd>
-                    <dt className="col-span-2 text-[10px] text-[#64748b]">
+                    <dt className="col-span-2 break-words text-[10px] text-[#64748b]">
                       {lotRecalc.forecast_uniform_column}
                     </dt>
                     <dd className="col-span-2 text-right tabular-nums">
                       {row.forecast_uniform_mln.toFixed(1)}
                     </dd>
-                    <dt className="col-span-2 text-[10px] text-[#64748b]">
+                    <dt className="col-span-2 break-words text-[10px] text-[#64748b]">
                       {lotRecalc.forecast_cond_column}
                     </dt>
                     <dd className="col-span-2 text-right tabular-nums">
