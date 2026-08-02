@@ -32,7 +32,7 @@ from app.services.finance_1c import (
 from app.services.report_cache import cache_get, cache_set
 
 CACHE_ID = "bdr"
-CACHE_VERSION = "v2"
+CACHE_VERSION = "v3"
 CACHE_MAX_AGE_SEC = 3600
 
 

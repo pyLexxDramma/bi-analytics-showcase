@@ -960,10 +960,13 @@ def load_bdr_screen_frame(
     cal_end = _clamp(date_to, date_min, date_max) or _as_date(defaults[PERIOD_END_COL].max())
     if cal_start and cal_end and cal_start > cal_end:
         cal_start, cal_end = cal_end, cal_start
-    if cal_start:
-        filtered = filtered[filtered[PERIOD_END_COL].dt.date >= cal_start]
-    if cal_end:
-        filtered = filtered[filtered[PERIOD_END_COL].dt.date <= cal_end]
+    if cal_start is not None:
+        start_ts = pd.Timestamp(cal_start)
+        filtered = filtered[filtered[PERIOD_END_COL] >= start_ts]
+    if cal_end is not None:
+        end_ts = pd.Timestamp(cal_end)
+        end_inclusive = end_ts + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+        filtered = filtered[filtered[PERIOD_END_COL] <= end_inclusive]
 
     attrs = dict(getattr(work, "attrs", {}) or {})
     return BdrScreenFrame(
