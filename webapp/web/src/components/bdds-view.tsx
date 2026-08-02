@@ -145,7 +145,7 @@ function groupPeriodByProject(rows: PeriodRow[]): PeriodProjectBlock[] {
       blocks.push(current);
       continue;
     }
-    const name = row.project || current?.project || "—";
+    const name: string = row.project || current?.project || "—";
     if (!current || current.project !== name) {
       current = { project: name, rows: [] };
       blocks.push(current);

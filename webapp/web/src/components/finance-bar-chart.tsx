@@ -135,12 +135,7 @@ export function FinanceBarChart({
     );
   }
 
-  const renderValueLabel = (props: {
-    x?: number | string;
-    y?: number | string;
-    width?: number | string;
-    value?: number | string;
-  }) => {
+  const renderValueLabel = (props: Record<string, unknown>) => {
     const text = formatBarLabel(props.value, compact);
     if (!text) return null;
     const x = Number(props.x) + Number(props.width) / 2;
@@ -215,7 +210,10 @@ export function FinanceBarChart({
               radius={[3, 3, 0, 0]}
               isAnimationActive
             >
-              <LabelList dataKey={planName} content={renderValueLabel} />
+              <LabelList
+                dataKey={planName}
+                content={renderValueLabel as never}
+              />
             </Bar>
             <Bar
               dataKey={factName}
@@ -223,7 +221,10 @@ export function FinanceBarChart({
               radius={[3, 3, 0, 0]}
               isAnimationActive
             >
-              <LabelList dataKey={factName} content={renderValueLabel} />
+              <LabelList
+                dataKey={factName}
+                content={renderValueLabel as never}
+              />
             </Bar>
             {showDeviation ? (
               <Bar
@@ -232,7 +233,10 @@ export function FinanceBarChart({
                 radius={[3, 3, 0, 0]}
                 isAnimationActive
               >
-                <LabelList dataKey="Отклонение" content={renderValueLabel} />
+                <LabelList
+                  dataKey="Отклонение"
+                  content={renderValueLabel as never}
+                />
               </Bar>
             ) : null}
           </BarChart>
