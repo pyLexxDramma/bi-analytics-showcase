@@ -196,6 +196,75 @@ def _env_falsy(name: str) -> bool:
     return _read_env_or_secret(name).lower() in ("0", "false", "no", "off")
 
 
+def is_showcase_mode() -> bool:
+    """
+    Демо-инстанс (отдельный ``showcase_app.py``): фейковые данные, без FTP и без ``web/`` клиента.
+
+    Включается только переменной ``BI_ANALYTICS_SHOWCASE_MODE=1`` (выставляется в ``showcase/bootstrap.py``
+    до загрузки основного приложения). Production ``streamlit_app.py`` / webapp API эту переменную не задают.
+    """
+    return _env_truthy("BI_ANALYTICS_SHOWCASE_MODE")
+
+
+def get_showcase_web_dir() -> Optional[Path]:
+    """``<корень репозитория>/showcase_data/web`` — источник данных Streamlit-showcase."""
+    if not is_showcase_mode():
+        return None
+    return (BASE_PATH.parent / "showcase_data" / "web").resolve()
+
+
+def is_prohibited_production_data_path(path: str | Path) -> bool:
+    """
+    Пути демо-данных showcase: production (8501, main, release, FTP) их не читает.
+
+    - ``showcase_data/`` — каталог демо-выгрузок
+    - ``web/showcase/`` — черновики demo внутри клиентского web/ (не FTP)
+    """
+    s = str(path).replace("\\", "/").lower()
+    if "showcase_data" in s:
+        return True
+    if "/showcase/" in s or s.endswith("/showcase") or s.startswith("showcase/"):
+        return True
+    return False
+
+
+def get_runtime_web_dir() -> Path:
+    """
+    Каталог CSV/JSON для runtime-чтений (GDRS, Projekts.json и т.п.).
+
+    Showcase → только ``showcase_data/web``; иначе ``bi-analytics-v-5-main/web/``.
+    Webapp API подменяет ``web_loader.get_web_dir`` на ``SHOWCASE_WEB_DIR``.
+    """
+    if is_showcase_mode():
+        sd = get_showcase_web_dir()
+        if sd is not None and sd.is_dir():
+            return sd
+    return (BASE_PATH / "web").resolve()
+
+
+def enforce_production_data_isolation() -> None:
+    """
+    Вызывается из ``streamlit_app.py`` до загрузки приложения.
+    Сбрасывает случайный ``BI_ANALYTICS_SHOWCASE_MODE=1`` из shell/.env и пути БД
+    из ``showcase_data/``, чтобы демо не попало на 8501 / main / release.
+    """
+    os.environ["BI_ANALYTICS_SHOWCASE_MODE"] = "0"
+    for env_key in ("WEB_DB_PATH", "BI_ANALYTICS_DB_PATH"):
+        val = os.environ.get(env_key, "")
+        if val and is_prohibited_production_data_path(val):
+            os.environ.pop(env_key, None)
+
+
+SHOWCASE_DISPLAY_TITLE = "Демо: панель аналитики проектов"
+
+
+def get_app_display_title() -> str:
+    """Заголовок H1 на главной: нейтральное имя в showcase, иначе пусто (как раньше)."""
+    if is_showcase_mode():
+        return SHOWCASE_DISPLAY_TITLE
+    return ""
+
+
 @lru_cache(maxsize=1)
 def _git_current_branch() -> str:
     """Текущая git-ветка приложения. Кешируется на процесс. На сервере без git вернёт ''."""
