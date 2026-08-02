@@ -9,6 +9,22 @@ import {
   type ThemeMode,
 } from "@/lib/theme";
 
+const OPEN_MENU_KEY = "bi_showcase_open_menu";
+
+function isMobileViewport(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 1023px)").matches;
+}
+
+/** Вызвать после логина — на mobile AppShell откроет drawer. */
+export function requestMobileMenuOnNextLoad(): void {
+  try {
+    sessionStorage.setItem(OPEN_MENU_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
 export function AppShell({
   title,
   subtitle,
@@ -24,6 +40,17 @@ export function AppShell({
   useEffect(() => {
     applyThemeClass(readTheme());
     setDark(readTheme() === "dark");
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(OPEN_MENU_KEY) === "1" && isMobileViewport()) {
+        sessionStorage.removeItem(OPEN_MENU_KEY);
+        setMenuOpen(true);
+      }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -55,17 +82,32 @@ export function AppShell({
         <AppSidebar />
       </div>
 
-      {/* Mobile/tablet: drawer overlay */}
+      {/* Mobile/tablet: full-width drawer */}
       {menuOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/45"
-            aria-label="Закрыть меню"
-            onClick={closeMenu}
-          />
-          <div className="absolute inset-y-0 left-0 flex w-[min(100%,280px)] max-w-[85vw] shadow-xl">
-            <AppSidebar onNavigate={closeMenu} className="h-full w-full" />
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-[#f8f9fb] dark:bg-dark-tremor-background lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Меню"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-dark-tremor-border">
+            <span className="text-sm font-bold text-[#1f2937] dark:text-dark-tremor-content-strong">
+              Меню
+            </span>
+            <button
+              type="button"
+              onClick={closeMenu}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-200 bg-white text-lg font-semibold text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+              aria-label="Закрыть меню"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <AppSidebar
+              onNavigate={closeMenu}
+              className="h-full w-full border-r-0"
+            />
           </div>
         </div>
       ) : null}

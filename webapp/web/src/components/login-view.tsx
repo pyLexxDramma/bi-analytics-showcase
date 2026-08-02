@@ -7,6 +7,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ConstructionAnalyticsScene } from "@/components/construction-analytics-scene";
+import { requestMobileMenuOnNextLoad } from "@/components/app-shell";
 
 import {
 
@@ -90,6 +91,8 @@ export function LoginView() {
 
       saveAuthSession(result.user);
 
+      requestMobileMenuOnNextLoad();
+
       router.replace("/developer-projects");
 
     } catch {
@@ -97,6 +100,8 @@ export function LoginView() {
       if (demoFallback) {
 
         loginDemo(username);
+
+        requestMobileMenuOnNextLoad();
 
         router.replace("/developer-projects");
 
