@@ -10,7 +10,7 @@
 | Эталон UI/цифр | `[main]` Streamlit (`bi-analytics` / `:8501`) |
 | Стенд showcase | CloudPub / VPS webapp (Next + FastAPI) |
 | Старт цикла | 02.08.2026 |
-| Текущий экран | ✅ §6 → 🔄 §7 График проекта |
+| Текущий экран | ✅ §5 → 🔄 §6 Контрольные точки |
 | Mobile | обязателен на **каждом** экране (тот же URL, ~390px) |
 
 **Правила цикла (зафиксировано):**
@@ -122,8 +122,8 @@ showcase active ──────┘
 | 3 | БДР (расходы) | `/finance/bdr` | БДР | ✅ |
 | 4 | Утверждённый бюджет план/факт | `/finance/approved-budget` | Утв. бюджет | ✅ |
 | 5 | БДДС план/факт/уточн. | `/finance/bdds-plan-fact` | БДДС план/факт | ✅ |
-| 6 | Контрольные точки | `/timeline/control-points` | Контрольные точки | ✅ |
-| 7 | График проекта | `/timeline/project-schedule` | График проекта | 🔄 |
+| 6 | Контрольные точки | `/timeline/control-points` | Контрольные точки | 🔄 |
+| 7 | График проекта | `/timeline/project-schedule` | График проекта | ⬜ |
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | Причины отклонений | ⬜ |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | Откл. от БП | ⬜ |
 | 10 | Проектная документация | `/docs/project-documentation` | ПД | ⬜ |
