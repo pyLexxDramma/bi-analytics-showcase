@@ -82,6 +82,195 @@ function buildMatrixExport(
   return { header: [header1, header2], rows, sheetName: "Матрица" };
 }
 
+/** Desktop / lg+: широкая матрица как в main. */
+function WideMatrixTable({
+  columns,
+  investCols,
+  lifeCols,
+  projects,
+}: {
+  columns: MatrixColumn[];
+  investCols: MatrixColumn[];
+  lifeCols: MatrixColumn[];
+  projects: DeveloperProjectsPayload["matrix"]["projects"];
+}) {
+  return (
+    <table className="min-w-max border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-xs dark:border-white">
+      <thead>
+        <tr>
+          <th
+            rowSpan={3}
+            className={`sticky left-0 z-30 min-w-48 border-[3px] border-[#94a3b8] bg-[#e8f0fe] px-3 py-2 text-center font-bold text-[#111827] dark:border-white dark:bg-[#1a3328] dark:text-[#f0f4f8]`}
+          >
+            Проект
+          </th>
+          {investCols.length ? (
+            <th
+              colSpan={investCols.length * 3}
+              className={`${CELL} ${EDGE_Y} ${EDGE_R} ${INVEST_BG} px-2 py-2 font-bold`}
+            >
+              Инвестиционная фаза
+            </th>
+          ) : null}
+          {lifeCols.length ? (
+            <th
+              colSpan={lifeCols.length * 3}
+              className={`${CELL} ${EDGE_Y} ${EDGE_L} ${EDGE_R} ${LIFE_BG} px-2 py-2 font-bold`}
+            >
+              Жизнь проекта
+            </th>
+          ) : null}
+        </tr>
+        <tr>
+          {columns.map((col) => (
+            <th
+              key={col.key}
+              colSpan={3}
+              className={`${CELL} ${EDGE_L} ${EDGE_R} ${
+                col.phase === "invest" ? INVEST_BG : LIFE_BG
+              } px-2 py-2 font-semibold`}
+            >
+              {col.label}
+            </th>
+          ))}
+        </tr>
+        <tr className="text-[10px] uppercase">
+          {columns.flatMap((col) => {
+            const sample = projects[0]?.cells[col.key];
+            const labs = subLabels(sample, col);
+            const blockBg = col.phase === "invest" ? INVEST_BG : LIFE_BG;
+            return [labs.plan, labs.fact, labs.otkl].map((label, index) => (
+              <th
+                key={`${col.key}-${label}-${index}`}
+                className={`${CELL} ${HEAD_BOTTOM} ${
+                  index === 0 ? EDGE_L : ""
+                } ${index === 2 ? EDGE_R : ""} ${blockBg} px-2 py-1.5 font-semibold`}
+              >
+                {label}
+              </th>
+            ));
+          })}
+        </tr>
+      </thead>
+      <tbody>
+        {projects.map((row) => (
+          <tr key={row.project}>
+            <td
+              className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-left font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
+            >
+              {row.project}
+            </td>
+            {columns.flatMap((col) => {
+              const cell = row.cells[col.key];
+              const body = `${CELL} bg-white px-2 py-2 tabular-nums dark:bg-[#0c1219]`;
+              return [
+                <td
+                  key={`${col.key}-plan`}
+                  className={`${body} ${EDGE_L} ${dateClass(cell)}`}
+                >
+                  {cell?.plan ?? "Н/Д"}
+                </td>,
+                <td
+                  key={`${col.key}-fact`}
+                  className={`${body} ${dateClass(cell)}`}
+                >
+                  {cell?.fact ?? "Н/Д"}
+                </td>,
+                <td
+                  key={`${col.key}-otkl`}
+                  className={`${body} ${EDGE_R} ${otklClass(cell)}`}
+                >
+                  {cell?.otkl ?? "Н/Д"}
+                </td>,
+              ];
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** Mobile: секции по контрольной точке — скролл только вертикальный. */
+function MobileMilestoneSections({
+  columns,
+  projects,
+}: {
+  columns: MatrixColumn[];
+  projects: DeveloperProjectsPayload["matrix"]["projects"];
+}) {
+  return (
+    <div className="flex flex-col gap-4 px-2 pb-2">
+      {columns.map((col) => {
+        const labs = subLabels(projects[0]?.cells[col.key], col);
+        const blockBg = col.phase === "invest" ? INVEST_BG : LIFE_BG;
+        const phaseLabel =
+          col.phase === "invest" ? "Инвестиционная фаза" : "Жизнь проекта";
+        return (
+          <section
+            key={col.key}
+            className="overflow-hidden rounded-lg border-[3px] border-[#94a3b8] dark:border-white"
+          >
+            <div className={`${blockBg} border-b-2 border-[#94a3b8] px-3 py-2 dark:border-white`}>
+              <div className="text-[11px] font-medium opacity-80">{phaseLabel}</div>
+              <div className="text-sm font-bold">{col.label}</div>
+            </div>
+            <table className="w-full table-fixed border-separate border-spacing-0 text-center text-xs">
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+              </colgroup>
+              <thead>
+                <tr className="text-[10px] uppercase">
+                  <th
+                    className={`${CELL} ${HEAD_BOTTOM} bg-[#e8f0fe] px-1.5 py-1.5 text-left font-bold text-[#111827] dark:bg-[#1a3328] dark:text-[#f0f4f8]`}
+                  >
+                    Проект
+                  </th>
+                  {[labs.plan, labs.fact, labs.otkl].map((label) => (
+                    <th
+                      key={`${col.key}-h-${label}`}
+                      className={`${CELL} ${HEAD_BOTTOM} ${blockBg} px-1 py-1.5 font-semibold`}
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((row) => {
+                  const cell = row.cells[col.key];
+                  const body = `${CELL} bg-white px-1 py-2 tabular-nums dark:bg-[#0c1219]`;
+                  return (
+                    <tr key={`${col.key}-${row.project}`}>
+                      <td
+                        className={`${CELL} bg-[#f9fafb] px-1.5 py-2 text-left text-[11px] font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
+                      >
+                        {row.project}
+                      </td>
+                      <td className={`${body} break-words ${dateClass(cell)}`}>
+                        {cell?.plan ?? "Н/Д"}
+                      </td>
+                      <td className={`${body} break-words ${dateClass(cell)}`}>
+                        {cell?.fact ?? "Н/Д"}
+                      </td>
+                      <td className={`${body} break-words ${otklClass(cell)}`}>
+                        {cell?.otkl ?? "Н/Д"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DeveloperProjectsView() {
   const [selected, setSelected] = useState<string[]>([]);
   const [data, setData] = useState<DeveloperProjectsPayload | null>(null);
@@ -221,7 +410,7 @@ export function DeveloperProjectsView() {
           </Title>
         </div>
         <FullscreenPanel disabled={!hasRows}>
-          <div className="overflow-x-auto p-1 pt-10">
+          <div className="p-1 pt-10">
             {!hasRows ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                 {loading
@@ -229,102 +418,22 @@ export function DeveloperProjectsView() {
                   : "Нет данных матрицы. Сделайте ingest в админке."}
               </div>
             ) : (
-              <table className="min-w-max border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-xs dark:border-white">
-                <thead>
-                  <tr>
-                    <th
-                      rowSpan={3}
-                      className={`sticky left-0 z-30 min-w-48 border-[3px] border-[#94a3b8] bg-[#e8f0fe] px-3 py-2 text-center font-bold text-[#111827] dark:border-white dark:bg-[#1a3328] dark:text-[#f0f4f8]`}
-                    >
-                      Проект
-                    </th>
-                    {investCols.length ? (
-                      <th
-                        colSpan={investCols.length * 3}
-                        className={`${CELL} ${EDGE_Y} ${EDGE_R} ${INVEST_BG} px-2 py-2 font-bold`}
-                      >
-                        Инвестиционная фаза
-                      </th>
-                    ) : null}
-                    {lifeCols.length ? (
-                      <th
-                        colSpan={lifeCols.length * 3}
-                        className={`${CELL} ${EDGE_Y} ${EDGE_L} ${EDGE_R} ${LIFE_BG} px-2 py-2 font-bold`}
-                      >
-                        Жизнь проекта
-                      </th>
-                    ) : null}
-                  </tr>
-                  <tr>
-                    {columns.map((col) => (
-                      <th
-                        key={col.key}
-                        colSpan={3}
-                        className={`${CELL} ${EDGE_L} ${EDGE_R} ${
-                          col.phase === "invest" ? INVEST_BG : LIFE_BG
-                        } px-2 py-2 font-semibold`}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-                  </tr>
-                  <tr className="text-[10px] uppercase">
-                    {columns.flatMap((col) => {
-                      const sample = data?.matrix.projects[0]?.cells[col.key];
-                      const labs = subLabels(sample, col);
-                      const blockBg =
-                        col.phase === "invest" ? INVEST_BG : LIFE_BG;
-                      return [labs.plan, labs.fact, labs.otkl].map(
-                        (label, index) => (
-                          <th
-                            key={`${col.key}-${label}-${index}`}
-                            className={`${CELL} ${HEAD_BOTTOM} ${
-                              index === 0 ? EDGE_L : ""
-                            } ${index === 2 ? EDGE_R : ""} ${blockBg} px-2 py-1.5 font-semibold`}
-                          >
-                            {label}
-                          </th>
-                        ),
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.matrix.projects ?? []).map((row) => (
-                    <tr key={row.project}>
-                      <td
-                        className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-left font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
-                      >
-                        {row.project}
-                      </td>
-                      {columns.flatMap((col) => {
-                        const cell = row.cells[col.key];
-                        const body = `${CELL} bg-white px-2 py-2 tabular-nums dark:bg-[#0c1219]`;
-                        return [
-                          <td
-                            key={`${col.key}-plan`}
-                            className={`${body} ${EDGE_L} ${dateClass(cell)}`}
-                          >
-                            {cell?.plan ?? "Н/Д"}
-                          </td>,
-                          <td
-                            key={`${col.key}-fact`}
-                            className={`${body} ${dateClass(cell)}`}
-                          >
-                            {cell?.fact ?? "Н/Д"}
-                          </td>,
-                          <td
-                            key={`${col.key}-otkl`}
-                            className={`${body} ${EDGE_R} ${otklClass(cell)}`}
-                          >
-                            {cell?.otkl ?? "Н/Д"}
-                          </td>,
-                        ];
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <>
+                <div className="lg:hidden">
+                  <MobileMilestoneSections
+                    columns={columns}
+                    projects={data?.matrix.projects ?? []}
+                  />
+                </div>
+                <div className="hidden overflow-x-auto lg:block">
+                  <WideMatrixTable
+                    columns={columns}
+                    investCols={investCols}
+                    lifeCols={lifeCols}
+                    projects={data?.matrix.projects ?? []}
+                  />
+                </div>
+              </>
             )}
           </div>
         </FullscreenPanel>
