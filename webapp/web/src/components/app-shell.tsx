@@ -112,10 +112,10 @@ export function AppShell({
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          <header className="mb-6 flex items-center justify-between gap-3 sm:mb-8">
-            <div className="flex min-w-0 items-start gap-3">
+      <div className="min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
+        <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+          <header className="mb-5 flex items-start justify-between gap-2 sm:mb-8 sm:items-center sm:gap-3">
+            <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
@@ -125,12 +125,12 @@ export function AppShell({
               >
                 ☰
               </button>
-              <div className="min-w-0">
-                <h1 className="text-xl font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
+              <div className="min-w-0 flex-1">
+                <h1 className="break-words text-lg font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
                   {title}
                 </h1>
                 {subtitle ? (
-                  <p className="mt-1 text-tremor-default text-tremor-content dark:text-dark-tremor-content">
+                  <p className="mt-1 break-words text-sm text-tremor-content dark:text-dark-tremor-content sm:text-tremor-default">
                     {subtitle}
                   </p>
                 ) : null}
@@ -139,12 +139,12 @@ export function AppShell({
             <button
               type="button"
               onClick={() => setTheme(dark ? "light" : "dark")}
-              className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+              className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle sm:px-3 sm:text-tremor-default"
             >
               {dark ? "☀ Светлая" : "🌙 Тёмная"}
             </button>
           </header>
-          {children}
+          <div className="min-w-0 max-w-full">{children}</div>
         </div>
       </div>
     </div>

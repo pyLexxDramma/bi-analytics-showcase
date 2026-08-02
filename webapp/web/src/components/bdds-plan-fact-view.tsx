@@ -37,7 +37,7 @@ const INITIAL: Filters = {
 };
 
 const inputClass =
-  "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+  "mt-1 box-border w-full max-w-full min-w-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
 const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
 const HEAD =
   "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8]";
@@ -48,10 +48,11 @@ const BODY =
 const TOTAL =
   "border-t-[3px] border-t-[#94a3b8] bg-[#f1f5f9] font-bold dark:border-t-white dark:bg-[#16283a]";
 const BANNER =
-  "rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100";
+  "break-words rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100";
 
-function mlnCell(value: number): string {
-  return `${(Number(value || 0) / 1_000_000).toFixed(1)} млн. руб.`;
+function mlnCell(value: number, compact = false): string {
+  const n = (Number(value || 0) / 1_000_000).toFixed(1);
+  return compact ? n : `${n} млн. руб.`;
 }
 
 function mlnPlain(value: number): string {
@@ -201,9 +202,9 @@ export function BddsPlanFactView() {
       title="БДДС расходы (план, факт, уточненный план)"
       subtitle="Прогнозный бюджет: план, факт и БДДС прогноз по лотам MSP"
     >
-      <Card className="mb-6 rounded-xl">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="block text-sm sm:col-span-2 lg:col-span-1">
+      <Card className="mb-6 min-w-0 max-w-full overflow-hidden rounded-xl">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="block min-w-0 text-sm sm:col-span-2 lg:col-span-1">
             <Text>Проект</Text>
             <select
               className={inputClass}
@@ -384,14 +385,14 @@ export function BddsPlanFactView() {
         </Card>
       ) : null}
 
-      <div className="space-y-6">
-        <Card className="rounded-xl">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+      <div className="min-w-0 max-w-full space-y-6">
+        <Card className="min-w-0 max-w-full overflow-hidden rounded-xl">
+          <div className="border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
+            <Title className="!break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
               {data?.labels.chart_title ?? "График Прогнозный бюджет"}
             </Title>
           </div>
-          <FullscreenPanel disabled={!chartRows.length} fill>
+          <FullscreenPanel disabled={!chartRows.length} fill className="min-w-0">
             {(zoomed) => (
               <FinanceBarChart
                 rows={chartRows}
@@ -417,9 +418,9 @@ export function BddsPlanFactView() {
           </FullscreenPanel>
         </Card>
 
-        <Card className="overflow-hidden rounded-xl p-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+        <Card className="min-w-0 max-w-full overflow-hidden rounded-xl p-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
+            <Title className="min-w-0 flex-1 !break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
               {data?.labels.period_table_title ?? "Таблица Прогнозный бюджет"}
             </Title>
             <DownloadTableButton
@@ -428,8 +429,8 @@ export function BddsPlanFactView() {
               disabled={!periodRows.length}
             />
           </div>
-          <FullscreenPanel disabled={!periodRows.length}>
-            <div className="p-1 pt-10">
+          <FullscreenPanel disabled={!periodRows.length} className="min-w-0">
+            <div className="min-w-0 p-1 pt-10">
               {!periodRows.length ? (
                 <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                   {loading ? "Загрузка…" : "Нет строк для таблицы по выбранным фильтрам."}
@@ -438,26 +439,29 @@ export function BddsPlanFactView() {
                 <>
                   <div className="lg:hidden">
                     <div className="flex flex-col gap-3 px-2 pb-2">
+                      <p className="px-1 text-[10px] text-tremor-content dark:text-dark-tremor-content">
+                        Значения — млн ₽
+                      </p>
                       {dataRows.map((row) => (
                         <div
                           key={row.period}
-                          className="rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
+                          className="min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
                         >
-                          <div className="mb-2 font-semibold">{row.period}</div>
+                          <div className="mb-2 break-words font-semibold">{row.period}</div>
                           <dl className="grid grid-cols-2 gap-1">
                             <dt>План</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(row.plan)}</dd>
+                            <dd className="text-right tabular-nums">{mlnCell(row.plan, true)}</dd>
                             <dt>Факт</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(row.fact)}</dd>
+                            <dd className="text-right tabular-nums">{mlnCell(row.fact, true)}</dd>
                             <dt>Прогноз</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(row.forecast)}</dd>
+                            <dd className="text-right tabular-nums">{mlnCell(row.forecast, true)}</dd>
                             {!filters.hide_deviation ? (
                               <>
                                 <dt>Откл.</dt>
                                 <dd
                                   className={`text-right tabular-nums ${deviationClass(row.deviation)}`}
                                 >
-                                  {mlnCell(row.deviation)}
+                                  {mlnCell(row.deviation, true)}
                                 </dd>
                               </>
                             ) : null}
@@ -465,22 +469,22 @@ export function BddsPlanFactView() {
                         </div>
                       ))}
                       {totalRow ? (
-                        <div className={`rounded-lg border-2 border-[#94a3b8] p-3 text-xs font-bold ${TOTAL}`}>
+                        <div className={`min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 text-xs font-bold ${TOTAL}`}>
                           <div className="mb-2">ИТОГО</div>
                           <dl className="grid grid-cols-2 gap-1">
                             <dt>План</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(totalRow.plan)}</dd>
+                            <dd className="text-right tabular-nums">{mlnCell(totalRow.plan, true)}</dd>
                             <dt>Факт</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(totalRow.fact)}</dd>
+                            <dd className="text-right tabular-nums">{mlnCell(totalRow.fact, true)}</dd>
                             <dt>Прогноз</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(totalRow.forecast)}</dd>
+                            <dd className="text-right tabular-nums">{mlnCell(totalRow.forecast, true)}</dd>
                             {!filters.hide_deviation ? (
                               <>
                                 <dt>Откл.</dt>
                                 <dd
                                   className={`text-right tabular-nums ${deviationClass(totalRow.deviation)}`}
                                 >
-                                  {mlnCell(totalRow.deviation)}
+                                  {mlnCell(totalRow.deviation, true)}
                                 </dd>
                               </>
                             ) : null}
@@ -554,9 +558,9 @@ export function BddsPlanFactView() {
           </FullscreenPanel>
         </Card>
 
-        <Card className="overflow-hidden rounded-xl p-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+        <Card className="min-w-0 max-w-full overflow-hidden rounded-xl p-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
+            <Title className="min-w-0 flex-1 !break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
               {data?.labels.status_table_title ?? "Статус"}
             </Title>
             <DownloadTableButton
@@ -565,7 +569,7 @@ export function BddsPlanFactView() {
               disabled={!(data?.status_rows.length ?? 0)}
             />
           </div>
-          <div className="p-1">
+          <div className="min-w-0 p-1">
             {!(data?.status_rows.length ?? 0) ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                 {loading ? "Загрузка…" : "Нет данных для статуса."}
@@ -574,27 +578,30 @@ export function BddsPlanFactView() {
               <>
                 <div className="lg:hidden">
                   <div className="flex flex-col gap-3 px-2 pb-2">
+                    <p className="px-1 text-[10px] text-tremor-content dark:text-dark-tremor-content">
+                      Значения — млн ₽
+                    </p>
                     {(data?.status_rows ?? []).map((row, index) => (
                       <div
                         key={`${row.month}-${row.project}-${index}`}
-                        className="rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
+                        className="min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
                       >
-                        <div className="mb-1 font-semibold">
+                        <div className="mb-1 break-words font-semibold">
                           {row.month} · {row.project}
                         </div>
                         <dl className="grid grid-cols-2 gap-1">
                           <dt>План</dt>
-                          <dd className="text-right">{row.plan_mln.toFixed(2)}</dd>
+                          <dd className="text-right tabular-nums">{row.plan_mln.toFixed(1)}</dd>
                           <dt>Факт</dt>
-                          <dd className="text-right">{row.fact_mln.toFixed(2)}</dd>
+                          <dd className="text-right tabular-nums">{row.fact_mln.toFixed(1)}</dd>
                           <dt>Прогноз</dt>
-                          <dd className="text-right">{row.forecast_mln.toFixed(2)}</dd>
+                          <dd className="text-right tabular-nums">{row.forecast_mln.toFixed(1)}</dd>
                           <dt>Откл.</dt>
-                          <dd className={`text-right ${deviationClass(row.deviation_mln * 1e6)}`}>
-                            {row.deviation_mln.toFixed(2)}
+                          <dd className={`text-right tabular-nums ${deviationClass(row.deviation_mln * 1e6)}`}>
+                            {row.deviation_mln.toFixed(1)}
                           </dd>
                           <dt className="col-span-2 mt-1">Статус</dt>
-                          <dd className={`col-span-2 ${statusClass(row.status)}`}>
+                          <dd className={`col-span-2 break-words ${statusClass(row.status)}`}>
                             {row.status}
                           </dd>
                         </dl>

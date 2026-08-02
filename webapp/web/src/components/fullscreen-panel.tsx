@@ -77,8 +77,8 @@ export function FullscreenPanel({
   return (
     <div
       ref={hostRef}
-      className={`relative bg-tremor-background dark:bg-dark-tremor-background ${
-        active ? "h-screen w-screen overflow-auto" : ""
+      className={`relative min-w-0 max-w-full bg-tremor-background dark:bg-dark-tremor-background ${
+        active ? "h-screen w-screen overflow-auto" : "overflow-x-auto"
       } ${className}`}
     >
       <div

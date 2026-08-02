@@ -116,10 +116,10 @@ export function FinanceBarChart({
   const forecastMode = showForecast;
   const seriesCount =
     (showForecast ? 1 : 0) + 2 + (showDeviation ? 1 : 0);
-  const slotPx = compact ? 52 : fullscreen ? 110 : 72;
+  const slotPx = compact ? (showForecast ? 36 : 44) : fullscreen ? 110 : 72;
   const chartWidth = Math.max(
     fullscreen ? viewport.width - 48 : 0,
-    rows.length * slotPx * seriesCount + (compact ? 56 : 80),
+    rows.length * slotPx * Math.min(seriesCount, 3) + (compact ? 48 : 80),
   );
   const height = fullscreen
     ? Math.max(520, viewport.height - 96)
@@ -189,14 +189,17 @@ export function FinanceBarChart({
     <div
       className={
         fullscreen
-          ? "h-full w-full overflow-x-auto p-4 text-slate-700 dark:text-slate-200"
-          : "w-full overflow-x-auto text-slate-700 dark:text-slate-200"
+          ? "h-full w-full min-w-0 max-w-full overflow-x-auto p-4 text-slate-700 dark:text-slate-200"
+          : "w-full min-w-0 max-w-full overflow-x-auto text-slate-700 dark:text-slate-200"
       }
     >
       <Text className="mb-2 text-tremor-content dark:text-dark-tremor-content">
         {xAxisTitle}
       </Text>
-      <div style={{ width: chartWidth, minWidth: "100%", height }}>
+      <div
+        className="min-w-0"
+        style={{ width: chartWidth, minWidth: "100%", height }}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
