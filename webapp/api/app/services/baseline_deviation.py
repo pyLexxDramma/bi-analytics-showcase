@@ -593,6 +593,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "base_color": "#14b8a6",
             "plan_color": "#fb923c",
         },
+        "covenant_table": {"columns": [], "rows": []},
         "columns": [],
         "rows": [],
     }
@@ -613,7 +614,7 @@ def build_baseline_deviation_payload(
     label_mode: str | None = "name",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v2|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v4|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
@@ -873,7 +874,7 @@ def build_baseline_deviation_payload(
         else:
             plates.append(_plate_for(zos_scope, None if applied_project == "Все" else applied_project))
 
-        mode = "reasons" if show_reasons else ("covenant" if covenant_block else "dates")
+        mode = "covenant" if covenant_block else ("reasons" if show_reasons else "dates")
 
         if show_reasons and not covenant_block:
             table_df = _maket_prepare(scoped)
@@ -885,7 +886,7 @@ def build_baseline_deviation_payload(
                 ].copy()
 
         # График: как main — РД-дедлайны из среза ДО фильтра уровня (zos_scope),
-        # независимо от «Показать причины»; при ковенантах — строки ковенантов.
+        # независимо от «Показать причины»; при ковенантах — точки начало/окончание.
         chart_kind = "rd_end_bars"
         chart_caption = (
             "Столбцы от начала шкалы до «Базового окончания» и «Окончания» "
@@ -894,8 +895,10 @@ def build_baseline_deviation_payload(
         )
         if covenant_block:
             chart_df = scoped.copy()
-            chart_kind = "covenant_end_bars"
-            chart_caption = "Блок «Ковенанты»: базовое окончание и окончание на шкале дат."
+            chart_kind = "covenant_points"
+            chart_caption = (
+                "Блок «Ковенанты»: начало и окончание — точками на шкале дат."
+            )
             if only_neg_end:
                 chart_df = chart_df[
                     chart_df["plan_end_diff"].notna() & (chart_df["plan_end_diff"] < -1e-9)
@@ -944,15 +947,24 @@ def build_baseline_deviation_payload(
                 label = task
             else:
                 label = f"{task} ({pname})" if pname else task
+            bs = row.get("base start") if "base start" in chart_source.columns else None
+            ps = row.get("plan start") if "plan start" in chart_source.columns else None
             be = row.get("base end")
             pe = row.get("plan end")
+            bs_ts = pd.to_datetime(bs, errors="coerce")
+            ps_ts = pd.to_datetime(ps, errors="coerce")
             be_ts = pd.to_datetime(be, errors="coerce")
             pe_ts = pd.to_datetime(pe, errors="coerce")
+            bs_iso = bs_ts.date().isoformat() if pd.notna(bs_ts) else None
+            ps_iso = ps_ts.date().isoformat() if pd.notna(ps_ts) else None
             be_iso = be_ts.date().isoformat() if pd.notna(be_ts) else None
             pe_iso = pe_ts.date().isoformat() if pd.notna(pe_ts) else None
-            if not be_iso and not pe_iso:
+            if covenant_block:
+                if not any((bs_iso, ps_iso, be_iso, pe_iso)):
+                    continue
+            elif not be_iso and not pe_iso:
                 continue
-            for iso in (be_iso, pe_iso):
+            for iso in (bs_iso, ps_iso, be_iso, pe_iso):
                 if iso:
                     range_dates.append(date.fromisoformat(iso))
             end_diff = row.get("plan_end_diff")
@@ -967,6 +979,10 @@ def build_baseline_deviation_payload(
                     "project": pname or None,
                     "task": task,
                     "label": label,
+                    "base_start": bs_iso,
+                    "base_start_label": _fmt_date(bs_ts),
+                    "plan_start": ps_iso,
+                    "plan_start_label": _fmt_date(ps_ts),
                     "base_end": be_iso,
                     "base_end_label": _fmt_date(be_ts),
                     "plan_end": pe_iso,
@@ -977,6 +993,50 @@ def build_baseline_deviation_payload(
 
         range_start = min(range_dates).isoformat() if range_dates else None
         range_end = max(range_dates).isoformat() if range_dates else None
+
+        # Таблица «Ковенанты (таблица)» как main
+        covenant_table: dict[str, Any] = {"columns": [], "rows": []}
+        if covenant_block:
+            cov_cols = (
+                ["Проект", "Задача", "ID задачи", "Базовое окончание", "Окончание", "Отклонение окончания (дней)"]
+                if applied_project == "Все"
+                else ["Задача", "ID задачи", "Базовое окончание", "Окончание", "Отклонение окончания (дней)"]
+            )
+            cov_rows: list[dict[str, Any]] = []
+            cov_src = chart_df.copy()
+            if "plan_end_diff" in cov_src.columns:
+                cov_src = cov_src.sort_values(
+                    "plan_end_diff", ascending=True, na_position="last"
+                )
+            for _, crow in cov_src.iterrows():
+                be_ts = pd.to_datetime(crow.get("base end"), errors="coerce")
+                pe_ts = pd.to_datetime(crow.get("plan end"), errors="coerce")
+                if pd.isna(be_ts) and pd.isna(pe_ts):
+                    continue
+                tid = ""
+                if id_col and id_col in cov_src.columns:
+                    raw = crow.get(id_col)
+                    if pd.notna(raw) and str(raw).strip().casefold() not in _BLANK:
+                        tid = str(raw).strip()
+                ped = crow.get("plan_end_diff")
+                try:
+                    ped_n = int(round(float(ped))) if pd.notna(ped) else None
+                except (TypeError, ValueError):
+                    ped_n = None
+                if ped_n is None and pd.notna(be_ts) and pd.notna(pe_ts):
+                    ped_n = int(round((be_ts - pe_ts).total_seconds() / 86400.0))
+                item: dict[str, Any] = {
+                    "task": _clean(crow.get("task name") if "task name" in cov_src.columns else crow.get(task_col)),
+                    "task_id": tid or None,
+                    "base_end": _fmt_date(be_ts),
+                    "plan_end": _fmt_date(pe_ts),
+                    "dev_end_days": ped_n,
+                    "dev_end": _fmt_int_days(ped_n),
+                }
+                if applied_project == "Все":
+                    item["project"] = _clean(crow.get("project name")) if "project name" in cov_src.columns else ""
+                cov_rows.append(item)
+            covenant_table = {"columns": cov_cols, "rows": cov_rows}
 
         # Table rows
         rows_out: list[dict[str, Any]] = []
@@ -1194,6 +1254,7 @@ def build_baseline_deviation_payload(
                 "base_color": "#14b8a6",
                 "plan_color": "#fb923c",
             },
+            "covenant_table": covenant_table,
             "columns": columns,
             "rows": rows_out,
         }

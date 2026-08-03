@@ -1165,11 +1165,27 @@ export type BaselineDeviationPayload = {
       project: string | null;
       task: string;
       label: string;
+      base_start?: string | null;
+      base_start_label?: string | null;
+      plan_start?: string | null;
+      plan_start_label?: string | null;
       base_end: string | null;
       base_end_label?: string | null;
       plan_end: string | null;
       plan_end_label?: string | null;
       dev_end_days: number | null;
+    }>;
+  };
+  covenant_table?: {
+    columns: string[];
+    rows: Array<{
+      project?: string;
+      task: string;
+      task_id: string | null;
+      base_end: string | null;
+      plan_end: string | null;
+      dev_end_days: number | null;
+      dev_end?: string | null;
     }>;
   };
   columns: string[];

@@ -88,6 +88,133 @@ export function BaselineDeviationChart({
 
   const built = useMemo(() => {
     if (!rows.length) return null;
+    const isCovenant = data.chart.kind === "covenant_points";
+    const n = rows.length;
+    const labelLines = rows.map((row) =>
+      wrapTaskLabelLines(row.label, fullscreen ? 36 : 30, 2),
+    );
+    const labelFont = fullscreen ? 12 : 10;
+    const taskFont = fullscreen ? 13 : 11;
+    const rowPx = isCovenant ? Math.max(ROW_PX, 52) : ROW_PX;
+
+    if (isCovenant) {
+      const y = rows.map((_, i) => i);
+      const mkScatter = (
+        key: "base_start" | "base_end" | "plan_start" | "plan_end",
+        name: string,
+        color: string,
+        symbol: string,
+        textColor: string,
+      ) => {
+        const x = rows.map((row) => {
+          const iso = row[key];
+          return iso ? toMs(iso) : Number.NaN;
+        });
+        const text = rows.map((row) => {
+          const iso = row[key];
+          if (!iso) return "";
+          const lbl =
+            key === "base_start"
+              ? row.base_start_label
+              : key === "base_end"
+                ? row.base_end_label
+                : key === "plan_start"
+                  ? row.plan_start_label
+                  : row.plan_end_label;
+          return fmtLabel(iso, lbl);
+        });
+        if (!x.some((v) => Number.isFinite(v))) return null;
+        return {
+          type: "scatter" as const,
+          mode: "markers+text" as const,
+          name,
+          x,
+          y,
+          text,
+          textposition: "top center" as const,
+          textfont: { size: 9, color: textColor },
+          cliponaxis: false,
+          marker: {
+            size: 11,
+            color,
+            symbol,
+            line: { width: 1, color: "#fff" },
+          },
+          customdata: rows.map((row) => row.label),
+          hovertemplate: `%{customdata}<br>${name}: %{text}<extra></extra>`,
+        };
+      };
+      const traces = [
+        mkScatter("base_start", "Базовое начало", "#3B82F6", "circle-open", "#93c5fd"),
+        mkScatter("base_end", "Базовое окончание", "#14b8a6", "diamond", "#5eead4"),
+        mkScatter("plan_start", "Начало", "#fb923c", "circle", "#fdba74"),
+        mkScatter("plan_end", "Окончание", "#EF4444", "diamond-open", "#fca5a5"),
+      ].filter(Boolean) as Array<Record<string, unknown>>;
+
+      const xs = traces.flatMap((t) => (t.x as number[]).filter((v) => Number.isFinite(v)));
+      if (!xs.length) return null;
+      const xMin = Math.min(...xs) - 14 * DAY_MS;
+      const xMax = Math.max(...xs) + 21 * DAY_MS;
+      const shapes: Array<Record<string, unknown>> = [];
+      for (let si = 0; si < n - 1; si += 1) {
+        shapes.push({
+          type: "line",
+          xref: "paper",
+          yref: "y",
+          x0: 0,
+          x1: 1,
+          y0: si + 0.5,
+          y1: si + 0.5,
+          line: { color: "rgba(148,163,184,0.22)", width: 1, dash: "dot" },
+        });
+      }
+      const plotHeight = Math.max(320, n * rowPx);
+      const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
+      return {
+        labelLines,
+        taskFont,
+        rowPx,
+        data: traces,
+        layout: {
+          height: chartHeight,
+          autosize: true,
+          margin: { l: 4, r: 96, t: MARGIN_TOP, b: MARGIN_BOTTOM },
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+          shapes,
+          showlegend: true,
+          legend: {
+            orientation: "h",
+            yanchor: "top",
+            y: -0.08,
+            xanchor: "center",
+            x: 0.5,
+            font: { size: fullscreen ? 13 : 11 },
+          },
+          xaxis: {
+            type: "date",
+            tickformat: "%d.%m.%Y",
+            range: [xMin, xMax],
+            automargin: true,
+            title: { text: "Дата", standoff: 18, font: { size: 12 } },
+            gridcolor: "rgba(148,163,184,0.25)",
+            zeroline: false,
+          },
+          yaxis: {
+            autorange: "reversed",
+            range: [-0.55, n - 0.45],
+            tickmode: "array",
+            tickvals: y,
+            ticktext: rows.map(() => ""),
+            showticklabels: false,
+            zeroline: false,
+            showgrid: false,
+          },
+        },
+        chartHeight,
+        plotHeight,
+      };
+    }
 
     const origins: number[] = [];
     rows.forEach((row) => {
@@ -99,13 +226,7 @@ export function BaselineDeviationChart({
     if (!origins.length) return null;
     const originMs = Math.min(...origins);
 
-    const labelLines = rows.map((row) =>
-      wrapTaskLabelLines(row.label, fullscreen ? 36 : 30, 2),
-    );
-    const n = rows.length;
     const hasPlan = rows.some((row) => toMs(row.plan_end) != null);
-    const labelFont = fullscreen ? 12 : 10;
-    const taskFont = fullscreen ? 13 : 11;
 
     const baseY = rows.map((_, i) => i + laneOffset("base", hasPlan));
     const planY = rows.map((_, i) => i + laneOffset("plan", hasPlan));
@@ -203,12 +324,13 @@ export function BaselineDeviationChart({
       });
     }
 
-    const plotHeight = Math.max(280, n * ROW_PX);
+    const plotHeight = Math.max(280, n * rowPx);
     const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
 
     return {
       labelLines,
       taskFont,
+      rowPx,
       data: traces,
       layout: {
         barmode: "overlay",
@@ -256,7 +378,7 @@ export function BaselineDeviationChart({
       chartHeight,
       plotHeight,
     };
-  }, [rows, baseColor, planColor, fullscreen]);
+  }, [rows, baseColor, planColor, fullscreen, data.chart.kind]);
 
   if (!built) {
     return (
@@ -268,7 +390,7 @@ export function BaselineDeviationChart({
 
   const visibleH = Math.min(
     built.chartHeight,
-    SCROLL_VISIBLE_ROWS * ROW_PX + MARGIN_TOP + MARGIN_BOTTOM,
+    SCROLL_VISIBLE_ROWS * (built.rowPx ?? ROW_PX) + MARGIN_TOP + MARGIN_BOTTOM,
   );
   const needScroll = built.chartHeight > visibleH + 8;
   const scrollH = fullscreen ? built.chartHeight : visibleH;
@@ -295,7 +417,7 @@ export function BaselineDeviationChart({
               <div
                 key={`${rows[i]?.label}-${i}`}
                 className="flex items-center"
-                style={{ height: ROW_PX }}
+                style={{ height: built.rowPx ?? ROW_PX }}
               >
                 <span
                   className="line-clamp-2 text-tremor-content-strong dark:text-dark-tremor-content-strong"

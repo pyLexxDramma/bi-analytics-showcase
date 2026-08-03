@@ -216,6 +216,7 @@ export function BaselineDeviationView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tableSort, setTableSort] = useState<SortState>(null);
+  const [fullTableOpen, setFullTableOpen] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -254,6 +255,11 @@ export function BaselineDeviationView() {
 
   const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
   const showDur = data?.filters.applied.show_dur ?? filters.showDur;
+  const covenantMode =
+    Boolean(data?.filters.applied.only_covenants) || data?.meta?.mode === "covenant";
+  const covenantTable = data?.covenant_table;
+  const covenantRows = covenantTable?.rows ?? [];
+  const covenantColumns = covenantTable?.columns ?? [];
   const columns = useMemo(() => {
     if (data?.columns?.length) return data.columns;
     if (showReasons) {
@@ -307,11 +313,32 @@ export function BaselineDeviationView() {
   }, []);
 
   const exportTable = useMemo(() => buildExport(columns, rows), [columns, rows]);
+  const covenantExport = useMemo((): ExportTable => {
+    const cols = covenantColumns.length
+      ? covenantColumns
+      : ["Проект", "Задача", "ID задачи", "Базовое окончание", "Окончание", "Отклонение окончания (дней)"];
+    const body: ExportCell[][] = covenantRows.map((row) =>
+      cols.map((col) => {
+        if (col === "Проект") return row.project ?? "";
+        if (col === "Задача") return row.task ?? "";
+        if (col === "ID задачи") return row.task_id ?? "";
+        if (col === "Базовое окончание") return row.base_end ?? "";
+        if (col === "Окончание") return row.plan_end ?? "";
+        if (col === "Отклонение окончания (дней)") {
+          return row.dev_end_days ?? row.dev_end ?? "";
+        }
+        return "";
+      }),
+    );
+    return { header: [cols], rows: body, sheetName: "Ковенанты" };
+  }, [covenantColumns, covenantRows]);
   const metaError = data?.meta?.error as string | undefined;
   const plates = data?.kpis.plates ?? [];
-  const tableTitle = showReasons
-    ? "Причины отклонений (таблица)"
-    : "Отклонение от базового плана (таблица)";
+  const tableTitle = covenantMode
+    ? "Полная таблица отклонений по всем задачам фильтра"
+    : showReasons
+      ? "Причины отклонений (таблица)"
+      : "Отклонение от базового плана (таблица)";
 
   return (
     <AppShell title="Отклонение от базового плана">
@@ -335,7 +362,7 @@ export function BaselineDeviationView() {
             >
               Сбросить
             </button>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <label className="block text-sm">
                 <Text>Проект</Text>
                 <select
@@ -431,10 +458,11 @@ export function BaselineDeviationView() {
                 </select>
               </label>
             </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <label className="flex items-center gap-2 text-sm">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
+                  className="mt-0.5"
                   checked={filters.showReasons}
                   onChange={(event) =>
                     setFilters((prev) => ({ ...prev, showReasons: event.target.checked }))
@@ -442,9 +470,10 @@ export function BaselineDeviationView() {
                 />
                 <Text>Показать причины отклонений</Text>
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
+                  className="mt-0.5"
                   checked={filters.hideCompleted}
                   onChange={(event) =>
                     setFilters((prev) => ({ ...prev, hideCompleted: event.target.checked }))
@@ -452,9 +481,10 @@ export function BaselineDeviationView() {
                 />
                 <Text>Скрыть завершённые (100%)</Text>
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
+                  className="mt-0.5"
                   checked={filters.onlyCovenants}
                   onChange={(event) =>
                     setFilters((prev) => ({ ...prev, onlyCovenants: event.target.checked }))
@@ -462,9 +492,10 @@ export function BaselineDeviationView() {
                 />
                 <Text>Только ковенанты</Text>
               </label>
-              <label className="flex items-center gap-2 text-sm md:col-span-2">
+              <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
+                  className="mt-0.5"
                   checked={filters.onlyNegEnd}
                   disabled={filters.showReasons}
                   onChange={(event) =>
@@ -473,9 +504,10 @@ export function BaselineDeviationView() {
                 />
                 <Text>Отображать только диаграммы, где отклонение окончания &lt; 0</Text>
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
+                  className="mt-0.5"
                   checked={filters.showDur}
                   disabled={filters.showReasons}
                   onChange={(event) =>
@@ -488,9 +520,9 @@ export function BaselineDeviationView() {
             {(data?.filters.has_lot ?? false) ? (
               <fieldset className="text-sm">
                 <Text>Подписи на графике и в таблице</Text>
-                <div className="mt-2 flex flex-wrap gap-4">
+                <div className="mt-2 flex flex-nowrap gap-6 overflow-x-auto">
                   {(data?.filters.label_modes ?? []).map((mode) => (
-                    <label key={mode.id} className="inline-flex items-center gap-2">
+                    <label key={mode.id} className="inline-flex shrink-0 items-center gap-2">
                       <input
                         type="radio"
                         name="label-mode"
@@ -634,23 +666,173 @@ export function BaselineDeviationView() {
           </FullscreenPanel>
         </Card>
 
+        {covenantMode ? (
+          <Card className="overflow-hidden rounded-xl p-0">
+            <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+                Ковенанты (таблица)
+              </Title>
+              <Text className="mt-1">
+                {loading ? "загрузка…" : `Записей: ${covenantRows.length}`}
+              </Text>
+            </div>
+            {covenantRows.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                Нет строк для таблицы ковенантов.
+              </div>
+            ) : (
+              <>
+                <MobileCardStack>
+                  {covenantRows.map((row, index) => (
+                    <MobileEntityCard
+                      key={`cov-m-${row.project ?? ""}-${row.task_id ?? row.task}-${index}`}
+                      title={
+                        row.project ? `${row.project}: ${row.task}` : row.task
+                      }
+                      badge={row.dev_end_days ?? row.dev_end ?? undefined}
+                      badgeTone={
+                        row.dev_end_days == null
+                          ? "neutral"
+                          : row.dev_end_days < 0
+                            ? "bad"
+                            : "ok"
+                      }
+                    >
+                      <MobileMetricGrid
+                        columns={2}
+                        items={[
+                          ...(row.project
+                            ? [{ label: "Проект", value: row.project }]
+                            : []),
+                          { label: "ID", value: row.task_id ?? "—" },
+                          {
+                            label: "Базовое оконч.",
+                            value: row.base_end ?? "—",
+                          },
+                          {
+                            label: "Окончание",
+                            value: row.plan_end ?? "—",
+                          },
+                          {
+                            label: "Откл. оконч.",
+                            value: row.dev_end_days ?? row.dev_end ?? "—",
+                            className: deviationClass(row.dev_end_days),
+                          },
+                        ]}
+                      />
+                    </MobileEntityCard>
+                  ))}
+                </MobileCardStack>
+                <div className="hidden max-h-[28rem] overflow-auto pt-8 lg:block">
+                  <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
+                    <thead className="sticky top-0 z-20">
+                      <tr>
+                        {covenantColumns.map((label) => (
+                          <th
+                            key={label}
+                            className={`${TH} ${
+                              label.includes("окончание") ||
+                              label.includes("Отклонение") ||
+                              label === "Окончание" ||
+                              label === "Базовое окончание"
+                                ? DATE_BG
+                                : ""
+                            }`}
+                          >
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {covenantRows.map((row, index) => (
+                        <tr
+                          key={`cov-${row.project ?? ""}-${row.task_id ?? row.task}-${index}`}
+                        >
+                          {covenantColumns.map((col) => {
+                            const tint =
+                              col === "Базовое окончание" ||
+                              col === "Окончание" ||
+                              col === "Отклонение окончания (дней)";
+                            const isDev = col === "Отклонение окончания (дней)";
+                            const value =
+                              col === "Проект"
+                                ? (row.project ?? "")
+                                : col === "Задача"
+                                  ? row.task
+                                  : col === "ID задачи"
+                                    ? (row.task_id ?? "")
+                                    : col === "Базовое окончание"
+                                      ? (row.base_end ?? "")
+                                      : col === "Окончание"
+                                        ? (row.plan_end ?? "")
+                                        : (row.dev_end_days ??
+                                          row.dev_end ??
+                                          "");
+                            return (
+                              <td
+                                key={col}
+                                className={`${TD} ${tint ? DATE_BG : ""} ${
+                                  isDev ? deviationClass(row.dev_end_days) : ""
+                                } tabular-nums`}
+                              >
+                                {value === "" || value == null ? "" : value}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+              <DownloadTableButton
+                getTable={() => covenantExport}
+                fileStem="covenants_baseline_deviation"
+              />
+            </div>
+          </Card>
+        ) : null}
+
         <Card className="overflow-hidden rounded-xl p-0">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+          <button
+            type="button"
+            onClick={() => {
+              if (covenantMode) setFullTableOpen((v) => !v);
+            }}
+            className={`flex w-full flex-wrap items-center justify-between gap-3 border-b border-tremor-border px-4 py-3 text-left dark:border-dark-tremor-border ${
+              covenantMode ? "cursor-pointer" : "cursor-default"
+            }`}
+            aria-expanded={covenantMode ? fullTableOpen : true}
+          >
             <div>
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                {tableTitle}
+                {covenantMode ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-xs">{fullTableOpen ? "▾" : "▸"}</span>
+                    {tableTitle}
+                  </span>
+                ) : (
+                  tableTitle
+                )}
               </Title>
               <Text className="mt-1">
                 {loading
                   ? "загрузка…"
                   : `Записей: ${rows.length}${
-                      showReasons
-                        ? " · ур.5 · причина · откл. окончания < 0"
-                        : " · только откл. окончания < 0"
+                      covenantMode
+                        ? ""
+                        : showReasons
+                          ? " · ур.5 · причина · откл. окончания < 0"
+                          : " · только откл. окончания < 0"
                     }`}
               </Text>
             </div>
-          </div>
+          </button>
+          {(!covenantMode || fullTableOpen) ? (
+            <>
           <FullscreenPanel
             disabled={rows.length === 0}
             className="!overflow-x-hidden"
@@ -837,6 +1019,8 @@ export function BaselineDeviationView() {
           <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <DownloadTableButton getTable={() => exportTable} fileStem="baseline_deviation" />
           </div>
+            </>
+          ) : null}
         </Card>
       </div>
     </AppShell>

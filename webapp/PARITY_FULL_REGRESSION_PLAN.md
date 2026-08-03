@@ -209,7 +209,7 @@ python scripts/check_jobs_store.py
 | 03.08.2026 | Mobile kit §1–§5 | shared + §4 cards | ✅ стенд (`edecdd3`) |
 | 03.08.2026 | §7 График проекта | ковенанты+mobile | ✅ стенд: date pad ромбов; compact gantt; mobile cards (`11544a9`…`51b4758`) |
 | 03.08.2026 | §8 Причины отклонений | desktop 1:1+mobile | ✅ стенд: Plotly bar/pie; y=0; modebar; download portal; mobile без modebar (`210855e`…`182242d`) |
-| 03.08.2026 | §9 Отклонение от базового плана | — | 🔄 старт: скрины main↔showcase desktop+~390 |
+| 03.08.2026 | §9 Отклонение от базового плана | — | 🔄 ковенанты points+таблица; фильтры 5×5; mobile cards |
 
 После каждого стендового «ок» добавлять строку сюда и ставить ✅ в матрице §6.
 
