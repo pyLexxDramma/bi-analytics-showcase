@@ -348,3 +348,11 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   stroke: #5eead4 !important;
 }
 
+/* Mobile: modebar скрыт — остаётся только кнопка «на весь экран» */
+@media (max-width: 1023px) {
+  .js-plotly-plot .modebar,
+  .js-plotly-plot .modebar-container {
+    display: none !important;
+  }
+}
+
