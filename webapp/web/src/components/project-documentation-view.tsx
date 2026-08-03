@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import {
+  FilterChipSelect,
   FilterField,
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
@@ -303,92 +304,15 @@ function ProjectDocumentationScreen({
         />
         {tab === "main" ? (
           <FilterFieldsRow cols={3}>
-            <FilterField label="Проект">
-              <select
-                className={selectClass}
-                value={filters.project}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, project: e.target.value, section: "Все" }))
-                }
-              >
-                {(data?.filters.projects ?? ["Все"]).map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField label="Период">
-              <select
-                className={selectClass}
-                value={filters.period}
-                onChange={(e) => setFilters((f) => ({ ...f, period: e.target.value }))}
-              >
-                <option value="Все месяцы">Все месяцы</option>
-                {(data?.filters.periods ?? []).map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField label="Вид раздела">
-              <select
-                className={selectClass}
-                value={filters.section}
-                onChange={(e) => setFilters((f) => ({ ...f, section: e.target.value }))}
-              >
-                {(data?.filters.sections ?? ["Все"]).map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
+            <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((f) => ({ ...f, project, section: "Все" }))} />
+            <FilterChipSelect label="Период" value={filters.period} options={["Все месяцы", ...(data?.filters.periods ?? [])]} onChange={(period) => setFilters((f) => ({ ...f, period }))} />
+            <FilterChipSelect label="Вид раздела" value={filters.section} options={data?.filters.sections ?? ["Все"]} onChange={(section) => setFilters((f) => ({ ...f, section }))} />
           </FilterFieldsRow>
         ) : (
           <FilterFieldsRow cols={5}>
-            <FilterField label="Проект">
-              <select
-                className={selectClass}
-                value={filters.project}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, project: e.target.value, section: "Все" }))
-                }
-              >
-                {(data?.filters.projects ?? ["Все"]).map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField label="Отображение">
-              <select
-                className={selectClass}
-                value={filters.viewMode}
-                onChange={(e) => setFilters((f) => ({ ...f, viewMode: e.target.value }))}
-              >
-                {(data?.filters.view_modes ?? []).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField label="Вид раздела">
-              <select
-                className={selectClass}
-                value={filters.section}
-                onChange={(e) => setFilters((f) => ({ ...f, section: e.target.value }))}
-              >
-                {(data?.filters.sections ?? ["Все"]).map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
+            <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((f) => ({ ...f, project, section: "Все" }))} />
+            <FilterChipSelect label="Отображение" value={filters.viewMode} options={(data?.filters.view_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(viewMode) => setFilters((f) => ({ ...f, viewMode }))} />
+            <FilterChipSelect label="Вид раздела" value={filters.section} options={data?.filters.sections ?? ["Все"]} onChange={(section) => setFilters((f) => ({ ...f, section }))} />
             <FilterField label="Статус">
               <span className="mt-1 inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
                 Просрочено подрядчиком
@@ -422,19 +346,7 @@ function ProjectDocumentationScreen({
         ) : null}
         {tab === "main" ? (
           <FilterFieldsRow cols={3}>
-            <FilterField label="Гранулярность">
-              <select
-                className={selectClass}
-                value={filters.granularity}
-                onChange={(e) => setFilters((f) => ({ ...f, granularity: e.target.value }))}
-              >
-                {(data?.filters.granularities ?? []).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
+            <FilterChipSelect label="Гранулярность" value={filters.granularity} options={(data?.filters.granularities ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(granularity) => setFilters((f) => ({ ...f, granularity }))} />
             <div />
             <div />
           </FilterFieldsRow>

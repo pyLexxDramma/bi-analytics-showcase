@@ -9,6 +9,7 @@ import {
   PLAN_FACT_DEVIATION_CATEGORIES,
   withRuPlanFactDeviation,
 } from "@/lib/chart-ru";
+import { FilterChipSelect } from "@/components/dashboard-filters";
 
 type Filters = {
   project: string;
@@ -73,22 +74,7 @@ export function FinancePeriodView({
     <AppShell title={title} subtitle={subtitle}>
       <Card className="mb-6 rounded-xl">
         <div className="grid gap-3 md:grid-cols-4">
-          <label className="block text-sm">
-            <Text>Проект</Text>
-            <select
-              className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-              value={filters.project}
-              onChange={(event) =>
-                setFilters((state) => ({ ...state, project: event.target.value }))
-              }
-            >
-              {(data?.filters.projects ?? ["Все"]).map((project) => (
-                <option key={project} value={project}>
-                  {project}
-                </option>
-              ))}
-            </select>
-          </label>
+          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((state) => ({ ...state, project }))} />
           <label className="block text-sm">
             <Text>Дата с</Text>
             <input
@@ -115,22 +101,7 @@ export function FinancePeriodView({
               }
             />
           </label>
-          <label className="block text-sm">
-            <Text>Вид</Text>
-            <select
-              className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-              value={filters.view}
-              onChange={(event) =>
-                setFilters((state) => ({
-                  ...state,
-                  view: event.target.value as Filters["view"],
-                }))
-              }
-            >
-              <option value="monthly">По месяцам</option>
-              <option value="cumulative">Накопительно</option>
-            </select>
-          </label>
+          <FilterChipSelect label="Вид" value={filters.view} options={[{ value: "monthly", label: "По месяцам" }, { value: "cumulative", label: "Накопительно" }]} onChange={(view) => setFilters((state) => ({ ...state, view: view as Filters["view"] }))} />
         </div>
         <Text className="mt-3">
           Режим данных: <b>{data?.meta.data_mode ?? "…"}</b> ·{" "}

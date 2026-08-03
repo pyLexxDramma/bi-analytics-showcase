@@ -6,6 +6,153 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react
 export const FILTER_SELECT_CLASS =
   "bi-filters-select mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong disabled:opacity-50";
 
+/** BDDS-style chip buttons for categorical filters. */
+export const FILTER_CHIP_CLASS =
+  "rounded-md border px-2.5 py-1 text-xs border-tremor-border bg-white text-tremor-content-strong disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong";
+export const FILTER_CHIP_ON_CLASS =
+  "rounded-md border px-2.5 py-1 text-xs border-emerald-600 bg-emerald-50 text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200";
+
+export type FilterChipOption = string | { value: string; label: string };
+
+function normChipOption(opt: FilterChipOption): { value: string; label: string } {
+  if (typeof opt === "string") return { value: opt, label: opt };
+  return opt;
+}
+
+/** ~6 chip-rows visible; longer lists scroll (как старые MultiSelect max-h). */
+const CHIP_LIST_BASE = "flex flex-wrap content-start gap-2";
+const CHIP_LIST_SCROLL = "max-h-52 overflow-y-auto overscroll-contain pr-0.5";
+const CHIP_SCROLL_AFTER = 7;
+
+function ChipList({
+  children,
+  itemCount,
+  className = "",
+}: {
+  children: ReactNode;
+  itemCount: number;
+  className?: string;
+}) {
+  const scroll = itemCount > CHIP_SCROLL_AFTER;
+  return (
+    <div
+      className={`${CHIP_LIST_BASE} ${scroll ? CHIP_LIST_SCROLL : ""} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Single-select as horizontal chips (like BDDS «Проект»). */
+export function FilterChipSelect({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label?: ReactNode;
+  value: string;
+  options: FilterChipOption[];
+  onChange: (next: string) => void;
+  disabled?: boolean;
+}) {
+  const row = (
+    <ChipList
+      itemCount={options.length}
+      className={label != null ? "mt-2" : ""}
+    >
+      {options.map((opt) => {
+        const { value: v, label: lab } = normChipOption(opt);
+        const on = value === v;
+        return (
+          <button
+            key={v}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(v)}
+            className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+          >
+            {lab}
+          </button>
+        );
+      })}
+    </ChipList>
+  );
+  if (label == null) return row;
+  return (
+    <div className="bi-filters-field block text-sm">
+      <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
+        {label}
+      </span>
+      {row}
+    </div>
+  );
+}
+
+/**
+ * Multi-select chips. Empty `values` = «Все» (no filter).
+ * `options` may include the all-token; it is ignored for individual chips.
+ */
+export function FilterChipMulti({
+  label,
+  values,
+  options,
+  onChange,
+  allLabel = "Все",
+  disabled,
+}: {
+  label?: ReactNode;
+  values: string[];
+  options: string[];
+  onChange: (next: string[]) => void;
+  allLabel?: string;
+  disabled?: boolean;
+}) {
+  const opts = options.filter((o) => o && o !== allLabel);
+  const allOn = values.length === 0;
+  const row = (
+    <ChipList
+      itemCount={opts.length + 1}
+      className={label != null ? "mt-2" : ""}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange([])}
+        className={allOn ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+      >
+        {allLabel}
+      </button>
+      {opts.map((name) => {
+        const on = values.includes(name);
+        return (
+          <button
+            key={name}
+            type="button"
+            disabled={disabled}
+            onClick={() =>
+              onChange(on ? values.filter((p) => p !== name) : [...values, name])
+            }
+            className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+          >
+            {name}
+          </button>
+        );
+      })}
+    </ChipList>
+  );
+  if (label == null) return row;
+  return (
+    <div className="bi-filters-field block text-sm">
+      <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
+        {label}
+      </span>
+      {row}
+    </div>
+  );
+}
+
 type Cols = 2 | 3 | 4 | 5;
 
 function colsClass(cols: Cols): string {

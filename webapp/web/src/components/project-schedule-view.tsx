@@ -17,10 +17,9 @@ import {
 import { ProjectScheduleGantt } from "@/components/project-schedule-gantt";
 import {
   FilterCheck,
+  FilterChipSelect,
   FilterChecksRow,
-  FilterField,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
@@ -227,7 +226,6 @@ export function ProjectScheduleView() {
   }, [load]);
 
   const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);
-  const selectClass = FILTER_SELECT_CLASS;
   const metaError = data?.meta?.error as string | undefined;
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const showLots = data?.filters.applied.show_lots ?? filters.showLots;
@@ -274,70 +272,10 @@ export function ProjectScheduleView() {
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
-          <FilterField label="Проект">
-            <select
-              className={selectClass}
-              value={filters.project}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, project: event.target.value, building: "Все" }))
-              }
-            >
-              {(data?.filters.projects ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Функциональный блок">
-            <select
-              className={selectClass}
-              value={filters.block}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, block: event.target.value, building: "Все" }))
-              }
-            >
-              {(data?.filters.blocks ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Строение">
-            <select
-              className={selectClass}
-              value={filters.building}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, building: event.target.value }))
-              }
-            >
-              {(data?.filters.buildings ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Уровень отображения задач">
-            <select
-              className={selectClass}
-              value={filters.level}
-              disabled={Boolean(data?.filters.applied.level_skipped) || filters.showReasons || filters.showLots}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, level: event.target.value }))
-              }
-            >
-              {(data?.filters.levels ?? [
-                { id: "Верхний уровень", label: "Верхний уровень" },
-                { id: "Детальный уровень", label: "Детальный уровень" },
-              ]).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, building: "Все" }))} />
+          <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
+          <FilterChipSelect label="Строение" value={filters.building} options={data?.filters.buildings ?? ["Все"]} onChange={(building) => setFilters((prev) => ({ ...prev, building }))} />
+          <FilterChipSelect label="Уровень отображения задач" value={filters.level} options={(data?.filters.levels ?? [{ id: "Верхний уровень", label: "Верхний уровень" }, { id: "Детальный уровень", label: "Детальный уровень" }]).map((item) => ({ value: item.id, label: item.label }))} disabled={Boolean(data?.filters.applied.level_skipped) || filters.showReasons || filters.showLots} onChange={(level) => setFilters((prev) => ({ ...prev, level }))} />
           <div />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>

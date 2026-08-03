@@ -8,6 +8,7 @@ import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
 import {
   FilterField,
+  FilterChipSelect,
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
   FiltersCard,
@@ -130,32 +131,8 @@ export function DebitCreditView() {
       <FiltersCard open={open} onToggle={() => setOpen((v) => !v)}>
         <FiltersReset onClick={() => setFilters(initial)} />
         <FilterFieldsRow cols={5}>
-          <FilterField label="Проект">
-            <select
-              className={FILTER_SELECT_CLASS}
-              value={filters.project}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, project: e.target.value }))
-              }
-            >
-              {(data?.filters.projects ?? ["Все"]).map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Подрядчик">
-            <select
-              className={FILTER_SELECT_CLASS}
-              value={filters.contractor}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, contractor: e.target.value }))
-              }
-            >
-              {(data?.filters.contractors ?? ["Все"]).map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />
+          <FilterChipSelect label="Подрядчик" value={filters.contractor} options={data?.filters.contractors ?? ["Все"]} onChange={(contractor) => setFilters((s) => ({ ...s, contractor }))} />
           <FilterField label="№ договора">
             <input
               className={FILTER_SELECT_CLASS}
@@ -190,21 +167,12 @@ export function DebitCreditView() {
               />
             </div>
           </FilterField>
-          <FilterField label="Отображение">
-            <select
-              className={FILTER_SELECT_CLASS}
-              value={filters.display_view}
-              onChange={(e) =>
-                setFilters((s) => ({
-                  ...s,
-                  display_view: e.target.value as Filters["display_view"],
-                }))
-              }
-            >
-              <option>Без группировки</option>
-              <option>С группировкой</option>
-            </select>
-          </FilterField>
+          <FilterChipSelect
+            label="Отображение"
+            value={filters.display_view}
+            options={["Без группировки", "С группировкой"]}
+            onChange={(display_view) => setFilters((s) => ({ ...s, display_view: display_view as Filters["display_view"] }))}
+          />
         </FilterFieldsRow>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} договоров`}

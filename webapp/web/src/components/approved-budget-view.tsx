@@ -10,10 +10,10 @@ import { MobileCardStack, MobileEntityCard, MobileMetricGrid } from "@/component
 import { fetchApprovedBudget, type ApprovedBudgetPayload } from "@/lib/api";
 import {
   FilterCheck,
+  FilterChipMulti,
+  FilterChipSelect,
   FilterChecksRow,
-  FilterField,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
@@ -30,8 +30,6 @@ const HEAD = "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibo
 const TABLE = "min-w-full border-collapse border-2 border-[#94a3b8] text-left text-tremor-default dark:border-[#7a9ec4]";
 const BODY = "px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong";
 const TOTAL = "border-t-[3px] border-t-[#94a3b8] bg-[#f1f5f9] font-bold dark:border-t-white dark:bg-[#16283a]";
-const chip = "rounded-md border border-tremor-border bg-white px-2.5 py-1 text-xs text-tremor-content-strong dark:border-dark-tremor-border dark:bg-dark-tremor-background";
-const chipOn = "rounded-md border border-emerald-600 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200";
 const projectHeaders: Record<ProjectMetric, string> = {
   plan: "План, млн руб.",
   fact: "Факт, млн руб.",
@@ -193,7 +191,6 @@ export function ApprovedBudgetView() {
   }, []);
   useEffect(() => { void load(filters); }, [filters, load]);
   const hideZero = filters.hide_zero ?? (filters.projects.length === 0 && filters.fiz === "Все");
-  const toggleProject = (project: string) => setFilters((state) => ({ ...state, projects: state.projects.includes(project) ? state.projects.filter((item) => item !== project) : [...state.projects, project] }));
   const toggleSort = (set: (next: SortState | ((value: SortState) => SortState)) => void) => (key: SortKey) => set((state) => state?.key === key ? (state.asc ? { key, asc: false } : null) : { key, asc: true });
   const sortRows = <T extends Record<string, unknown>>(rows: T[], sort: SortState) => !sort ? rows : [...rows].sort((a, b) => {
     const av = a[sort.key]; const bv = b[sort.key];
@@ -243,18 +240,9 @@ export function ApprovedBudgetView() {
   return <AppShell title="Утверждённый бюджет план/факт">
     <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
       <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
-      <Text className="mt-1">Проект</Text>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" onClick={() => setFilters((state) => ({ ...state, projects: [] }))} className={filters.projects.length === 0 ? chipOn : chip}>Все</button>
-        {(data?.filters.projects ?? []).map((project) => <button key={project} type="button" onClick={() => toggleProject(project)} className={filters.projects.includes(project) ? chipOn : chip}>{project}</button>)}
-      </div>
+      <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
       <FilterFieldsRow cols={2}>
-        <FilterField label="ФИЗ">
-          <select className={FILTER_SELECT_CLASS} value={filters.fiz} onChange={(event) => setFilters((state) => ({ ...state, fiz: event.target.value }))}>
-            <option>Все</option>
-            {(data?.filters.fiz ?? []).map((item) => <option key={item}>{item}</option>)}
-          </select>
-        </FilterField>
+        <FilterChipSelect label="ФИЗ" value={filters.fiz} options={["Все", ...(data?.filters.fiz ?? [])]} onChange={(fiz) => setFilters((state) => ({ ...state, fiz }))} />
         <div />
       </FilterFieldsRow>
       <FilterChecksRow cols={2}>

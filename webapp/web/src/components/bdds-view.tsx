@@ -16,6 +16,8 @@ import {
 } from "@/lib/api";
 import {
   FilterCheck,
+  FilterChipMulti,
+  FilterChipSelect,
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
@@ -46,10 +48,6 @@ const INITIAL: Filters = {
 };
 
 const selectClass = FILTER_SELECT_CLASS;
-const chipClass =
-  "rounded-md border px-2.5 py-1 text-xs border-tremor-border bg-white text-tremor-content-strong dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong";
-const chipOnClass =
-  "rounded-md border px-2.5 py-1 text-xs border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200";
 
 /** Сетка и рамки как в CSS финансовых таблиц [main] (1px #cbd5e1 / #7a9ec4). */
 const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
@@ -481,15 +479,6 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     };
   };
 
-  const toggleProject = (name: string) => {
-    setFilters((state) => ({
-      ...state,
-      projects: state.projects.includes(name)
-        ? state.projects.filter((p) => p !== name)
-        : [...state.projects, name],
-    }));
-  };
-
   const dirty =
     filters.projects.length > 0 ||
     filters.date_from !== "" ||
@@ -503,26 +492,12 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     <AppShell title={config.title}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
-        <Text className="mt-1">Проект</Text>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setFilters((state) => ({ ...state, projects: [] }))}
-            className={filters.projects.length === 0 ? chipOnClass : chipClass}
-          >
-            Все
-          </button>
-          {(data?.filters.projects ?? []).map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => toggleProject(name)}
-              className={filters.projects.includes(name) ? chipOnClass : chipClass}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
+        <FilterChipMulti
+          label="Проект"
+          values={filters.projects}
+          options={data?.filters.projects ?? []}
+          onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
+        />
         <FilterFieldsRow cols={4}>
           <FilterField label="Период с">
             <input
@@ -548,36 +523,18 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               }
             />
           </FilterField>
-          <FilterField label="Группировать по">
-            <select
-              className={selectClass}
-              value={filters.group}
-              onChange={(event) =>
-                setFilters((state) => ({ ...state, group: event.target.value as BddsGroup }))
-              }
-            >
-              {(data?.filters.groups ?? [{ id: "month", label: "Месяц" }]).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Представление">
-            <select
-              className={selectClass}
-              value={filters.view}
-              onChange={(event) =>
-                setFilters((state) => ({ ...state, view: event.target.value as BddsView }))
-              }
-            >
-              {(data?.filters.views ?? [{ id: "monthly", label: "По месяцам" }]).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect
+            label="Группировать по"
+            value={filters.group}
+            options={(data?.filters.groups ?? [{ id: "month", label: "Месяц" }]).map((item) => ({ value: item.id, label: item.label }))}
+            onChange={(group) => setFilters((state) => ({ ...state, group: group as BddsGroup }))}
+          />
+          <FilterChipSelect
+            label="Представление"
+            value={filters.view}
+            options={(data?.filters.views ?? [{ id: "monthly", label: "По месяцам" }]).map((item) => ({ value: item.id, label: item.label }))}
+            onChange={(view) => setFilters((state) => ({ ...state, view: view as BddsView }))}
+          />
         </FilterFieldsRow>
         <FilterChecksRow cols={4}>
           <FilterCheck

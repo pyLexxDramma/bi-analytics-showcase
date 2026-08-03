@@ -13,11 +13,10 @@ import {
 } from "@/lib/api";
 import {
   FilterCheck,
+  FilterChipSelect,
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
-  FilterRadio,
-  FilterRadios,
   FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
@@ -216,59 +215,9 @@ export function BddsPlanFactView() {
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
         <FiltersReset onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
-          <FilterField label="Проект">
-            <select
-              className={selectClass}
-              value={filters.project}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, project: e.target.value }))
-              }
-            >
-              {(data?.filters.projects ?? ["Все"]).map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Группировать по">
-            <select
-              className={selectClass}
-              value={filters.group}
-              onChange={(e) =>
-                setFilters((s) => ({
-                  ...s,
-                  group: e.target.value as Filters["group"],
-                }))
-              }
-            >
-              {(data?.filters.groups ?? [{ id: "month", label: "Месяц" }]).map(
-                (g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.label}
-                  </option>
-                ),
-              )}
-            </select>
-          </FilterField>
-          <FilterField label="Представление">
-            <select
-              className={selectClass}
-              value={filters.view}
-              onChange={(e) =>
-                setFilters((s) => ({
-                  ...s,
-                  view: e.target.value as Filters["view"],
-                }))
-              }
-            >
-              {(data?.filters.views ?? []).map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />
+          <FilterChipSelect label="Группировать по" value={filters.group} options={(data?.filters.groups ?? [{ id: "month", label: "Месяц" }]).map((item) => ({ value: item.id, label: item.label }))} onChange={(group) => setFilters((s) => ({ ...s, group: group as Filters["group"] }))} />
+          <FilterChipSelect label="Представление" value={filters.view} options={(data?.filters.views ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(view) => setFilters((s) => ({ ...s, view: view as Filters["view"] }))} />
           <FilterField label="Дата с">
             <input
               type="date"
@@ -294,22 +243,12 @@ export function BddsPlanFactView() {
             />
           </FilterField>
         </FilterFieldsRow>
-        <FilterRadios label="Отклонение от БДДС прогноз считать к">
-          {(data?.filters.dev_bases ?? []).map((item) => (
-            <FilterRadio
-              key={item.id}
-              name="dev_base"
-              label={item.label}
-              checked={filters.dev_base === item.id}
-              onChange={() =>
-                setFilters((s) => ({
-                  ...s,
-                  dev_base: item.id as Filters["dev_base"],
-                }))
-              }
-            />
-          ))}
-        </FilterRadios>
+        <FilterChipSelect
+          label="Отклонение от БДДС прогноз считать к"
+          value={filters.dev_base}
+          options={(data?.filters.dev_bases ?? []).map((item) => ({ value: item.id, label: item.label }))}
+          onChange={(dev_base) => setFilters((s) => ({ ...s, dev_base: dev_base as Filters["dev_base"] }))}
+        />
         <FilterChecksRow cols={2}>
           <FilterCheck
             label="Скрыть отклонение"

@@ -10,12 +10,9 @@ import { AppShell } from "@/components/app-shell";
 import { BaselineDeviationChart } from "@/components/baseline-deviation-chart";
 import {
   FilterCheck,
+  FilterChipSelect,
   FilterChecksRow,
-  FilterField,
   FilterFieldsRow,
-  FilterRadio,
-  FilterRadios,
-  FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
@@ -269,8 +266,6 @@ export function BaselineDeviationView() {
   }, [load]);
 
   const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);
-  const selectClass = FILTER_SELECT_CLASS;
-
   const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
   const showDur = data?.filters.applied.show_dur ?? filters.showDur;
   const covenantMode =
@@ -363,95 +358,11 @@ export function BaselineDeviationView() {
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
-          <FilterField label="Проект">
-            <select
-              className={selectClass}
-              value={filters.project}
-              onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  project: event.target.value,
-                  building: "Все",
-                }))
-              }
-            >
-              {(data?.filters.projects ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Функциональный блок">
-            <select
-              className={selectClass}
-              value={filters.block}
-              onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  block: event.target.value,
-                  building: "Все",
-                }))
-              }
-            >
-              {(data?.filters.blocks ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Строение">
-            <select
-              className={selectClass}
-              value={filters.building}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, building: event.target.value }))
-              }
-            >
-              {(data?.filters.buildings ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Детализация">
-            <select
-              className={selectClass}
-              value={filters.level}
-              disabled={
-                Boolean(data?.filters.applied.level_skipped) ||
-                filters.showReasons ||
-                filters.onlyCovenants
-              }
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, level: event.target.value }))
-              }
-            >
-              {(data?.filters.levels ?? []).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Причина отклонения (категория)">
-            <select
-              className={selectClass}
-              value={filters.reason}
-              disabled={filters.onlyCovenants || (data?.filters.reasons.length ?? 1) <= 1}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, reason: event.target.value }))
-              }
-            >
-              {(data?.filters.reasons ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, building: "Все" }))} />
+          <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
+          <FilterChipSelect label="Строение" value={filters.building} options={data?.filters.buildings ?? ["Все"]} onChange={(building) => setFilters((prev) => ({ ...prev, building }))} />
+          <FilterChipSelect label="Детализация" value={filters.level} options={(data?.filters.levels ?? []).map((item) => ({ value: item.id, label: item.label }))} disabled={Boolean(data?.filters.applied.level_skipped) || filters.showReasons || filters.onlyCovenants} onChange={(level) => setFilters((prev) => ({ ...prev, level }))} />
+          <FilterChipSelect label="Причина отклонения (категория)" value={filters.reason} options={data?.filters.reasons ?? ["Все"]} disabled={filters.onlyCovenants || (data?.filters.reasons.length ?? 1) <= 1} onChange={(reason) => setFilters((prev) => ({ ...prev, reason }))} />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>
           <FilterCheck
@@ -493,17 +404,7 @@ export function BaselineDeviationView() {
           />
         </FilterChecksRow>
         {(data?.filters.has_lot ?? false) ? (
-          <FilterRadios label="Подписи на графике и в таблице">
-            {(data?.filters.label_modes ?? []).map((mode) => (
-              <FilterRadio
-                key={mode.id}
-                name="label-mode"
-                label={mode.label}
-                checked={filters.labelMode === mode.id}
-                onChange={() => setFilters((prev) => ({ ...prev, labelMode: mode.id }))}
-              />
-            ))}
-          </FilterRadios>
+          <FilterChipSelect label="Подписи на графике и в таблице" value={filters.labelMode} options={(data?.filters.label_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(labelMode) => setFilters((prev) => ({ ...prev, labelMode }))} />
         ) : null}
       </FiltersCard>
 

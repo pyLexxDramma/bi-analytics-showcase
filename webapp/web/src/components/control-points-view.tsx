@@ -8,9 +8,8 @@ import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { StatusPill } from "@/components/status-pill";
 import {
-  FilterField,
+  FilterChipSelect,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
@@ -303,19 +302,7 @@ export function ControlPointsView() {
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset disabled={project === "Все"} onClick={() => setProject("Все")} />
         <FilterFieldsRow cols={2}>
-          <FilterField label="Проект">
-            <select
-              className={FILTER_SELECT_CLASS}
-              value={project}
-              onChange={(event) => setProject(event.target.value)}
-            >
-              {(data?.filters.projects ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Проект" value={project} options={data?.filters.projects ?? ["Все"]} onChange={setProject} />
           <div />
         </FilterFieldsRow>
       </FiltersCard>

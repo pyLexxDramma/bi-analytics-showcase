@@ -24,6 +24,7 @@ import {
 } from "@/components/deviation-reasons-share-charts";
 import {
   FilterCheck,
+  FilterChipSelect,
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
@@ -389,60 +390,9 @@ export function DeviationReasonsView() {
           }}
         />
         <FilterFieldsRow cols={5}>
-          <FilterField label="Проект">
-            <select
-              className={selectClass}
-              value={filters.project}
-              onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  project: event.target.value,
-                  block: "Все",
-                  building: "Все",
-                }))
-              }
-            >
-              {(data?.filters.projects ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Функциональный блок">
-            <select
-              className={selectClass}
-              value={filters.block}
-              onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  block: event.target.value,
-                  building: "Все",
-                }))
-              }
-            >
-              {(data?.filters.blocks ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Строение">
-            <select
-              className={selectClass}
-              value={filters.building}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, building: event.target.value }))
-              }
-            >
-              {(data?.filters.buildings ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, block: "Все", building: "Все" }))} />
+          <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
+          <FilterChipSelect label="Строение" value={filters.building} options={data?.filters.buildings ?? ["Все"]} onChange={(building) => setFilters((prev) => ({ ...prev, building }))} />
           <FilterField label="Период">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
               <input
@@ -470,21 +420,7 @@ export function DeviationReasonsView() {
               />
             </div>
           </FilterField>
-          <FilterField label="Причина">
-            <select
-              className={selectClass}
-              value={filters.reason}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, reason: event.target.value }))
-              }
-            >
-              {(data?.filters.reasons ?? ["Все"]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Причина" value={filters.reason} options={data?.filters.reasons ?? ["Все"]} onChange={(reason) => setFilters((prev) => ({ ...prev, reason }))} />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>
           <FilterCheck

@@ -10,11 +10,11 @@ import {
 import { AppShell } from "@/components/app-shell";
 import {
   FilterCheck,
+  FilterChipMulti,
+  FilterChipSelect,
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
-  FilterRadio,
-  FilterRadios,
   FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
@@ -43,8 +43,8 @@ type TabId = "main" | "delay";
 type SortState = { key: string; asc: boolean } | null;
 
 const INITIAL = {
-  projects: ["Все"] as string[],
-  sections: ["Все"] as string[],
+  projects: [] as string[],
+  sections: [] as string[],
   statuses: [] as string[],
   periodMode: "Весь период (за всё время)",
   dateFrom: "",
@@ -214,153 +214,6 @@ function fmtSigned(value: number | null | undefined): string {
   if (value == null) return "—";
   if (value > 0) return `+${fmtNum(value)}`;
   return fmtNum(value);
-}
-
-function MultiSelect({
-  label,
-  options,
-  values,
-  onChange,
-  allToken = "Все",
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (next: string[]) => void;
-  allToken?: string;
-}) {
-  const selected = values.length ? values : [allToken];
-  return (
-    <FilterField label={label}>
-      <select
-        multiple
-        className={`${FILTER_SELECT_CLASS} max-h-32`}
-        value={selected}
-        onChange={(e) => {
-          const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
-          if (!opts.length || opts.includes(allToken)) {
-            onChange([allToken]);
-            return;
-          }
-          onChange(opts);
-        }}
-      >
-        {options.map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-      </select>
-    </FilterField>
-  );
-}
-
-/** Фильтр «Раздел» как main `st.multiselect`: чипы выбранных + сетка чекбоксов 3 кол. */
-function SectionChipMultiSelect({
-  label,
-  options,
-  values,
-  onChange,
-  allToken = "Все",
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (next: string[]) => void;
-  allToken?: string;
-}) {
-  const opts = options.filter((o) => o && o !== allToken);
-  const allSelected =
-    !values.length ||
-    values.includes(allToken) ||
-    (opts.length > 0 && opts.every((o) => values.includes(o)));
-  const selected = allSelected ? opts : values.filter((v) => v !== allToken && opts.includes(v));
-
-  const setSelected = (next: string[]) => {
-    if (!next.length || next.length === opts.length) {
-      onChange([allToken]);
-      return;
-    }
-    onChange(next);
-  };
-
-  const truncate = (s: string, n = 18) =>
-    s.length > n ? `${s.slice(0, n - 1)}…` : s;
-
-  return (
-    <FilterField label={label}>
-      <div className="mt-1 overflow-hidden rounded-tremor-default border border-tremor-border bg-tremor-background dark:border-dark-tremor-border dark:bg-dark-tremor-background">
-        <div className="max-h-28 overflow-y-auto border-b border-tremor-border p-1.5 dark:border-dark-tremor-border">
-          <div className="flex flex-wrap gap-1">
-            {selected.length ? (
-              selected.map((item) => (
-                <span
-                  key={item}
-                  title={item}
-                  className="inline-flex max-w-full items-center gap-0.5 rounded bg-[#e5e7eb] px-1.5 py-0.5 text-[11px] leading-tight text-[#111827] dark:bg-slate-700 dark:text-slate-100"
-                >
-                  <span className="truncate">{truncate(item)}</span>
-                  <button
-                    type="button"
-                    aria-label={`Убрать ${item}`}
-                    className="shrink-0 px-0.5 text-slate-500 hover:text-slate-800 dark:hover:text-white"
-                    onClick={() => setSelected(selected.filter((x) => x !== item))}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))
-            ) : (
-              <span className="px-1 text-[11px] text-tremor-content dark:text-dark-tremor-content">
-                Нет выбранных разделов
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-2 border-b border-tremor-border px-2 py-1 text-[11px] dark:border-dark-tremor-border">
-          <button
-            type="button"
-            className="text-sky-700 hover:underline dark:text-sky-300"
-            onClick={() => setSelected(opts)}
-          >
-            Выбрать все
-          </button>
-          <button
-            type="button"
-            className="text-slate-500 hover:underline dark:text-slate-400"
-            onClick={() => setSelected([])}
-          >
-            Снять все
-          </button>
-        </div>
-        <div className="max-h-36 overflow-y-auto p-1.5">
-          <div className="grid grid-cols-1 gap-x-2 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
-            {opts.map((item) => {
-              const on = selected.includes(item);
-              return (
-                <label
-                  key={item}
-                  title={item}
-                  className="flex min-w-0 cursor-pointer items-center gap-1.5 text-[11px] leading-snug text-[#111827] dark:text-slate-100"
-                >
-                  <input
-                    type="checkbox"
-                    className="bi-filters-check-input shrink-0"
-                    checked={on}
-                    onChange={() => {
-                      if (on) setSelected(selected.filter((x) => x !== item));
-                      else setSelected([...selected, item]);
-                    }}
-                  />
-                  <span className="truncate">{truncate(item, 22)}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </FilterField>
-  );
 }
 
 function cellDisplay(
@@ -612,11 +465,6 @@ export function WorkingDocumentationView() {
         if (cancelled) return;
         setData(payload);
         setError(payload.meta.error || null);
-        setFilters((f) => {
-          if (f.statuses.length) return f;
-          if (!payload.filters.statuses.length) return f;
-          return { ...f, statuses: payload.filters.statuses };
-        });
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -649,7 +497,6 @@ export function WorkingDocumentationView() {
   const resetFilters = () => {
     setFilters({
       ...INITIAL,
-      statuses: data?.filters.statuses ?? [],
     });
   };
 
@@ -683,55 +530,11 @@ export function WorkingDocumentationView() {
         title={tab === "main" ? "План выдачи РД — фильтры" : "Фильтры"}
       >
         <FiltersReset onClick={resetFilters} />
-        <div className="max-w-md">
-          <MultiSelect
-            label="Проекты"
-            options={data?.filters.projects ?? ["Все"]}
-            values={filters.projects}
-            onChange={(projects) => setFilters((f) => ({ ...f, projects }))}
-          />
-        </div>
+        <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects }))} />
         <FilterFieldsRow cols={3}>
-          <SectionChipMultiSelect
-            label="Раздел"
-            options={data?.filters.sections ?? ["Все"]}
-            values={filters.sections}
-            onChange={(sections) => setFilters((f) => ({ ...f, sections }))}
-          />
-          <FilterField label="Период">
-            <select
-              className={FILTER_SELECT_CLASS}
-              value={filters.periodMode}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, periodMode: e.target.value }))
-              }
-            >
-              {(data?.filters.period_modes ?? [INITIAL.periodMode]).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <SectionChipMultiSelect
-            label="Статус"
-            options={["Все", ...(data?.filters.statuses ?? [])]}
-            values={
-              filters.statuses.length
-                ? filters.statuses
-                : data?.filters.statuses?.length
-                  ? ["Все"]
-                  : []
-            }
-            onChange={(statuses) => {
-              if (!statuses.length || statuses.includes("Все")) {
-                setFilters((f) => ({ ...f, statuses: [] }));
-                return;
-              }
-              setFilters((f) => ({ ...f, statuses }));
-            }}
-            allToken="Все"
-          />
+          <FilterChipMulti label="Раздел" options={data?.filters.sections ?? []} values={filters.sections} onChange={(sections) => setFilters((f) => ({ ...f, sections }))} />
+          <FilterChipSelect label="Период" value={filters.periodMode} options={data?.filters.period_modes ?? [INITIAL.periodMode]} onChange={(periodMode) => setFilters((f) => ({ ...f, periodMode }))} />
+          <FilterChipMulti label="Статус" options={data?.filters.statuses ?? []} values={filters.statuses} onChange={(statuses) => setFilters((f) => ({ ...f, statuses }))} />
         </FilterFieldsRow>
         {filters.periodMode !== "Весь период (за всё время)" ? (
           <FilterFieldsRow cols={3}>
@@ -764,39 +567,12 @@ export function WorkingDocumentationView() {
         ) : null}
         {tab === "delay" ? (
           <FilterFieldsRow cols={3}>
-            <FilterField label="Отображение">
-              <select
-                className={FILTER_SELECT_CLASS}
-                value={filters.viewMode}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, viewMode: e.target.value }))
-                }
-              >
-                {(data?.filters.view_modes ?? []).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
+            <FilterChipSelect label="Отображение" value={filters.viewMode} options={(data?.filters.view_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(viewMode) => setFilters((f) => ({ ...f, viewMode }))} />
             <div />
             <div />
           </FilterFieldsRow>
         ) : null}
-        <FilterRadios label="Метрика">
-          {(data?.filters.metric_modes ?? [
-            "Количество разделов",
-            "% от общего объёма",
-          ]).map((m) => (
-            <FilterRadio
-              key={m}
-              name="rd-metric"
-              label={m}
-              checked={filters.metricMode === m}
-              onChange={() => setFilters((f) => ({ ...f, metricMode: m }))}
-            />
-          ))}
-        </FilterRadios>
+        <FilterChipSelect label="Метрика" value={filters.metricMode} options={data?.filters.metric_modes ?? ["Количество разделов", "% от общего объёма"]} onChange={(metricMode) => setFilters((f) => ({ ...f, metricMode }))} />
         <FilterChecksRow cols={3}>
           <FilterCheck
             label="Показать прогнозную дату выдачи разделов"

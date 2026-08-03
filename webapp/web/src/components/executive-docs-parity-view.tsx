@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import {
   FilterCheck,
+  FilterChipSelect,
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
@@ -230,21 +231,13 @@ export function ExecutiveDocsParityView() {
               ["Вид документа", "doc_kind", data?.filters.doc_kinds ?? ["Все"]],
             ] as const
           ).map(([label, key, options]) => (
-            <FilterField key={key} label={label}>
-              <select
-                value={filters[key]}
-                onChange={(e) =>
-                  setFilters((s) => ({ ...s, [key]: e.target.value }))
-                }
-                className={FILTER_SELECT_CLASS}
-              >
-                {options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
+            <FilterChipSelect
+              key={key}
+              label={label}
+              value={filters[key]}
+              options={options}
+              onChange={(value) => setFilters((s) => ({ ...s, [key]: value }))}
+            />
           ))}
           <FilterField label="Период с">
             <input
@@ -272,21 +265,7 @@ export function ExecutiveDocsParityView() {
           </FilterField>
         </FilterFieldsRow>
         <FilterFieldsRow cols={5}>
-          <FilterField label="Гранулярность">
-            <select
-              value={filters.granularity}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, granularity: e.target.value }))
-              }
-              className={FILTER_SELECT_CLASS}
-            >
-              {(data?.filters.granularities ?? []).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipSelect label="Гранулярность" value={filters.granularity} options={(data?.filters.granularities ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(granularity) => setFilters((s) => ({ ...s, granularity }))} />
           <div />
           <div />
           <div />

@@ -16,6 +16,7 @@ import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { fetchPrescriptions, type PrescriptionsPayload } from "@/lib/api";
 import {
   FilterCheck,
+  FilterChipMulti,
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
@@ -77,40 +78,6 @@ const tableColumns: Array<[string, string]> = [
   ["critical", "Критические предписания"],
   ["stop_work", "Остановка работ"],
 ];
-
-function MultiSelect({
-  label,
-  options,
-  selected,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  onChange: (value: string[]) => void;
-}) {
-  return (
-    <FilterField label={label}>
-      <select
-        multiple
-        value={selected}
-        onChange={(e) =>
-          onChange(Array.from(e.target.selectedOptions, (option) => option.value))
-        }
-        className={`${FILTER_SELECT_CLASS} h-28`}
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <span className="mt-1 block text-xs text-tremor-content dark:text-dark-tremor-content">
-        {selected.length ? `${selected.length} выбрано` : "Все"}
-      </span>
-    </FilterField>
-  );
-}
 
 function compare(a: unknown, b: unknown) {
   const an = Number(a);
@@ -276,22 +243,8 @@ export function PrescriptionsView() {
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={5}>
-          <MultiSelect
-            label="Проекты"
-            options={data?.filters.projects ?? []}
-            selected={filters.projects}
-            onChange={(projects) =>
-              setFilters((state) => ({ ...state, projects }))
-            }
-          />
-          <MultiSelect
-            label="Подрядчики"
-            options={data?.filters.contractors ?? []}
-            selected={filters.contractors}
-            onChange={(contractors) =>
-              setFilters((state) => ({ ...state, contractors }))
-            }
-          />
+          <FilterChipMulti label="Проекты" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
+          <FilterChipMulti label="Подрядчики" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((state) => ({ ...state, contractors }))} />
           <FilterField label="№ договора">
             <input
               value={filters.contract_q}

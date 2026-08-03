@@ -19,10 +19,10 @@ import {
 } from "@tremor/react";
 import {
   FilterCheck,
+  FilterChipMulti,
+  FilterChipSelect,
   FilterChecksRow,
-  FilterField,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
@@ -453,18 +453,6 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     week_skud_keys: [],
   };
 
-  const toggleMulti = (
-    key: "projects" | "contractors" | "months",
-    value: string,
-  ) => {
-    setFilters((s) => {
-      const cur = new Set(s[key]);
-      if (cur.has(value)) cur.delete(value);
-      else cur.add(value);
-      return { ...s, [key]: Array.from(cur) };
-    });
-  };
-
   const resetFilters = () => {
     setFilters((s) => ({
       ...s,
@@ -583,65 +571,11 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)}>
         <FiltersReset onClick={resetFilters} />
         <FilterFieldsRow cols={5}>
-          <MultiSelect
-            label="Проект"
-            options={data?.filters.projects ?? []}
-            selected={filters.projects}
-            placeholder="Все проекты"
-            onToggle={(v) => toggleMulti("projects", v)}
-            onClear={() => setFilters((s) => ({ ...s, projects: [] }))}
-          />
-          <MultiSelect
-            label="Контрагент"
-            options={data?.filters.contractors ?? []}
-            selected={filters.contractors}
-            placeholder="Все контрагенты"
-            onToggle={(v) => toggleMulti("contractors", v)}
-            onClear={() => setFilters((s) => ({ ...s, contractors: [] }))}
-          />
-          <MultiSelect
-            label="Месяц"
-            options={data?.filters.months ?? []}
-            selected={filters.months}
-            placeholder="Все месяцы"
-            onToggle={(v) => toggleMulti("months", v)}
-            onClear={() =>
-              setFilters((s) => ({
-                ...s,
-                months: data?.filters.default_months ?? [],
-              }))
-            }
-          />
-          <FilterField label="План">
-            <select
-              className={FILTER_SELECT_CLASS}
-              value={filters.plan_agg}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, plan_agg: e.target.value }))
-              }
-            >
-              {(data?.filters.agg_options ?? ["Среднее за месяц"]).map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="СКУД">
-            <select
-              className={FILTER_SELECT_CLASS}
-              value={filters.skud_agg}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, skud_agg: e.target.value }))
-              }
-            >
-              {(data?.filters.agg_options ?? ["Среднее за месяц"]).map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <FilterChipMulti label="Проект" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
+          <FilterChipMulti label="Контрагент" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((s) => ({ ...s, contractors }))} />
+          <FilterChipMulti label="Месяц" options={data?.filters.months ?? []} values={filters.months} onChange={(months) => setFilters((s) => ({ ...s, months }))} />
+          <FilterChipSelect label="План" value={filters.plan_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(plan_agg) => setFilters((s) => ({ ...s, plan_agg }))} />
+          <FilterChipSelect label="СКУД" value={filters.skud_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(skud_agg) => setFilters((s) => ({ ...s, skud_agg }))} />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>
           <FilterCheck
@@ -1344,69 +1278,4 @@ export function GdrsPeopleView() {
 
 export function GdrsEquipmentView() {
   return <GdrsView resourceKind="equipment" />;
-}
-
-function MultiSelect({
-  label,
-  options,
-  selected,
-  placeholder,
-  onToggle,
-  onClear,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  placeholder: string;
-  onToggle: (v: string) => void;
-  onClear: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const summary =
-    selected.length === 0
-      ? placeholder
-      : selected.length <= 2
-        ? selected.join(", ")
-        : `${selected.length} выбрано`;
-
-  return (
-    <div className="relative block text-sm">
-      <Text>{label}</Text>
-      <button
-        type="button"
-        className="mt-1 flex w-full items-center justify-between rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-left text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className="truncate">{summary}</span>
-        <span className="ml-2 text-xs opacity-60">{open ? "▲" : "▼"}</span>
-      </button>
-      {open ? (
-        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-tremor-default border border-tremor-border bg-tremor-background p-2 shadow-lg dark:border-dark-tremor-border dark:bg-dark-tremor-background">
-          <button
-            type="button"
-            className="mb-1 w-full rounded px-2 py-1 text-left text-xs text-tremor-content hover:bg-tremor-background-muted dark:hover:bg-dark-tremor-background-muted"
-            onClick={() => {
-              onClear();
-              setOpen(false);
-            }}
-          >
-            Сбросить
-          </button>
-          {options.map((o) => (
-            <label
-              key={o}
-              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-tremor-background-muted dark:hover:bg-dark-tremor-background-muted"
-            >
-              <input
-                type="checkbox"
-                checked={selected.includes(o)}
-                onChange={() => onToggle(o)}
-              />
-              <span className="truncate text-tremor-default">{o}</span>
-            </label>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
 }
