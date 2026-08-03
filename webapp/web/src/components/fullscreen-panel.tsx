@@ -83,7 +83,7 @@ export function FullscreenPanel({
     >
       <div
         className={`z-40 flex items-center gap-1 ${
-          active ? "fixed right-3 top-3" : "absolute right-2 top-2"
+          active ? "fixed right-3 top-11" : "absolute right-2 top-10"
         }`}
       >
         {toolbar}
