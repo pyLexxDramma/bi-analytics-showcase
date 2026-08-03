@@ -29,6 +29,7 @@ import {
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
 import {
+  PdDelayGanttChart,
   PdDynamicsLineChart,
   PdExecutionPieChart,
   PdMonthlyCumulativeChart,
@@ -113,109 +114,6 @@ function compareVal(a: unknown, b: unknown): number {
   if (b == null) return -1;
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a).localeCompare(String(b), "ru", { numeric: true, sensitivity: "base" });
-}
-
-function PdDelayGantt({
-  rows,
-  rangeStart,
-  rangeEnd,
-}: {
-  rows: ProjectDocumentationPayload["delay"]["gantt"]["rows"];
-  rangeStart: string | null;
-  rangeEnd: string | null;
-}) {
-  if (!rows.length) {
-    return (
-      <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных для графика просрочки.
-      </div>
-    );
-  }
-  const lo = rangeStart ? Date.parse(rangeStart) : Math.min(...rows.map((r) => Date.parse(r.start)));
-  const hiCandidates = rows.flatMap((r) =>
-    [r.delay_end, r.finish, r.base_finish].filter(Boolean).map((d) => Date.parse(String(d))),
-  );
-  const hi = rangeEnd ? Date.parse(rangeEnd) : Math.max(...hiCandidates);
-  const span = Math.max(hi - lo, 1);
-  const pct = (iso: string | null | undefined) => {
-    if (!iso) return 0;
-    return ((Date.parse(iso) - lo) / span) * 100;
-  };
-  const width = (from: string, to: string | null | undefined) => {
-    if (!to) return 0;
-    return Math.max(((Date.parse(to) - Date.parse(from)) / span) * 100, 0.4);
-  };
-
-  return (
-    <div className="space-y-3 px-2 py-2">
-      <div className="flex flex-wrap gap-4 text-xs text-tremor-content dark:text-dark-tremor-content">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#F1C40F]" /> Базовое окончание
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#27AE60]" /> Окончание
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#C0392B]" /> Просрочка
-        </span>
-      </div>
-      {rows.map((row) => {
-        const baseLeft = pct(row.start);
-        const baseW = width(row.start, row.base_finish);
-        const green = row.fact_dur > 0 && row.finish && !row.delay_end;
-        const red = row.delay_dur > 0 && row.delay_end;
-        const greenW = green ? width(row.start, row.finish) : 0;
-        const redLeft = pct(row.base_finish);
-        const redW = red ? width(row.base_finish, row.delay_end) : 0;
-        const endLabel = row.finish_label || row.base_label;
-        const labelLeft = red
-          ? Math.min(redLeft + redW + 0.4, 92)
-          : green
-            ? Math.min(baseLeft + greenW + 0.4, 92)
-            : Math.min(baseLeft + baseW + 0.4, 92);
-        return (
-          <div key={row.label} className="grid grid-cols-[9rem_1fr] items-center gap-2">
-            <div className="truncate text-right text-xs font-medium">{row.label}</div>
-            <div className="relative h-7 rounded bg-tremor-background-muted dark:bg-dark-tremor-background-muted">
-              <div
-                className="absolute top-1 h-5 rounded-sm bg-[#F1C40F]"
-                style={{ left: `${baseLeft}%`, width: `${baseW}%` }}
-                title={`Базовое окончание ${row.base_label}`}
-              />
-              {green ? (
-                <div
-                  className="absolute top-1 h-5 rounded-sm bg-[#27AE60]"
-                  style={{
-                    left: `${baseLeft}%`,
-                    width: `${greenW}%`,
-                  }}
-                  title={`Окончание ${row.finish_label}`}
-                />
-              ) : null}
-              {red ? (
-                <div
-                  className="absolute top-1 h-5 rounded-sm bg-[#C0392B]"
-                  style={{
-                    left: `${redLeft}%`,
-                    width: `${redW}%`,
-                  }}
-                  title={`Просрочка до ${row.finish_label}`}
-                />
-              ) : null}
-              {endLabel ? (
-                <span
-                  className="pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium text-[#1a1a1a] dark:text-slate-100"
-                  style={{ left: `${labelLeft}%` }}
-                >
-                  {endLabel}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 function ProjectDocumentationScreen({
@@ -778,16 +676,19 @@ function ProjectDocumentationScreen({
           <Title className="!text-xl">Просрочка выдачи ПД</Title>
 
           <FullscreenPanel fill disabled={!data?.delay.gantt.rows.length}>
-            <Card className="rounded-xl">
-              <Title>График Просрочка выдачи ПД</Title>
-              <div className="mt-4 max-h-[28rem] overflow-auto">
-                <PdDelayGantt
-                  rows={data?.delay.gantt.rows ?? []}
-                  rangeStart={data?.delay.gantt.range_start ?? null}
-                  rangeEnd={data?.delay.gantt.range_end ?? null}
-                />
-              </div>
-            </Card>
+            {(zoomed) => (
+              <Card className="rounded-xl">
+                <Title>График Просрочка выдачи ПД</Title>
+                <div className="mt-4">
+                  <PdDelayGanttChart
+                    rows={data?.delay.gantt.rows ?? []}
+                    rangeStart={data?.delay.gantt.range_start ?? null}
+                    rangeEnd={data?.delay.gantt.range_end ?? null}
+                    fullscreen={zoomed}
+                  />
+                </div>
+              </Card>
+            )}
           </FullscreenPanel>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
