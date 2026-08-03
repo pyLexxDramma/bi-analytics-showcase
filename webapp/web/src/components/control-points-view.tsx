@@ -65,14 +65,14 @@ function ControlPointsMobileCards({
       {projects.map((project) => (
         <article
           key={project.project}
-          className="overflow-hidden rounded-xl border border-tremor-border bg-tremor-background shadow-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+          className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] bg-tremor-background shadow-sm dark:border-white dark:bg-dark-tremor-background"
         >
-          <header className="border-b border-tremor-border bg-slate-50 px-3 py-2.5 dark:border-dark-tremor-border dark:bg-slate-900/40">
+          <header className="border-b-2 border-[#94a3b8] bg-slate-50 px-3 py-2.5 dark:border-white dark:bg-slate-900/40">
             <h3 className="text-sm font-bold text-tremor-content-strong dark:text-dark-tremor-content-strong">
               {project.project}
             </h3>
           </header>
-          <ul className="divide-y divide-tremor-border dark:divide-dark-tremor-border">
+          <ul className="divide-y-2 divide-[#cbd5e1] dark:divide-[#5a6f82]">
             {group.milestones.map((milestone) => {
               const cell = project.cells[milestone.slug];
               const dateTone = cell?.pct_complete_100
@@ -87,19 +87,19 @@ function ControlPointsMobileCards({
                     {statusPill(cell)}
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
-                    <div className="rounded-lg bg-slate-50 px-1.5 py-2 dark:bg-slate-900/50">
+                    <div className="rounded-lg border-2 border-[#cbd5e1] bg-slate-50 px-1.5 py-2 dark:border-[#5a6f82] dark:bg-slate-900/50">
                       <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
                         План
                       </div>
                       <div className={`tabular-nums font-semibold ${dateTone}`}>{cell?.plan ?? "Н/Д"}</div>
                     </div>
-                    <div className="rounded-lg bg-slate-50 px-1.5 py-2 dark:bg-slate-900/50">
+                    <div className="rounded-lg border-2 border-[#cbd5e1] bg-slate-50 px-1.5 py-2 dark:border-[#5a6f82] dark:bg-slate-900/50">
                       <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
                         Факт
                       </div>
                       <div className={`tabular-nums font-semibold ${dateTone}`}>{cell?.fact ?? "Н/Д"}</div>
                     </div>
-                    <div className="rounded-lg bg-slate-50 px-1.5 py-2 dark:bg-slate-900/50">
+                    <div className="rounded-lg border-2 border-[#cbd5e1] bg-slate-50 px-1.5 py-2 dark:border-[#5a6f82] dark:bg-slate-900/50">
                       <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
                         Откл.
                       </div>
@@ -188,8 +188,8 @@ function ControlPointsGroup({
 }) {
   const titles = group.milestones.map((m) => m.title).join(" · ");
   return (
-    <Card className="overflow-hidden rounded-xl p-0">
-      <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border lg:hidden">
+    <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
+      <div className="border-b-2 border-[#94a3b8] px-4 py-3 dark:border-white lg:hidden">
         <Text className="text-xs font-semibold text-tremor-content dark:text-dark-tremor-content">
           {titles}
         </Text>
