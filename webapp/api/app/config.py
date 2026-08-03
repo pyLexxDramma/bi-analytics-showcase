@@ -48,6 +48,25 @@ _default_web = (
 )
 WEB_DATA_DIR = Path(os.environ.get("SHOWCASE_WEB_DIR", str(_default_web)))
 
+# CSV lookup `other_*_rd.csv` / `other_*_pd.csv` в core `_r23_12_load_rd_plan_lookup`
+# читает BI_ANALYTICS_WEB_EXTRA_PATHS — прокидываем staging web/ при старте API.
+try:
+    _web_resolved = str(WEB_DATA_DIR.expanduser().resolve())
+except Exception:
+    _web_resolved = str(WEB_DATA_DIR)
+if _web_resolved and Path(_web_resolved).is_dir():
+    _extra = os.environ.get("BI_ANALYTICS_WEB_EXTRA_PATHS", "")
+    _parts = [p.strip() for p in _extra.replace(";", ",").split(",") if p.strip()]
+    _resolved: set[str] = set()
+    for _p in _parts:
+        try:
+            _resolved.add(str(Path(_p).expanduser().resolve()))
+        except Exception:
+            _resolved.add(_p)
+    if _web_resolved not in _resolved:
+        _parts.append(_web_resolved)
+        os.environ["BI_ANALYTICS_WEB_EXTRA_PATHS"] = ",".join(_parts)
+
 # SQLite как в [main]: после FTP/web → load_all_from_web()
 WEB_DB_PATH = Path(
     os.environ.get(

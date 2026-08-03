@@ -242,8 +242,13 @@ def _detail_to_rows(df: pd.DataFrame) -> tuple[list[dict[str, Any]], list[str]]:
         item: dict[str, Any] = {}
         for c in cols:
             v = r.get(c)
-            if "отклонен" in c.casefold() or c.casefold().startswith("отклонение"):
-                num = pd.to_numeric(v, errors="coerce")
+            is_dev = "отклонен" in c.casefold() or c.casefold().startswith("отклонение")
+            if is_dev:
+                if isinstance(v, str):
+                    raw = v.strip().replace("\u2212", "-").replace(",", ".")
+                    num = pd.to_numeric(raw, errors="coerce")
+                else:
+                    num = pd.to_numeric(v, errors="coerce")
                 if pd.isna(num):
                     item[c] = None
                     item[f"{c}__label"] = "—"
@@ -492,6 +497,16 @@ def build_working_documentation_payload(
 
         _seed_session(int(vid))
         mod = _load_rd_renderers()
+        # Гарантируем EXTRA paths + сброс st.cache_data lookup на каждый build
+        # (иначе первый cold-start без EXTRA кэширует пустой dict → KPI 504).
+        _ensure_showcase_web_in_extra_paths()
+        try:
+            _lk = getattr(mod, "_r23_12_load_rd_plan_lookup", None)
+            _clear = getattr(_lk, "clear", None)
+            if callable(_clear):
+                _clear()
+        except Exception:
+            pass
 
         rd_raw = load_version_df(int(vid), "rd_plan")
         if rd_raw is None or getattr(rd_raw, "empty", True):

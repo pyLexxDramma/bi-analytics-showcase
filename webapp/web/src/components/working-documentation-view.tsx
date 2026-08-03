@@ -79,16 +79,18 @@ function deviationCellStyle(
   }
   const num = Number(value);
   const t = Math.min(Math.abs(num) / Math.max(vmax, 1), 1);
+  // Как main `style_dataframe_for_dark_theme(..., days_deviation_gradient=True,
+  // days_positive_is_ahead=True)` — просрочка (<0) розовый/красный фон.
   if (num === 0) {
     return {
       className: "font-semibold",
       style: dark
         ? { backgroundColor: "rgba(70,214,138,0.35)", color: "#b8f5c8" }
-        : { backgroundColor: "rgba(34,197,94,0.18)", color: "#15803d" },
+        : { backgroundColor: "rgba(34,197,94,0.22)", color: "#15803d" },
     };
   }
   if (num > 0) {
-    const alpha = 0.14 + 0.22 * t;
+    const alpha = 0.18 + 0.32 * t;
     return {
       className: "font-bold",
       style: dark
@@ -102,8 +104,8 @@ function deviationCellStyle(
           },
     };
   }
-  const alphaLight = 0.18 + 0.28 * t;
-  const alphaDark = 0.24 + 0.36 * t;
+  const alphaLight = 0.22 + 0.38 * t;
+  const alphaDark = 0.28 + 0.4 * t;
   return {
     className: "font-bold",
     style: dark
@@ -125,6 +127,11 @@ function parseSortableNumber(raw: unknown): number | null {
   if (!s || s === "—" || s.toLowerCase() === "nan") return null;
   const n = Number(s.replace(/[^\d.+-]/g, ""));
   return Number.isFinite(n) ? n : null;
+}
+
+function isDeviationCol(col: string): boolean {
+  const c = col.toLowerCase();
+  return c.includes("отклонен") || c.startsWith("отклонение");
 }
 
 function compareVal(a: unknown, b: unknown): number {
@@ -361,10 +368,10 @@ function DetailTable({
   const vmaxByCol = useMemo(() => {
     const map: Record<string, number> = {};
     for (const c of columns) {
-      if (!c.toLowerCase().includes("отклонен")) continue;
+      if (!isDeviationCol(c)) continue;
       let vmax = 1;
       for (const row of rows) {
-        const n = parseSortableNumber(row[c]);
+        const n = parseSortableNumber(row[c] ?? row[`${c}__label`]);
         if (n != null) vmax = Math.max(vmax, Math.abs(n));
       }
       map[c] = vmax;
@@ -381,7 +388,7 @@ function DetailTable({
   }, [columns]);
 
   const badgeCol = useMemo(
-    () => columns.find((c) => c.toLowerCase().includes("отклонен")) ?? "",
+    () => columns.find((c) => isDeviationCol(c)) ?? "",
     [columns],
   );
 
@@ -420,8 +427,10 @@ function DetailTable({
                     <MobileMetricGrid
                       columns={2}
                       items={metricCols.map((c) => {
-                        const isDev = c.toLowerCase().includes("отклонен");
-                        const num = isDev ? parseSortableNumber(row[c]) : null;
+                        const isDev = isDeviationCol(c);
+                        const num = isDev
+                          ? parseSortableNumber(row[c] ?? row[`${c}__label`])
+                          : null;
                         return {
                           label: c.length > 28 ? `${c.slice(0, 26)}…` : c,
                           value: cellDisplay(row, c),
@@ -459,22 +468,12 @@ function DetailTable({
                 </thead>
                 <tbody>
                   {sortedRows.map((row, i) => (
-                    <tr
-                      key={i}
-                      style={{
-                        backgroundColor:
-                          i % 2 === 0
-                            ? dark
-                              ? "rgba(255,255,255,0.02)"
-                              : "#ffffff"
-                            : dark
-                              ? "transparent"
-                              : "#fafafa",
-                      }}
-                    >
+                    <tr key={i}>
                       {columns.map((c) => {
-                        const isDev = c.toLowerCase().includes("отклонен");
-                        const num = isDev ? parseSortableNumber(row[c]) : null;
+                        const isDev = isDeviationCol(c);
+                        const num = isDev
+                          ? parseSortableNumber(row[c] ?? row[`${c}__label`])
+                          : null;
                         const label = cellDisplay(row, c);
                         const tint = isDev
                           ? deviationCellStyle(num, vmaxByCol[c] ?? 1, dark)
@@ -482,6 +481,15 @@ function DetailTable({
                         const cellBorder = dark
                           ? "1px solid #334155"
                           : "1px solid #e5e7eb";
+                        const zebra =
+                          !tint.style &&
+                          (i % 2 === 0
+                            ? dark
+                              ? "rgba(255,255,255,0.02)"
+                              : "#ffffff"
+                            : dark
+                              ? "transparent"
+                              : "#fafafa");
                         return (
                           <td
                             key={c}
@@ -490,6 +498,7 @@ function DetailTable({
                             }`}
                             style={{
                               border: cellBorder,
+                              backgroundColor: zebra || undefined,
                               ...(tint.style ?? {}),
                             }}
                           >

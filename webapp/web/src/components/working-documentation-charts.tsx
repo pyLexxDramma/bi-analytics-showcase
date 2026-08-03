@@ -177,6 +177,18 @@ export function RdDynamicsLineChart({
     const fact = rows.map((r) => r.fact);
     const yMax = Math.max(1, ...plan, ...fact);
     const yHead = Math.max(yMax * 0.1, 4);
+    // Прореживание подписей оси X как main (~≤12 тиков), без наложения месяцев.
+    const tickStep = Math.max(1, Math.ceil(x.length / 12));
+    const tickvals: string[] = [];
+    const ticktext: string[] = [];
+    for (let i = 0; i < x.length; i += tickStep) {
+      tickvals.push(x[i]);
+      ticktext.push(x[i]);
+    }
+    if (x.length && tickvals[tickvals.length - 1] !== x[x.length - 1]) {
+      tickvals.push(x[x.length - 1]);
+      ticktext.push(x[x.length - 1]);
+    }
     const mk = (
       y: number[],
       name: string,
@@ -199,7 +211,7 @@ export function RdDynamicsLineChart({
       data: [mk(plan, CHART_RU.plan, RD_PLAN), mk(fact, CHART_RU.fact, RD_FACT)],
       layout: {
         height,
-        margin: { l: 56, r: 36, t: 72, b: 88 },
+        margin: { l: 56, r: 36, t: 72, b: 100 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         hovermode: "x unified" as const,
@@ -213,11 +225,14 @@ export function RdDynamicsLineChart({
         xaxis: {
           title: {
             text: "Период",
-            standoff: 18,
+            standoff: 22,
             font: { size: 12, color: theme.axis },
           },
+          tickmode: "array" as const,
+          tickvals,
+          ticktext,
           tickangle: -35,
-          tickfont: { size: 12, color: theme.axis },
+          tickfont: { size: 11, color: theme.axis },
           gridcolor: theme.grid,
           automargin: true,
         },
@@ -419,11 +434,12 @@ export function RdDelayGanttChart({
       const y = row.label;
       const startMs = toMs(row.start);
       const bfMs = toMs(row.base_finish);
-      const finMs = toMs(row.finish);
       const delayEndMs = toMs(row.delay_end);
+      // Как main `_rd_delay_chart_segments` + `_render_pd_delay_duration_chart`:
+      // зелёный рисуется по `_fin_dt` даже при красном (выдано с опозданием).
       const hasRed = (row.delay_dur || 0) > 0 && delayEndMs != null && bfMs != null;
-      const hasGreen =
-        (row.fact_dur || 0) > 0 && Boolean(row.finish) && !row.delay_end && startMs != null;
+      const gLen = barLenMs(row.start, row.finish);
+      const hasGreen = gLen != null && startMs != null && Boolean(row.finish);
 
       const yLen = barLenMs(row.start, row.base_finish);
       if (yLen != null && startMs != null) {
@@ -433,14 +449,11 @@ export function RdDelayGanttChart({
         yellowCd.push(row.base_label || "");
       }
 
-      if (hasGreen) {
-        const gLen = barLenMs(row.start, row.finish);
-        if (gLen != null && startMs != null) {
-          greenY.push(y);
-          greenBase.push(startMs);
-          greenLen.push(gLen);
-          greenCd.push(row.fact_label || "");
-        }
+      if (hasGreen && gLen != null && startMs != null) {
+        greenY.push(y);
+        greenBase.push(startMs);
+        greenLen.push(gLen);
+        greenCd.push(row.fact_label || row.base_label || "");
       }
 
       if (hasRed && bfMs != null) {
@@ -449,7 +462,7 @@ export function RdDelayGanttChart({
           redY.push(y);
           redBase.push(bfMs);
           redLen.push(rLen);
-          redCd.push(row.fact_label || row.delay_label || "");
+          redCd.push(row.delay_label || "");
         }
       }
 
@@ -461,15 +474,17 @@ export function RdDelayGanttChart({
         font: { size: 10, color: labelColor },
       };
 
-      if (row.base_label && bfMs != null && !hasRed && (finMs == null || finMs <= bfMs)) {
+      // RD `delay_label_as_days=True`: без красного — только «в срок» (не две даты);
+      // с красным — дата по договору на стыке + «N дн.» на конце.
+      if (!hasRed && bfMs != null) {
         annotations.push({
           ...annBase,
           x: bfMs,
-          text: row.base_label,
+          text: "в срок",
           xanchor: "left",
           xshift: 6,
         });
-      } else if (row.base_label && bfMs != null && hasRed) {
+      } else if (hasRed && row.base_label && bfMs != null) {
         annotations.push({
           ...annBase,
           x: bfMs,
@@ -479,32 +494,15 @@ export function RdDelayGanttChart({
         });
       }
 
-      if (hasGreen && row.fact_label && finMs != null && !hasRed) {
-        const gapDays =
-          bfMs != null && finMs != null ? Math.abs((bfMs - finMs) / DAY_MS) : 99;
-        if (gapDays > 5) {
-          annotations.push({
-            ...annBase,
-            x: finMs,
-            text: row.fact_label,
-            xanchor: "left",
-            xshift: 6,
-          });
-        }
-      }
-
-      if (hasRed && delayEndMs != null) {
-        const redText = row.delay_label || row.fact_label;
-        if (redText) {
-          annotations.push({
-            ...annBase,
-            x: delayEndMs,
-            text: redText,
-            xanchor: "left",
-            xshift: 6,
-            font: { size: 10, color: theme.dark ? "#fecaca" : "#7f1d1d" },
-          });
-        }
+      if (hasRed && delayEndMs != null && (row.delay_dur || 0) > 0) {
+        annotations.push({
+          ...annBase,
+          x: delayEndMs,
+          text: `${Math.round(row.delay_dur)} дн.`,
+          xanchor: "left",
+          xshift: 8,
+          font: { size: 10, color: labelColor },
+        });
       }
     }
 
@@ -527,14 +525,14 @@ export function RdDelayGanttChart({
       data.push({
         type: "bar",
         orientation: "h",
-        name: "Прогноз / факт",
+        name: "Прогнозная дата",
         y: greenY,
         x: greenLen,
         base: greenBase,
         marker: { color: RD_GANTT_GREEN },
         width: 0.48,
         customdata: greenCd,
-        hovertemplate: "%{y}<br>Прогноз / факт: %{customdata}<extra></extra>",
+        hovertemplate: "%{y}<br>Прогнозная дата выдачи: %{customdata}<extra></extra>",
       });
     }
     if (redY.length) {
@@ -548,7 +546,7 @@ export function RdDelayGanttChart({
         marker: { color: RD_GANTT_RED },
         width: 0.48,
         customdata: redCd,
-        hovertemplate: "%{y}<br>Просрочка: %{customdata}<extra></extra>",
+        hovertemplate: "%{y}<br>Просрочка до %{customdata}<extra></extra>",
       });
     }
 
@@ -577,21 +575,22 @@ export function RdDelayGanttChart({
         height,
         barmode: "overlay" as const,
         bargap: 0.44,
-        margin: { l: 16, r: 140, t: 56, b: 56 },
+        margin: { l: 16, r: 160, t: 56, b: 56 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         showlegend: true,
         legend: {
           orientation: "h" as const,
-          y: 1.12,
+          y: 1.14,
           x: 0,
           font: { size: 12, color: theme.axis },
         },
         annotations,
         xaxis: {
           type: "date" as const,
-          title: { text: "Период", font: { size: 12, color: theme.axis } },
+          title: { text: "Период", font: { size: 12, color: theme.axis }, standoff: 18 },
           tickformat: "%d.%m.%Y",
+          nticks: 8,
           tickfont: { size: 11, color: theme.axis },
           gridcolor: theme.grid,
           automargin: true,
