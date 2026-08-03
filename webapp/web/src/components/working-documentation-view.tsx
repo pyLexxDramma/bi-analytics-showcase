@@ -37,7 +37,7 @@ import type { ExportCell, ExportTable } from "@/lib/table-export";
 const TH =
   "whitespace-nowrap px-2.5 py-2 text-center text-[13px] font-bold leading-tight text-[#111827] dark:text-[#fafafa]";
 const TD =
-  "px-2.5 py-1.5 text-center align-middle text-[13px] text-[#111827] dark:text-[#e8eef5]";
+  "whitespace-nowrap px-2.5 py-1.5 text-center align-middle text-[13px] text-[#111827] dark:text-[#e8eef5]";
 
 type TabId = "main" | "delay";
 type SortState = { key: string; asc: boolean } | null;
@@ -403,7 +403,7 @@ function DetailTable({
 
   return (
     <FullscreenPanel disabled={!sortedRows.length}>
-      <Card className="overflow-hidden rounded-xl p-0">
+      <Card className="rounded-xl p-0">
         {!sortedRows.length || !columns.length ? (
           <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
             Нет строк по фильтрам.
@@ -443,9 +443,9 @@ function DetailTable({
                 );
               })}
             </MobileCardStack>
-            <div className="hidden max-h-[32rem] overflow-auto lg:block">
+            <div className="hidden max-h-[32rem] overflow-x-auto overflow-y-auto lg:block">
               <table
-                className="min-w-full text-sm"
+                className="w-max min-w-full text-sm"
                 style={{
                   borderCollapse: "collapse",
                   width: "100%",

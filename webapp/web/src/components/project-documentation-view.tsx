@@ -39,7 +39,7 @@ import type { ExportCell, ExportTable } from "@/lib/table-export";
 const TH =
   "whitespace-nowrap border border-[#cbd5e1] bg-[#f3f4f6] px-2.5 py-2 text-center font-bold text-[#111827] dark:border-[#334155] dark:bg-[hsl(209,72%,6%)] dark:text-[#fafafa]";
 const TD =
-  "border border-[#cbd5e1] px-2.5 py-1.5 text-center align-middle dark:border-[#334155]";
+  "whitespace-nowrap border border-[#cbd5e1] px-2.5 py-1.5 text-center align-middle dark:border-[#334155]";
 const AHEAD_BG = "bg-[rgba(46,204,113,0.22)] dark:bg-[rgba(70,214,138,0.18)]";
 const OVERDUE_BG = "bg-[rgba(231,76,60,0.22)] dark:bg-[rgba(255,84,84,0.18)]";
 const OK_BG = "bg-[rgba(46,204,113,0.22)] dark:bg-[rgba(70,214,138,0.18)]";
@@ -541,7 +541,7 @@ function ProjectDocumentationScreen({
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!mainRows.length}>
-            <Card className="overflow-hidden rounded-xl p-0">
+            <Card className="rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Таблица Выдача проектной документации по проектам</Title>
               </div>
@@ -592,8 +592,8 @@ function ProjectDocumentationScreen({
                       );
                     })}
                   </MobileCardStack>
-                  <div className="hidden max-h-[28rem] overflow-auto pt-10 lg:block">
-                  <table className="min-w-full border-separate border-spacing-0 text-sm">
+                  <div className="hidden max-h-[28rem] overflow-x-auto overflow-y-auto pt-10 lg:block">
+                  <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr>
                         <SortHeader
@@ -720,7 +720,7 @@ function ProjectDocumentationScreen({
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!detailRows.length}>
-            <Card className="overflow-hidden rounded-xl p-0">
+            <Card className="rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Детальная таблица</Title>
               </div>
@@ -784,8 +784,8 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden max-h-[28rem] overflow-auto pt-10 lg:block">
-                  <table className="min-w-full border-separate border-spacing-0 text-xs">
+                  <div className="hidden max-h-[28rem] overflow-x-auto overflow-y-auto pt-10 lg:block">
+                  <table className="w-max min-w-full border-separate border-spacing-0 text-xs">
                     <thead className="sticky top-0 z-10">
                       <tr>
                         {(
@@ -855,7 +855,7 @@ function ProjectDocumentationScreen({
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!summaryRows.length}>
-            <Card className="overflow-hidden rounded-xl p-0">
+            <Card className="rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Таблица Сводка по просрочке выдачи документации</Title>
               </div>
@@ -887,8 +887,8 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden overflow-auto pt-10 lg:block">
-                <table className="min-w-full border-separate border-spacing-0 text-sm">
+                  <div className="hidden overflow-x-auto overflow-y-auto pt-10 lg:block">
+                <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
                       {(
