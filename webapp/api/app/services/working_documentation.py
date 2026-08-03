@@ -1,12 +1,13 @@
 """Рабочая документация (РД) — паритет с [main] `_rd_plan_fallback_view` + `dashboard_rd_delay`.
 
-Данные только из `web_data.db` через `core_bridge` (rd_plan / tessa / tessa_tasks /
-debit_credit). Файловый `_r23_12_load_rd_plan_lookup` (чтение `web/`) патчится
-на пустой dict — даты договора/прогноза идут через `_rd_plan_db_contract_lookup`.
+План/TESSA — из `web_data.db` через `core_bridge`. Даты договора/прогноза: как в main —
+сначала CSV lookup `other_*_rd.csv` из staging web/ (SHOWCASE_WEB_DIR), иначе
+`_rd_plan_db_contract_lookup` из БД. UI не читает web/.
 """
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -16,7 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.config import CORE_APP_DIR, DATA_MODE, WEB_DB_PATH
+from app.config import CORE_APP_DIR, DATA_MODE, WEB_DATA_DIR, WEB_DB_PATH
 from app.services.core_bridge import (
     ensure_core_path,
     ensure_streamlit_stub,
@@ -61,7 +62,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "files": 0,
             "doc_kind": "rd",
             "title": "Рабочая документация",
-            "rule": "rd_plan+tessa через web_data.db (_rd_plan_fallback_view)",
+            "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
             "parity": "main_working_documentation_rd_plan_tessa",
             "version_id": None,
             "error": error,
@@ -113,12 +114,46 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
     }
 
 
+def _ensure_showcase_web_in_extra_paths() -> None:
+    """Чтобы `_r23_12_load_rd_plan_lookup` видел SHOWCASE_WEB_DIR / webapp data/web."""
+    try:
+        web = str(Path(WEB_DATA_DIR).resolve())
+    except Exception:
+        return
+    if not web or not Path(web).is_dir():
+        return
+    cur = os.environ.get("BI_ANALYTICS_WEB_EXTRA_PATHS", "")
+    parts = [p.strip() for p in cur.replace(";", ",").split(",") if p.strip()]
+    resolved: set[str] = set()
+    for p in parts:
+        try:
+            resolved.add(str(Path(p).expanduser().resolve()))
+        except Exception:
+            resolved.add(p)
+    if web in resolved:
+        return
+    parts.append(web)
+    os.environ["BI_ANALYTICS_WEB_EXTRA_PATHS"] = ",".join(parts)
+
+
 def _load_rd_renderers() -> ModuleType:
     ensure_streamlit_stub()
     ensure_core_path()
+    _ensure_showcase_web_in_extra_paths()
     existing = sys.modules.get(_RENDERERS_MOD)
     if existing is not None:
-        return existing
+        fn = getattr(existing, "_r23_12_load_rd_plan_lookup", None)
+        # Старый патч `lambda: {}` — перезагружаем модуль, чтобы вернуть CSV lookup.
+        if callable(fn) and getattr(fn, "__name__", "") == "<lambda>":
+            sys.modules.pop(_RENDERERS_MOD, None)
+        else:
+            try:
+                clear = getattr(fn, "clear", None)
+                if callable(clear):
+                    clear()
+            except Exception:
+                pass
+            return existing
     if "dashboards" not in sys.modules:
         pkg = ModuleType("dashboards")
         pkg.__path__ = [str((CORE_APP_DIR / "dashboards").resolve())]  # type: ignore[attr-defined]
@@ -134,8 +169,7 @@ def _load_rd_renderers() -> ModuleType:
     except Exception:
         sys.modules.pop(_RENDERERS_MOD, None)
         raise
-    # Не читать web/: даты договора/прогноза — из БД (_rd_plan_db_contract_lookup).
-    module._r23_12_load_rd_plan_lookup = lambda: {}  # type: ignore[attr-defined]
+    # Как main: файловый CSV lookup + DB fallback внутри _build_rd_work_doc_detail_table.
     return module
 
 
@@ -744,7 +778,7 @@ def build_working_documentation_payload(
                 "files": 0,
                 "doc_kind": "rd",
                 "title": "Рабочая документация",
-                "rule": "rd_plan+tessa через web_data.db (_rd_plan_fallback_view)",
+                "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
                 "parity": "main_working_documentation_rd_plan_tessa",
                 "version_id": int(vid),
                 "error": None,

@@ -1,15 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import {
-  Card,
-  DonutChart,
-  Grid,
-  LineChart,
-  Metric,
-  Text,
-  Title,
-} from "@tremor/react";
+import { Card, Grid, Metric, Text, Title } from "@tremor/react";
 import {
   fetchWorkingDocumentation,
   type WorkingDocumentationPayload,
@@ -29,7 +21,17 @@ import {
 } from "@/components/dashboard-filters";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
-import { CHART_RU } from "@/lib/chart-ru";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
+import {
+  RdDelayGanttChart,
+  RdDynamicsLineChart,
+  RdExecutionPieChart,
+  RdMonthlyCumulativeChart,
+} from "@/components/working-documentation-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const TH =
@@ -67,7 +69,6 @@ function deviationClass(value: number | null | undefined): string {
     : "font-semibold text-[#15803d] dark:text-[#46d68a]";
 }
 
-/** Градиент отклонений как `style_dataframe_for_dark_theme(days_deviation_gradient, days_positive_is_ahead)`. */
 function deviationCellStyle(
   value: number | null | undefined,
   vmax: number,
@@ -137,6 +138,14 @@ function compareVal(a: unknown, b: unknown): number {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+function highlightFromDays(
+  value: number | null | undefined,
+): "none" | "date" | "bad" | "ok" {
+  if (value == null || Number.isNaN(value)) return "none";
+  if (value < 0) return "bad";
+  return "ok";
 }
 
 function SortHeader({
@@ -295,92 +304,18 @@ function StatusChips({
   );
 }
 
-function RdDelayGantt({
-  rows,
-  rangeStart,
-  rangeEnd,
-}: {
-  rows: WorkingDocumentationPayload["delay"]["gantt"]["rows"];
-  rangeStart: string | null;
-  rangeEnd: string | null;
-}) {
-  if (!rows.length) {
-    return (
-      <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных для графика просрочки.
-      </div>
-    );
+function cellDisplay(
+  row: Record<string, string | number | null>,
+  col: string,
+): string {
+  const label = row[`${col}__label`];
+  if (label != null && label !== "") return String(label);
+  const v = row[col];
+  if (v == null || v === "") return "—";
+  if (typeof v === "number" && col.toLowerCase().includes("отклонен")) {
+    return v > 0 ? `+${v}` : String(v);
   }
-  const lo = rangeStart
-    ? Date.parse(rangeStart)
-    : Math.min(...rows.map((r) => Date.parse(String(r.start))));
-  const hiCandidates = rows.flatMap((r) =>
-    [r.delay_end, r.finish, r.base_finish].filter(Boolean).map((d) => Date.parse(String(d))),
-  );
-  const hi = rangeEnd ? Date.parse(rangeEnd) : Math.max(...hiCandidates);
-  const span = Math.max(hi - lo, 1);
-  const pct = (iso: string | null | undefined) => {
-    if (!iso) return 0;
-    return ((Date.parse(iso) - lo) / span) * 100;
-  };
-  const width = (from: string | null | undefined, to: string | null | undefined) => {
-    if (!from || !to) return 0;
-    return Math.max(((Date.parse(to) - Date.parse(from)) / span) * 100, 0.4);
-  };
-
-  return (
-    <div className="space-y-3 px-2 py-2">
-      <div className="flex flex-wrap gap-4 text-xs text-tremor-content dark:text-dark-tremor-content">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#F1C40F]" /> Дата по договору
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#27AE60]" /> Прогноз / факт
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#C0392B]" /> Просрочка
-        </span>
-      </div>
-      {rows.map((row) => {
-        const baseLeft = pct(row.start);
-        const baseW = width(row.start, row.base_finish);
-        const green = row.fact_dur > 0 && row.finish && !row.delay_end;
-        const red = row.delay_dur > 0 && row.delay_end;
-        return (
-          <div key={row.label} className="grid grid-cols-[9rem_1fr] items-center gap-2">
-            <div className="truncate text-right text-xs font-medium">{row.label}</div>
-            <div className="relative h-7 rounded bg-tremor-background-muted dark:bg-dark-tremor-background-muted">
-              <div
-                className="absolute top-1 h-5 rounded-sm bg-[#F1C40F]"
-                style={{ left: `${baseLeft}%`, width: `${baseW}%` }}
-                title={row.base_label}
-              />
-              {green ? (
-                <div
-                  className="absolute top-1 h-5 rounded-sm bg-[#27AE60]/80"
-                  style={{
-                    left: `${baseLeft}%`,
-                    width: `${width(row.start, row.finish)}%`,
-                  }}
-                  title={row.fact_label}
-                />
-              ) : null}
-              {red && row.base_finish ? (
-                <div
-                  className="absolute top-1 h-5 rounded-sm bg-[#C0392B]/85"
-                  style={{
-                    left: `${pct(row.base_finish)}%`,
-                    width: `${width(row.base_finish, row.delay_end)}%`,
-                  }}
-                  title={row.delay_label}
-                />
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return String(v);
 }
 
 function DetailTable({
@@ -437,20 +372,24 @@ function DetailTable({
     return map;
   }, [columns, rows]);
 
+  const titleCol = useMemo(() => {
+    const prefer = ["Проект", "Раздел", "Наименование разделов работ", "Шифр"];
+    for (const p of prefer) {
+      if (columns.includes(p)) return p;
+    }
+    return columns[0] ?? "";
+  }, [columns]);
+
+  const badgeCol = useMemo(
+    () => columns.find((c) => c.toLowerCase().includes("отклонен")) ?? "",
+    [columns],
+  );
+
   const exportTable = useCallback((): ExportTable | null => {
     if (!sortedRows.length || !columns.length) return null;
     const header: ExportCell[][] = [columns];
     const body: ExportCell[][] = sortedRows.map((row) =>
-      columns.map((c) => {
-        const label = row[`${c}__label`];
-        if (label != null && label !== "") return label;
-        const v = row[c];
-        if (v == null) return "";
-        if (typeof v === "number" && c.toLowerCase().includes("отклонен")) {
-          return v > 0 ? `+${v}` : String(v);
-        }
-        return v;
-      }),
+      columns.map((c) => cellDisplay(row, c)),
     );
     return { header, rows: body, sheetName: "РД" };
   }, [sortedRows, columns]);
@@ -458,88 +397,113 @@ function DetailTable({
   return (
     <FullscreenPanel disabled={!sortedRows.length}>
       <Card className="overflow-hidden rounded-xl p-0">
-        <div className="max-h-[32rem] overflow-auto">
-          {!sortedRows.length || !columns.length ? (
-            <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-              Нет строк по фильтрам.
-            </div>
-          ) : (
-            <table
-              className="min-w-full text-sm"
-              style={{
-                borderCollapse: "collapse",
-                width: "100%",
-                border: dark ? "1px solid #334155" : "1px solid #d1d5db",
-              }}
-            >
-              <thead>
-                <tr>
-                  {columns.map((c) => (
-                    <SortHeader
-                      key={c}
-                      label={c}
-                      sortKey={c}
-                      sort={sort}
-                      onSort={onSort}
-                      dark={dark}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedRows.map((row, i) => (
-                  <tr
-                    key={i}
-                    style={{
-                      backgroundColor:
-                        i % 2 === 0
-                          ? dark
-                            ? "rgba(255,255,255,0.02)"
-                            : "#ffffff"
-                          : dark
-                            ? "transparent"
-                            : "#fafafa",
-                    }}
+        {!sortedRows.length || !columns.length ? (
+          <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+            Нет строк по фильтрам.
+          </div>
+        ) : (
+          <>
+            <MobileCardStack>
+              {sortedRows.map((row, i) => {
+                const badgeVal = badgeCol ? parseSortableNumber(row[badgeCol]) : null;
+                const badgeText = badgeCol ? cellDisplay(row, badgeCol) : undefined;
+                const metricCols = columns.filter((c) => c !== titleCol).slice(0, 8);
+                return (
+                  <MobileEntityCard
+                    key={`rd-m-${i}`}
+                    title={titleCol ? cellDisplay(row, titleCol) : `Строка ${i + 1}`}
+                    badge={badgeText && badgeText !== "—" ? badgeText : undefined}
+                    badgeTone={
+                      badgeVal == null ? "neutral" : badgeVal < 0 ? "bad" : "ok"
+                    }
                   >
-                    {columns.map((c) => {
-                      const isDev = c.toLowerCase().includes("отклонен");
-                      const num = isDev ? parseSortableNumber(row[c]) : null;
-                      const label =
-                        (row[`${c}__label`] as string | undefined) ??
-                        (row[c] == null
-                          ? "—"
-                          : isDev && typeof row[c] === "number"
-                            ? (row[c] as number) > 0
-                              ? `+${row[c]}`
-                              : String(row[c])
-                            : String(row[c]));
-                      const tint = isDev
-                        ? deviationCellStyle(num, vmaxByCol[c] ?? 1, dark)
-                        : { className: "", style: undefined as CSSProperties | undefined };
-                      const cellBorder = dark
-                        ? "1px solid #334155"
-                        : "1px solid #e5e7eb";
-                      return (
-                        <td
-                          key={c}
-                          className={`${TD} ${tint.className} ${
-                            isDev && !tint.style ? deviationClass(num) : ""
-                          }`}
-                          style={{
-                            border: cellBorder,
-                            ...(tint.style ?? {}),
-                          }}
-                        >
-                          {label}
-                        </td>
-                      );
-                    })}
+                    <MobileMetricGrid
+                      columns={2}
+                      items={metricCols.map((c) => {
+                        const isDev = c.toLowerCase().includes("отклонен");
+                        const num = isDev ? parseSortableNumber(row[c]) : null;
+                        return {
+                          label: c.length > 28 ? `${c.slice(0, 26)}…` : c,
+                          value: cellDisplay(row, c),
+                          className: isDev ? deviationClass(num) : undefined,
+                          highlight: isDev ? highlightFromDays(num) : "none",
+                        };
+                      })}
+                    />
+                  </MobileEntityCard>
+                );
+              })}
+            </MobileCardStack>
+            <div className="hidden max-h-[32rem] overflow-auto lg:block">
+              <table
+                className="min-w-full text-sm"
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  border: dark ? "1px solid #334155" : "1px solid #d1d5db",
+                }}
+              >
+                <thead>
+                  <tr>
+                    {columns.map((c) => (
+                      <SortHeader
+                        key={c}
+                        label={c}
+                        sortKey={c}
+                        sort={sort}
+                        onSort={onSort}
+                        dark={dark}
+                      />
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody>
+                  {sortedRows.map((row, i) => (
+                    <tr
+                      key={i}
+                      style={{
+                        backgroundColor:
+                          i % 2 === 0
+                            ? dark
+                              ? "rgba(255,255,255,0.02)"
+                              : "#ffffff"
+                            : dark
+                              ? "transparent"
+                              : "#fafafa",
+                      }}
+                    >
+                      {columns.map((c) => {
+                        const isDev = c.toLowerCase().includes("отклонен");
+                        const num = isDev ? parseSortableNumber(row[c]) : null;
+                        const label = cellDisplay(row, c);
+                        const tint = isDev
+                          ? deviationCellStyle(num, vmaxByCol[c] ?? 1, dark)
+                          : { className: "", style: undefined as CSSProperties | undefined };
+                        const cellBorder = dark
+                          ? "1px solid #334155"
+                          : "1px solid #e5e7eb";
+                        return (
+                          <td
+                            key={c}
+                            className={`${TD} ${tint.className} ${
+                              isDev && !tint.style ? deviationClass(num) : ""
+                            }`}
+                            style={{
+                              border: cellBorder,
+                              ...(tint.style ?? {}),
+                            }}
+                          >
+                            {label}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
         <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <DownloadTableButton
             getTable={exportTable}
@@ -549,67 +513,6 @@ function DetailTable({
         </div>
       </Card>
     </FullscreenPanel>
-  );
-}
-
-/** Накопительные гориз. полосы Plan/Fact + «+N» — как `_render_rd_monthly_overlay_chart`. */
-function MonthlyOverlayChart({
-  rows,
-}: {
-  rows: Array<{
-    month_label: string;
-    plan: number;
-    fact: number;
-    fact_inc?: number;
-  }>;
-}) {
-  if (!rows.length) {
-    return (
-      <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных по месяцам.
-      </div>
-    );
-  }
-  const xmax = Math.max(1, ...rows.map((r) => Math.max(r.plan || 0, r.fact || 0)));
-  return (
-    <div className="space-y-2 px-2 py-2">
-      <div className="mb-2 flex flex-wrap gap-4 text-xs text-tremor-content dark:text-dark-tremor-content">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#F1C40F]" /> {CHART_RU.plan}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#27AE60]" /> {CHART_RU.fact}
-        </span>
-      </div>
-      {rows.map((row) => {
-        const planPct = Math.min(100, ((row.plan || 0) / xmax) * 100);
-        const factPct = Math.min(100, ((row.fact || 0) / xmax) * 100);
-        const inc = row.fact_inc ?? 0;
-        return (
-          <div
-            key={row.month_label}
-            className="grid grid-cols-[7.5rem_1fr_2.5rem] items-center gap-2"
-          >
-            <div className="truncate text-right text-xs font-medium">{row.month_label}</div>
-            <div className="relative h-6 rounded bg-tremor-background-muted dark:bg-dark-tremor-background-muted">
-              <div
-                className="absolute inset-y-1 left-0 rounded-sm bg-[#F1C40F]/90"
-                style={{ width: `${planPct}%` }}
-                title={`План ${fmtNum(row.plan)}`}
-              />
-              <div
-                className="absolute inset-y-1 left-0 rounded-sm bg-[#27AE60]/85"
-                style={{ width: `${factPct}%` }}
-                title={`Факт ${fmtNum(row.fact)}`}
-              />
-            </div>
-            <div className="text-xs font-semibold tabular-nums text-[#15803d] dark:text-[#46d68a]">
-              {inc > 0 ? `+${fmtNum(inc)}` : ""}
-            </div>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 
@@ -679,32 +582,8 @@ export function WorkingDocumentationView() {
 
   const kpis = data?.kpis;
   const statusMix = data?.tremor.status_mix ?? [];
-  const dynamics = useMemo(
-    () =>
-      (data?.tremor.dynamics ?? []).map((d) => ({
-        period_label: d.period_label,
-        [CHART_RU.plan]: d.plan,
-        [CHART_RU.fact]: d.fact,
-      })),
-    [data?.tremor.dynamics],
-  );
-  const monthly = useMemo(
-    () =>
-      (data?.tremor.monthly ?? []).map((m) => ({
-        month_label: m.month_label,
-        plan: m.plan,
-        fact: m.fact,
-        fact_inc: m.fact_inc ?? 0,
-      })),
-    [data?.tremor.monthly],
-  );
-
-  const donutColors = statusMix.map((item) => {
-    if (item.name.includes("производств")) return "emerald";
-    if (item.name.includes("рассмотр")) return "amber";
-    if (item.name.includes("доработ")) return "rose";
-    return "pink";
-  }) as ("emerald" | "amber" | "rose" | "pink")[];
+  const dynamics = data?.tremor.dynamics ?? [];
+  const monthly = data?.tremor.monthly ?? [];
 
   const resetFilters = () => {
     setFilters({
@@ -885,31 +764,42 @@ export function WorkingDocumentationView() {
 
           {tab === "main" ? (
             <>
-              <FullscreenPanel fill className="mb-6">
-                <Card className="rounded-xl">
-                  <Title>Исполнение РД</Title>
-                  <DonutChart
-                    className="mt-4 h-72"
-                    data={statusMix}
-                    category="value"
-                    index="name"
-                    colors={donutColors}
-                    valueFormatter={(v) => fmtNum(v)}
-                    showLabel
-                  />
-                </Card>
+              <FullscreenPanel fill className="mb-6" disabled={!statusMix.length}>
+                {(zoomed) => (
+                  <Card className="rounded-xl">
+                    <Title>Исполнение РД</Title>
+                    <div className="mt-4">
+                      <RdExecutionPieChart rows={statusMix} fullscreen={zoomed} />
+                    </div>
+                    {statusMix.length ? (
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-tremor-content dark:text-dark-tremor-content">
+                        {statusMix.map((s) => (
+                          <span key={s.name} className="inline-flex items-center gap-1.5">
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded-sm"
+                              style={{ backgroundColor: s.color || "#7F8C8D" }}
+                            />
+                            {s.name}: {fmtNum(s.value)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </Card>
+                )}
               </FullscreenPanel>
 
-              <FullscreenPanel fill className="mb-6">
-                <Card className="rounded-xl">
-                  <Title>Динамика по месяцам</Title>
-                  <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                    График Выдача рабочей документации по месяцам
-                  </Text>
-                  <div className="mt-3">
-                    <MonthlyOverlayChart rows={monthly} />
-                  </div>
-                </Card>
+              <FullscreenPanel fill className="mb-6" disabled={!monthly.length}>
+                {(zoomed) => (
+                  <Card className="rounded-xl">
+                    <Title>Динамика по месяцам</Title>
+                    <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
+                      График Выдача рабочей документации по месяцам
+                    </Text>
+                    <div className="mt-3">
+                      <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
+                    </div>
+                  </Card>
+                )}
               </FullscreenPanel>
 
               <Card className="mb-6 rounded-xl">
@@ -960,16 +850,12 @@ export function WorkingDocumentationView() {
                     </p>
                   </div>
                 </Grid>
-                <FullscreenPanel fill>
-                  <LineChart
-                    className="h-80"
-                    data={dynamics}
-                    index="period_label"
-                    categories={[CHART_RU.plan, CHART_RU.fact]}
-                    colors={["blue", "orange"]}
-                    valueFormatter={(v) => fmtNum(v)}
-                    showLegend
-                  />
+                <FullscreenPanel fill disabled={!dynamics.length}>
+                  {(zoomed) => (
+                    <div className="mt-2">
+                      <RdDynamicsLineChart rows={dynamics} fullscreen={zoomed} />
+                    </div>
+                  )}
                 </FullscreenPanel>
               </Card>
 
@@ -982,29 +868,38 @@ export function WorkingDocumentationView() {
             </>
           ) : (
             <>
-              <FullscreenPanel fill className="mb-6">
-                <Card className="rounded-xl p-0">
-                  <div className="px-4 pt-4">
+              <FullscreenPanel
+                fill
+                className="mb-6"
+                disabled={!(data?.delay.gantt.rows.length ?? 0)}
+              >
+                {(zoomed) => (
+                  <Card className="rounded-xl">
                     <Title>График Просрочка выдачи РД</Title>
-                  </div>
-                  <RdDelayGantt
-                    rows={data?.delay.gantt.rows ?? []}
-                    rangeStart={data?.delay.gantt.range_start ?? null}
-                    rangeEnd={data?.delay.gantt.range_end ?? null}
-                  />
-                </Card>
+                    <div className="mt-4">
+                      <RdDelayGanttChart
+                        rows={data?.delay.gantt.rows ?? []}
+                        rangeStart={data?.delay.gantt.range_start ?? null}
+                        rangeEnd={data?.delay.gantt.range_end ?? null}
+                        fullscreen={zoomed}
+                      />
+                    </div>
+                  </Card>
+                )}
               </FullscreenPanel>
 
-              <FullscreenPanel fill className="mb-6">
-                <Card className="rounded-xl">
-                  <Title>Динамика по месяцам</Title>
-                  <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                    График Выдача рабочей документации по месяцам
-                  </Text>
-                  <div className="mt-3">
-                    <MonthlyOverlayChart rows={monthly} />
-                  </div>
-                </Card>
+              <FullscreenPanel fill className="mb-6" disabled={!monthly.length}>
+                {(zoomed) => (
+                  <Card className="rounded-xl">
+                    <Title>Динамика по месяцам</Title>
+                    <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
+                      График Выдача рабочей документации по месяцам
+                    </Text>
+                    <div className="mt-3">
+                      <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
+                    </div>
+                  </Card>
+                )}
               </FullscreenPanel>
 
               <Title className="mb-3">Детальная таблица</Title>
