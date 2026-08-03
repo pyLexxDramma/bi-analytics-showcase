@@ -17,6 +17,13 @@ import {
   type ProjectDocumentationQuery,
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
+import {
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { CHART_RU, withRuDocDynamics } from "@/lib/chart-ru";
@@ -233,8 +240,7 @@ function ProjectDocumentationScreen({
     void load();
   }, [load]);
 
-  const selectClass =
-    "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+  const selectClass = FILTER_SELECT_CLASS;
 
   const kpis = data?.kpis;
   const dynamics = useMemo(
@@ -374,178 +380,154 @@ function ProjectDocumentationScreen({
         </div>
       ) : null}
 
-      <Card className="mb-6 rounded-xl p-0">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between px-4 py-3 text-left"
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-        >
-          <span className="text-sm font-semibold">Фильтры</span>
-          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
-        </button>
-        {filtersOpen ? (
-          <div className="space-y-3 border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <button
-              type="button"
-              className="rounded-md border border-tremor-border px-3 py-1.5 text-sm dark:border-dark-tremor-border"
-              onClick={() =>
-                setFilters({
-                  ...INITIAL,
-                  reportDate: data?.filters.applied.report_date || INITIAL.reportDate,
-                })
-              }
-            >
-              Сбросить
-            </button>
-            {tab === "main" ? (
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="block text-sm">
-                  <Text>Проект</Text>
-                  <select
-                    className={selectClass}
-                    value={filters.project}
-                    onChange={(e) =>
-                      setFilters((f) => ({ ...f, project: e.target.value, section: "Все" }))
-                    }
-                  >
-                    {(data?.filters.projects ?? ["Все"]).map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  <Text>Период</Text>
-                  <select
-                    className={selectClass}
-                    value={filters.period}
-                    onChange={(e) => setFilters((f) => ({ ...f, period: e.target.value }))}
-                  >
-                    <option value="Все месяцы">Все месяцы</option>
-                    {(data?.filters.periods ?? []).map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  <Text>Вид раздела</Text>
-                  <select
-                    className={selectClass}
-                    value={filters.section}
-                    onChange={(e) => setFilters((f) => ({ ...f, section: e.target.value }))}
-                  >
-                    {(data?.filters.sections ?? ["Все"]).map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
-                <label className="block text-sm">
-                  <Text>Проект</Text>
-                  <select
-                    className={selectClass}
-                    value={filters.project}
-                    onChange={(e) =>
-                      setFilters((f) => ({ ...f, project: e.target.value, section: "Все" }))
-                    }
-                  >
-                    {(data?.filters.projects ?? ["Все"]).map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  <Text>Отображение</Text>
-                  <select
-                    className={selectClass}
-                    value={filters.viewMode}
-                    onChange={(e) => setFilters((f) => ({ ...f, viewMode: e.target.value }))}
-                  >
-                    {(data?.filters.view_modes ?? []).map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  <Text>Вид раздела</Text>
-                  <select
-                    className={selectClass}
-                    value={filters.section}
-                    onChange={(e) => setFilters((f) => ({ ...f, section: e.target.value }))}
-                  >
-                    {(data?.filters.sections ?? ["Все"]).map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="block text-sm">
-                  <Text>Статус</Text>
-                  <div className="mt-2">
-                    <span className="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-                      Просрочка по утверждению
-                    </span>
-                  </div>
-                </div>
-                <label className="block text-sm">
-                  <Text>Дата</Text>
-                  <input
-                    type="date"
-                    className={selectClass}
-                    value={filters.reportDate}
-                    onChange={(e) => setFilters((f) => ({ ...f, reportDate: e.target.value }))}
-                  />
-                </label>
-              </div>
-            )}
-            {tab === "main" ? (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {(data?.filters.status_legend ?? []).map((item) => (
-                  <span
-                    key={item.id}
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                      item.tone === "ok"
-                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                        : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
+        <FiltersReset
+          onClick={() =>
+            setFilters({
+              ...INITIAL,
+              reportDate: data?.filters.applied.report_date || INITIAL.reportDate,
+            })
+          }
+        />
+        {tab === "main" ? (
+          <FilterFieldsRow cols={3}>
+            <FilterField label="Проект">
+              <select
+                className={selectClass}
+                value={filters.project}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, project: e.target.value, section: "Все" }))
+                }
+              >
+                {(data?.filters.projects ?? ["Все"]).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
-              </div>
-            ) : null}
-            {tab === "main" ? (
-              <label className="block max-w-xs text-sm">
-                <Text>Гранулярность</Text>
-                <select
-                  className={selectClass}
-                  value={filters.granularity}
-                  onChange={(e) => setFilters((f) => ({ ...f, granularity: e.target.value }))}
-                >
-                  {(data?.filters.granularities ?? []).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
+              </select>
+            </FilterField>
+            <FilterField label="Период">
+              <select
+                className={selectClass}
+                value={filters.period}
+                onChange={(e) => setFilters((f) => ({ ...f, period: e.target.value }))}
+              >
+                <option value="Все месяцы">Все месяцы</option>
+                {(data?.filters.periods ?? []).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label="Вид раздела">
+              <select
+                className={selectClass}
+                value={filters.section}
+                onChange={(e) => setFilters((f) => ({ ...f, section: e.target.value }))}
+              >
+                {(data?.filters.sections ?? ["Все"]).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+          </FilterFieldsRow>
+        ) : (
+          <FilterFieldsRow cols={5}>
+            <FilterField label="Проект">
+              <select
+                className={selectClass}
+                value={filters.project}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, project: e.target.value, section: "Все" }))
+                }
+              >
+                {(data?.filters.projects ?? ["Все"]).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label="Отображение">
+              <select
+                className={selectClass}
+                value={filters.viewMode}
+                onChange={(e) => setFilters((f) => ({ ...f, viewMode: e.target.value }))}
+              >
+                {(data?.filters.view_modes ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label="Вид раздела">
+              <select
+                className={selectClass}
+                value={filters.section}
+                onChange={(e) => setFilters((f) => ({ ...f, section: e.target.value }))}
+              >
+                {(data?.filters.sections ?? ["Все"]).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label="Статус">
+              <span className="mt-1 inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                Просрочка по утверждению
+              </span>
+            </FilterField>
+            <FilterField label="Дата">
+              <input
+                type="date"
+                className={selectClass}
+                value={filters.reportDate}
+                onChange={(e) => setFilters((f) => ({ ...f, reportDate: e.target.value }))}
+              />
+            </FilterField>
+          </FilterFieldsRow>
+        )}
+        {tab === "main" ? (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {(data?.filters.status_legend ?? []).map((item) => (
+              <span
+                key={item.id}
+                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                  item.tone === "ok"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                }`}
+              >
+                {item.label}
+              </span>
+            ))}
           </div>
         ) : null}
-      </Card>
+        {tab === "main" ? (
+          <FilterFieldsRow cols={3}>
+            <FilterField label="Гранулярность">
+              <select
+                className={selectClass}
+                value={filters.granularity}
+                onChange={(e) => setFilters((f) => ({ ...f, granularity: e.target.value }))}
+              >
+                {(data?.filters.granularities ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <div />
+            <div />
+          </FilterFieldsRow>
+        ) : null}
+      </FiltersCard>
 
       {error ? (
         <Card className="mb-6 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">

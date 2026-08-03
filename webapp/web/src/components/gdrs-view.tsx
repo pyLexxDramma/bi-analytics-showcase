@@ -17,6 +17,15 @@ import {
   Text,
   Title,
 } from "@tremor/react";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -571,110 +580,85 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
 
   return (
     <AppShell title={copy.title} subtitle={copy.subtitle}>
-      <Card className="mb-6 rounded-xl">
-        <button
-          type="button"
-          className="mb-3 flex w-full items-center justify-between text-left"
-          onClick={() => setFiltersOpen((o) => !o)}
-        >
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-            Фильтры
-          </Title>
-          <span className="text-xs opacity-60">{filtersOpen ? "▲" : "▼"}</span>
-        </button>
-        {filtersOpen ? (
-          <>
-            <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
-              <MultiSelect
-                label="Проект"
-                options={data?.filters.projects ?? []}
-                selected={filters.projects}
-                placeholder="Все проекты"
-                onToggle={(v) => toggleMulti("projects", v)}
-                onClear={() => setFilters((s) => ({ ...s, projects: [] }))}
-              />
-              <MultiSelect
-                label="Контрагент"
-                options={data?.filters.contractors ?? []}
-                selected={filters.contractors}
-                placeholder="Все контрагенты"
-                onToggle={(v) => toggleMulti("contractors", v)}
-                onClear={() => setFilters((s) => ({ ...s, contractors: [] }))}
-              />
-              <MultiSelect
-                label="Месяц"
-                options={data?.filters.months ?? []}
-                selected={filters.months}
-                placeholder="Все месяцы"
-                onToggle={(v) => toggleMulti("months", v)}
-                onClear={() =>
-                  setFilters((s) => ({
-                    ...s,
-                    months: data?.filters.default_months ?? [],
-                  }))
-                }
-              />
-              <label className="block text-sm">
-                <Text>План</Text>
-                <select
-                  className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                  value={filters.plan_agg}
-                  onChange={(e) =>
-                    setFilters((s) => ({ ...s, plan_agg: e.target.value }))
-                  }
-                >
-                  {(data?.filters.agg_options ?? ["Среднее за месяц"]).map(
-                    (o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>СКУД</Text>
-                <select
-                  className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                  value={filters.skud_agg}
-                  onChange={(e) =>
-                    setFilters((s) => ({ ...s, skud_agg: e.target.value }))
-                  }
-                >
-                  {(data?.filters.agg_options ?? ["Среднее за месяц"]).map(
-                    (o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-4">
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={filters.only_with_plan}
-                  onChange={(e) =>
-                    setFilters((s) => ({
-                      ...s,
-                      only_with_plan: e.target.checked,
-                    }))
-                  }
-                />
-                Только с планом
-              </label>
-              <button
-                type="button"
-                className="rounded-md border border-tremor-border px-3 py-1.5 text-sm hover:bg-tremor-background-muted dark:border-dark-tremor-border"
-                onClick={resetFilters}
-              >
-                Сбросить
-              </button>
-            </div>
-          </>
-        ) : null}
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)}>
+        <FiltersReset onClick={resetFilters} />
+        <FilterFieldsRow cols={5}>
+          <MultiSelect
+            label="Проект"
+            options={data?.filters.projects ?? []}
+            selected={filters.projects}
+            placeholder="Все проекты"
+            onToggle={(v) => toggleMulti("projects", v)}
+            onClear={() => setFilters((s) => ({ ...s, projects: [] }))}
+          />
+          <MultiSelect
+            label="Контрагент"
+            options={data?.filters.contractors ?? []}
+            selected={filters.contractors}
+            placeholder="Все контрагенты"
+            onToggle={(v) => toggleMulti("contractors", v)}
+            onClear={() => setFilters((s) => ({ ...s, contractors: [] }))}
+          />
+          <MultiSelect
+            label="Месяц"
+            options={data?.filters.months ?? []}
+            selected={filters.months}
+            placeholder="Все месяцы"
+            onToggle={(v) => toggleMulti("months", v)}
+            onClear={() =>
+              setFilters((s) => ({
+                ...s,
+                months: data?.filters.default_months ?? [],
+              }))
+            }
+          />
+          <FilterField label="План">
+            <select
+              className={FILTER_SELECT_CLASS}
+              value={filters.plan_agg}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, plan_agg: e.target.value }))
+              }
+            >
+              {(data?.filters.agg_options ?? ["Среднее за месяц"]).map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="СКУД">
+            <select
+              className={FILTER_SELECT_CLASS}
+              value={filters.skud_agg}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, skud_agg: e.target.value }))
+              }
+            >
+              {(data?.filters.agg_options ?? ["Среднее за месяц"]).map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+        </FilterFieldsRow>
+        <FilterChecksRow cols={5}>
+          <FilterCheck
+            label="Только с планом"
+            checked={filters.only_with_plan}
+            onChange={(e) =>
+              setFilters((s) => ({
+                ...s,
+                only_with_plan: e.target.checked,
+              }))
+            }
+          />
+          <div />
+          <div />
+          <div />
+          <div />
+        </FilterChecksRow>
         <Text className="mt-3">
           {data?.meta.period_label ? `${data.meta.period_label} · ` : ""}
           {loading
@@ -689,7 +673,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             {data.meta.warning}
           </Text>
         ) : null}
-      </Card>
+      </FiltersCard>
 
       {error ? (
         <Card className="mb-6 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">

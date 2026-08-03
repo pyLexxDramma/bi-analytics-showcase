@@ -10,6 +10,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import { FiltersCard, FiltersReset } from "@/components/dashboard-filters";
 import type { ExportTable } from "@/lib/table-export";
 
 type MatrixColumn = DeveloperProjectsPayload["matrix"]["columns"][number];
@@ -323,62 +324,40 @@ export function DeveloperProjectsView() {
 
   return (
     <AppShell title="Девелоперские проекты">
-      <Card className="mb-6 rounded-xl">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((state) => !state)}
-          aria-expanded={filtersOpen}
-          className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
-        >
-          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
-          Фильтры
-        </button>
-
-        {filtersOpen ? (
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => setSelected([])}
-              disabled={selected.length === 0}
-              className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-            >
-              Сбросить
-            </button>
-
-            <Text className="mt-3">Проект</Text>
-            <div className="mt-2 flex flex-wrap gap-2">
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
+        <FiltersReset disabled={selected.length === 0} onClick={() => setSelected([])} />
+        <Text className="mt-1">Проект</Text>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelected([])}
+            className={`rounded-md border px-2.5 py-1 text-xs ${
+              selected.length === 0
+                ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200"
+                : "border-tremor-border bg-white dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+            }`}
+          >
+            Все
+          </button>
+          {(data?.filters.projects ?? []).map((name) => {
+            const on = selected.includes(name);
+            return (
               <button
+                key={name}
                 type="button"
-                onClick={() => setSelected([])}
+                onClick={() => toggleProject(name)}
                 className={`rounded-md border px-2.5 py-1 text-xs ${
-                  selected.length === 0
+                  on
                     ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200"
-                    : "border-tremor-border bg-white dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                    : "border-tremor-border bg-white text-tremor-content-strong dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
                 }`}
               >
-                Все
+                {name}
               </button>
-              {(data?.filters.projects ?? []).map((name) => {
-                const on = selected.includes(name);
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => toggleProject(name)}
-                    className={`rounded-md border px-2.5 py-1 text-xs ${
-                      on
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200"
-                        : "border-tremor-border bg-white text-tremor-content-strong dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-                    }`}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-      </Card>
+            );
+          })}
+        </div>
+      </FiltersCard>
 
       {(data?.hints?.length ?? 0) > 0 ? (
         <Card className="mb-4 rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">

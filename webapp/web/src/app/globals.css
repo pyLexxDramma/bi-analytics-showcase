@@ -356,3 +356,85 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   }
 }
 
+/* ===== Dashboard filters: уровни как main st.columns(N) ===== */
+.bi-filters-panel {
+  box-shadow: none;
+}
+
+.bi-filters-grid {
+  display: grid;
+  gap: 0.75rem 0.75rem;
+  align-items: start;
+  width: 100%;
+}
+
+.bi-filters-cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.bi-filters-cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.bi-filters-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.bi-filters-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1023px) {
+  .bi-filters-cols-5,
+  .bi-filters-cols-4,
+  .bi-filters-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .bi-filters-cols-5,
+  .bi-filters-cols-4,
+  .bi-filters-cols-3,
+  .bi-filters-cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Подписи полей — одна высота (2 строки), чтобы select стояли на одной линии */
+.bi-filters-field-label {
+  display: flex;
+  align-items: flex-end;
+  min-height: 2.5rem;
+  line-height: 1.25;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.bi-filters-select {
+  height: 2.5rem;
+  box-sizing: border-box;
+}
+
+/* Чекбоксы — иконки на одной линии, под левым краем select своей колонки */
+.bi-filters-checks {
+  margin-top: 0.15rem;
+}
+
+.bi-filters-check {
+  min-height: 2.75rem;
+}
+
+.bi-filters-check-input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.15rem 0 0;
+  flex-shrink: 0;
+  accent-color: #2563eb;
+}
+
+.bi-filters-check-label {
+  font-size: 0.8125rem;
+}
+
+.bi-filters-radio-input {
+  accent-color: #2563eb;
+}
+

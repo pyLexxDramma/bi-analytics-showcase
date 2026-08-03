@@ -14,6 +14,15 @@ import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { fetchPrescriptions, type PrescriptionsPayload } from "@/lib/api";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -81,15 +90,14 @@ function MultiSelect({
   onChange: (value: string[]) => void;
 }) {
   return (
-    <label className="block text-sm">
-      <Text>{label}</Text>
+    <FilterField label={label}>
       <select
         multiple
         value={selected}
         onChange={(e) =>
           onChange(Array.from(e.target.selectedOptions, (option) => option.value))
         }
-        className="mt-1 h-28 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+        className={`${FILTER_SELECT_CLASS} h-28`}
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -97,10 +105,10 @@ function MultiSelect({
           </option>
         ))}
       </select>
-      <span className="mt-1 block text-xs text-tremor-content">
+      <span className="mt-1 block text-xs text-tremor-content dark:text-dark-tremor-content">
         {selected.length ? `${selected.length} выбрано` : "Все"}
       </span>
-    </label>
+    </FilterField>
   );
 }
 
@@ -265,107 +273,85 @@ export function PrescriptionsView() {
       title="Предписания по подрядчикам"
       subtitle="TESSA · статусы, сроки устранения и критичность"
     >
-      <Card className="mb-6 rounded-xl">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((value) => !value)}
-          className="flex w-full items-center justify-between text-left"
-        >
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-            Фильтры
-          </Title>
-          <span>{filtersOpen ? "▲" : "▼"}</span>
-        </button>
-        {filtersOpen ? (
-          <>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-              <MultiSelect
-                label="Проекты"
-                options={data?.filters.projects ?? []}
-                selected={filters.projects}
-                onChange={(projects) =>
-                  setFilters((state) => ({ ...state, projects }))
-                }
-              />
-              <MultiSelect
-                label="Подрядчики"
-                options={data?.filters.contractors ?? []}
-                selected={filters.contractors}
-                onChange={(contractors) =>
-                  setFilters((state) => ({ ...state, contractors }))
-                }
-              />
-              <label className="block text-sm">
-                <Text>№ договора</Text>
-                <input
-                  value={filters.contract_q}
-                  onChange={(e) =>
-                    setFilters((state) => ({
-                      ...state,
-                      contract_q: e.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                  placeholder="Частичный поиск"
-                />
-              </label>
-              <label className="block text-sm">
-                <Text>Дата с</Text>
-                <input
-                  type="date"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_from}
-                  onChange={(e) =>
-                    setFilters((state) => ({
-                      ...state,
-                      date_from: e.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                />
-              </label>
-              <label className="block text-sm">
-                <Text>Дата по</Text>
-                <input
-                  type="date"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_to}
-                  onChange={(e) =>
-                    setFilters((state) => ({
-                      ...state,
-                      date_to: e.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                />
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={filters.hide_resolved}
-                  onChange={(e) =>
-                    setFilters((state) => ({
-                      ...state,
-                      hide_resolved: e.target.checked,
-                    }))
-                  }
-                />
-                Не отображать устраненные предписания
-              </label>
-              <button
-                type="button"
-                onClick={reset}
-                className="rounded-md border border-tremor-border px-3 py-1.5 text-sm dark:border-dark-tremor-border"
-              >
-                Сбросить
-              </button>
-            </div>
-          </>
-        ) : null}
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+        <FiltersReset onClick={reset} />
+        <FilterFieldsRow cols={5}>
+          <MultiSelect
+            label="Проекты"
+            options={data?.filters.projects ?? []}
+            selected={filters.projects}
+            onChange={(projects) =>
+              setFilters((state) => ({ ...state, projects }))
+            }
+          />
+          <MultiSelect
+            label="Подрядчики"
+            options={data?.filters.contractors ?? []}
+            selected={filters.contractors}
+            onChange={(contractors) =>
+              setFilters((state) => ({ ...state, contractors }))
+            }
+          />
+          <FilterField label="№ договора">
+            <input
+              value={filters.contract_q}
+              onChange={(e) =>
+                setFilters((state) => ({
+                  ...state,
+                  contract_q: e.target.value,
+                }))
+              }
+              className={FILTER_SELECT_CLASS}
+              placeholder="Частичный поиск"
+            />
+          </FilterField>
+          <FilterField label="Дата с">
+            <input
+              type="date"
+              min={data?.filters.date_min ?? undefined}
+              max={data?.filters.date_max ?? undefined}
+              value={filters.date_from}
+              onChange={(e) =>
+                setFilters((state) => ({
+                  ...state,
+                  date_from: e.target.value,
+                }))
+              }
+              className={FILTER_SELECT_CLASS}
+            />
+          </FilterField>
+          <FilterField label="Дата по">
+            <input
+              type="date"
+              min={data?.filters.date_min ?? undefined}
+              max={data?.filters.date_max ?? undefined}
+              value={filters.date_to}
+              onChange={(e) =>
+                setFilters((state) => ({
+                  ...state,
+                  date_to: e.target.value,
+                }))
+              }
+              className={FILTER_SELECT_CLASS}
+            />
+          </FilterField>
+        </FilterFieldsRow>
+        <FilterChecksRow cols={5}>
+          <FilterCheck
+            label="Не отображать устраненные предписания"
+            checked={filters.hide_resolved}
+            onChange={(e) =>
+              setFilters((state) => ({
+                ...state,
+                hide_resolved: e.target.checked,
+              }))
+            }
+          />
+          <div />
+          <div />
+          <div />
+          <div />
+        </FilterChecksRow>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} строк`}
           {data?.meta.version_id != null
@@ -377,7 +363,7 @@ export function PrescriptionsView() {
             {data.meta.warning}
           </Text>
         ) : null}
-      </Card>
+      </FiltersCard>
 
       {error ? (
         <Card className="mb-6 border-rose-300 bg-rose-50 dark:bg-rose-950/30">

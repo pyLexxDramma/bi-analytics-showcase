@@ -14,6 +14,15 @@ import {
   type BddsTableRow,
   type BddsView,
 } from "@/lib/api";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -36,8 +45,7 @@ const INITIAL: Filters = {
   show_deviation: false,
 };
 
-const inputClass =
-  "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+const selectClass = FILTER_SELECT_CLASS;
 const chipClass =
   "rounded-md border px-2.5 py-1 text-xs border-tremor-border bg-white text-tremor-content-strong dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong";
 const chipOnClass =
@@ -493,138 +501,104 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
 
   return (
     <AppShell title={config.title}>
-      <Card className="mb-6 rounded-xl">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((state) => !state)}
-          aria-expanded={filtersOpen}
-          className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
-        >
-          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
-          Фильтры
-        </button>
-
-        {filtersOpen ? (
-          <div className="mt-3">
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
+        <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
+        <Text className="mt-1">Проект</Text>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setFilters((state) => ({ ...state, projects: [] }))}
+            className={filters.projects.length === 0 ? chipOnClass : chipClass}
+          >
+            Все
+          </button>
+          {(data?.filters.projects ?? []).map((name) => (
             <button
+              key={name}
               type="button"
-              onClick={() => setFilters(INITIAL)}
-              disabled={!dirty}
-              className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              onClick={() => toggleProject(name)}
+              className={filters.projects.includes(name) ? chipOnClass : chipClass}
             >
-              Сбросить
+              {name}
             </button>
-
-            <Text className="mt-3">Проект</Text>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setFilters((state) => ({ ...state, projects: [] }))}
-                className={filters.projects.length === 0 ? chipOnClass : chipClass}
-              >
-                Все
-              </button>
-              {(data?.filters.projects ?? []).map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => toggleProject(name)}
-                  className={filters.projects.includes(name) ? chipOnClass : chipClass}
-                >
-                  {name}
-                </button>
+          ))}
+        </div>
+        <FilterFieldsRow cols={4}>
+          <FilterField label="Период с">
+            <input
+              className={selectClass}
+              type="date"
+              min={data?.filters.date_min ?? undefined}
+              max={data?.filters.date_max ?? undefined}
+              value={filters.date_from || appliedFrom}
+              onChange={(event) =>
+                setFilters((state) => ({ ...state, date_from: event.target.value }))
+              }
+            />
+          </FilterField>
+          <FilterField label="Период по">
+            <input
+              className={selectClass}
+              type="date"
+              min={data?.filters.date_min ?? undefined}
+              max={data?.filters.date_max ?? undefined}
+              value={filters.date_to || appliedTo}
+              onChange={(event) =>
+                setFilters((state) => ({ ...state, date_to: event.target.value }))
+              }
+            />
+          </FilterField>
+          <FilterField label="Группировать по">
+            <select
+              className={selectClass}
+              value={filters.group}
+              onChange={(event) =>
+                setFilters((state) => ({ ...state, group: event.target.value as BddsGroup }))
+              }
+            >
+              {(data?.filters.groups ?? [{ id: "month", label: "Месяц" }]).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
               ))}
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <label className="block text-sm">
-                <Text>Период с</Text>
-                <input
-                  className={inputClass}
-                  type="date"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_from || appliedFrom}
-                  onChange={(event) =>
-                    setFilters((state) => ({ ...state, date_from: event.target.value }))
-                  }
-                />
-              </label>
-              <label className="block text-sm">
-                <Text>Период по</Text>
-                <input
-                  className={inputClass}
-                  type="date"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_to || appliedTo}
-                  onChange={(event) =>
-                    setFilters((state) => ({ ...state, date_to: event.target.value }))
-                  }
-                />
-              </label>
-              <label className="block text-sm">
-                <Text>Группировать по</Text>
-                <select
-                  className={inputClass}
-                  value={filters.group}
-                  onChange={(event) =>
-                    setFilters((state) => ({ ...state, group: event.target.value as BddsGroup }))
-                  }
-                >
-                  {(data?.filters.groups ?? [{ id: "month", label: "Месяц" }]).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Представление</Text>
-                <select
-                  className={inputClass}
-                  value={filters.view}
-                  onChange={(event) =>
-                    setFilters((state) => ({ ...state, view: event.target.value as BddsView }))
-                  }
-                >
-                  {(data?.filters.views ?? [{ id: "monthly", label: "По месяцам" }]).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={filters.show_deviation}
-                  onChange={(event) =>
-                    setFilters((state) => ({ ...state, show_deviation: event.target.checked }))
-                  }
-                />
-                Показать отклонение
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  disabled={!zeroToggleEnabled}
-                  checked={zeroToggleEnabled ? hideZero : false}
-                  onChange={(event) =>
-                    setFilters((state) => ({ ...state, hide_zero: event.target.checked }))
-                  }
-                />
-                <span className={zeroToggleEnabled ? "" : "opacity-50"}>
-                  Скрывать месяцы, где план и факт равны 0
-                </span>
-              </label>
-            </div>
-          </div>
-        ) : null}
-      </Card>
+            </select>
+          </FilterField>
+          <FilterField label="Представление">
+            <select
+              className={selectClass}
+              value={filters.view}
+              onChange={(event) =>
+                setFilters((state) => ({ ...state, view: event.target.value as BddsView }))
+              }
+            >
+              {(data?.filters.views ?? [{ id: "monthly", label: "По месяцам" }]).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+        </FilterFieldsRow>
+        <FilterChecksRow cols={4}>
+          <FilterCheck
+            label="Показать отклонение"
+            checked={filters.show_deviation}
+            onChange={(event) =>
+              setFilters((state) => ({ ...state, show_deviation: event.target.checked }))
+            }
+          />
+          <FilterCheck
+            label="Скрывать месяцы, где план и факт равны 0"
+            checked={zeroToggleEnabled ? hideZero : false}
+            disabled={!zeroToggleEnabled}
+            onChange={(event) =>
+              setFilters((state) => ({ ...state, hide_zero: event.target.checked }))
+            }
+          />
+          <div />
+          <div />
+        </FilterChecksRow>
+      </FiltersCard>
 
       {error || metaError ? (
         <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">

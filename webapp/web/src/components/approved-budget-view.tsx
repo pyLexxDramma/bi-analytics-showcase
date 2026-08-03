@@ -8,6 +8,15 @@ import { FinanceBarChart } from "@/components/finance-bar-chart";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { MobileCardStack, MobileEntityCard, MobileMetricGrid } from "@/components/mobile-entity-card";
 import { fetchApprovedBudget, type ApprovedBudgetPayload } from "@/lib/api";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import type { ExportTable } from "@/lib/table-export";
 
 type SortKey = "period" | "project" | "plan" | "fact" | "remainder" | "deviation" | "completion_pct" | "contract_coverage_pct";
@@ -232,12 +241,27 @@ export function ApprovedBudgetView() {
   const dirty = filters.projects.length > 0 || filters.fiz !== "Все" || filters.hide_zero !== null || filters.show_deviation;
   const gauge = data?.gauge ?? { plan: 0, fact: 0, deviation: 0, plan_mlrd: 0, fact_mlrd: 0, deviation_mlrd: 0, fact_pct: 0, deviation_pct: 0, axis_max_mlrd: 0 };
   return <AppShell title="Утверждённый бюджет план/факт">
-    <Card className="mb-6 rounded-xl"><button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"><span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>Фильтры</button>
-      {filtersOpen ? <div className="mt-3"><button type="button" disabled={!dirty} onClick={() => setFilters(INITIAL)} className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background">Сбросить</button>
-        <Text className="mt-3">Проект</Text><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => setFilters((state) => ({ ...state, projects: [] }))} className={filters.projects.length === 0 ? chipOn : chip}>Все</button>{(data?.filters.projects ?? []).map((project) => <button key={project} type="button" onClick={() => toggleProject(project)} className={filters.projects.includes(project) ? chipOn : chip}>{project}</button>)}</div>
-        <label className="mt-4 block max-w-md text-sm"><Text>ФИЗ</Text><select className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background" value={filters.fiz} onChange={(event) => setFilters((state) => ({ ...state, fiz: event.target.value }))}><option>Все</option>{(data?.filters.fiz ?? []).map((item) => <option key={item}>{item}</option>)}</select></label>
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={filters.show_deviation} onChange={(event) => setFilters((state) => ({ ...state, show_deviation: event.target.checked }))} />Показать отклонение</label><label className="flex items-center gap-2"><input type="checkbox" checked={hideZero} onChange={(event) => setFilters((state) => ({ ...state, hide_zero: event.target.checked }))} />Скрывать месяцы, где план и факт равны 0</label></div>
-      </div> : null}</Card>
+    <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+      <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
+      <Text className="mt-1">Проект</Text>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" onClick={() => setFilters((state) => ({ ...state, projects: [] }))} className={filters.projects.length === 0 ? chipOn : chip}>Все</button>
+        {(data?.filters.projects ?? []).map((project) => <button key={project} type="button" onClick={() => toggleProject(project)} className={filters.projects.includes(project) ? chipOn : chip}>{project}</button>)}
+      </div>
+      <FilterFieldsRow cols={2}>
+        <FilterField label="ФИЗ">
+          <select className={FILTER_SELECT_CLASS} value={filters.fiz} onChange={(event) => setFilters((state) => ({ ...state, fiz: event.target.value }))}>
+            <option>Все</option>
+            {(data?.filters.fiz ?? []).map((item) => <option key={item}>{item}</option>)}
+          </select>
+        </FilterField>
+        <div />
+      </FilterFieldsRow>
+      <FilterChecksRow cols={2}>
+        <FilterCheck label="Показать отклонение" checked={filters.show_deviation} onChange={(event) => setFilters((state) => ({ ...state, show_deviation: event.target.checked }))} />
+        <FilterCheck label="Скрывать месяцы, где план и факт равны 0" checked={hideZero} onChange={(event) => setFilters((state) => ({ ...state, hide_zero: event.target.checked }))} />
+      </FilterChecksRow>
+    </FiltersCard>
     {error || data?.meta.error ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || data?.meta.error}</Text></Card> : null}
     <div className="space-y-6">
       <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className="grid gap-4 sm:grid-cols-3">{[["План", gauge.plan_mlrd, gauge.plan / 1e6, "100%", ""], ["Факт", gauge.fact_mlrd, gauge.fact / 1e6, pct(gauge.fact_pct), "text-emerald-700 dark:text-emerald-300"], ["Отклонение", gauge.deviation_mlrd, gauge.deviation / 1e6, pct(gauge.deviation_pct), "text-rose-700 dark:text-rose-300"]].map(([label, bln, value, percent, color]) => <div key={String(label)} className={String(color)}><Text>{label}</Text><div className="mt-1 text-xl font-bold tabular-nums">{Number(bln).toFixed(2)} млрд</div><Text>{Number(value).toFixed(1)} млн. руб.</Text><Text>{percent}</Text></div>)}</div></div></Card>

@@ -22,6 +22,15 @@ import {
   DeviationReasonsBarChart,
   DeviationReasonsPieChart,
 } from "@/components/deviation-reasons-share-charts";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
@@ -268,8 +277,7 @@ export function DeviationReasonsView() {
       (filters.dateFrom !== (data?.filters.period.min ?? "") ||
         filters.dateTo !== (data?.filters.period.max ?? "")));
 
-  const selectClass =
-    "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+  const selectClass = FILTER_SELECT_CLASS;
 
   const kpis = data?.kpis;
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
@@ -372,145 +380,126 @@ export function DeviationReasonsView() {
 
   return (
     <AppShell title="Причины отклонений">
-      <Card className="mb-6 rounded-xl">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((value) => !value)}
-          aria-expanded={filtersOpen}
-          className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
-        >
-          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
-          Фильтры
-        </button>
-        {filtersOpen ? (
-          <div className="mt-3 space-y-4">
-            <button
-              type="button"
-              disabled={!dirty}
-              onClick={() => {
-                setPeriodReady(false);
-                setFilters(INITIAL);
-              }}
-              className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+        <FiltersReset
+          disabled={!dirty}
+          onClick={() => {
+            setPeriodReady(false);
+            setFilters(INITIAL);
+          }}
+        />
+        <FilterFieldsRow cols={5}>
+          <FilterField label="Проект">
+            <select
+              className={selectClass}
+              value={filters.project}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  project: event.target.value,
+                  block: "Все",
+                  building: "Все",
+                }))
+              }
             >
-              Сбросить
-            </button>
-            <div className="grid gap-3 lg:grid-cols-5">
-              <label className="block text-sm">
-                <Text>Проект</Text>
-                <select
-                  className={selectClass}
-                  value={filters.project}
-                  onChange={(event) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      project: event.target.value,
-                      block: "Все",
-                      building: "Все",
-                    }))
-                  }
-                >
-                  {(data?.filters.projects ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Функциональный блок</Text>
-                <select
-                  className={selectClass}
-                  value={filters.block}
-                  onChange={(event) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      block: event.target.value,
-                      building: "Все",
-                    }))
-                  }
-                >
-                  {(data?.filters.blocks ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Строение</Text>
-                <select
-                  className={selectClass}
-                  value={filters.building}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, building: event.target.value }))
-                  }
-                >
-                  {(data?.filters.buildings ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Период</Text>
-                <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-center">
-                  <input
-                    type="date"
-                    className={selectClass + " !mt-0"}
-                    value={filters.dateFrom}
-                    min={data?.filters.period.min ?? undefined}
-                    max={data?.filters.period.max ?? undefined}
-                    onChange={(event) =>
-                      setFilters((prev) => ({ ...prev, dateFrom: event.target.value }))
-                    }
-                  />
-                  <span className="hidden text-tremor-content sm:inline dark:text-dark-tremor-content">
-                    —
-                  </span>
-                  <input
-                    type="date"
-                    className={selectClass + " !mt-0"}
-                    value={filters.dateTo}
-                    min={data?.filters.period.min ?? undefined}
-                    max={data?.filters.period.max ?? undefined}
-                    onChange={(event) =>
-                      setFilters((prev) => ({ ...prev, dateTo: event.target.value }))
-                    }
-                  />
-                </div>
-              </label>
-              <label className="block text-sm">
-                <Text>Причина</Text>
-                <select
-                  className={selectClass}
-                  value={filters.reason}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, reason: event.target.value }))
-                  }
-                >
-                  {(data?.filters.reasons ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label className="flex items-center gap-2 text-sm">
+              {(data?.filters.projects ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Функциональный блок">
+            <select
+              className={selectClass}
+              value={filters.block}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  block: event.target.value,
+                  building: "Все",
+                }))
+              }
+            >
+              {(data?.filters.blocks ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Строение">
+            <select
+              className={selectClass}
+              value={filters.building}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, building: event.target.value }))
+              }
+            >
+              {(data?.filters.buildings ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Период">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
               <input
-                type="checkbox"
-                checked={filters.top5}
+                type="date"
+                className={selectClass + " !mt-0"}
+                value={filters.dateFrom}
+                min={data?.filters.period.min ?? undefined}
+                max={data?.filters.period.max ?? undefined}
                 onChange={(event) =>
-                  setFilters((prev) => ({ ...prev, top5: event.target.checked }))
+                  setFilters((prev) => ({ ...prev, dateFrom: event.target.value }))
                 }
               />
-              ТОП 5 причин отклонений
-            </label>
-          </div>
-        ) : null}
-      </Card>
+              <span className="hidden text-tremor-content sm:inline dark:text-dark-tremor-content">
+                —
+              </span>
+              <input
+                type="date"
+                className={selectClass + " !mt-0"}
+                value={filters.dateTo}
+                min={data?.filters.period.min ?? undefined}
+                max={data?.filters.period.max ?? undefined}
+                onChange={(event) =>
+                  setFilters((prev) => ({ ...prev, dateTo: event.target.value }))
+                }
+              />
+            </div>
+          </FilterField>
+          <FilterField label="Причина">
+            <select
+              className={selectClass}
+              value={filters.reason}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, reason: event.target.value }))
+              }
+            >
+              {(data?.filters.reasons ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+        </FilterFieldsRow>
+        <FilterChecksRow cols={5}>
+          <FilterCheck
+            label="ТОП 5 причин отклонений"
+            checked={filters.top5}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, top5: event.target.checked }))
+            }
+          />
+          <div />
+          <div />
+          <div />
+          <div />
+        </FilterChecksRow>
+      </FiltersCard>
 
       {error || metaError ? (
         <Card className="mb-6 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">

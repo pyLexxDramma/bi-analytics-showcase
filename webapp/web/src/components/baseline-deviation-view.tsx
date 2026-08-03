@@ -8,6 +8,17 @@ import {
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import { BaselineDeviationChart } from "@/components/baseline-deviation-chart";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FilterRadio,
+  FilterRadios,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -250,8 +261,7 @@ export function BaselineDeviationView() {
   }, [load]);
 
   const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);
-  const selectClass =
-    "mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+  const selectClass = FILTER_SELECT_CLASS;
 
   const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
   const showDur = data?.filters.applied.show_dur ?? filters.showDur;
@@ -342,204 +352,152 @@ export function BaselineDeviationView() {
 
   return (
     <AppShell title="Отклонение от базового плана">
-      <Card className="mb-6 rounded-xl">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((value) => !value)}
-          aria-expanded={filtersOpen}
-          className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
-        >
-          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
-          Фильтры
-        </button>
-        {filtersOpen ? (
-          <div className="mt-3 space-y-4">
-            <button
-              type="button"
-              disabled={!dirty}
-              onClick={() => setFilters(INITIAL)}
-              className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
+        <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
+        <FilterFieldsRow cols={5}>
+          <FilterField label="Проект">
+            <select
+              className={selectClass}
+              value={filters.project}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  project: event.target.value,
+                  building: "Все",
+                }))
+              }
             >
-              Сбросить
-            </button>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <label className="block text-sm">
-                <Text>Проект</Text>
-                <select
-                  className={selectClass}
-                  value={filters.project}
-                  onChange={(event) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      project: event.target.value,
-                      building: "Все",
-                    }))
-                  }
-                >
-                  {(data?.filters.projects ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Функциональный блок</Text>
-                <select
-                  className={selectClass}
-                  value={filters.block}
-                  onChange={(event) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      block: event.target.value,
-                      building: "Все",
-                    }))
-                  }
-                >
-                  {(data?.filters.blocks ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Строение</Text>
-                <select
-                  className={selectClass}
-                  value={filters.building}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, building: event.target.value }))
-                  }
-                >
-                  {(data?.filters.buildings ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Детализация</Text>
-                <select
-                  className={selectClass}
-                  value={filters.level}
-                  disabled={
-                    Boolean(data?.filters.applied.level_skipped) ||
-                    filters.showReasons ||
-                    filters.onlyCovenants
-                  }
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, level: event.target.value }))
-                  }
-                >
-                  {(data?.filters.levels ?? []).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <Text>Причина отклонения (категория)</Text>
-                <select
-                  className={selectClass}
-                  value={filters.reason}
-                  disabled={filters.onlyCovenants || (data?.filters.reasons.length ?? 1) <= 1}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, reason: event.target.value }))
-                  }
-                >
-                  {(data?.filters.reasons ?? ["Все"]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={filters.showReasons}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, showReasons: event.target.checked }))
-                  }
-                />
-                <Text>Показать причины отклонений</Text>
-              </label>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={filters.hideCompleted}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, hideCompleted: event.target.checked }))
-                  }
-                />
-                <Text>Скрыть завершённые (100%)</Text>
-              </label>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={filters.onlyCovenants}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, onlyCovenants: event.target.checked }))
-                  }
-                />
-                <Text>Только ковенанты</Text>
-              </label>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={filters.onlyNegEnd}
-                  disabled={filters.showReasons}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, onlyNegEnd: event.target.checked }))
-                  }
-                />
-                <Text>Отображать только диаграммы, где отклонение окончания &lt; 0</Text>
-              </label>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={filters.showDur}
-                  disabled={filters.showReasons}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, showDur: event.target.checked }))
-                  }
-                />
-                <Text>Показать «Отклонение длительности» в таблице</Text>
-              </label>
-            </div>
-            {(data?.filters.has_lot ?? false) ? (
-              <fieldset className="text-sm">
-                <Text>Подписи на графике и в таблице</Text>
-                <div className="mt-2 flex flex-nowrap gap-6 overflow-x-auto">
-                  {(data?.filters.label_modes ?? []).map((mode) => (
-                    <label key={mode.id} className="inline-flex shrink-0 items-center gap-2">
-                      <input
-                        type="radio"
-                        name="label-mode"
-                        checked={filters.labelMode === mode.id}
-                        onChange={() =>
-                          setFilters((prev) => ({ ...prev, labelMode: mode.id }))
-                        }
-                      />
-                      <span>{mode.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            ) : null}
-          </div>
+              {(data?.filters.projects ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Функциональный блок">
+            <select
+              className={selectClass}
+              value={filters.block}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  block: event.target.value,
+                  building: "Все",
+                }))
+              }
+            >
+              {(data?.filters.blocks ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Строение">
+            <select
+              className={selectClass}
+              value={filters.building}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, building: event.target.value }))
+              }
+            >
+              {(data?.filters.buildings ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Детализация">
+            <select
+              className={selectClass}
+              value={filters.level}
+              disabled={
+                Boolean(data?.filters.applied.level_skipped) ||
+                filters.showReasons ||
+                filters.onlyCovenants
+              }
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, level: event.target.value }))
+              }
+            >
+              {(data?.filters.levels ?? []).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Причина отклонения (категория)">
+            <select
+              className={selectClass}
+              value={filters.reason}
+              disabled={filters.onlyCovenants || (data?.filters.reasons.length ?? 1) <= 1}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, reason: event.target.value }))
+              }
+            >
+              {(data?.filters.reasons ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+        </FilterFieldsRow>
+        <FilterChecksRow cols={5}>
+          <FilterCheck
+            label="Показать причины отклонений"
+            checked={filters.showReasons}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, showReasons: event.target.checked }))
+            }
+          />
+          <FilterCheck
+            label="Скрыть завершённые (100%)"
+            checked={filters.hideCompleted}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, hideCompleted: event.target.checked }))
+            }
+          />
+          <FilterCheck
+            label="Только ковенанты"
+            checked={filters.onlyCovenants}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, onlyCovenants: event.target.checked }))
+            }
+          />
+          <FilterCheck
+            label="Отображать только диаграммы, где отклонение окончания < 0"
+            checked={filters.onlyNegEnd}
+            disabled={filters.showReasons}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, onlyNegEnd: event.target.checked }))
+            }
+          />
+          <FilterCheck
+            label="Показать «Отклонение длительности» в таблице"
+            checked={filters.showDur}
+            disabled={filters.showReasons}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, showDur: event.target.checked }))
+            }
+          />
+        </FilterChecksRow>
+        {(data?.filters.has_lot ?? false) ? (
+          <FilterRadios label="Подписи на графике и в таблице">
+            {(data?.filters.label_modes ?? []).map((mode) => (
+              <FilterRadio
+                key={mode.id}
+                name="label-mode"
+                label={mode.label}
+                checked={filters.labelMode === mode.id}
+                onChange={() => setFilters((prev) => ({ ...prev, labelMode: mode.id }))}
+              />
+            ))}
+          </FilterRadios>
         ) : null}
-      </Card>
+      </FiltersCard>
 
       {error || metaError ? (
         <Card className="mb-6 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">

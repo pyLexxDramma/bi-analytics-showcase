@@ -11,6 +11,17 @@ import {
   type BddsPlanFactPayload,
   type BddsPlanFactQuery,
 } from "@/lib/api";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FilterRadio,
+  FilterRadios,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import { BddsPlanFactEditor } from "@/components/bdds-plan-fact-editor";
 import type { ExportTable } from "@/lib/table-export";
 
@@ -36,8 +47,7 @@ const INITIAL: Filters = {
   hide_zero: null,
 };
 
-const inputClass =
-  "mt-1 box-border w-full max-w-full min-w-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background";
+const selectClass = FILTER_SELECT_CLASS;
 const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
 const HEAD =
   "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8]";
@@ -79,6 +89,7 @@ export function BddsPlanFactView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   const singleProject = filters.project !== "Все";
@@ -202,12 +213,12 @@ export function BddsPlanFactView() {
       title="БДДС расходы (план, факт, уточненный план)"
       subtitle="Прогнозный бюджет: план, факт и БДДС прогноз по лотам MSP"
     >
-      <Card className="mb-6 min-w-0 max-w-full overflow-hidden rounded-xl">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="block min-w-0 text-sm sm:col-span-2 lg:col-span-1">
-            <Text>Проект</Text>
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
+        <FiltersReset onClick={() => setFilters(INITIAL)} />
+        <FilterFieldsRow cols={5}>
+          <FilterField label="Проект">
             <select
-              className={inputClass}
+              className={selectClass}
               value={filters.project}
               onChange={(e) =>
                 setFilters((s) => ({ ...s, project: e.target.value }))
@@ -219,11 +230,10 @@ export function BddsPlanFactView() {
                 </option>
               ))}
             </select>
-          </label>
-          <label className="block text-sm">
-            <Text>Группировать по</Text>
+          </FilterField>
+          <FilterField label="Группировать по">
             <select
-              className={inputClass}
+              className={selectClass}
               value={filters.group}
               onChange={(e) =>
                 setFilters((s) => ({
@@ -240,11 +250,10 @@ export function BddsPlanFactView() {
                 ),
               )}
             </select>
-          </label>
-          <label className="block text-sm">
-            <Text>Представление</Text>
+          </FilterField>
+          <FilterField label="Представление">
             <select
-              className={inputClass}
+              className={selectClass}
               value={filters.view}
               onChange={(e) =>
                 setFilters((s) => ({
@@ -259,12 +268,11 @@ export function BddsPlanFactView() {
                 </option>
               ))}
             </select>
-          </label>
-          <label className="block text-sm">
-            <Text>Дата с</Text>
+          </FilterField>
+          <FilterField label="Дата с">
             <input
               type="date"
-              className={inputClass}
+              className={selectClass}
               min={data?.filters.date_min ?? undefined}
               max={data?.filters.date_max ?? undefined}
               value={filters.date_from}
@@ -272,12 +280,11 @@ export function BddsPlanFactView() {
                 setFilters((s) => ({ ...s, date_from: e.target.value }))
               }
             />
-          </label>
-          <label className="block text-sm">
-            <Text>Дата по</Text>
+          </FilterField>
+          <FilterField label="Дата по">
             <input
               type="date"
-              className={inputClass}
+              className={selectClass}
               min={data?.filters.date_min ?? undefined}
               max={data?.filters.date_max ?? undefined}
               value={filters.date_to}
@@ -285,71 +292,52 @@ export function BddsPlanFactView() {
                 setFilters((s) => ({ ...s, date_to: e.target.value }))
               }
             />
-          </label>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <fieldset>
-            <Text className="mb-2 block">
-              Отклонение от БДДС прогноз считать к
-            </Text>
-            <div className="flex flex-wrap gap-4 text-sm">
-              {(data?.filters.dev_bases ?? []).map((item) => (
-                <label key={item.id} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="dev_base"
-                    checked={filters.dev_base === item.id}
-                    onChange={() =>
-                      setFilters((s) => ({
-                        ...s,
-                        dev_base: item.id as Filters["dev_base"],
-                      }))
-                    }
-                  />
-                  {item.label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={filters.hide_deviation}
-                onChange={(e) =>
-                  setFilters((s) => ({
-                    ...s,
-                    hide_deviation: e.target.checked,
-                  }))
-                }
-              />
-              Скрыть отклонение
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                disabled={!zeroToggleEnabled}
-                checked={zeroToggleEnabled ? hideZero : false}
-                onChange={(e) =>
-                  setFilters((s) => ({
-                    ...s,
-                    hide_zero: e.target.checked,
-                  }))
-                }
-              />
-              <span className={zeroToggleEnabled ? "" : "opacity-50"}>
-                Скрывать месяцы, где план, факт и прогноз равны 0
-              </span>
-            </label>
-          </div>
-        </div>
-
+          </FilterField>
+        </FilterFieldsRow>
+        <FilterRadios label="Отклонение от БДДС прогноз считать к">
+          {(data?.filters.dev_bases ?? []).map((item) => (
+            <FilterRadio
+              key={item.id}
+              name="dev_base"
+              label={item.label}
+              checked={filters.dev_base === item.id}
+              onChange={() =>
+                setFilters((s) => ({
+                  ...s,
+                  dev_base: item.id as Filters["dev_base"],
+                }))
+              }
+            />
+          ))}
+        </FilterRadios>
+        <FilterChecksRow cols={2}>
+          <FilterCheck
+            label="Скрыть отклонение"
+            checked={filters.hide_deviation}
+            onChange={(e) =>
+              setFilters((s) => ({
+                ...s,
+                hide_deviation: e.target.checked,
+              }))
+            }
+          />
+          <FilterCheck
+            label="Скрывать месяцы, где план, факт и прогноз равны 0"
+            checked={zeroToggleEnabled ? hideZero : false}
+            disabled={!zeroToggleEnabled}
+            onChange={(e) =>
+              setFilters((s) => ({
+                ...s,
+                hide_zero: e.target.checked,
+              }))
+            }
+          />
+        </FilterChecksRow>
         <Text className="mt-3">
           Режим данных: <b>{data?.meta.data_mode ?? "…"}</b>
           {loading ? " · загрузка…" : ` · ${data?.meta.rows ?? 0} периодов`}
         </Text>
-      </Card>
+      </FiltersCard>
 
       {singleProject ? (
         <BddsPlanFactEditor

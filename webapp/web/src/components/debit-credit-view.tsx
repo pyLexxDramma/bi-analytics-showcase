@@ -6,6 +6,13 @@ import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
+import {
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -120,110 +127,85 @@ export function DebitCreditView() {
       title="Дебиторская и кредиторская задолженность подрядчиков"
       subtitle="Авансы, КС-2 и договоры · млн ₽"
     >
-      <Card className="mb-6 rounded-xl">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="flex flex-1 items-center justify-between text-left"
-          >
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Фильтры
-            </Title>
-            <span>{open ? "▲" : "▼"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilters(initial)}
-            className="rounded-md border border-tremor-border px-3 py-1.5 text-sm dark:border-dark-tremor-border"
-          >
-            Сбросить
-          </button>
-        </div>
-        {open ? (
-          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-            <label className="block text-sm">
-              <Text>Проект</Text>
-              <select
-                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                value={filters.project}
-                onChange={(e) =>
-                  setFilters((s) => ({ ...s, project: e.target.value }))
-                }
-              >
-                {(data?.filters.projects ?? ["Все"]).map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <Text>Подрядчик</Text>
-              <select
-                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                value={filters.contractor}
-                onChange={(e) =>
-                  setFilters((s) => ({ ...s, contractor: e.target.value }))
-                }
-              >
-                {(data?.filters.contractors ?? ["Все"]).map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <Text>№ договора</Text>
+      <FiltersCard open={open} onToggle={() => setOpen((v) => !v)}>
+        <FiltersReset onClick={() => setFilters(initial)} />
+        <FilterFieldsRow cols={5}>
+          <FilterField label="Проект">
+            <select
+              className={FILTER_SELECT_CLASS}
+              value={filters.project}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, project: e.target.value }))
+              }
+            >
+              {(data?.filters.projects ?? ["Все"]).map((v) => (
+                <option key={v}>{v}</option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Подрядчик">
+            <select
+              className={FILTER_SELECT_CLASS}
+              value={filters.contractor}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, contractor: e.target.value }))
+              }
+            >
+              {(data?.filters.contractors ?? ["Все"]).map((v) => (
+                <option key={v}>{v}</option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="№ договора">
+            <input
+              className={FILTER_SELECT_CLASS}
+              placeholder="Частичный поиск"
+              value={filters.contract_q}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, contract_q: e.target.value }))
+              }
+            />
+          </FilterField>
+          <FilterField label="Период">
+            <div className="flex gap-1">
               <input
-                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                placeholder="Частичный поиск"
-                value={filters.contract_q}
+                type="date"
+                className={FILTER_SELECT_CLASS + " !mt-0"}
+                min={data?.filters.date_min ?? undefined}
+                max={data?.filters.date_max ?? undefined}
+                value={filters.date_from}
                 onChange={(e) =>
-                  setFilters((s) => ({ ...s, contract_q: e.target.value }))
+                  setFilters((s) => ({ ...s, date_from: e.target.value }))
                 }
               />
-            </label>
-            <label className="block text-sm">
-              <Text>Период</Text>
-              <div className="mt-1 flex gap-1">
-                <input
-                  type="date"
-                  className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_from}
-                  onChange={(e) =>
-                    setFilters((s) => ({ ...s, date_from: e.target.value }))
-                  }
-                />
-                <input
-                  type="date"
-                  className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_to}
-                  onChange={(e) =>
-                    setFilters((s) => ({ ...s, date_to: e.target.value }))
-                  }
-                />
-              </div>
-            </label>
-            <label className="block text-sm">
-              <Text>Отображение</Text>
-              <select
-                className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                value={filters.display_view}
+              <input
+                type="date"
+                className={FILTER_SELECT_CLASS + " !mt-0"}
+                min={data?.filters.date_min ?? undefined}
+                max={data?.filters.date_max ?? undefined}
+                value={filters.date_to}
                 onChange={(e) =>
-                  setFilters((s) => ({
-                    ...s,
-                    display_view: e.target.value as Filters["display_view"],
-                  }))
+                  setFilters((s) => ({ ...s, date_to: e.target.value }))
                 }
-              >
-                <option>Без группировки</option>
-                <option>С группировкой</option>
-              </select>
-            </label>
-          </div>
-        ) : null}
+              />
+            </div>
+          </FilterField>
+          <FilterField label="Отображение">
+            <select
+              className={FILTER_SELECT_CLASS}
+              value={filters.display_view}
+              onChange={(e) =>
+                setFilters((s) => ({
+                  ...s,
+                  display_view: e.target.value as Filters["display_view"],
+                }))
+              }
+            >
+              <option>Без группировки</option>
+              <option>С группировкой</option>
+            </select>
+          </FilterField>
+        </FilterFieldsRow>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} договоров`}
           {data?.meta.version_id != null
@@ -235,7 +217,7 @@ export function DebitCreditView() {
             {data.meta.warning}
           </Text>
         ) : null}
-      </Card>
+      </FiltersCard>
 
       {error ? (
         <Card className="mb-6 border-rose-300 bg-rose-50 dark:bg-rose-950/30">

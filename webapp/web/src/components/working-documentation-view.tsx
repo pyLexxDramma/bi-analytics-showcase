@@ -16,6 +16,17 @@ import {
   type WorkingDocumentationQuery,
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
+import {
+  FilterCheck,
+  FilterChecksRow,
+  FilterField,
+  FilterFieldsRow,
+  FilterRadio,
+  FilterRadios,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { CHART_RU } from "@/lib/chart-ru";
@@ -204,11 +215,10 @@ function MultiSelect({
 }) {
   const selected = values.length ? values : [allToken];
   return (
-    <label className="block text-sm">
-      <Text>{label}</Text>
+    <FilterField label={label}>
       <select
         multiple
-        className="mt-1 max-h-32 w-full rounded-md border border-tremor-border bg-tremor-background px-2 py-1.5 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+        className={`${FILTER_SELECT_CLASS} max-h-32`}
         value={selected}
         onChange={(e) => {
           const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
@@ -225,7 +235,7 @@ function MultiSelect({
           </option>
         ))}
       </select>
-    </label>
+    </FilterField>
   );
 }
 
@@ -727,144 +737,127 @@ export function WorkingDocumentationView() {
         ))}
       </div>
 
-      <Card className="mb-6 rounded-xl p-0">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between px-4 py-3 text-left"
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-        >
-          <span className="text-sm font-semibold">
-            {tab === "main" ? "План выдачи РД — фильтры" : "Фильтры"}
-          </span>
-          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
-        </button>
-        {filtersOpen ? (
-          <div className="space-y-3 border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <button
-              type="button"
-              className="rounded-md border border-tremor-border px-3 py-1.5 text-sm dark:border-dark-tremor-border"
-              onClick={resetFilters}
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((v) => !v)}
+        title={tab === "main" ? "План выдачи РД — фильтры" : "Фильтры"}
+      >
+        <FiltersReset onClick={resetFilters} />
+        <FilterFieldsRow cols={3}>
+          <MultiSelect
+            label="Проекты"
+            options={data?.filters.projects ?? ["Все"]}
+            values={filters.projects}
+            onChange={(projects) => setFilters((f) => ({ ...f, projects }))}
+          />
+          <MultiSelect
+            label="Раздел"
+            options={data?.filters.sections ?? ["Все"]}
+            values={filters.sections}
+            onChange={(sections) => setFilters((f) => ({ ...f, sections }))}
+          />
+          <FilterField label="Период">
+            <select
+              className={FILTER_SELECT_CLASS}
+              value={filters.periodMode}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, periodMode: e.target.value }))
+              }
             >
-              Сбросить
-            </button>
-            <div className="grid gap-3 md:grid-cols-3">
-              <MultiSelect
-                label="Проекты"
-                options={data?.filters.projects ?? ["Все"]}
-                values={filters.projects}
-                onChange={(projects) => setFilters((f) => ({ ...f, projects }))}
+              {(data?.filters.period_modes ?? [INITIAL.periodMode]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+        </FilterFieldsRow>
+        {filters.periodMode !== "Весь период (за всё время)" ? (
+          <FilterFieldsRow cols={3}>
+            <FilterField label="С">
+              <input
+                type="date"
+                className={FILTER_SELECT_CLASS}
+                value={filters.dateFrom}
+                min={data?.filters.plan_date_min ?? undefined}
+                max={data?.filters.plan_date_max ?? undefined}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, dateFrom: e.target.value }))
+                }
               />
-              <MultiSelect
-                label="Раздел"
-                options={data?.filters.sections ?? ["Все"]}
-                values={filters.sections}
-                onChange={(sections) => setFilters((f) => ({ ...f, sections }))}
+            </FilterField>
+            <FilterField label="По">
+              <input
+                type="date"
+                className={FILTER_SELECT_CLASS}
+                value={filters.dateTo}
+                min={data?.filters.plan_date_min ?? undefined}
+                max={data?.filters.plan_date_max ?? undefined}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, dateTo: e.target.value }))
+                }
               />
-              <label className="block text-sm">
-                <Text>Период</Text>
-                <select
-                  className="mt-1 w-full rounded-md border border-tremor-border bg-tremor-background px-2 py-1.5 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                  value={filters.periodMode}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, periodMode: e.target.value }))
-                  }
-                >
-                  {(data?.filters.period_modes ?? [INITIAL.periodMode]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {filters.periodMode !== "Весь период (за всё время)" ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="block text-sm">
-                  <Text>С</Text>
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded-md border border-tremor-border px-2 py-1.5 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                    value={filters.dateFrom}
-                    min={data?.filters.plan_date_min ?? undefined}
-                    max={data?.filters.plan_date_max ?? undefined}
-                    onChange={(e) =>
-                      setFilters((f) => ({ ...f, dateFrom: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="block text-sm">
-                  <Text>По</Text>
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded-md border border-tremor-border px-2 py-1.5 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                    value={filters.dateTo}
-                    min={data?.filters.plan_date_min ?? undefined}
-                    max={data?.filters.plan_date_max ?? undefined}
-                    onChange={(e) =>
-                      setFilters((f) => ({ ...f, dateTo: e.target.value }))
-                    }
-                  />
-                </label>
-              </div>
-            ) : null}
-            <div>
-              <Text className="mb-1">Статус</Text>
-              <StatusChips
-                options={data?.filters.statuses ?? []}
-                values={filters.statuses}
-                onChange={(statuses) => setFilters((f) => ({ ...f, statuses }))}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              {tab === "delay" ? (
-                <label className="block text-sm">
-                  <Text>Отображение</Text>
-                  <select
-                    className="mt-1 rounded-md border border-tremor-border bg-tremor-background px-2 py-1.5 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-                    value={filters.viewMode}
-                    onChange={(e) =>
-                      setFilters((f) => ({ ...f, viewMode: e.target.value }))
-                    }
-                  >
-                    {(data?.filters.view_modes ?? []).map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <div className="flex items-center gap-3 text-sm">
-                {(data?.filters.metric_modes ?? [
-                  "Количество разделов",
-                  "% от общего объёма",
-                ]).map((m) => (
-                  <label key={m} className="inline-flex items-center gap-1.5">
-                    <input
-                      type="radio"
-                      name="rd-metric"
-                      checked={filters.metricMode === m}
-                      onChange={() => setFilters((f) => ({ ...f, metricMode: m }))}
-                    />
-                    {m}
-                  </label>
-                ))}
-              </div>
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={filters.showForecast}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, showForecast: e.target.checked }))
-                  }
-                />
-                Показать прогнозную дату выдачи разделов
-              </label>
-            </div>
-          </div>
+            </FilterField>
+            <div />
+          </FilterFieldsRow>
         ) : null}
-      </Card>
+        <div>
+          <Text className="mb-1 text-sm text-tremor-content dark:text-dark-tremor-content">
+            Статус
+          </Text>
+          <StatusChips
+            options={data?.filters.statuses ?? []}
+            values={filters.statuses}
+            onChange={(statuses) => setFilters((f) => ({ ...f, statuses }))}
+          />
+        </div>
+        {tab === "delay" ? (
+          <FilterFieldsRow cols={3}>
+            <FilterField label="Отображение">
+              <select
+                className={FILTER_SELECT_CLASS}
+                value={filters.viewMode}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, viewMode: e.target.value }))
+                }
+              >
+                {(data?.filters.view_modes ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <div />
+            <div />
+          </FilterFieldsRow>
+        ) : null}
+        <FilterRadios label="Метрика">
+          {(data?.filters.metric_modes ?? [
+            "Количество разделов",
+            "% от общего объёма",
+          ]).map((m) => (
+            <FilterRadio
+              key={m}
+              name="rd-metric"
+              label={m}
+              checked={filters.metricMode === m}
+              onChange={() => setFilters((f) => ({ ...f, metricMode: m }))}
+            />
+          ))}
+        </FilterRadios>
+        <FilterChecksRow cols={3}>
+          <FilterCheck
+            label="Показать прогнозную дату выдачи разделов"
+            checked={filters.showForecast}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, showForecast: e.target.checked }))
+            }
+          />
+          <div />
+          <div />
+        </FilterChecksRow>
+      </FiltersCard>
 
       {error ? (
         <Card className="mb-4 border-rose-300 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">

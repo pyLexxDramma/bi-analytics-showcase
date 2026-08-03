@@ -7,6 +7,13 @@ import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { StatusPill } from "@/components/status-pill";
+import {
+  FilterField,
+  FilterFieldsRow,
+  FILTER_SELECT_CLASS,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import type { ExportTable } from "@/lib/table-export";
 
 const CELL = "border border-[#cbd5e1] dark:border-[#5a6f82]";
@@ -293,25 +300,25 @@ export function ControlPointsView() {
 
   return (
     <AppShell title="Контрольные точки">
-      <Card className="mb-6 rounded-xl">
-        <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
-          <span className="text-xs">{filtersOpen ? "▾" : "▸"}</span>
-          Фильтры
-        </button>
-        {filtersOpen ? (
-          <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,320px)_auto] md:items-end">
-            <label className="block text-sm">
-              <Text>Проект</Text>
-              <select className="mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background" value={project} onChange={(event) => setProject(event.target.value)}>
-                {(data?.filters.projects ?? ["Все"]).map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-            <button type="button" onClick={() => setProject("Все")} disabled={project === "Все"} className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
-              Сбросить
-            </button>
-          </div>
-        ) : null}
-      </Card>
+      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+        <FiltersReset disabled={project === "Все"} onClick={() => setProject("Все")} />
+        <FilterFieldsRow cols={2}>
+          <FilterField label="Проект">
+            <select
+              className={FILTER_SELECT_CLASS}
+              value={project}
+              onChange={(event) => setProject(event.target.value)}
+            >
+              {(data?.filters.projects ?? ["Все"]).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <div />
+        </FilterFieldsRow>
+      </FiltersCard>
 
       {error || metaError ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || metaError}</Text></Card> : null}
       {!projects.length ? <Card className="rounded-xl"><Text>{loading ? "Загрузка…" : "Нет данных контрольных точек. Сделайте ingest в админке."}</Text></Card> : (
