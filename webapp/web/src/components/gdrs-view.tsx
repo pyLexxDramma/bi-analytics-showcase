@@ -9,10 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import {
-  BarChart,
   Card,
-  DonutChart,
-  LineChart,
   Text,
   Title,
 } from "@tremor/react";
@@ -44,10 +41,6 @@ import {
   type GdrsPayload,
   type GdrsQuery,
 } from "@/lib/api";
-import {
-  PLAN_FACT_DEVIATION_CATEGORIES,
-  withRuPlanFactDeviation,
-} from "@/lib/chart-ru";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type ResourceKind = "people" | "equipment";
@@ -123,21 +116,6 @@ function gdrsPalette(dark: boolean): GdrsPalette {
     linkFg: "#93c5fd",
   };
 }
-
-/** Яркие сегменты donut — без slate/gray, которые сливаются с тёмным фоном. */
-const DONUT_COLORS = [
-  "cyan",
-  "violet",
-  "amber",
-  "emerald",
-  "rose",
-  "blue",
-  "orange",
-  "fuchsia",
-  "lime",
-  "indigo",
-  "pink",
-] as const;
 
 function useIsDark(): boolean {
   const [dark, setDark] = useState(false);
@@ -411,42 +389,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     load,
   ]);
 
-  const projectChart = useMemo(
-    () =>
-      withRuPlanFactDeviation(
-        (data?.tremor.by_project ?? []).map((r) => ({
-          name: r.name,
-          plan: r.plan,
-          fact: r.fact,
-          deviation: r.deviation,
-        })),
-      ),
-    [data?.tremor.by_project],
-  );
-
-  const contractorChart = useMemo(
-    () =>
-      withRuPlanFactDeviation(
-      (data?.tremor.by_contractor ?? []).map((r) => ({
-          name: r.name,
-          plan: r.plan,
-          fact: r.fact,
-          deviation: r.deviation,
-        })),
-      ),
-    [data?.tremor.by_contractor],
-  );
-
   const pieData = data?.tremor.pie ?? data?.pie_rows ?? [];
-  const dynamicsChart = useMemo(
-    () =>
-      (data?.tremor.dynamics ?? []).map((r) => ({
-        period: r.period,
-        План: r.plan,
-        Факт: r.fact,
-      })),
-    [data?.tremor.dynamics],
-  );
 
   const projectRows = useSortableRows(
     (data?.project_rows ?? []).map((r) => ({ ...r })),
@@ -661,9 +604,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               <GdrsGroupedBarChart rows={data?.tremor.by_project ?? []} fullscreen={zoomed} />
             </div>
             <div className="mt-4 lg:hidden">
-              <div className="h-72">
-                <BarChart className="h-full" data={projectChart} index="name" categories={[...PLAN_FACT_DEVIATION_CATEGORIES]} colors={["blue", "emerald", "rose"]} valueFormatter={(v) => fmtInt(Number(v))} yAxisWidth={48} showLegend showGridLines />
-              </div>
+              <GdrsGroupedBarChart rows={data?.tremor.by_project ?? []} compact />
             </div>
           </Card>}
         </FullscreenPanel>
@@ -815,7 +756,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               <GdrsContractorsPieChart rows={pieData} fullscreen={zoomed} />
             </div>
             <div className="mt-4 lg:hidden">
-              <DonutChart className="h-72" data={pieData} category="value" index="name" colors={[...DONUT_COLORS]} valueFormatter={(v) => fmtInt(Number(v))} showLabel />
+              <GdrsContractorsPieChart rows={pieData} compact />
             </div>
           </Card>}
         </FullscreenPanel>
@@ -1084,7 +1025,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               <GdrsGroupedBarChart rows={data?.tremor.by_contractor ?? []} contractors fullscreen={zoomed} />
             </div>
             <div className="mt-4 lg:hidden">
-              <BarChart className="h-96" data={contractorChart} index="name" categories={[...PLAN_FACT_DEVIATION_CATEGORIES]} colors={["blue", "emerald", "rose"]} valueFormatter={(v) => fmtInt(Number(v))} yAxisWidth={48} layout="vertical" showLegend showGridLines />
+              <GdrsGroupedBarChart rows={data?.tremor.by_contractor ?? []} contractors compact />
             </div>
           </Card>}
         </FullscreenPanel>
@@ -1123,7 +1064,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} fullscreen={zoomed} />
             </div>
             <div className="mt-4 lg:hidden">
-              <LineChart className="h-72" data={dynamicsChart} index="period" categories={["План", "Факт"]} colors={["blue", "emerald"]} valueFormatter={(v) => fmtInt(Number(v))} yAxisWidth={48} showLegend showGridLines />
+              <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} />
             </div>
           </Card>}
         </FullscreenPanel>

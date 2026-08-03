@@ -22,6 +22,20 @@ type PlanFactRow = {
 
 type PieRow = { name: string; value: number };
 
+const PIE_COLORS = [
+  "#2563eb",
+  "#15803d",
+  "#ea580c",
+  "#7c3aed",
+  "#db2777",
+  "#0891b2",
+  "#ca8a04",
+  "#4f46e5",
+  "#65a30d",
+  "#dc2626",
+  "#64748b",
+] as const;
+
 function useChartTheme() {
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -58,10 +72,13 @@ export function GdrsGroupedBarChart({
   rows,
   contractors = false,
   fullscreen = false,
+  compact = false,
 }: {
   rows: PlanFactRow[];
   contractors?: boolean;
   fullscreen?: boolean;
+  /** Mobile: ниже холст, крупнее подписи категорий, горизонтальный скролл. */
+  compact?: boolean;
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
@@ -71,19 +88,43 @@ export function GdrsGroupedBarChart({
       row.deviation < 0 ? "#b91c1c" : row.deviation > 0 ? "#15803d" : "#6b7280",
     );
     const light = !theme.dark;
-    const axisSz = contractors ? (light ? 22 : 16) : light ? 22 : 12;
-    const xTickSz = contractors ? (light ? 18 : 14) : light ? 44 : 34;
-    const labelSz = contractors ? (light ? 21 : 16) : light ? 18 : 14;
-    const chartWidth = contractors ? Math.max(1180, rows.length * 128) : undefined;
-    const height = contractors
-      ? fullscreen
-        ? Math.max(680, Math.min(window.innerHeight - 32, 1500))
+    const axisSz = compact
+      ? 12
+      : contractors
+        ? light
+          ? 22
+          : 16
         : light
-          ? 1500
-          : 1320
-      : fullscreen
-        ? Math.max(560, Math.min(window.innerHeight - 32, 760))
-        : 560;
+          ? 22
+          : 12;
+    const xTickSz = compact
+      ? contractors
+        ? 11
+        : 13
+      : contractors
+        ? light
+          ? 18
+          : 14
+        : light
+          ? 44
+          : 34;
+    const labelSz = compact ? 11 : contractors ? (light ? 21 : 16) : light ? 18 : 14;
+    const chartWidth = contractors
+      ? Math.max(compact ? 820 : 1180, rows.length * (compact ? 112 : 128))
+      : undefined;
+    const height = compact
+      ? contractors
+        ? 400
+        : 340
+      : contractors
+        ? fullscreen
+          ? Math.max(680, Math.min(window.innerHeight - 32, 1500))
+          : light
+            ? 1500
+            : 1320
+        : fullscreen
+          ? Math.max(560, Math.min(window.innerHeight - 32, 760))
+          : 560;
     return {
       data: [
         {
@@ -93,7 +134,7 @@ export function GdrsGroupedBarChart({
           y: rows.map((row) => row.plan),
           text: rows.map((row) => String(Math.round(row.plan))),
           textposition: "outside" as const,
-          textfont: { color: "#1e3a8a", size: labelSz },
+          textfont: { color: theme.dark ? "#93c5fd" : "#1e3a8a", size: labelSz },
           marker: { color: "#2563eb" },
           cliponaxis: false,
           hovertemplate: "<b>%{x}</b><br>План: %{y}<extra></extra>",
@@ -105,7 +146,7 @@ export function GdrsGroupedBarChart({
           y: rows.map((row) => row.fact),
           text: rows.map((row) => String(Math.round(row.fact))),
           textposition: "outside" as const,
-          textfont: { color: "#14532d", size: labelSz },
+          textfont: { color: theme.dark ? "#86efac" : "#14532d", size: labelSz },
           marker: { color: "#15803d" },
           cliponaxis: false,
           hovertemplate: "<b>%{x}</b><br>Факт: %{y}<extra></extra>",
@@ -130,10 +171,20 @@ export function GdrsGroupedBarChart({
         bargap: 0.22,
         bargroupgap: 0.08,
         margin: {
-          l: contractors ? 64 : 56,
-          r: 28,
-          t: 88,
-          b: contractors ? (labels.length > 8 ? 200 : 160) : light ? 120 : 100,
+          l: compact ? 40 : contractors ? 64 : 56,
+          r: 16,
+          t: compact ? 48 : 88,
+          b: contractors
+            ? compact
+              ? 110
+              : labels.length > 8
+                ? 200
+                : 160
+            : compact
+              ? 80
+              : light
+                ? 120
+                : 100,
         },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
@@ -142,11 +193,11 @@ export function GdrsGroupedBarChart({
           orientation: "h" as const,
           x: 0.5,
           xanchor: "center" as const,
-          y: -0.18,
-          font: { color: theme.label, size: contractors ? 16 : 13 },
+          y: compact ? 1.12 : -0.18,
+          font: { color: theme.label, size: compact ? 11 : contractors ? 16 : 13 },
         },
         xaxis: {
-          tickangle: contractors && labels.length > 8 ? -45 : 0,
+          tickangle: contractors || (compact && labels.length > 3) ? -45 : 0,
           tickfont: {
             size: xTickSz,
             color: theme.label,
@@ -159,14 +210,18 @@ export function GdrsGroupedBarChart({
         yaxis: {
           gridcolor: theme.grid,
           zeroline: false,
+          rangemode: "tozero" as const,
           tickfont: { size: axisSz, color: theme.label },
           automargin: true,
         },
         modebar: { bgcolor: "rgba(0,0,0,0)", color: theme.axis, activecolor: "#0f766e" },
       },
-      config: { ...PLOTLY_CONFIG },
+      config: {
+        ...PLOTLY_CONFIG,
+        ...(compact ? { displayModeBar: false } : {}),
+      },
     };
-  }, [contractors, fullscreen, rows, theme]);
+  }, [compact, contractors, fullscreen, rows, theme]);
 
   if (!rows.length) return empty("Нет данных для графика.");
   return (
@@ -185,9 +240,11 @@ export function GdrsGroupedBarChart({
 export function GdrsContractorsPieChart({
   rows,
   fullscreen = false,
+  compact = false,
 }: {
   rows: PieRow[];
   fullscreen?: boolean;
+  compact?: boolean;
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
@@ -219,14 +276,16 @@ export function GdrsContractorsPieChart({
       }
     }
     const n = rows.length;
-    const baseTxt = Math.max(15, Math.min(21, 23 - Math.floor(n / 2)));
-    const txtIn = Math.round(baseTxt * 1.5);
-    const txtOut = Math.round((baseTxt - 1) * 1.5);
-    const height = fullscreen
-      ? Math.max(720, Math.min(window.innerHeight - 32, 980))
-      : hasOutside
-        ? 820
-        : 780;
+    const baseTxt = Math.max(compact ? 11 : 15, Math.min(compact ? 14 : 21, 23 - Math.floor(n / 2)));
+    const txtIn = compact ? baseTxt : Math.round(baseTxt * 1.5);
+    const txtOut = compact ? baseTxt - 1 : Math.round((baseTxt - 1) * 1.5);
+    const height = compact
+      ? 300
+      : fullscreen
+        ? Math.max(720, Math.min(window.innerHeight - 32, 980))
+        : hasOutside
+          ? 820
+          : 780;
     return {
       data: [
         {
@@ -243,19 +302,7 @@ export function GdrsContractorsPieChart({
           insidetextorientation: "horizontal" as const,
           automargin: false,
           marker: {
-            colors: [
-              "#2563eb",
-              "#15803d",
-              "#ea580c",
-              "#7c3aed",
-              "#db2777",
-              "#0891b2",
-              "#ca8a04",
-              "#4f46e5",
-              "#65a30d",
-              "#dc2626",
-              "#64748b",
-            ],
+            colors: [...PIE_COLORS],
             line: { color: theme.dark ? "rgba(15,23,42,0.9)" : "#ffffff", width: 1 },
           },
           textfont: { color: "#ffffff", size: txtIn },
@@ -266,17 +313,20 @@ export function GdrsContractorsPieChart({
       ],
       layout: {
         height,
-        margin: { l: 8, r: 8, t: 24, b: 120 },
+        margin: compact
+          ? { l: 8, r: 8, t: 8, b: 8 }
+          : { l: 8, r: 8, t: 24, b: 120 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        showlegend: true,
+        showlegend: !compact,
         legend: {
           orientation: "h" as const,
           x: 0.5,
           xanchor: "center" as const,
           y: -0.08,
           font: { color: theme.label, size: 12 },
+          itemsizing: "constant" as const,
         },
         modebar: {
           bgcolor: "rgba(0,0,0,0)",
@@ -284,19 +334,46 @@ export function GdrsContractorsPieChart({
           activecolor: "#0f766e",
         },
       },
-      config: { ...PLOTLY_CONFIG },
+      config: {
+        ...PLOTLY_CONFIG,
+        ...(compact ? { displayModeBar: false } : {}),
+      },
     };
-  }, [fullscreen, rows, theme]);
+  }, [compact, fullscreen, rows, theme]);
 
   if (!rows.length) return empty("Нет данных по контрагентам.");
+  const total = rows.reduce((s, row) => s + (Number(row.value) || 0), 0);
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div>
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+      {compact ? (
+        <ul className="mt-3 max-h-56 space-y-1.5 overflow-y-auto pr-1 text-sm text-tremor-content-strong dark:text-dark-tremor-content-strong">
+          {rows.map((row, i) => {
+            const value = Number(row.value) || 0;
+            const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+            return (
+              <li key={`${row.name}-${i}`} className="flex items-start gap-2">
+                <span
+                  className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 leading-snug">{row.name}</span>
+                <span className="shrink-0 tabular-nums text-tremor-content dark:text-dark-tremor-content">
+                  {Math.round(value)} · {pct}%
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
