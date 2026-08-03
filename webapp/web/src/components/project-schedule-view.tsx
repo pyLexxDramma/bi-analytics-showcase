@@ -9,6 +9,11 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 import { ProjectScheduleGantt } from "@/components/project-schedule-gantt";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
@@ -219,6 +224,9 @@ export function ProjectScheduleView() {
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const showLots = data?.filters.applied.show_lots ?? filters.showLots;
   const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
+  const multiProject = Boolean(
+    data?.filters.applied.multi_project ?? filters.project === "Все",
+  );
 
   const columnLabels = useMemo(() => {
     if (data?.columns?.length) return data.columns;
@@ -433,8 +441,73 @@ export function ProjectScheduleView() {
                 Таблица задач
               </Title>
             </div>
-            <FullscreenPanel disabled={!rows.length}>
-              <div className="max-h-[32rem] overflow-auto p-1 pt-10">
+            <FullscreenPanel disabled={!rows.length} className="!overflow-x-hidden">
+              <MobileCardStack>
+                {sortedRows.map((row, index) => {
+                  const title = showLots
+                    ? row.task
+                    : multiProject
+                      ? `${row.project}: ${row.task}`
+                      : row.task;
+                  const badge =
+                    row.dev_end != null && row.dev_end !== ""
+                      ? row.dev_end
+                      : row.pct_complete != null
+                        ? `${row.pct_complete}%`
+                        : undefined;
+                  const badgeTone =
+                    row.dev_end_days == null
+                      ? "neutral"
+                      : row.dev_end_days < 0
+                        ? "bad"
+                        : "ok";
+                  return (
+                    <MobileEntityCard
+                      key={`${row.project}-${row.task_id ?? row.task}-${index}`}
+                      title={title}
+                      badge={badge}
+                      badgeTone={badgeTone}
+                    >
+                      <MobileMetricGrid
+                        columns={2}
+                        items={[
+                          ...(showLots
+                            ? []
+                            : [
+                                { label: "ИД", value: row.task_id ?? "—" },
+                                { label: "Ур", value: row.level ?? "—" },
+                              ]),
+                          {
+                            label: "%",
+                            value: row.pct_complete == null ? "—" : `${row.pct_complete}%`,
+                          },
+                          { label: "Начало", value: row.plan_start ?? "—" },
+                          { label: "Баз. нач.", value: row.base_start ?? "—" },
+                          {
+                            label: "Откл. нач.",
+                            value: row.dev_start || "—",
+                            className: deviationClass(row.dev_start_days),
+                          },
+                          { label: "Окончание", value: row.plan_end ?? "—" },
+                          { label: "Баз. оконч.", value: row.base_end ?? "—" },
+                          {
+                            label: "Откл. оконч.",
+                            value: row.dev_end || "—",
+                            className: deviationClass(row.dev_end_days),
+                          },
+                          ...(showReasons
+                            ? [
+                                { label: "Причина", value: row.reason || "—" },
+                                { label: "Заметки", value: row.notes || "—" },
+                              ]
+                            : []),
+                        ]}
+                      />
+                    </MobileEntityCard>
+                  );
+                })}
+              </MobileCardStack>
+              <div className="hidden max-h-[32rem] overflow-auto p-1 pt-10 lg:block">
                 {rows.length === 0 ? (
                   <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                     Нет строк по выбранным фильтрам.

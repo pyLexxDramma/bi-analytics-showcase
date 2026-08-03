@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Text } from "@tremor/react";
 import type { ProjectSchedulePayload } from "@/lib/api";
 
@@ -24,6 +24,8 @@ const LANE_GAP = 0.03;
 const MARGIN_TOP = 20;
 const MARGIN_BOTTOM = 64;
 const DAY_MS = 24 * 3600 * 1000;
+/** Отступ подписи даты от ромба (desktop ковенанты). */
+const COVENANT_LABEL_GAP_MS = 14 * DAY_MS;
 /** Колонка имён ≈ 1/4 (линии шире ~3×). */
 const LABEL_COL_PCT = 24;
 
@@ -79,6 +81,18 @@ function sameDay(
   return a.slice(0, 10) === b.slice(0, 10);
 }
 
+function useCompactViewport() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setCompact(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return compact;
+}
+
 export function ProjectScheduleGantt({
   data,
   fullscreen = false,
@@ -91,6 +105,8 @@ export function ProjectScheduleGantt({
   const factColor = data.gantt.fact_color || FACT;
   const labelPct = data.gantt.label_pct;
   const covenantMode = Boolean(data.gantt.covenant_mode ?? data.filters?.applied?.covenant_mode);
+  const compact = useCompactViewport();
+  const showAxisDateLabels = fullscreen || !compact;
 
   const built = useMemo(() => {
     if (!rows.length) return null;
@@ -155,13 +171,13 @@ export function ProjectScheduleGantt({
         const pe = toMs(row.baseline.end);
         const fe = toMs(row.current.end);
         const planLeft = pe != null && fe != null ? pe <= fe : true;
-        if (pe != null && row.baseline.end_label) {
+        if (showAxisDateLabels && pe != null && row.baseline.end_label) {
           traces.push({
             type: "scatter",
             mode: "text",
-            x: [pe],
+            x: [planLeft ? pe - COVENANT_LABEL_GAP_MS : pe + COVENANT_LABEL_GAP_MS],
             y: [i],
-            text: [row.baseline.end_label],
+            text: [planLeft ? `${row.baseline.end_label}\u00a0` : `\u00a0${row.baseline.end_label}`],
             textposition: planLeft ? "middle left" : "middle right",
             textfont: { size: labelFont, color: planColor, family: "Arial" },
             hoverinfo: "skip",
@@ -169,14 +185,14 @@ export function ProjectScheduleGantt({
             cliponaxis: false,
           });
         }
-        if (fe != null && row.current.end_label) {
+        if (showAxisDateLabels && fe != null && row.current.end_label) {
           const factLeft = pe != null && fe != null ? fe < pe : false;
           traces.push({
             type: "scatter",
             mode: "text",
-            x: [fe],
+            x: [factLeft ? fe - COVENANT_LABEL_GAP_MS : fe + COVENANT_LABEL_GAP_MS],
             y: [i],
-            text: [row.current.end_label],
+            text: [factLeft ? `${row.current.end_label}\u00a0` : `\u00a0${row.current.end_label}`],
             textposition: factLeft ? "middle left" : "middle right",
             textfont: { size: labelFont, color: factColor, family: "Arial" },
             hoverinfo: "skip",
@@ -255,7 +271,7 @@ export function ProjectScheduleGantt({
         y: number,
         text: string,
       ) => {
-        if (x == null || !text) return;
+        if (!showAxisDateLabels || x == null || !text) return;
         if (!buckets[key]) buckets[key] = { x: [], y: [], text: [] };
         buckets[key].x.push(x);
         buckets[key].y.push(y);
@@ -397,6 +413,8 @@ export function ProjectScheduleGantt({
     factColor,
     labelPct,
     covenantMode,
+    compact,
+    showAxisDateLabels,
     fullscreen,
     data.gantt.range_start,
     data.gantt.range_end,
@@ -415,7 +433,7 @@ export function ProjectScheduleGantt({
     : `${built.viewportHeight}px`;
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0">
       <div className="mb-2 flex flex-wrap gap-4 text-sm">
         <span className="inline-flex items-center gap-2">
           <span className="inline-block h-2.5 w-6 rounded" style={{ background: planColor }} />
@@ -426,6 +444,11 @@ export function ProjectScheduleGantt({
           <Text>Факт</Text>
         </span>
       </div>
+      {compact && !fullscreen ? (
+        <Text className="mb-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
+          На телефоне даты у точек скрыты — смотрите подсказку по ромбу и карточки таблицы.
+        </Text>
+      ) : null}
       <div
         className="gantt-schedule-scroll-wrap overflow-y-auto overflow-x-hidden rounded-md border border-tremor-border dark:border-dark-tremor-border"
         style={{ maxHeight: viewportMax }}
