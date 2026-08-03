@@ -443,10 +443,10 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 Статус: 🔄 desktop Plotly 1:1 (подписи/точки/цвета main+delay) + mobile cards; приёмка на стенде.
 
-- Desktop (`lg+`): pie «Исполнение ПД»; line «Динамика» `lines+markers+text` + цвета main; monthly overlay жёлтый/зелёный «+N»; Gantt с датами у полос (`cb0d60b`).
+- Desktop (`lg+`): pie «Исполнение ПД»; line «Динамика» `lines+markers+text` + цвета main; monthly overlay жёлтый/зелёный «+N»; **Gantt Plotly** жёлт/зелён/красн + даты у полос (`cb0d60b`…gantt).
 - Mobile: 3 таблицы → `MobileCardStack` + highlight; графики можно облегчить.
 - Правило цикла (все дашборды): desktop Plotly = main; mobile — облегчение где уместно (`PARITY_FULL_REGRESSION_PLAN.md`).
-- Техдолг: CSS gantt ≠ полный Plotly duration figure; single-select период/проект vs multi main.
+- Техдолг: single-select период/проект vs multi main.
 
 ### Черновик 31.07.2026
 
