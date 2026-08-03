@@ -1,15 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  BarChart,
-  Card,
-  DonutChart,
-  Grid,
-  Metric,
-  Text,
-  Title,
-} from "@tremor/react";
+import { Card, Metric, Text, Title } from "@tremor/react";
 import {
   fetchDeviationReasons,
   type DeviationReasonsPayload,
@@ -22,7 +14,14 @@ import {
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
-import { CHART_RU, withRuReasonCount } from "@/lib/chart-ru";
+import {
+  DeviationFacetChart,
+  DeviationStackChart,
+} from "@/components/deviation-reasons-dynamics-charts";
+import {
+  DeviationReasonsBarChart,
+  DeviationReasonsPieChart,
+} from "@/components/deviation-reasons-share-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
@@ -79,20 +78,6 @@ const TH =
   "whitespace-nowrap border border-[#cbd5e1] bg-[#f3f4f6] px-2.5 py-2 text-center font-bold text-[#111827] dark:border-[#334155] dark:bg-[hsl(209,72%,6%)] dark:text-[#fafafa]";
 const TD =
   "border border-[#cbd5e1] px-2.5 py-1.5 text-center align-middle dark:border-[#334155]";
-
-const TREMOR_COLORS = [
-  "cyan",
-  "amber",
-  "emerald",
-  "rose",
-  "violet",
-  "slate",
-  "indigo",
-  "orange",
-  "lime",
-  "fuchsia",
-  "blue",
-] as const;
 
 function deviationClass(days: number | null | undefined): string {
   if (days == null) return "";
@@ -289,20 +274,13 @@ export function DeviationReasonsView() {
   const kpis = data?.kpis;
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const columns = data?.columns ?? Object.keys(COL_SORT);
-  const byReason = useMemo(
-    () =>
-      withRuReasonCount(
-        (data?.tremor.by_reason ?? []).map((row) => ({
-          ...row,
-          reason: `${row.reason}\n${row.label}`,
-        })),
-      ),
-    [data?.tremor.by_reason],
-  );
+  const byReason = data?.tremor.by_reason ?? [];
+  const reasonMix = data?.tremor.reason_mix ?? [];
   const dynamics = data?.tremor.dynamics ?? emptyDynamics();
   const facetCharts = dynamics.by_project_charts ?? [];
   const stackRows = dynamics.by_project_stack ?? [];
   const stackProjects = dynamics.stack_projects ?? [];
+  const stackColors = dynamics.stack_colors ?? {};
 
   const sortedRows = useMemo(() => {
     const indexed = rows.map((row, index) => ({ ...row, _index: index }));
@@ -417,7 +395,7 @@ export function DeviationReasonsView() {
             >
               Сбросить
             </button>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 lg:grid-cols-5">
               <label className="block text-sm">
                 <Text>Проект</Text>
                 <select
@@ -476,30 +454,32 @@ export function DeviationReasonsView() {
                 </select>
               </label>
               <label className="block text-sm">
-                <Text>Период с</Text>
-                <input
-                  type="date"
-                  className={selectClass}
-                  value={filters.dateFrom}
-                  min={data?.filters.period.min ?? undefined}
-                  max={data?.filters.period.max ?? undefined}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, dateFrom: event.target.value }))
-                  }
-                />
-              </label>
-              <label className="block text-sm">
-                <Text>Период по</Text>
-                <input
-                  type="date"
-                  className={selectClass}
-                  value={filters.dateTo}
-                  min={data?.filters.period.min ?? undefined}
-                  max={data?.filters.period.max ?? undefined}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, dateTo: event.target.value }))
-                  }
-                />
+                <Text>Период</Text>
+                <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-center">
+                  <input
+                    type="date"
+                    className={selectClass + " !mt-0"}
+                    value={filters.dateFrom}
+                    min={data?.filters.period.min ?? undefined}
+                    max={data?.filters.period.max ?? undefined}
+                    onChange={(event) =>
+                      setFilters((prev) => ({ ...prev, dateFrom: event.target.value }))
+                    }
+                  />
+                  <span className="hidden text-tremor-content sm:inline dark:text-dark-tremor-content">
+                    —
+                  </span>
+                  <input
+                    type="date"
+                    className={selectClass + " !mt-0"}
+                    value={filters.dateTo}
+                    min={data?.filters.period.min ?? undefined}
+                    max={data?.filters.period.max ?? undefined}
+                    onChange={(event) =>
+                      setFilters((prev) => ({ ...prev, dateTo: event.target.value }))
+                    }
+                  />
+                </div>
               </label>
               <label className="block text-sm">
                 <Text>Причина</Text>
@@ -553,7 +533,7 @@ export function DeviationReasonsView() {
             onClick={() => setTab(id)}
             className={`border-b-2 px-3 py-2 text-sm font-medium ${
               tab === id
-                ? "border-tremor-brand text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                ? "border-emerald-500 text-tremor-content-strong dark:text-dark-tremor-content-strong"
                 : "border-transparent text-tremor-content dark:text-dark-tremor-content"
             }`}
           >
@@ -564,90 +544,53 @@ export function DeviationReasonsView() {
 
       {tab === "share" ? (
         <div className="space-y-6">
-          <Grid numItemsSm={1} numItemsLg={2} className="gap-6">
-            <Card className="rounded-xl">
+          <Text className="text-sm text-tremor-content dark:text-dark-tremor-content">
+            Диаграммы и детальная таблица: {rows.length} задач (ур. 5, причина,
+            отклонение окончания &lt; 0).
+          </Text>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
               <Text>Основная причина отклонения</Text>
-              <Metric className="mt-2 text-base text-tremor-content-strong dark:text-dark-tremor-content-strong sm:text-xl">
-                {kpis?.main_reason ?? "—"}
+              <Metric className="mt-1 text-base text-tremor-content-strong dark:text-dark-tremor-content-strong sm:text-xl">
+                {kpis?.main_reason
+                  ? kpis.main_reason.length > 50
+                    ? `${kpis.main_reason.slice(0, 50)}…`
+                    : kpis.main_reason
+                  : "—"}
               </Metric>
-            </Card>
-            <Card className="rounded-xl">
+            </div>
+            <div>
               <Text>Доля основной причины</Text>
-              <Metric className="mt-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              <Metric className="mt-1 text-tremor-content-strong dark:text-dark-tremor-content-strong">
                 {kpis && kpis.main_reason_count > 0
                   ? `${Number(kpis.main_reason_share_pct).toFixed(1)}% (${kpis.main_reason_count})`
                   : "—"}
               </Metric>
-            </Card>
-          </Grid>
+            </div>
+          </div>
 
-          <Grid numItemsLg={3} className="gap-6">
-            <Card className="rounded-xl lg:col-span-2">
-              <FullscreenPanel disabled={!byReason.length} fill>
-                {(zoomed) => (
-                  <>
-                    <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                      Причины отклонений (за отчетный период)
-                    </Title>
-                    <BarChart
-                      className={zoomed ? "mt-6 h-[70vh]" : "mt-6 h-96"}
-                      data={byReason}
-                      index="reason"
-                      categories={[CHART_RU.reasonCount]}
-                      colors={["cyan"]}
-                      valueFormatter={(value) => `${value}`}
-                      yAxisWidth={48}
-                      showLegend={false}
-                      showAnimation
-                      showGridLines
-                    />
-                  </>
-                )}
-              </FullscreenPanel>
-            </Card>
-            <Card className="rounded-xl">
-              <FullscreenPanel disabled={!data?.tremor.reason_mix.length} fill>
-                {(zoomed) => (
-                  <>
-                    <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                      Доли причин
-                    </Title>
-                    <DonutChart
-                      className={zoomed ? "mt-6 h-[50vh]" : "mt-6 h-64"}
-                      data={data?.tremor.reason_mix ?? []}
-                      category="value"
-                      index="name"
-                      colors={[...TREMOR_COLORS]}
-                      valueFormatter={(value) => `${value}`}
-                      showLabel
-                      showAnimation
-                    />
-                    <div className="mt-4 space-y-1">
-                      {(data?.tremor.reason_mix ?? []).map((item, index) => (
-                        <div
-                          key={`${item.name}-${index}`}
-                          className="flex items-center gap-2 text-xs text-tremor-content dark:text-dark-tremor-content"
-                        >
-                          <span
-                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
-                            style={{
-                              backgroundColor:
-                                item.color ||
-                                ["#26c6da", "#ff9800", "#8bc34a", "#e91e63", "#9e9e9e"][
-                                  index % 5
-                                ],
-                            }}
-                          />
-                          <span className="truncate">{item.name}</span>
-                          <span className="ml-auto tabular-nums">{item.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </FullscreenPanel>
-            </Card>
-          </Grid>
+          {filters.project !== "Все" ? (
+            <p className="text-right text-lg font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              {filters.project}
+            </p>
+          ) : null}
+
+          <Card className="rounded-xl">
+            <FullscreenPanel disabled={!byReason.length} fill>
+              {(zoomed) => (
+                <DeviationReasonsBarChart rows={byReason} fullscreen={zoomed} />
+              )}
+            </FullscreenPanel>
+          </Card>
+
+          <Card className="rounded-xl">
+            <FullscreenPanel disabled={!reasonMix.length} fill>
+              {(zoomed) => (
+                <DeviationReasonsPieChart rows={reasonMix} fullscreen={zoomed} />
+              )}
+            </FullscreenPanel>
+          </Card>
         </div>
       ) : (
         <div className="space-y-6">
@@ -665,28 +608,11 @@ export function DeviationReasonsView() {
             <Card key={facet.project} className="rounded-xl">
               <FullscreenPanel disabled={!facet.rows.length} fill>
                 {(zoomed) => (
-                  <>
-                    <Title className="!text-center !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                      {facet.project}
-                    </Title>
-                    <Text className="mt-1">Количество отклонений · {dynamics.period_label}</Text>
-                    <BarChart
-                      className={zoomed ? "mt-6 h-[55vh]" : "mt-6 h-72"}
-                      data={facet.rows}
-                      index="period"
-                      categories={facet.categories}
-                      colors={[...TREMOR_COLORS].slice(
-                        0,
-                        Math.max(facet.categories.length, 1),
-                      )}
-                      stack
-                      valueFormatter={(value) => `${value}`}
-                      yAxisWidth={48}
-                      showLegend
-                      showAnimation
-                      showGridLines
-                    />
-                  </>
+                  <DeviationFacetChart
+                    facet={facet}
+                    periodLabel={dynamics.period_label || "Период (месяц)"}
+                    fullscreen={zoomed}
+                  />
                 )}
               </FullscreenPanel>
             </Card>
@@ -802,32 +728,12 @@ export function DeviationReasonsView() {
           <Card className="rounded-xl">
             <FullscreenPanel disabled={!stackRows.length} fill>
               {(zoomed) => (
-                <>
-                  <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                    Количество отклонений по периоду и проекту
-                  </Title>
-                  <Text className="mt-1">Стек по проектам · один столбец на месяц</Text>
-                  {stackRows.length === 0 ? (
-                    <Text className="mt-6">Нет ненулевых отклонений по проектам.</Text>
-                  ) : (
-                    <BarChart
-                      className={zoomed ? "mt-6 h-[70vh]" : "mt-6 h-96"}
-                      data={stackRows}
-                      index="period"
-                      categories={stackProjects}
-                      colors={[...TREMOR_COLORS].slice(
-                        0,
-                        Math.max(stackProjects.length, 1),
-                      )}
-                      stack
-                      valueFormatter={(value) => `${value}`}
-                      yAxisWidth={48}
-                      showLegend
-                      showAnimation
-                      showGridLines
-                    />
-                  )}
-                </>
+                <DeviationStackChart
+                  rows={stackRows}
+                  projects={stackProjects}
+                  colors={stackColors}
+                  fullscreen={zoomed}
+                />
               )}
             </FullscreenPanel>
           </Card>
@@ -960,6 +866,9 @@ export function DeviationReasonsView() {
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               Детальные данные
             </Title>
+            <Text className="mt-1 text-sm">
+              Записей (по макету): {rows.length}
+            </Text>
           </div>
           <FullscreenPanel
             disabled={!sortedRows.length}
@@ -1081,7 +990,7 @@ export function DeviationReasonsView() {
                           >
                             {row.reason}
                           </td>
-                          <td className={`${TD} max-w-xs truncate text-left`}>
+                          <td className={`${TD} max-w-md whitespace-normal text-left`}>
                             {row.notes ?? "—"}
                           </td>
                         </tr>

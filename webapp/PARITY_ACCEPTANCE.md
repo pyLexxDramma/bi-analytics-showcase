@@ -347,7 +347,7 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 ### Регресс 03.08.2026
 
-Статус: 🔄 mobile kit на таблицах (`MobileEntityCard`); ждём приёмку на стенде.
+Статус: 🔄 desktop 1:1 Plotly (bar+pie+facets+stack); mobile cards; ждём приёмку на стенде.
 
 ### Черновик 31.07.2026
 
