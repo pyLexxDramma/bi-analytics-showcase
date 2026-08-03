@@ -631,9 +631,7 @@ export function BaselineDeviationView() {
           <FullscreenPanel fill disabled={(data?.chart.rows.length ?? 0) === 0}>
             {(zoomed) =>
               data && (data.chart.rows.length ?? 0) > 0 ? (
-                <div className="pt-8">
-                  <BaselineDeviationChart data={data} fullscreen={zoomed} />
-                </div>
+                <BaselineDeviationChart data={data} fullscreen={zoomed} />
               ) : (
                 <div className="py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                   {loading ? "загрузка…" : "Нет задач для графика."}

@@ -321,6 +321,14 @@ body {
   border: none !important;
 }
 
+/* Desktop: modebar сверху справа; кнопка ⛶ у .bi-fs-fill — ниже (top-12) */
+@media (min-width: 1024px) {
+  .bi-fs-fill .js-plotly-plot .modebar-container {
+    top: 0 !important;
+    right: 0 !important;
+  }
+}
+
 .js-plotly-plot .modebar-btn {
   background: transparent !important;
 }

@@ -78,14 +78,20 @@ export function FullscreenPanel({
     <div
       ref={hostRef}
       className={`relative min-w-0 max-w-full bg-tremor-background dark:bg-dark-tremor-background ${
+        fill ? "bi-fs-fill" : "bi-fs-table"
+      } ${
         active ? "h-screen w-screen overflow-auto" : "overflow-x-auto"
       } ${className}`}
     >
       <div
         className={`z-40 flex items-center gap-1 ${
           active
-            ? "fixed right-3 top-3 lg:top-11"
-            : "absolute right-2 top-2 lg:top-10"
+            ? "fixed right-3 top-3 lg:top-12"
+            : fill
+              ? // ниже Plotly modebar (~28px), не в одном ряду с иконками
+                "absolute right-2 top-2 lg:top-12"
+              : // таблицы: контент обычно с pt-10 под кнопку
+                "absolute right-2 top-2 lg:top-10"
         }`}
       >
         {toolbar}
