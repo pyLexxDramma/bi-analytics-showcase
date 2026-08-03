@@ -124,13 +124,26 @@ function ControlPointsDesktopTable({
   projects: ProjectRow[];
 }) {
   const milestoneCount = Math.max(group.milestones.length, 1);
-  const projectWidthPct = milestoneCount >= 5 ? 12 : 14;
-  const statusWidthPct = milestoneCount >= 5 ? 2.2 : 2.5;
-  const metricWidthPct = (100 - projectWidthPct - statusWidthPct * milestoneCount) / (milestoneCount * 3);
+  const dense = milestoneCount >= 5;
+  const projectWidthPct = dense ? 10 : 14;
+  const statusWidthPct = dense ? 1.6 : 2.5;
+  const metricWidthPct =
+    (100 - projectWidthPct - statusWidthPct * milestoneCount) / (milestoneCount * 3);
+  const edgeL = dense ? "border-l-2 border-l-[#94a3b8] dark:border-l-white" : EDGE_L;
+  const edgeR = dense ? "border-r-2 border-r-[#94a3b8] dark:border-r-white" : EDGE_R;
+  const cell = dense
+    ? "border border-[#cbd5e1] dark:border-[#5a6f82] box-border max-w-0"
+    : `${CELL} box-border max-w-0`;
 
   return (
-    <div className="hidden w-full min-w-0 p-1 pt-10 lg:block">
-      <table className="w-full table-fixed border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-[10px] leading-tight dark:border-white xl:text-[11px]">
+    <div className="hidden w-full min-w-0 max-w-full overflow-hidden p-1 pt-10 lg:block">
+      <table
+        className={`w-full max-w-full table-fixed border-collapse text-center leading-tight dark:border-white ${
+          dense
+            ? "border-2 border-[#94a3b8] text-[9px] xl:text-[10px]"
+            : "border-[3px] border-[#94a3b8] text-[10px] xl:text-[11px]"
+        }`}
+      >
         <colgroup>
           <col style={{ width: `${projectWidthPct}%` }} />
           {group.milestones.flatMap((milestone) => [
@@ -144,7 +157,9 @@ function ControlPointsDesktopTable({
           <tr>
             <th
               rowSpan={2}
-              className="sticky left-0 z-30 border-[3px] border-[#94a3b8] bg-[#e8f0fe] px-1 py-1.5 text-center font-bold text-[#111827] dark:border-white dark:bg-[#1a3328] dark:text-[#f0f4f8]"
+              className={`sticky left-0 z-30 bg-[#e8f0fe] px-0.5 py-1 text-center font-bold text-[#111827] dark:bg-[#1a3328] dark:text-[#f0f4f8] ${
+                dense ? "border-2 border-[#94a3b8] dark:border-white" : "border-[3px] border-[#94a3b8] dark:border-white"
+              }`}
             >
               Проект
             </th>
@@ -152,18 +167,18 @@ function ControlPointsDesktopTable({
               <th
                 key={milestone.slug}
                 colSpan={4}
-                className={`${CELL} ${EDGE_L} ${EDGE_R} ${HEAD} px-0.5 py-1.5 font-bold leading-snug`}
+                className={`${cell} ${edgeL} ${edgeR} ${HEAD} px-0 py-1 font-bold leading-snug`}
               >
-                <span className="line-clamp-2 break-words">{milestone.title}</span>
+                <span className="line-clamp-2 break-words hyphens-auto">{milestone.title}</span>
               </th>
             ))}
           </tr>
-          <tr className="text-[9px] uppercase xl:text-[10px]">
+          <tr className="text-[8px] uppercase xl:text-[9px]">
             {group.milestones.flatMap((milestone) =>
               ["●", "План", "Факт", "Откл."].map((label, index) => (
                 <th
                   key={`${milestone.slug}-${label}`}
-                  className={`${CELL} ${HEAD} ${index === 0 ? EDGE_L : ""} ${index === 3 ? EDGE_R : ""} px-0.5 py-1 font-semibold`}
+                  className={`${cell} ${HEAD} ${index === 0 ? edgeL : ""} ${index === 3 ? edgeR : ""} px-0 py-0.5 font-semibold`}
                 >
                   {label}
                 </th>
@@ -175,29 +190,46 @@ function ControlPointsDesktopTable({
           {projects.map((project) => (
             <tr key={project.project}>
               <td
-                className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-1 py-1.5 text-left text-[10px] font-bold leading-snug text-[#111827] xl:text-[11px] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
+                className={`sticky left-0 z-10 bg-[#f9fafb] px-0.5 py-1 text-left font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8] ${
+                  dense
+                    ? "border border-[#cbd5e1] border-r-2 border-r-[#94a3b8] text-[9px] dark:border-[#5a6f82] dark:border-r-white xl:text-[10px]"
+                    : `${CELL} ${EDGE_R} text-[10px] xl:text-[11px]`
+                }`}
               >
                 <span className="line-clamp-2 break-words">{project.project}</span>
               </td>
               {group.milestones.flatMap((milestone) => {
-                const cell = project.cells[milestone.slug];
-                const body = `${CELL} min-w-0 bg-white px-0.5 py-1.5 tabular-nums dark:bg-[#0c1219]`;
-                const dateTone = cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : "";
+                const milestoneCell = project.cells[milestone.slug];
+                const body = `${cell} bg-white px-0 py-1 tabular-nums dark:bg-[#0c1219]`;
+                const dateTone = milestoneCell?.pct_complete_100
+                  ? "text-orange-600 dark:text-[#f09355]"
+                  : "";
                 return [
-                  <td key={`${milestone.slug}-status`} className={`${body} ${EDGE_L}`}>
+                  <td key={`${milestone.slug}-status`} className={`${body} ${edgeL}`}>
                     <span
-                      className={`inline-block h-2.5 w-2.5 rounded-full ${cell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`}
-                      aria-label={cell?.status === "ok" ? "В срок" : "Просрочено"}
+                      className={`inline-block rounded-full ${
+                        dense ? "h-2 w-2" : "h-2.5 w-2.5"
+                      } ${milestoneCell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`}
+                      aria-label={milestoneCell?.status === "ok" ? "В срок" : "Просрочено"}
                     />
                   </td>,
-                  <td key={`${milestone.slug}-plan`} className={`${body} break-words font-semibold ${dateTone}`}>
-                    {cell?.plan ?? "Н/Д"}
+                  <td
+                    key={`${milestone.slug}-plan`}
+                    className={`${body} break-all font-semibold ${dateTone}`}
+                  >
+                    {milestoneCell?.plan ?? "Н/Д"}
                   </td>,
-                  <td key={`${milestone.slug}-fact`} className={`${body} break-words font-semibold ${dateTone}`}>
-                    {cell?.fact ?? "Н/Д"}
+                  <td
+                    key={`${milestone.slug}-fact`}
+                    className={`${body} break-all font-semibold ${dateTone}`}
+                  >
+                    {milestoneCell?.fact ?? "Н/Д"}
                   </td>,
-                  <td key={`${milestone.slug}-otkl`} className={`${body} ${EDGE_R} break-words ${deviationClass(cell)}`}>
-                    {cell?.otkl ?? "Н/Д"}
+                  <td
+                    key={`${milestone.slug}-otkl`}
+                    className={`${body} ${edgeR} break-all ${deviationClass(milestoneCell)}`}
+                  >
+                    {milestoneCell?.otkl ?? "Н/Д"}
                   </td>,
                 ];
               })}
