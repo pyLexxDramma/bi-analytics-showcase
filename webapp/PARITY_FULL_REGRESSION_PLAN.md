@@ -10,7 +10,7 @@
 | Эталон UI/цифр | `[main]` Streamlit (`bi-analytics` / `:8501`) |
 | Стенд showcase | CloudPub / VPS webapp (Next + FastAPI) |
 | Старт цикла | 02.08.2026 |
-| Текущий экран | ✅ §5 → 🔄 §6 Контрольные точки |
+| Текущий экран | ✅ §6 → 🔄 §7 График проекта |
 | Mobile | обязателен на **каждом** экране (тот же URL, ~390px) |
 
 **Правила цикла (зафиксировано):**
@@ -35,7 +35,7 @@
 | Круги | donut + легенда | §8, §10–14 (уже DonutChart) | новые круги «для красоты» |
 | Фильтры / темы | period + Apply/Reset; 5 тем | compact filters на mobile; light/dark shell | warm/cool/slate strip |
 
-Порядок kit: §6 приёмка → shared `MobileEntityCard`+pills → §1 → §2–5 → §7+.
+Порядок kit: §6 ✅ → shared `MobileEntityCard`+pills → §1 → §2–5 → §7+.
 
 ---
 
@@ -138,8 +138,8 @@ showcase active ──────┘
 | 3 | БДР (расходы) | `/finance/bdr` | БДР | ✅ |
 | 4 | Утверждённый бюджет план/факт | `/finance/approved-budget` | Утв. бюджет | ✅ |
 | 5 | БДДС план/факт/уточн. | `/finance/bdds-plan-fact` | БДДС план/факт | ✅ |
-| 6 | Контрольные точки | `/timeline/control-points` | Контрольные точки | 🔄 |
-| 7 | График проекта | `/timeline/project-schedule` | График проекта | ⬜ |
+| 6 | Контрольные точки | `/timeline/control-points` | Контрольные точки | ✅ |
+| 7 | График проекта | `/timeline/project-schedule` | График проекта | 🔄 |
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | Причины отклонений | ⬜ |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | Откл. от БП | ⬜ |
 | 10 | Проектная документация | `/docs/project-documentation` | ПД | ⬜ |
@@ -205,7 +205,8 @@ python scripts/check_jobs_store.py
 | 02.08.2026 | §4 Утв. бюджет | 13207/5881/−7326 · срезы проектов | ✅ стенд: цифры = main (Все/Дмитровский/Есипово/Ленинский) |
 | 02.08.2026 | §5 БДДС план/факт | Все · 6716.1/3889.8/6716.1 | ✅ стенд: цифры=main; editor; mobile fit (`0c09fa2`…`533d0c8`) |
 | 02.08.2026 | §6 Контрольные точки | — | 🔄 старт: скрины main↔showcase desktop+~390 |
-| 03.08.2026 | §6 + mobile kit | — | пилот: карточки+pills на `<lg`; desktop без изменений; дальше kit на §1–§5 и остальные |
+| 03.08.2026 | §6 + mobile kit | Дмитровский +91/−19/+304; Есипово −270 | ✅ стенд: цифры=main; mobile cards+pills; desktop fit (`b7d0eff`…`a074d6a`) |
+| 03.08.2026 | §7 График проекта | — | 🔄 старт: скрины main↔showcase desktop+~390 |
 
 После каждого стендового «ок» добавлять строку сюда и ставить ✅ в матрице §6.
 
