@@ -3,7 +3,7 @@
 > **Полный повторный проход (все экраны заново):** см. отдельный план  
 > [`PARITY_FULL_REGRESSION_PLAN.md`](./PARITY_FULL_REGRESSION_PLAN.md).  
 > Этот файл остаётся журналом деталей по §; статусы нового цикла — в плане регресса.  
-> Цикл 02.08–03.08.2026: **§0–§10 ✅** → **§11** рабочая документация 🔄.
+> Цикл 02.08–03.08.2026: **§0–§11 ✅** → **§12** ГДРС (люди) ⬜.
 >
 > **Mobile-таблицы (все дашборды):** на `<lg` таблицы → блоки/карточки (`MobileEntityCard` / эквивалент) с сохранением подсветки (красный/зелёный), выделений и шрифтов desktop. Аудит §1–§9: см. `PARITY_FULL_REGRESSION_PLAN.md` §«Аудит mobile-таблиц».
 >
@@ -52,7 +52,7 @@
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Plotly 1:1; y=0; modebar desktop; mobile cards+без modebar; download (`182242d`) |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ЗОС=main; ковенанты points+таблица; фильтры kit; mobile cards; ⛶ под modebar (`de0fa01`) |
 | 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx (3 таблицы) | ✓ | Plotly pie/line/monthly/gantt 1:1; mobile cards; правило графиков |
-| 11 | Рабочая документация | `/docs/working-documentation` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | Plotly 1:1; CSV lookup overdue=520; mobile cards; скрины/стенд |
+| 11 | Рабочая документация | `/docs/working-documentation` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Plotly 1:1; overdue~520; chips BDDS+scroll; mobile cards (`c9e115f`) |
 | 12 | ГДРС (люди) | `/gdrs/people` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §12 |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §13 |
 | 14 | Предписания по подрядчикам | `/prescriptions` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; см. §14 |
@@ -483,13 +483,12 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 ### Регресс 03.08.2026
 
-Статус: 🔄 Plotly desktop + CSV lookup + mobile cards; ждать скрины/стенд.
+Статус: ✅ принято на стенде 03.08.2026 (`3e03a99`…`c9e115f`).
 
-- Lookup дат: CSV `other_*_rd.csv` из staging web/ + DB fallback (снят патч `lambda: {}`) → overdue **520** (было 504); avg ~338.6 (main ~342.1).
-- Desktop: Plotly pie/line/monthly/gantt (`working-documentation-charts.tsx`); цвета РД main.
+- Lookup дат: CSV `other_*_rd.csv` + DB fallback → overdue **~520**; avg ~338–345.
+- Desktop: Plotly pie/line/monthly/gantt; цвета отклонений в таблице; Gantt без наложения дат.
+- Фильтры: shared BDDS-чипы (+ scroll при >7) на РД и остальных дашбордах.
 - Mobile: `MobileCardStack` detail main+delay.
-- Pie status_mix пока 321/56/43/119 (TESSA БД; main-скрин ~352/… — проверить фильтры/версию).
-- Техдолг: Ленинский CSV шапка → DB; pie vs OCR main.
 
 ### Черновик 31.07.2026
 

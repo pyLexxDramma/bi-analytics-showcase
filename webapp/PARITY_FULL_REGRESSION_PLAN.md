@@ -10,7 +10,7 @@
 | Эталон UI/цифр | `[main]` Streamlit (`bi-analytics` / `:8501`) |
 | Стенд showcase | CloudPub / VPS webapp (Next + FastAPI) |
 | Старт цикла | 02.08.2026 |
-| Текущий экран | ✅ §0–§10 → 🔄 §11 Рабочая документация |
+| Текущий экран | ✅ §0–§11 → ⬜ §12 ГДРС (люди) |
 | Mobile | обязателен на **каждом** экране (тот же URL, ~390px) |
 
 **Правила цикла (зафиксировано):**
@@ -166,7 +166,7 @@ showcase active ──────┘
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | Причины отклонений | ✅ |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | Откл. от БП | ✅ |
 | 10 | Проектная документация | `/docs/project-documentation` | ПД | ✅ |
-| 11 | Рабочая документация | `/docs/working-documentation` | РД | 🔄 |
+| 11 | Рабочая документация | `/docs/working-documentation` | РД | ✅ |
 | 12 | ГДРС (люди) | `/gdrs/people` | ГДРС люди | ⬜ |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ГДРС техника | ⬜ |
 | 14 | Предписания по подрядчикам | `/prescriptions` | Предписания | ⬜ |
@@ -235,7 +235,7 @@ python scripts/check_jobs_store.py
 | 03.08.2026 | §9 Отклонение от базового плана | ЗОС 1:1; ковенанты points+таблица; фильтры; mobile; ⛶ | ✅ стенд (`50b6ad6`…`de0fa01`) |
 | 03.08.2026 | §10 Проектная документация | Plotly 1:1 main+delay | ✅ стенд (`942c375`…`0dbd50f`); правило desktop Plotly для всех § |
 | 03.08.2026 | Правило | все § | Desktop Plotly: подписи/точки/цвета = main; mobile — облегчение где уместно |
-| 03.08.2026 | §11 Рабочая документация | overdue 520; Plotly | 🔄 CSV lookup + Plotly pie/line/monthly/gantt + mobile cards |
+| 03.08.2026 | §11 Рабочая документация | overdue 520; Plotly; chip filters | ✅ стенд: Plotly; table colors; Gantt labels; BDDS chips + scroll (`3e03a99`…`c9e115f`) |
 
 После каждого стендового «ок» добавлять строку сюда и ставить ✅ в матрице §6.
 
