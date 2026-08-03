@@ -123,29 +123,47 @@ function ControlPointsDesktopTable({
   group: Group;
   projects: ProjectRow[];
 }) {
+  const milestoneCount = Math.max(group.milestones.length, 1);
+  const projectWidthPct = milestoneCount >= 5 ? 12 : 14;
+  const statusWidthPct = milestoneCount >= 5 ? 2.2 : 2.5;
+  const metricWidthPct = (100 - projectWidthPct - statusWidthPct * milestoneCount) / (milestoneCount * 3);
+
   return (
-    <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
-      <table className="min-w-max border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-xs dark:border-white">
+    <div className="hidden w-full min-w-0 p-1 pt-10 lg:block">
+      <table className="w-full table-fixed border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-[10px] leading-tight dark:border-white xl:text-[11px]">
+        <colgroup>
+          <col style={{ width: `${projectWidthPct}%` }} />
+          {group.milestones.flatMap((milestone) => [
+            <col key={`${milestone.slug}-s`} style={{ width: `${statusWidthPct}%` }} />,
+            <col key={`${milestone.slug}-p`} style={{ width: `${metricWidthPct}%` }} />,
+            <col key={`${milestone.slug}-f`} style={{ width: `${metricWidthPct}%` }} />,
+            <col key={`${milestone.slug}-o`} style={{ width: `${metricWidthPct}%` }} />,
+          ])}
+        </colgroup>
         <thead>
           <tr>
             <th
               rowSpan={2}
-              className="sticky left-0 z-30 min-w-48 border-[3px] border-[#94a3b8] bg-[#e8f0fe] px-3 py-2 text-center font-bold text-[#111827] dark:border-white dark:bg-[#1a3328] dark:text-[#f0f4f8]"
+              className="sticky left-0 z-30 border-[3px] border-[#94a3b8] bg-[#e8f0fe] px-1 py-1.5 text-center font-bold text-[#111827] dark:border-white dark:bg-[#1a3328] dark:text-[#f0f4f8]"
             >
               Проект
             </th>
             {group.milestones.map((milestone) => (
-              <th key={milestone.slug} colSpan={4} className={`${CELL} ${EDGE_L} ${EDGE_R} ${HEAD} px-2 py-2 font-bold`}>
-                {milestone.title}
+              <th
+                key={milestone.slug}
+                colSpan={4}
+                className={`${CELL} ${EDGE_L} ${EDGE_R} ${HEAD} px-0.5 py-1.5 font-bold leading-snug`}
+              >
+                <span className="line-clamp-2 break-words">{milestone.title}</span>
               </th>
             ))}
           </tr>
-          <tr className="text-[10px] uppercase">
+          <tr className="text-[9px] uppercase xl:text-[10px]">
             {group.milestones.flatMap((milestone) =>
               ["●", "План", "Факт", "Откл."].map((label, index) => (
                 <th
                   key={`${milestone.slug}-${label}`}
-                  className={`${CELL} ${HEAD} ${index === 0 ? EDGE_L : ""} ${index === 3 ? EDGE_R : ""} px-2 py-1.5 font-semibold`}
+                  className={`${CELL} ${HEAD} ${index === 0 ? EDGE_L : ""} ${index === 3 ? EDGE_R : ""} px-0.5 py-1 font-semibold`}
                 >
                   {label}
                 </th>
@@ -156,19 +174,31 @@ function ControlPointsDesktopTable({
         <tbody>
           {projects.map((project) => (
             <tr key={project.project}>
-              <td className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-left font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}>
-                {project.project}
+              <td
+                className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-1 py-1.5 text-left text-[10px] font-bold leading-snug text-[#111827] xl:text-[11px] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
+              >
+                <span className="line-clamp-2 break-words">{project.project}</span>
               </td>
               {group.milestones.flatMap((milestone) => {
                 const cell = project.cells[milestone.slug];
-                const body = `${CELL} bg-white px-2 py-2 tabular-nums dark:bg-[#0c1219]`;
+                const body = `${CELL} min-w-0 bg-white px-0.5 py-1.5 tabular-nums dark:bg-[#0c1219]`;
+                const dateTone = cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : "";
                 return [
-                  <td key={`${milestone.slug}-status`} className={`${body} ${EDGE_L} w-8`}>
-                    <span className={`inline-block h-3 w-3 rounded-full ${cell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`} aria-label={cell?.status === "ok" ? "В срок" : "Просрочено"} />
+                  <td key={`${milestone.slug}-status`} className={`${body} ${EDGE_L}`}>
+                    <span
+                      className={`inline-block h-2.5 w-2.5 rounded-full ${cell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`}
+                      aria-label={cell?.status === "ok" ? "В срок" : "Просрочено"}
+                    />
                   </td>,
-                  <td key={`${milestone.slug}-plan`} className={`${body} font-semibold ${cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : ""}`}>{cell?.plan ?? "Н/Д"}</td>,
-                  <td key={`${milestone.slug}-fact`} className={`${body} font-semibold ${cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : ""}`}>{cell?.fact ?? "Н/Д"}</td>,
-                  <td key={`${milestone.slug}-otkl`} className={`${body} ${EDGE_R} ${deviationClass(cell)}`}>{cell?.otkl ?? "Н/Д"}</td>,
+                  <td key={`${milestone.slug}-plan`} className={`${body} break-words font-semibold ${dateTone}`}>
+                    {cell?.plan ?? "Н/Д"}
+                  </td>,
+                  <td key={`${milestone.slug}-fact`} className={`${body} break-words font-semibold ${dateTone}`}>
+                    {cell?.fact ?? "Н/Д"}
+                  </td>,
+                  <td key={`${milestone.slug}-otkl`} className={`${body} ${EDGE_R} break-words ${deviationClass(cell)}`}>
+                    {cell?.otkl ?? "Н/Д"}
+                  </td>,
                 ];
               })}
             </tr>
@@ -194,7 +224,7 @@ function ControlPointsGroup({
           {titles}
         </Text>
       </div>
-      <FullscreenPanel disabled={!projects.length}>
+      <FullscreenPanel disabled={!projects.length} className="!overflow-x-hidden">
         <ControlPointsMobileCards group={group} projects={projects} />
         <ControlPointsDesktopTable group={group} projects={projects} />
       </FullscreenPanel>
