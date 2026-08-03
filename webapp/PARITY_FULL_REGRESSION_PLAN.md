@@ -10,7 +10,7 @@
 | Эталон UI/цифр | `[main]` Streamlit (`bi-analytics` / `:8501`) |
 | Стенд showcase | CloudPub / VPS webapp (Next + FastAPI) |
 | Старт цикла | 02.08.2026 |
-| Текущий экран | 🔄 Mobile kit §1–§5 (после §6) → затем §7 |
+| Текущий экран | ✅ kit §1–§5 → 🔄 §7 График проекта |
 | Mobile | обязателен на **каждом** экране (тот же URL, ~390px) |
 
 **Правила цикла (зафиксировано):**
@@ -139,7 +139,7 @@ showcase active ──────┘
 | 4 | Утверждённый бюджет план/факт | `/finance/approved-budget` | Утв. бюджет | ✅ |
 | 5 | БДДС план/факт/уточн. | `/finance/bdds-plan-fact` | БДДС план/факт | ✅ |
 | 6 | Контрольные точки | `/timeline/control-points` | Контрольные точки | ✅ |
-| 7 | График проекта | `/timeline/project-schedule` | График проекта | ⬜ |
+| 7 | График проекта | `/timeline/project-schedule` | График проекта | 🔄 |
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | Причины отклонений | ⬜ |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | Откл. от БП | ⬜ |
 | 10 | Проектная документация | `/docs/project-documentation` | ПД | ⬜ |
@@ -206,8 +206,8 @@ python scripts/check_jobs_store.py
 | 02.08.2026 | §5 БДДС план/факт | Все · 6716.1/3889.8/6716.1 | ✅ стенд: цифры=main; editor; mobile fit (`0c09fa2`…`533d0c8`) |
 | 02.08.2026 | §6 Контрольные точки | — | 🔄 старт: скрины main↔showcase desktop+~390 |
 | 03.08.2026 | §6 + mobile kit | Дмитровский +91/−19/+304; Есипово −270 | ✅ стенд: цифры=main; mobile cards+pills; desktop fit (`b7d0eff`…`a074d6a`) |
-| 03.08.2026 | §7 График проекта | — | ⬜ после kit §1–§5 |
-| 03.08.2026 | Mobile kit §1–§5 | shared card + §4 mobile | 🔄 раскат: `mobile-entity-card`; §2/§3 уже блоки; §4 карточки |
+| 03.08.2026 | Mobile kit §1–§5 | shared + §4 cards | ✅ стенд (`edecdd3`) |
+| 03.08.2026 | §7 График проекта | — | 🔄 старт: скрины main↔showcase desktop+~390 |
 
 После каждого стендового «ок» добавлять строку сюда и ставить ✅ в матрице §6.
 
