@@ -311,3 +311,40 @@ body {
   }
 }
 
+/* Plotly modebar: без серого блока — только иконки (обе темы) */
+.js-plotly-plot .modebar,
+.js-plotly-plot .modebar-container,
+.js-plotly-plot .modebar-group {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.js-plotly-plot .modebar-btn {
+  background: transparent !important;
+}
+
+.js-plotly-plot .modebar-btn path {
+  fill: #64748b !important;
+  stroke: #64748b !important;
+  opacity: 1 !important;
+}
+
+.js-plotly-plot .modebar-btn:hover path,
+.js-plotly-plot .modebar-btn.active path {
+  fill: #0f766e !important;
+  stroke: #0f766e !important;
+}
+
+html.dark .js-plotly-plot .modebar-btn path {
+  fill: #94a3b8 !important;
+  stroke: #94a3b8 !important;
+}
+
+html.dark .js-plotly-plot .modebar-btn:hover path,
+html.dark .js-plotly-plot .modebar-btn.active path {
+  fill: #5eead4 !important;
+  stroke: #5eead4 !important;
+}
+

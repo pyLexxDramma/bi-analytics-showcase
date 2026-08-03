@@ -139,6 +139,11 @@ export function DeviationFacetChart({
         },
         bargap: periods.length <= 4 ? 0.45 : 0.28,
         showlegend: true,
+        modebar: {
+          bgcolor: "rgba(0,0,0,0)",
+          color: theme.axis,
+          activecolor: "#0f766e",
+        },
       },
       config: { displayModeBar: true, responsive: true, locale: "ru" },
     };
@@ -254,6 +259,11 @@ export function DeviationStackChart({
         },
         bargap: periods.length <= 4 ? 0.64 : 0.5,
         showlegend: true,
+        modebar: {
+          bgcolor: "rgba(0,0,0,0)",
+          color: theme.axis,
+          activecolor: "#0f766e",
+        },
       },
       config: { displayModeBar: true, responsive: true, locale: "ru" },
     };

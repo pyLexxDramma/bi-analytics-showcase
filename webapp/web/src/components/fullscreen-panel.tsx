@@ -92,7 +92,7 @@ export function FullscreenPanel({
           title={active ? "Выйти из полного экрана (Esc)" : "На весь экран"}
           onClick={() => void toggle()}
           disabled={disabled}
-          className="rounded-md border border-tremor-border bg-white/90 px-2 py-1 text-sm shadow disabled:opacity-40 dark:border-dark-tremor-border dark:bg-slate-900/90"
+          className="rounded-md border-0 bg-transparent px-2 py-1 text-sm text-slate-500 shadow-none hover:text-teal-700 disabled:opacity-40 dark:text-slate-400 dark:hover:text-teal-300"
         >
           {active ? "✕" : "⛶"}
         </button>

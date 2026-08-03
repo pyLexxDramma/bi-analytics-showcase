@@ -127,6 +127,11 @@ export function DeviationReasonsBarChart({
         },
         bargap: n === 1 ? 0.72 : n <= 4 ? 0.45 : 0.28,
         showlegend: false,
+        modebar: {
+          bgcolor: "rgba(0,0,0,0)",
+          color: theme.axis,
+          activecolor: "#0f766e",
+        },
       },
       config: {
         displayModeBar: true,
@@ -220,6 +225,11 @@ export function DeviationReasonsPieChart({
           font: { size: 12, color: theme.axis },
         },
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
+        modebar: {
+          bgcolor: "rgba(0,0,0,0)",
+          color: theme.axis,
+          activecolor: "#0f766e",
+        },
       },
       config: {
         displayModeBar: true,
