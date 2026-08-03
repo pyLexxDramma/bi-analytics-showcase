@@ -77,6 +77,14 @@ function plateDevClass(days: number | null | undefined): string {
   return "";
 }
 
+function highlightFromDays(
+  days: number | null | undefined,
+): "none" | "bad" | "ok" {
+  if (days == null) return "none";
+  if (days < 0) return "bad";
+  return "ok";
+}
+
 function cellValue(row: Row, col: string): string | number {
   switch (col) {
     case "ID задачи":
@@ -535,12 +543,21 @@ export function BaselineDeviationView() {
                     <MobileMetricGrid
                       columns={2}
                       items={[
-                        { label: "План оконч.", value: plate.plan_end ?? "Н/Д" },
-                        { label: "Факт оконч.", value: plate.fact_end ?? "Н/Д" },
+                        {
+                          label: "План оконч.",
+                          value: plate.plan_end ?? "Н/Д",
+                          highlight: "date",
+                        },
+                        {
+                          label: "Факт оконч.",
+                          value: plate.fact_end ?? "Н/Д",
+                          highlight: "date",
+                        },
                         {
                           label: "Отклонение",
                           value: plate.dev ?? "Н/Д",
                           className: plateDevClass(plate.dev_days),
+                          highlight: highlightFromDays(plate.dev_days),
                         },
                         {
                           label: "Макс. |откл.|",
@@ -549,6 +566,8 @@ export function BaselineDeviationView() {
                             (plate.max_abs_dev_days ?? 0) > 0
                               ? "text-rose-600 dark:text-rose-400"
                               : "",
+                          highlight:
+                            (plate.max_abs_dev_days ?? 0) > 0 ? "bad" : "none",
                         },
                       ]}
                     />
@@ -666,15 +685,18 @@ export function BaselineDeviationView() {
                           {
                             label: "Базовое оконч.",
                             value: row.base_end ?? "—",
+                            highlight: "date" as const,
                           },
                           {
                             label: "Окончание",
                             value: row.plan_end ?? "—",
+                            highlight: "date" as const,
                           },
                           {
                             label: "Откл. оконч.",
                             value: row.dev_end_days ?? row.dev_end ?? "—",
                             className: deviationClass(row.dev_end_days),
+                            highlight: highlightFromDays(row.dev_end_days),
                           },
                         ]}
                       />
@@ -838,16 +860,21 @@ export function BaselineDeviationView() {
                                   {
                                     label: "Окончание",
                                     value: row.plan_end ?? "—",
+                                    highlight: "date",
                                   },
                                   {
                                     label: "Базовое",
                                     value: row.base_end ?? "—",
+                                    highlight: "date",
                                   },
                                   {
                                     label: "Откл.",
                                     value:
                                       row.dev_end_days ?? row.dev_end ?? "—",
                                     className: deviationClass(row.dev_end_days),
+                                    highlight: highlightFromDays(
+                                      row.dev_end_days,
+                                    ),
                                   },
                                   {
                                     label: "Причина",
@@ -863,10 +890,12 @@ export function BaselineDeviationView() {
                                   {
                                     label: "Начало",
                                     value: row.plan_start ?? "—",
+                                    highlight: "date",
                                   },
                                   {
                                     label: "Баз. нач.",
                                     value: row.base_start ?? "—",
+                                    highlight: "date",
                                   },
                                   {
                                     label: "Откл. нач.",
@@ -877,30 +906,40 @@ export function BaselineDeviationView() {
                                     className: deviationClass(
                                       row.dev_start_days,
                                     ),
+                                    highlight: highlightFromDays(
+                                      row.dev_start_days,
+                                    ),
                                   },
                                   {
                                     label: "Окончание",
                                     value: row.plan_end ?? "—",
+                                    highlight: "date",
                                   },
                                   {
                                     label: "Баз. оконч.",
                                     value: row.base_end ?? "—",
+                                    highlight: "date",
                                   },
                                   {
                                     label: "Откл. оконч.",
                                     value:
                                       row.dev_end_days ?? row.dev_end ?? "—",
                                     className: deviationClass(row.dev_end_days),
+                                    highlight: highlightFromDays(
+                                      row.dev_end_days,
+                                    ),
                                   },
                                   ...(showDur
                                     ? [
                                         {
                                           label: "Длит.",
                                           value: row.plan_dur_days ?? "—",
+                                          highlight: "date" as const,
                                         },
                                         {
                                           label: "Баз. длит.",
                                           value: row.base_dur_days ?? "—",
+                                          highlight: "date" as const,
                                         },
                                         {
                                           label: "Откл. длит.",
@@ -909,6 +948,9 @@ export function BaselineDeviationView() {
                                             row.dev_dur ??
                                             "—",
                                           className: deviationClass(
+                                            row.dev_dur_days,
+                                          ),
+                                          highlight: highlightFromDays(
                                             row.dev_dur_days,
                                           ),
                                         },

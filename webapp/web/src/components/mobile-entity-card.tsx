@@ -45,6 +45,8 @@ export function MobileMetricGrid({
     label: string;
     value: ReactNode;
     className?: string;
+    /** Desktop-like cell tint: date blue / bad red / ok green */
+    highlight?: "none" | "date" | "bad" | "ok";
   }>;
   columns?: 2 | 3 | 4;
 }) {
@@ -52,21 +54,32 @@ export function MobileMetricGrid({
     columns === 2 ? "grid-cols-2" : columns === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3";
   return (
     <div className={`grid gap-2 text-center text-[11px] ${cols}`}>
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className="rounded-lg border-2 border-[#cbd5e1] bg-slate-50 px-1.5 py-2 dark:border-[#5a6f82] dark:bg-slate-900/50"
-        >
-          <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
-            {item.label}
-          </div>
+      {items.map((item) => {
+        const hl = item.highlight ?? "none";
+        const cellTint =
+          hl === "date"
+            ? "bg-[rgba(156,194,229,0.35)] dark:bg-[rgba(214,234,248,0.14)]"
+            : hl === "bad"
+              ? "bg-rose-100 dark:bg-rose-950/40"
+              : hl === "ok"
+                ? "bg-emerald-100 dark:bg-emerald-950/40"
+                : "bg-slate-50 dark:bg-slate-900/50";
+        return (
           <div
-            className={`tabular-nums font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong ${item.className ?? ""}`}
+            key={item.label}
+            className={`rounded-lg border-2 border-[#cbd5e1] px-1.5 py-2 dark:border-[#5a6f82] ${cellTint}`}
           >
-            {item.value}
+            <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
+              {item.label}
+            </div>
+            <div
+              className={`tabular-nums font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong ${item.className ?? ""}`}
+            >
+              {item.value}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
