@@ -403,7 +403,7 @@ function DetailTable({
 
   return (
     <FullscreenPanel disabled={!sortedRows.length}>
-      <Card className="rounded-xl p-0">
+      <Card className="min-w-0 max-w-full rounded-xl p-0">
         {!sortedRows.length || !columns.length ? (
           <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
             Нет строк по фильтрам.
@@ -443,7 +443,7 @@ function DetailTable({
                 );
               })}
             </MobileCardStack>
-            <div className="hidden max-h-[32rem] overflow-x-auto overflow-y-auto lg:block">
+            <div className="hidden max-h-[32rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto lg:block">
               <table
                 className="w-max min-w-full text-sm"
                 style={{

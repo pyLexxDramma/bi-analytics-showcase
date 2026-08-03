@@ -541,7 +541,7 @@ function ProjectDocumentationScreen({
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!mainRows.length}>
-            <Card className="rounded-xl p-0">
+            <Card className="min-w-0 max-w-full rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Таблица Выдача проектной документации по проектам</Title>
               </div>
@@ -592,7 +592,7 @@ function ProjectDocumentationScreen({
                       );
                     })}
                   </MobileCardStack>
-                  <div className="hidden max-h-[28rem] overflow-x-auto overflow-y-auto pt-10 lg:block">
+                  <div className="hidden max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto pt-10 lg:block">
                   <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr>
@@ -720,7 +720,7 @@ function ProjectDocumentationScreen({
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!detailRows.length}>
-            <Card className="rounded-xl p-0">
+            <Card className="min-w-0 max-w-full rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Детальная таблица</Title>
               </div>
@@ -784,7 +784,7 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden max-h-[28rem] overflow-x-auto overflow-y-auto pt-10 lg:block">
+                  <div className="hidden max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto pt-10 lg:block">
                   <table className="w-max min-w-full border-separate border-spacing-0 text-xs">
                     <thead className="sticky top-0 z-10">
                       <tr>
@@ -855,7 +855,7 @@ function ProjectDocumentationScreen({
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!summaryRows.length}>
-            <Card className="rounded-xl p-0">
+            <Card className="min-w-0 max-w-full rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Таблица Сводка по просрочке выдачи документации</Title>
               </div>
@@ -887,7 +887,7 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden overflow-x-auto overflow-y-auto pt-10 lg:block">
+                  <div className="hidden w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto pt-10 lg:block">
                 <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
