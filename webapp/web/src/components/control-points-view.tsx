@@ -6,12 +6,17 @@ import { fetchControlPoints, type ControlPointsPayload } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import { StatusPill } from "@/components/status-pill";
 import type { ExportTable } from "@/lib/table-export";
 
 const CELL = "border border-[#cbd5e1] dark:border-[#5a6f82]";
 const EDGE_L = "border-l-[3px] border-l-[#94a3b8] dark:border-l-white";
 const EDGE_R = "border-r-[3px] border-r-[#94a3b8] dark:border-r-white";
 const HEAD = "bg-[#dcfce7] text-[#14532d] dark:bg-[#1a3328] dark:text-[#f0f4f8]";
+
+type MilestoneCell = ControlPointsPayload["projects"][number]["cells"][string];
+type Group = ControlPointsPayload["groups"][number];
+type ProjectRow = ControlPointsPayload["projects"][number];
 
 function deviationClass(cell: { otkl_days: number | null } | undefined) {
   if (cell?.otkl_days == null) return "text-tremor-content dark:text-dark-tremor-content";
@@ -42,68 +47,156 @@ function buildExport(data: ControlPointsPayload): ExportTable {
   return { header: [header, subheader], rows, sheetName: "Контрольные точки" };
 }
 
-function ControlPointsTable({
+function statusPill(cell: MilestoneCell | undefined) {
+  if (!cell) return <StatusPill tone="neutral">Н/Д</StatusPill>;
+  if (cell.status === "ok") return <StatusPill tone="ok">В срок</StatusPill>;
+  return <StatusPill tone="bad">Просрочено</StatusPill>;
+}
+
+function ControlPointsMobileCards({
   group,
   projects,
 }: {
-  group: ControlPointsPayload["groups"][number];
-  projects: ControlPointsPayload["projects"];
+  group: Group;
+  projects: ProjectRow[];
 }) {
   return (
-    <Card className="overflow-hidden rounded-xl p-0">
-      <FullscreenPanel disabled={!projects.length}>
-        <div className="overflow-x-auto p-1 pt-10">
-          <table className="min-w-max border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-xs dark:border-white">
-            <thead>
-              <tr>
+    <div className="flex flex-col gap-3 px-2 pb-2 pt-10 lg:hidden">
+      {projects.map((project) => (
+        <article
+          key={project.project}
+          className="overflow-hidden rounded-xl border border-tremor-border bg-tremor-background shadow-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+        >
+          <header className="border-b border-tremor-border bg-slate-50 px-3 py-2.5 dark:border-dark-tremor-border dark:bg-slate-900/40">
+            <h3 className="text-sm font-bold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              {project.project}
+            </h3>
+          </header>
+          <ul className="divide-y divide-tremor-border dark:divide-dark-tremor-border">
+            {group.milestones.map((milestone) => {
+              const cell = project.cells[milestone.slug];
+              const dateTone = cell?.pct_complete_100
+                ? "text-orange-600 dark:text-[#f09355]"
+                : "text-tremor-content-strong dark:text-dark-tremor-content-strong";
+              return (
+                <li key={milestone.slug} className="px-3 py-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[13px] font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                      {milestone.title}
+                    </span>
+                    {statusPill(cell)}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                    <div className="rounded-lg bg-slate-50 px-1.5 py-2 dark:bg-slate-900/50">
+                      <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
+                        План
+                      </div>
+                      <div className={`tabular-nums font-semibold ${dateTone}`}>{cell?.plan ?? "Н/Д"}</div>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-1.5 py-2 dark:bg-slate-900/50">
+                      <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
+                        Факт
+                      </div>
+                      <div className={`tabular-nums font-semibold ${dateTone}`}>{cell?.fact ?? "Н/Д"}</div>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-1.5 py-2 dark:bg-slate-900/50">
+                      <div className="mb-1 font-bold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content">
+                        Откл.
+                      </div>
+                      <div className={`tabular-nums ${deviationClass(cell)}`}>{cell?.otkl ?? "Н/Д"}</div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ControlPointsDesktopTable({
+  group,
+  projects,
+}: {
+  group: Group;
+  projects: ProjectRow[];
+}) {
+  return (
+    <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
+      <table className="min-w-max border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-xs dark:border-white">
+        <thead>
+          <tr>
+            <th
+              rowSpan={2}
+              className="sticky left-0 z-30 min-w-48 border-[3px] border-[#94a3b8] bg-[#e8f0fe] px-3 py-2 text-center font-bold text-[#111827] dark:border-white dark:bg-[#1a3328] dark:text-[#f0f4f8]"
+            >
+              Проект
+            </th>
+            {group.milestones.map((milestone) => (
+              <th key={milestone.slug} colSpan={4} className={`${CELL} ${EDGE_L} ${EDGE_R} ${HEAD} px-2 py-2 font-bold`}>
+                {milestone.title}
+              </th>
+            ))}
+          </tr>
+          <tr className="text-[10px] uppercase">
+            {group.milestones.flatMap((milestone) =>
+              ["●", "План", "Факт", "Откл."].map((label, index) => (
                 <th
-                  rowSpan={2}
-                  className="sticky left-0 z-30 min-w-48 border-[3px] border-[#94a3b8] bg-[#e8f0fe] px-3 py-2 text-center font-bold text-[#111827] dark:border-white dark:bg-[#1a3328] dark:text-[#f0f4f8]"
+                  key={`${milestone.slug}-${label}`}
+                  className={`${CELL} ${HEAD} ${index === 0 ? EDGE_L : ""} ${index === 3 ? EDGE_R : ""} px-2 py-1.5 font-semibold`}
                 >
-                  Проект
+                  {label}
                 </th>
-                {group.milestones.map((milestone) => (
-                  <th key={milestone.slug} colSpan={4} className={`${CELL} ${EDGE_L} ${EDGE_R} ${HEAD} px-2 py-2 font-bold`}>
-                    {milestone.title}
-                  </th>
-                ))}
-              </tr>
-              <tr className="text-[10px] uppercase">
-                {group.milestones.flatMap((milestone) =>
-                  ["●", "План", "Факт", "Откл."].map((label, index) => (
-                    <th
-                      key={`${milestone.slug}-${label}`}
-                      className={`${CELL} ${HEAD} ${index === 0 ? EDGE_L : ""} ${index === 3 ? EDGE_R : ""} px-2 py-1.5 font-semibold`}
-                    >
-                      {label}
-                    </th>
-                  )),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr key={project.project}>
-                  <td className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-left font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}>
-                    {project.project}
-                  </td>
-                  {group.milestones.flatMap((milestone) => {
-                    const cell = project.cells[milestone.slug];
-                    const body = `${CELL} bg-white px-2 py-2 tabular-nums dark:bg-[#0c1219]`;
-                    return [
-                      <td key={`${milestone.slug}-status`} className={`${body} ${EDGE_L} w-8`}>
-                        <span className={`inline-block h-3 w-3 rounded-full ${cell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`} aria-label={cell?.status === "ok" ? "В срок" : "Просрочено"} />
-                      </td>,
-                      <td key={`${milestone.slug}-plan`} className={`${body} font-semibold ${cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : ""}`}>{cell?.plan ?? "Н/Д"}</td>,
-                      <td key={`${milestone.slug}-fact`} className={`${body} font-semibold ${cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : ""}`}>{cell?.fact ?? "Н/Д"}</td>,
-                      <td key={`${milestone.slug}-otkl`} className={`${body} ${EDGE_R} ${deviationClass(cell)}`}>{cell?.otkl ?? "Н/Д"}</td>,
-                    ];
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              )),
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {projects.map((project) => (
+            <tr key={project.project}>
+              <td className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-left font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}>
+                {project.project}
+              </td>
+              {group.milestones.flatMap((milestone) => {
+                const cell = project.cells[milestone.slug];
+                const body = `${CELL} bg-white px-2 py-2 tabular-nums dark:bg-[#0c1219]`;
+                return [
+                  <td key={`${milestone.slug}-status`} className={`${body} ${EDGE_L} w-8`}>
+                    <span className={`inline-block h-3 w-3 rounded-full ${cell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`} aria-label={cell?.status === "ok" ? "В срок" : "Просрочено"} />
+                  </td>,
+                  <td key={`${milestone.slug}-plan`} className={`${body} font-semibold ${cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : ""}`}>{cell?.plan ?? "Н/Д"}</td>,
+                  <td key={`${milestone.slug}-fact`} className={`${body} font-semibold ${cell?.pct_complete_100 ? "text-orange-600 dark:text-[#f09355]" : ""}`}>{cell?.fact ?? "Н/Д"}</td>,
+                  <td key={`${milestone.slug}-otkl`} className={`${body} ${EDGE_R} ${deviationClass(cell)}`}>{cell?.otkl ?? "Н/Д"}</td>,
+                ];
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ControlPointsGroup({
+  group,
+  projects,
+}: {
+  group: Group;
+  projects: ProjectRow[];
+}) {
+  const titles = group.milestones.map((m) => m.title).join(" · ");
+  return (
+    <Card className="overflow-hidden rounded-xl p-0">
+      <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border lg:hidden">
+        <Text className="text-xs font-semibold text-tremor-content dark:text-dark-tremor-content">
+          {titles}
+        </Text>
+      </div>
+      <FullscreenPanel disabled={!projects.length}>
+        <ControlPointsMobileCards group={group} projects={projects} />
+        <ControlPointsDesktopTable group={group} projects={projects} />
       </FullscreenPanel>
     </Card>
   );
@@ -161,8 +254,10 @@ export function ControlPointsView() {
       {error || metaError ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || metaError}</Text></Card> : null}
       {!projects.length ? <Card className="rounded-xl"><Text>{loading ? "Загрузка…" : "Нет данных контрольных точек. Сделайте ingest в админке."}</Text></Card> : (
         <div className="space-y-6">
-          {(data?.groups ?? []).map((group) => <ControlPointsTable key={group.id} group={group} projects={projects} />)}
-          <DownloadTableButton getTable={() => data ? buildExport(data) : null} fileStem="control_points_matrix" />
+          {(data?.groups ?? []).map((group) => (
+            <ControlPointsGroup key={group.id} group={group} projects={projects} />
+          ))}
+          <DownloadTableButton getTable={() => (data ? buildExport(data) : null)} fileStem="control_points_matrix" />
         </div>
       )}
     </AppShell>
