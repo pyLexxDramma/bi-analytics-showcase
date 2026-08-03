@@ -1,17 +1,17 @@
-const THEME_KEY = "bi_showcase_theme_v2";
+const THEME_KEY = "bi_showcase_theme_v3";
 
 export type ThemeMode = "light" | "dark";
 
-/** По умолчанию — тёмная (старый ключ bi_showcase_theme с light больше не читаем). */
+/** По умолчанию — светлая. */
 export function readTheme(): ThemeMode {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   try {
     const v = window.localStorage.getItem(THEME_KEY);
     if (v === "dark" || v === "light") return v;
   } catch {
     /* ignore */
   }
-  return "dark";
+  return "light";
 }
 
 export function writeTheme(mode: ThemeMode): void {

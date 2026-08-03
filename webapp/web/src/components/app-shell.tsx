@@ -34,7 +34,7 @@ export function AppShell({
   subtitle?: string;
   children: React.ReactNode;
 }) {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
