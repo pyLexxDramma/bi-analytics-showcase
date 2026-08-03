@@ -10,7 +10,7 @@
 | Эталон UI/цифр | `[main]` Streamlit (`bi-analytics` / `:8501`) |
 | Стенд showcase | CloudPub / VPS webapp (Next + FastAPI) |
 | Старт цикла | 02.08.2026 |
-| Текущий экран | ✅ §0–§11 → ⬜ §12 ГДРС (люди) |
+| Текущий экран | ✅ §0–§11 → 🔄 §12 ГДРС (люди) |
 | Mobile | обязателен на **каждом** экране (тот же URL, ~390px) |
 
 **Правила цикла (зафиксировано):**
@@ -23,6 +23,7 @@
 - **Mobile kit (вариант 1, с 03.08.2026):** desktop = матрица/chrome как main; на `<lg` — карточки/блоки + status-pills в духе макета заказчика (`presentation_project_dashboard_charts.html`), без чужих KPI/pie. Пилот — §6; затем тот же kit на остальные экраны (в т.ч. уже ✅ §1–§5). Shared: `status-pill.tsx`, `mobile-entity-card.tsx`.
 - **Mobile-таблицы (правило 03.08.2026, все дашборды):** на `<lg` **каждая** data-таблица экрана → **блоки/карточки** (`MobileCardStack` / `MobileEntityCard` / эквивалент), не горизонтальный скролл широкой таблицы. Цифры = desktop. **Сохранять** с desktop: красный/зелёный текст и фон отклонений, подсветку дат, bold/tabular-nums, status-pills. Desktop (`lg+`) остаётся матрицей/таблицей как main.
 - **Desktop-графики Plotly (правило 03.08.2026, все дашборды, все вкладки экрана):** на `lg+` графики **обязательно 1:1 с main** — Plotly (не «упрощённый» Tremor-заменитель), те же **цвета серий**, **точки/маркеры**, **подписи значений** на точках/столбцах/секторах (`text` / `textposition` / percent), легенда, оси, modebar. Это относится и к основной вкладке, и к вторичным (напр. §10 main + delay). **Только mobile (`<lg`)** — где уместно облегчать: ниже высота, без modebar, компактная легенда, реже/мельче подписи; **цифры и серии те же**.
+- **Mobile-фильтры (правило 03.08.2026, все дашборды):** на `<lg` панель фильтров — **bottom sheet** (кнопка на всю ширину → лист снизу), чипы с touch-target ≥44px, одна колонка полей, «Готово»/«Сбросить» крупными. Desktop (`lg+`) — accordion + chips как сейчас (паритет main). Shared: `FiltersCard` / `FilterChip*` в `dashboard-filters.tsx`. Пилот при §12; дальше без отката на мелкие select.
 
 ### Маппинг референса → экраны (просмотр 03.08.2026)
 
@@ -167,7 +168,7 @@ showcase active ──────┘
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | Откл. от БП | ✅ |
 | 10 | Проектная документация | `/docs/project-documentation` | ПД | ✅ |
 | 11 | Рабочая документация | `/docs/working-documentation` | РД | ✅ |
-| 12 | ГДРС (люди) | `/gdrs/people` | ГДРС люди | ⬜ |
+| 12 | ГДРС (люди) | `/gdrs/people` | ГДРС люди | 🔄 |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ГДРС техника | ⬜ |
 | 14 | Предписания по подрядчикам | `/prescriptions` | Предписания | ⬜ |
 | 15 | Исполнительная документация | `/executive-docs` | Исп. документация | ⬜ |
@@ -236,6 +237,8 @@ python scripts/check_jobs_store.py
 | 03.08.2026 | §10 Проектная документация | Plotly 1:1 main+delay | ✅ стенд (`942c375`…`0dbd50f`); правило desktop Plotly для всех § |
 | 03.08.2026 | Правило | все § | Desktop Plotly: подписи/точки/цвета = main; mobile — облегчение где уместно |
 | 03.08.2026 | §11 Рабочая документация | overdue 520; Plotly; chip filters | ✅ стенд: Plotly; table colors; Gantt labels; BDDS chips + scroll (`3e03a99`…`c9e115f`) |
+| 03.08.2026 | §12 ГДРС (люди) | 🔄 desktop Plotly + mobile cards | KPI убраны; Plotly; Итого; chip filters; loading overlay; mobile bottom-sheet filters |
+| 03.08.2026 | Правило | все § | Mobile-фильтры: bottom sheet + крупные чипы (`FiltersCard`) |
 
 После каждого стендового «ок» добавлять строку сюда и ставить ✅ в матрице §6.
 

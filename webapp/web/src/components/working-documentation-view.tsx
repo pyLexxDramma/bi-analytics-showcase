@@ -501,7 +501,7 @@ export function WorkingDocumentationView() {
   };
 
   return (
-    <AppShell title="Рабочая документация">
+    <AppShell title="Рабочая документация" loading={loading}>
       <div className="mb-4 flex gap-4 border-b border-tremor-border dark:border-dark-tremor-border">
         {(
           [

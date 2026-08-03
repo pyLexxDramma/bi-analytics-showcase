@@ -3,7 +3,7 @@
 > **Полный повторный проход (все экраны заново):** см. отдельный план  
 > [`PARITY_FULL_REGRESSION_PLAN.md`](./PARITY_FULL_REGRESSION_PLAN.md).  
 > Этот файл остаётся журналом деталей по §; статусы нового цикла — в плане регресса.  
-> Цикл 02.08–03.08.2026: **§0–§11 ✅** → **§12** ГДРС (люди) ⬜.
+> Цикл 02.08–03.08.2026: **§0–§11 ✅** → **§12** ГДРС (люди) 🔄.
 >
 > **Mobile-таблицы (все дашборды):** на `<lg` таблицы → блоки/карточки (`MobileEntityCard` / эквивалент) с сохранением подсветки (красный/зелёный), выделений и шрифтов desktop. Аудит §1–§9: см. `PARITY_FULL_REGRESSION_PLAN.md` §«Аудит mobile-таблиц».
 >
@@ -53,7 +53,7 @@
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ЗОС=main; ковенанты points+таблица; фильтры kit; mobile cards; ⛶ под modebar (`de0fa01`) |
 | 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx (3 таблицы) | ✓ | Plotly pie/line/monthly/gantt 1:1; mobile cards; правило графиков |
 | 11 | Рабочая документация | `/docs/working-documentation` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Plotly 1:1; overdue~520; chips BDDS+scroll; mobile cards (`c9e115f`) |
-| 12 | ГДРС (люди) | `/gdrs/people` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §12 |
+| 12 | ГДРС (люди) | `/gdrs/people` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | Plotly desktop 1:1; chips; Итого; mobile cards |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §13 |
 | 14 | Предписания по подрядчикам | `/prescriptions` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; см. §14 |
 | 15 | Исполнительная документация | `/executive-docs` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; см. §15 |
@@ -320,6 +320,13 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 - Desktop: отступ дат от ромбов (`COVENANT_LABEL_GAP_MS`).
 - Mobile: compact gantt (без дат на оси); таблица `MobileEntityCard` / `MobileMetricGrid`.
 
+### Регресс 03.08.2026 — в работе
+
+- Desktop `lg+`: Tremor заменён на Plotly для grouped bar по проектам/контрагентам, pie и динамики; график контрагентов выводит весь список в горизонтальном скролле.
+- Отклонение передаётся API со знаком: высота бара строится по модулю, подпись и цвет — по знаку (красный `< 0`, зелёный `> 0`).
+- KPI-ряд showcase удалён. На `<lg` широкие таблицы заменены карточками; фильтры-чипы сохранены.
+- Не принято: требуется локальная сверка desktop/mobile и приёмка на стенде.
+
 ### Черновик 31.07.2026
 
 Статус: ✅ принято на стенде 31.07.2026 (`81e280f`).
@@ -520,6 +527,17 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 ---
 
 ## §12 ГДРС (люди)
+
+### Регресс 03.08.2026
+
+Статус: 🔄 Plotly desktop + chips + Итого; ждать локальную/стендовую приёмку.
+
+- Desktop: Plotly grouped bars (проекты + контрагенты h-scroll), pie, line динамики (`gdrs-charts.tsx`); подписи signed deviation; шрифты light как main.
+- KPI-карточки сверху убраны (как main renderer).
+- Таблицы проектов/контрагентов: строка «Итого»; tint plan/skud/dev.
+- Фильтры: shared chips + scroll (>7).
+- Mobile: Tremor charts + `MobileCardStack`.
+- Техдолг: audit CSV expander main; полный contractor filter options.
 
 ### Черновик 31.07.2026
 

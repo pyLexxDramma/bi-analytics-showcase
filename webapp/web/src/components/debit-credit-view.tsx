@@ -127,7 +127,7 @@ export function DebitCreditView() {
     <AppShell
       title="Дебиторская и кредиторская задолженность подрядчиков"
       subtitle="Авансы, КС-2 и договоры · млн ₽"
-    >
+     loading={loading}>
       <FiltersCard open={open} onToggle={() => setOpen((v) => !v)}>
         <FiltersReset onClick={() => setFilters(initial)} />
         <FilterFieldsRow cols={5}>

@@ -220,7 +220,7 @@ export function ExecutiveDocsParityView() {
     <AppShell
       title="Исполнительная документация"
       subtitle="TESSA · сдача, согласование и просрочки ИД"
-    >
+     loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
         <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={5}>

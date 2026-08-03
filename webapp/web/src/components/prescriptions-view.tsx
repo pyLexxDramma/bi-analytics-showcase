@@ -1,4 +1,4 @@
-п»ї"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -46,37 +46,37 @@ type TremorColor =
   | "slate";
 
 const STATUS_KEYS = [
-  "РћСЃС‚Р°РЅРѕРІРєР° СЂР°Р±РѕС‚",
-  "РљСЂРёС‚РёС‡РµСЃРєРёРµ",
-  "РќРµ СѓСЃС‚СЂР°РЅРµРЅРѕ",
-  "РЎРґР°РЅРѕ РІ СЃСЂРѕРє",
-  "РЈСЃС‚СЂР°РЅРµРЅРѕ СЃ РїСЂРѕСЃСЂРѕС‡РєРѕР№",
+  "Остановка работ",
+  "Критические",
+  "Не устранено",
+  "Сдано в срок",
+  "Устранено с просрочкой",
 ] as const;
 
-/** Tremor РїСЂРёРЅРёРјР°РµС‚ РёРјРµРЅР° РїР°Р»РёС‚СЂС‹, РЅРµ hex вЂ” hex РґР°С‘С‚ С‡С‘СЂРЅС‹Рµ СЃРµРіРјРµРЅС‚С‹. */
+/** Tremor принимает имена палитры, не hex — hex даёт чёрные сегменты. */
 const STATUS_TREMOR_COLOR: Record<string, TremorColor> = {
-  "РћСЃС‚Р°РЅРѕРІРєР° СЂР°Р±РѕС‚": "rose",
-  РљСЂРёС‚РёС‡РµСЃРєРёРµ: "red",
-  "РќРµ СѓСЃС‚СЂР°РЅРµРЅРѕ": "orange",
-  "РЎРґР°РЅРѕ РІ СЃСЂРѕРє": "emerald",
-  "РЈСЃС‚СЂР°РЅРµРЅРѕ СЃ РїСЂРѕСЃСЂРѕС‡РєРѕР№": "amber",
+  "Остановка работ": "rose",
+  Критические: "red",
+  "Не устранено": "orange",
+  "Сдано в срок": "emerald",
+  "Устранено с просрочкой": "amber",
 };
 
 const tableColumns: Array<[string, string]> = [
-  ["status", "РЎС‚Р°С‚СѓСЃ РїСЂРµРґРїРёСЃР°РЅРёСЏ"],
-  ["contractor", "РџРѕРґСЂСЏРґС‡РёРє"],
-  ["project", "РџСЂРѕРµРєС‚"],
-  ["contract_no", "в„– РґРѕРіРѕРІРѕСЂР°"],
-  ["doc_number", "в„– РґРѕРєСѓРјРµРЅС‚Р°"],
-  ["pred_number", "в„– РїСЂРµРґРїРёСЃР°РЅРёСЏ"],
-  ["name", "РќР°РёРјРµРЅРѕРІР°РЅРёРµ"],
-  ["issue_date", "Р”Р°С‚Р° РІС‹РґР°С‡Рё РїСЂРµРґРїРёСЃР°РЅРёСЏ"],
-  ["issue_block", "Р‘Р»РѕРє РІС‹РґР°С‡Рё РїСЂРµРґРїРёСЃР°РЅРёСЏ"],
-  ["due_date", "РЎСЂРѕРє СѓСЃС‚СЂР°РЅРµРЅРёСЏ"],
-  ["completion_date", "Р¤Р°РєС‚РёС‡РµСЃРєР°СЏ РґР°С‚Р° СѓСЃС‚СЂР°РЅРµРЅРёСЏ РїСЂРµРґРїРёСЃР°РЅРёСЏ"],
-  ["overdue_days", "Р”РЅРµР№ РїСЂРѕСЃСЂРѕС‡РєРё"],
-  ["critical", "РљСЂРёС‚РёС‡РµСЃРєРёРµ РїСЂРµРґРїРёСЃР°РЅРёСЏ"],
-  ["stop_work", "РћСЃС‚Р°РЅРѕРІРєР° СЂР°Р±РѕС‚"],
+  ["status", "Статус предписания"],
+  ["contractor", "Подрядчик"],
+  ["project", "Проект"],
+  ["contract_no", "№ договора"],
+  ["doc_number", "№ документа"],
+  ["pred_number", "№ предписания"],
+  ["name", "Наименование"],
+  ["issue_date", "Дата выдачи предписания"],
+  ["issue_block", "Блок выдачи предписания"],
+  ["due_date", "Срок устранения"],
+  ["completion_date", "Фактическая дата устранения предписания"],
+  ["overdue_days", "Дней просрочки"],
+  ["critical", "Критические предписания"],
+  ["stop_work", "Остановка работ"],
 ];
 
 function compare(a: unknown, b: unknown) {
@@ -90,7 +90,7 @@ function compare(a: unknown, b: unknown) {
 }
 
 function exportCell(value: unknown): ExportCell {
-  return typeof value === "boolean" ? (value ? "Р”Р°" : "вЂ”") : String(value ?? "");
+  return typeof value === "boolean" ? (value ? "Да" : "—") : String(value ?? "");
 }
 
 export function PrescriptionsView() {
@@ -149,8 +149,8 @@ export function PrescriptionsView() {
     () =>
       (data?.tremor.by_contractor ?? []).map((row) => ({
         contractor: row.contractor,
-        Р’СЃРµРіРѕ: row.total,
-        РџСЂРѕСЃСЂРѕС‡РµРЅРѕ: row.overdue,
+        Всего: row.total,
+        Просрочено: row.overdue,
       })),
     [data?.tremor.by_contractor],
   );
@@ -227,25 +227,25 @@ export function PrescriptionsView() {
 
   const kpis = data?.kpis;
   const circleKpis = [
-    ["Р’СЃРµРіРѕ", kpis?.total, "neutral"],
-    ["РќРµСѓСЃС‚СЂР°РЅРµРЅРЅС‹Рµ", kpis?.unresolved, "warn"],
-    ["РЈСЃС‚СЂР°РЅРµРЅРЅС‹Рµ", kpis?.resolved, "ok"],
-    ["РџСЂРѕСЃСЂРѕС‡РµРЅРЅС‹Рµ РЅРµСѓСЃС‚СЂР°РЅРµРЅРЅС‹Рµ", kpis?.overdue_unresolved, "danger"],
-    ["РљСЂРёС‚РёС‡РµСЃРєРёРµ", kpis?.critical, "danger"],
-    ["РћСЃС‚Р°РЅРѕРІРєР° СЂР°Р±РѕС‚", kpis?.stop_work, "danger"],
+    ["Всего", kpis?.total, "neutral"],
+    ["Неустраненные", kpis?.unresolved, "warn"],
+    ["Устраненные", kpis?.resolved, "ok"],
+    ["Просроченные неустраненные", kpis?.overdue_unresolved, "danger"],
+    ["Критические", kpis?.critical, "danger"],
+    ["Остановка работ", kpis?.stop_work, "danger"],
   ] as const;
 
   return (
     <AppShell
-      title="РџСЂРµРґРїРёСЃР°РЅРёСЏ РїРѕ РїРѕРґСЂСЏРґС‡РёРєР°Рј"
-      subtitle="TESSA В· СЃС‚Р°С‚СѓСЃС‹, СЃСЂРѕРєРё СѓСЃС‚СЂР°РЅРµРЅРёСЏ Рё РєСЂРёС‚РёС‡РЅРѕСЃС‚СЊ"
-    >
+      title="Предписания по подрядчикам"
+      subtitle="TESSA · статусы, сроки устранения и критичность"
+     loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={5}>
-          <FilterChipMulti label="РџСЂРѕРµРєС‚С‹" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
-          <FilterChipMulti label="РџРѕРґСЂСЏРґС‡РёРєРё" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((state) => ({ ...state, contractors }))} />
-          <FilterField label="в„– РґРѕРіРѕРІРѕСЂР°">
+          <FilterChipMulti label="Проекты" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
+          <FilterChipMulti label="Подрядчики" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((state) => ({ ...state, contractors }))} />
+          <FilterField label="№ договора">
             <input
               value={filters.contract_q}
               onChange={(e) =>
@@ -255,10 +255,10 @@ export function PrescriptionsView() {
                 }))
               }
               className={FILTER_SELECT_CLASS}
-              placeholder="Р§Р°СЃС‚РёС‡РЅС‹Р№ РїРѕРёСЃРє"
+              placeholder="Частичный поиск"
             />
           </FilterField>
-          <FilterField label="Р”Р°С‚Р° СЃ">
+          <FilterField label="Дата с">
             <input
               type="date"
               min={data?.filters.date_min ?? undefined}
@@ -273,7 +273,7 @@ export function PrescriptionsView() {
               className={FILTER_SELECT_CLASS}
             />
           </FilterField>
-          <FilterField label="Р”Р°С‚Р° РїРѕ">
+          <FilterField label="Дата по">
             <input
               type="date"
               min={data?.filters.date_min ?? undefined}
@@ -291,7 +291,7 @@ export function PrescriptionsView() {
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>
           <FilterCheck
-            label="РќРµ РѕС‚РѕР±СЂР°Р¶Р°С‚СЊ СѓСЃС‚СЂР°РЅРµРЅРЅС‹Рµ РїСЂРµРґРїРёСЃР°РЅРёСЏ"
+            label="Не отображать устраненные предписания"
             checked={filters.hide_resolved}
             onChange={(e) =>
               setFilters((state) => ({
@@ -306,9 +306,9 @@ export function PrescriptionsView() {
           <div />
         </FilterChecksRow>
         <Text className="mt-3">
-          {loading ? "Р·Р°РіСЂСѓР·РєР°вЂ¦" : `${data?.meta.rows ?? 0} СЃС‚СЂРѕРє`}
+          {loading ? "загрузка…" : `${data?.meta.rows ?? 0} строк`}
           {data?.meta.version_id != null
-            ? ` В· version_id=${data.meta.version_id}`
+            ? ` · version_id=${data.meta.version_id}`
             : ""}
         </Text>
         {data?.meta.warning ? (
@@ -321,7 +321,7 @@ export function PrescriptionsView() {
       {error ? (
         <Card className="mb-6 border-rose-300 bg-rose-50 dark:bg-rose-950/30">
           <Text className="text-rose-700 dark:text-rose-300">
-            API РЅРµРґРѕСЃС‚СѓРїРµРЅ: {error}
+            API недоступен: {error}
           </Text>
         </Card>
       ) : null}
@@ -330,19 +330,19 @@ export function PrescriptionsView() {
         <Grid numItemsSm={2} numItemsLg={4} className="gap-6">
           {(
             [
-              ["Р’СЃРµРіРѕ", kpis?.total, "text-tremor-content-strong"],
+              ["Всего", kpis?.total, "text-tremor-content-strong"],
               [
-                "РЈСЃС‚СЂР°РЅРµРЅРЅС‹Рµ",
+                "Устраненные",
                 kpis?.resolved,
                 "text-emerald-600 dark:text-emerald-400",
               ],
               [
-                "РќРµСѓСЃС‚СЂР°РЅРµРЅРЅС‹Рµ",
+                "Неустраненные",
                 kpis?.unresolved,
                 "text-orange-600 dark:text-orange-400",
               ],
               [
-                "РќРµРїСЂРѕСЃСЂРѕС‡РµРЅРЅС‹Рµ",
+                "Непросроченные",
                 kpis?.non_overdue,
                 "text-emerald-600 dark:text-emerald-400",
               ],
@@ -350,7 +350,7 @@ export function PrescriptionsView() {
           ).map(([title, value, color]) => (
             <Card key={title} className="rounded-xl">
               <Text>{title}</Text>
-              <Metric className={`mt-2 ${color}`}>{value ?? "вЂ”"}</Metric>
+              <Metric className={`mt-2 ${color}`}>{value ?? "—"}</Metric>
             </Card>
           ))}
         </Grid>
@@ -369,7 +369,7 @@ export function PrescriptionsView() {
                       : "border-tremor-border dark:border-dark-tremor-border"
               }`}
             >
-              <div className="text-xl font-bold tabular-nums">{value ?? "вЂ”"}</div>
+              <div className="text-xl font-bold tabular-nums">{value ?? "—"}</div>
               <Text>{title}</Text>
             </div>
           ))}
@@ -379,14 +379,14 @@ export function PrescriptionsView() {
           <FullscreenPanel fill>
             <Card className="rounded-xl">
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                РџСЂРµРґРїРёСЃР°РЅРёСЏ РїРѕ РїРѕРґСЂСЏРґС‡РёРєР°Рј
+                Предписания по подрядчикам
               </Title>
-              <Text className="mt-1">Р’СЃРµРіРѕ Рё РїСЂРѕСЃСЂРѕС‡РµРЅРЅС‹Рµ РЅРµСѓСЃС‚СЂР°РЅРµРЅРЅС‹Рµ</Text>
+              <Text className="mt-1">Всего и просроченные неустраненные</Text>
               <BarChart
                 className="mt-6 h-96"
                 data={contractorChart}
                 index="contractor"
-                categories={["Р’СЃРµРіРѕ", "РџСЂРѕСЃСЂРѕС‡РµРЅРѕ"]}
+                categories={["Всего", "Просрочено"]}
                 colors={["orange", "amber"]}
                 layout="horizontal"
                 valueFormatter={(value) => String(Math.round(Number(value)))}
@@ -399,7 +399,7 @@ export function PrescriptionsView() {
           <FullscreenPanel fill>
             <Card className="rounded-xl">
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                РџСЂРµРґРїРёСЃР°РЅРёСЏ РїРѕ СЃС‚Р°С‚СѓСЃР°Рј
+                Предписания по статусам
               </Title>
               <DonutChart
                 className="mt-6 h-72"
@@ -418,7 +418,7 @@ export function PrescriptionsView() {
         <FullscreenPanel fill>
           <Card className="rounded-xl">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              РџСЂРµРґРїРёСЃР°РЅРёСЏ РїРѕ РѕР±СЉРµРєС‚Р°Рј
+              Предписания по объектам
             </Title>
             <BarChart
               className="mt-6 h-96"
@@ -437,13 +437,13 @@ export function PrescriptionsView() {
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Р”РµС‚Р°Р»СЊРЅР°СЏ С‚Р°Р±Р»РёС†Р° РїРѕ РїСЂРµРґРїРёСЃР°РЅРёСЏРј
+              Детальная таблица по предписаниям
             </Title>
           </div>
           <div className="max-h-[36rem] overflow-auto">
             {!rows.length ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content">
-                РќРµС‚ СЃС‚СЂРѕРє РїРѕ С„РёР»СЊС‚СЂР°Рј.
+                Нет строк по фильтрам.
               </div>
             ) : (
               <table className="min-w-max border-separate border-spacing-0 text-left text-sm">
@@ -461,7 +461,7 @@ export function PrescriptionsView() {
                         >
                           {label}
                           <span aria-hidden>
-                            {sort?.key === key ? (sort.asc ? "в†‘" : "в†“") : "в‡…"}
+                            {sort?.key === key ? (sort.asc ? "^" : "v") : "?"}
                           </span>
                         </button>
                       </th>
@@ -503,12 +503,12 @@ export function PrescriptionsView() {
                             </span>
                           ) : key === "critical" || key === "stop_work" ? (
                             row[key] ? (
-                              "Р”Р°"
+                              "Да"
                             ) : (
-                              "вЂ”"
+                              "—"
                             )
                           ) : (
-                            String(row[key as keyof typeof row] ?? "вЂ”")
+                            String(row[key as keyof typeof row] ?? "—")
                           )}
                         </td>
                       ))}

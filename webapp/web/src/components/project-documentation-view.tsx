@@ -128,7 +128,7 @@ function ProjectDocumentationScreen({
 }) {
   const [tab, setTab] = useState<TabId>("main");
   const [filters, setFilters] = useState(INITIAL);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateReady, setDateReady] = useState(false);
   const [data, setData] = useState<ProjectDocumentationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -268,7 +268,7 @@ function ProjectDocumentationScreen({
   }, [summaryRows, data?.delay.summary_columns]);
 
   return (
-    <AppShell title={title}>
+    <AppShell title={title} loading={loading}>
       {showDelayTab ? (
         <div className="mb-4 flex gap-4 border-b border-tremor-border dark:border-dark-tremor-border">
           {(

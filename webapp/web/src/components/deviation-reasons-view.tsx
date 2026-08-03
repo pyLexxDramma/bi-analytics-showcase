@@ -380,7 +380,7 @@ export function DeviationReasonsView() {
     (dynamics.summary_rows?.length ?? 0) > 0;
 
   return (
-    <AppShell title="Причины отклонений">
+    <AppShell title="Причины отклонений" loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset
           disabled={!dirty}

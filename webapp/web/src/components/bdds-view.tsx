@@ -489,7 +489,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     filters.show_deviation;
 
   return (
-    <AppShell title={config.title}>
+    <AppShell title={config.title} loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterChipMulti

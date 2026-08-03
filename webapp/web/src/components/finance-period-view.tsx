@@ -71,7 +71,7 @@ export function FinancePeriodView({
   ];
 
   return (
-    <AppShell title={title} subtitle={subtitle}>
+    <AppShell title={title} subtitle={subtitle} loading={loading}>
       <Card className="mb-6 rounded-xl">
         <div className="grid gap-3 md:grid-cols-4">
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((state) => ({ ...state, project }))} />

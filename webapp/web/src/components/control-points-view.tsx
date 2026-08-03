@@ -298,7 +298,7 @@ export function ControlPointsView() {
   const metaError = data?.meta.error;
 
   return (
-    <AppShell title="Контрольные точки">
+    <AppShell title="Контрольные точки" loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset disabled={project === "Все"} onClick={() => setProject("Все")} />
         <FilterFieldsRow cols={2}>

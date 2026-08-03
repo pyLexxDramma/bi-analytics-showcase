@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
+  DashboardLoadingOverlay,
+  useDelayedLoading,
+} from "@/components/dashboard-loading";
+import {
   applyThemeClass,
   readTheme,
   writeTheme,
@@ -28,14 +32,18 @@ export function requestMobileMenuOnNextLoad(): void {
 export function AppShell({
   title,
   subtitle,
+  loading = false,
   children,
 }: {
   title: string;
   subtitle?: string;
+  /** Пока true — после 1 с блюр + оверлей «Загрузка дашборда». */
+  loading?: boolean;
   children: React.ReactNode;
 }) {
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const showLoading = useDelayedLoading(loading, 1000);
 
   useEffect(() => {
     applyThemeClass(readTheme());
@@ -77,12 +85,10 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
-      {/* Desktop: sticky sidebar in flow */}
       <div className="hidden lg:block">
         <AppSidebar />
       </div>
 
-      {/* Mobile/tablet: full-width drawer */}
       {menuOpen ? (
         <div
           className="fixed inset-0 z-50 flex flex-col bg-[#f8f9fb] dark:bg-dark-tremor-background lg:hidden"
@@ -112,8 +118,13 @@ export function AppShell({
         </div>
       ) : null}
 
-      <div className="min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
-        <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <div className="relative min-h-screen min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
+        <div
+          className={`mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
+            showLoading ? "pointer-events-none select-none blur-[2px]" : ""
+          }`}
+          aria-hidden={showLoading || undefined}
+        >
           <header className="mb-5 flex items-start justify-between gap-2 sm:mb-8 sm:items-center sm:gap-3">
             <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
               <button
@@ -146,6 +157,7 @@ export function AppShell({
           </header>
           <div className="min-w-0 max-w-full">{children}</div>
         </div>
+        {showLoading ? <DashboardLoadingOverlay /> : null}
       </div>
     </div>
   );

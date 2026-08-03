@@ -268,7 +268,7 @@ export function ProjectScheduleView() {
   }, []);
 
   return (
-    <AppShell title="График проекта">
+    <AppShell title="График проекта" loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>

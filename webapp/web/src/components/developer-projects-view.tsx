@@ -323,7 +323,7 @@ export function DeveloperProjectsView() {
   const metaError = data?.meta?.error;
 
   return (
-    <AppShell title="Девелоперские проекты">
+    <AppShell title="Девелоперские проекты" loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
         <FiltersReset disabled={selected.length === 0} onClick={() => setSelected([])} />
         <Text className="mt-1">Проект</Text>

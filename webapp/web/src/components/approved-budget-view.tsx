@@ -237,7 +237,7 @@ export function ApprovedBudgetView() {
       : null;
   const dirty = filters.projects.length > 0 || filters.fiz !== "Все" || filters.hide_zero !== null || filters.show_deviation;
   const gauge = data?.gauge ?? { plan: 0, fact: 0, deviation: 0, plan_mlrd: 0, fact_mlrd: 0, deviation_mlrd: 0, fact_pct: 0, deviation_pct: 0, axis_max_mlrd: 0 };
-  return <AppShell title="Утверждённый бюджет план/факт">
+  return <AppShell title="Утверждённый бюджет план/факт" loading={loading}>
     <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
       <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
       <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />

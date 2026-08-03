@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -11,9 +12,7 @@ import {
   BarChart,
   Card,
   DonutChart,
-  Grid,
   LineChart,
-  Metric,
   Text,
   Title,
 } from "@tremor/react";
@@ -29,6 +28,16 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import {
+  GdrsContractorsPieChart,
+  GdrsDynamicsLineChart,
+  GdrsGroupedBarChart,
+} from "@/components/gdrs-charts";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 import {
   fetchGdrsEquipment,
   fetchGdrsPeople,
@@ -87,8 +96,8 @@ function gdrsPalette(dark: boolean): GdrsPalette {
       planBg: "#ecfdf5",
       planHdr: "#bbf7d0",
       planBold: "#bbf7d0",
-      skudBg: "#eff6ff",
-      skudHdr: "#bfdbfe",
+      skudBg: "#f8fafc",
+      skudHdr: "#e2e8f0",
       skudBold: "#e2e8f0",
       devHdr: "#fecaca",
       subtotalBg: "#f3f4f6",
@@ -105,8 +114,8 @@ function gdrsPalette(dark: boolean): GdrsPalette {
     planBg: "rgba(16,185,129,0.18)",
     planHdr: "rgba(16,185,129,0.32)",
     planBold: "rgba(16,185,129,0.40)",
-    skudBg: "rgba(59,130,246,0.18)",
-    skudHdr: "rgba(59,130,246,0.32)",
+      skudBg: "rgba(148,163,184,0.15)",
+      skudHdr: "rgba(148,163,184,0.32)",
     skudBold: "rgba(100,116,139,0.35)",
     devHdr: "rgba(248,113,113,0.28)",
     subtotalBg: "rgba(148,163,184,0.14)",
@@ -179,6 +188,12 @@ const COPY: Record<
 function fmtInt(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
   return Math.round(n).toLocaleString("ru-RU");
+}
+
+function fmtSigned(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  const value = Math.round(n);
+  return value > 0 ? `+${value.toLocaleString("ru-RU")}` : value.toLocaleString("ru-RU");
 }
 
 function fmtPct(n: number | null | undefined): string {
@@ -324,6 +339,9 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /** После первого ответа API только подставляем selected — повторный fetch не нужен. */
+  const skipNextLoadRef = useRef(false);
+  const loadSeqRef = useRef(0);
 
   const [projSort, setProjSort] = useState<SortState>(null);
   const [dynSort, setDynSort] = useState<SortState>(null);
@@ -332,6 +350,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
 
   const load = useCallback(
     async (next: Filters) => {
+      const seq = ++loadSeqRef.current;
       setLoading(true);
       setError(null);
       try {
@@ -344,9 +363,11 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           dyn_agg: next.dyn_agg,
           only_with_plan: next.only_with_plan,
         });
+        if (seq !== loadSeqRef.current) return;
         setData(payload);
         if (!next.ready) {
           const sel = payload.filters.selected;
+          skipNextLoadRef.current = true;
           setFilters({
             projects: sel.projects ?? [],
             contractors: sel.contractors ?? [],
@@ -361,16 +382,21 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           });
         }
       } catch (cause) {
+        if (seq !== loadSeqRef.current) return;
         setError(cause instanceof Error ? cause.message : String(cause));
         setData(null);
       } finally {
-        setLoading(false);
+        if (seq === loadSeqRef.current) setLoading(false);
       }
     },
     [resourceKind],
   );
 
   useEffect(() => {
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false;
+      return;
+    }
     void load(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on filter fields only
   }, [
@@ -384,13 +410,6 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     filters.only_with_plan,
     load,
   ]);
-
-  const kpis = data?.kpis ?? {
-    plan: 0,
-    fact: 0,
-    deviation: 0,
-    delta_pct: null,
-  };
 
   const projectChart = useMemo(
     () =>
@@ -408,7 +427,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const contractorChart = useMemo(
     () =>
       withRuPlanFactDeviation(
-        (data?.tremor.by_contractor ?? []).slice(0, 20).map((r) => ({
+      (data?.tremor.by_contractor ?? []).map((r) => ({
           name: r.name,
           plan: r.plan,
           fact: r.fact,
@@ -452,6 +471,20 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     week_plan_keys: [],
     week_skud_keys: [],
   };
+
+  const contractorTotal = useMemo(() => {
+    const rows = data?.contractor_rows ?? [];
+    if (!rows.length) return null;
+    const plan = rows.reduce((s, r) => s + Number(r.plan || 0), 0);
+    const fact = rows.reduce((s, r) => s + Number(r.fact || 0), 0);
+    const deviation = fact - plan;
+    return {
+      plan,
+      fact,
+      deviation,
+      share_pct: 100,
+    };
+  }, [data?.contractor_rows]);
 
   const resetFilters = () => {
     setFilters((s) => ({
@@ -567,7 +600,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const dev = (n: number | null | undefined) => deviationStyle(n, dark);
 
   return (
-    <AppShell title={copy.title} subtitle={copy.subtitle}>
+    <AppShell title={copy.title} subtitle={copy.subtitle} loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)}>
         <FiltersReset onClick={resetFilters} />
         <FilterFieldsRow cols={5}>
@@ -618,55 +651,24 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       ) : null}
 
       <div className="space-y-6">
-        <Grid numItemsSm={2} numItemsLg={4} className="gap-6">
-          {[
-            ["План", fmtInt(kpis.plan)],
-            ["СКУД (факт)", fmtInt(kpis.fact)],
-            ["Отклонение", fmtInt(kpis.deviation)],
-            ["Отклонение %", fmtPct(kpis.delta_pct)],
-          ].map(([title, metric]) => (
-            <Card key={title} className="rounded-xl">
-              <Text>{title}</Text>
-              <Metric
-                className="mt-2 text-tremor-content-strong dark:text-dark-tremor-content-strong"
-                style={
-                  title.startsWith("Отклонение")
-                    ? dev(
-                        title === "Отклонение %"
-                          ? kpis.delta_pct
-                          : kpis.deviation,
-                      )
-                    : undefined
-                }
-              >
-                {metric}
-              </Metric>
-            </Card>
-          ))}
-        </Grid>
-
         <FullscreenPanel fill>
-          <Card className="rounded-xl">
+          {(zoomed) => <Card className="rounded-xl">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               ГДРС по выбранным проектам
             </Title>
             <Text className="mt-1">{copy.unitDay}</Text>
-            <BarChart
-              className="mt-6 h-80"
-              data={projectChart}
-              index="name"
-              categories={[...PLAN_FACT_DEVIATION_CATEGORIES]}
-              colors={["blue", "emerald", "rose"]}
-              valueFormatter={(v) => fmtInt(Number(v))}
-              yAxisWidth={48}
-              showLegend
-              showAnimation
-              showGridLines
-            />
-          </Card>
+            <div className="mt-4 hidden lg:block">
+              <GdrsGroupedBarChart rows={data?.tremor.by_project ?? []} fullscreen={zoomed} />
+            </div>
+            <div className="mt-4 lg:hidden">
+              <div className="h-72">
+                <BarChart className="h-full" data={projectChart} index="name" categories={[...PLAN_FACT_DEVIATION_CATEGORIES]} colors={["blue", "emerald", "rose"]} valueFormatter={(v) => fmtInt(Number(v))} yAxisWidth={48} showLegend showGridLines />
+              </div>
+            </div>
+          </Card>}
         </FullscreenPanel>
 
-        <Card className="rounded-xl overflow-x-auto">
+        <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <div className="mb-3 flex items-center justify-between gap-3">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               ГДРС по выбранным проектам
@@ -732,7 +734,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       ...dev(r.deviation),
                     })}
                   >
-                    {fmtInt(r.deviation)}
+                    {fmtSigned(r.deviation)}
                   </td>
                   <td
                     style={td({
@@ -744,6 +746,55 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                   </td>
                 </tr>
               ))}
+              {data?.kpis && projectRows.length ? (
+                <tr>
+                  <td
+                    style={td({
+                      textAlign: "left",
+                      fontWeight: 700,
+                      backgroundColor: pal.grandBg,
+                    })}
+                  >
+                    Итого
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      backgroundColor: pal.planBold,
+                    })}
+                  >
+                    {fmtInt(data.kpis.plan)}
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      backgroundColor: pal.skudBold,
+                    })}
+                  >
+                    {fmtInt(data.kpis.fact)}
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      ...dev(data.kpis.deviation),
+                    })}
+                  >
+                    {fmtSigned(data.kpis.deviation)}
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      ...dev(data.kpis.delta_pct),
+                    })}
+                  >
+                    {fmtPct(data.kpis.delta_pct)}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
           <div className="mt-3">
@@ -756,24 +807,20 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         </Card>
 
         <FullscreenPanel fill>
-          <Card className="rounded-xl">
+          {(zoomed) => <Card className="rounded-xl">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               {pieTitle}
             </Title>
-            <DonutChart
-              className="mt-6 h-80"
-              data={pieData}
-              category="value"
-              index="name"
-              colors={[...DONUT_COLORS]}
-              valueFormatter={(v) => fmtInt(Number(v))}
-              showLabel
-              showAnimation
-            />
-          </Card>
+            <div className="mt-4 hidden lg:block">
+              <GdrsContractorsPieChart rows={pieData} fullscreen={zoomed} />
+            </div>
+            <div className="mt-4 lg:hidden">
+              <DonutChart className="h-72" data={pieData} category="value" index="name" colors={[...DONUT_COLORS]} valueFormatter={(v) => fmtInt(Number(v))} showLabel />
+            </div>
+          </Card>}
         </FullscreenPanel>
 
-        <Card className="rounded-xl overflow-x-auto">
+        <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <div className="mb-3 flex items-center justify-between gap-3">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               {matrixTitle}
@@ -968,7 +1015,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                         ...dev(r.deviation),
                       })}
                     >
-                      {fmtInt(r.deviation)}
+                      {fmtSigned(r.deviation)}
                     </td>
                     <td
                       style={td({
@@ -1028,29 +1075,22 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         </Card>
 
         <FullscreenPanel fill>
-          <Card className="rounded-xl">
+          {(zoomed) => <Card className="rounded-xl">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               ГДРС по выбранным контрагентам
             </Title>
-            <Text className="mt-1">Топ по плану</Text>
-            <BarChart
-              className="mt-6 h-96"
-              data={contractorChart}
-              index="name"
-              categories={[...PLAN_FACT_DEVIATION_CATEGORIES]}
-              colors={["blue", "emerald", "rose"]}
-              valueFormatter={(v) => fmtInt(Number(v))}
-              yAxisWidth={48}
-              layout="vertical"
-              showLegend
-              showAnimation
-              showGridLines
-            />
-          </Card>
+            <Text className="mt-1">План, факт и отклонение по всем контрагентам</Text>
+            <div className="mt-4 hidden lg:block">
+              <GdrsGroupedBarChart rows={data?.tremor.by_contractor ?? []} contractors fullscreen={zoomed} />
+            </div>
+            <div className="mt-4 lg:hidden">
+              <BarChart className="h-96" data={contractorChart} index="name" categories={[...PLAN_FACT_DEVIATION_CATEGORIES]} colors={["blue", "emerald", "rose"]} valueFormatter={(v) => fmtInt(Number(v))} yAxisWidth={48} layout="vertical" showLegend showGridLines />
+            </div>
+          </Card>}
         </FullscreenPanel>
 
         <FullscreenPanel fill>
-          <Card className="rounded-xl">
+          {(zoomed) => <Card className="rounded-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
                 {dynTitle}
@@ -1079,22 +1119,16 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             <Text className="mt-1">
               План и факт — среднее за день в периоде группировки
             </Text>
-            <LineChart
-              className="mt-6 h-80"
-              data={dynamicsChart}
-              index="period"
-              categories={["План", "Факт"]}
-              colors={["blue", "emerald"]}
-              valueFormatter={(v) => fmtInt(Number(v))}
-              yAxisWidth={48}
-              showLegend
-              showAnimation
-              showGridLines
-            />
-          </Card>
+            <div className="mt-4 hidden lg:block">
+              <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} fullscreen={zoomed} />
+            </div>
+            <div className="mt-4 lg:hidden">
+              <LineChart className="h-72" data={dynamicsChart} index="period" categories={["План", "Факт"]} colors={["blue", "emerald"]} valueFormatter={(v) => fmtInt(Number(v))} yAxisWidth={48} showLegend showGridLines />
+            </div>
+          </Card>}
         </FullscreenPanel>
 
-        <Card className="rounded-xl overflow-x-auto">
+        <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong mb-3">
             Детализация по периодам
           </Title>
@@ -1158,7 +1192,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       ...dev(r.deviation),
                     })}
                   >
-                    {fmtInt(r.deviation)}
+                    {fmtSigned(r.deviation)}
                   </td>
                   <td
                     style={td({
@@ -1181,7 +1215,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           </div>
         </Card>
 
-        <Card className="rounded-xl overflow-x-auto">
+        <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong mb-3">
             {pieTitle}
           </Title>
@@ -1245,18 +1279,62 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       ...dev(r.deviation),
                     })}
                   >
-                    {fmtInt(r.deviation)}
+                    {fmtSigned(r.deviation)}
                   </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      ...dev(r.deviation),
-                    })}
-                  >
+                  <td style={td({ textAlign: "right" })}>
                     {fmtPct(r.share_pct)}
                   </td>
                 </tr>
               ))}
+              {contractorTotal && contractorRows.length ? (
+                <tr>
+                  <td
+                    style={td({
+                      textAlign: "left",
+                      fontWeight: 700,
+                      backgroundColor: pal.grandBg,
+                    })}
+                  >
+                    Итого
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      backgroundColor: pal.planBold,
+                    })}
+                  >
+                    {fmtInt(contractorTotal.plan)}
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      backgroundColor: pal.skudBold,
+                    })}
+                  >
+                    {fmtInt(contractorTotal.fact)}
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      ...dev(contractorTotal.deviation),
+                    })}
+                  >
+                    {fmtSigned(contractorTotal.deviation)}
+                  </td>
+                  <td
+                    style={td({
+                      textAlign: "right",
+                      fontWeight: 700,
+                      backgroundColor: pal.grandBg,
+                    })}
+                  >
+                    {fmtPct(contractorTotal.share_pct)}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
           <div className="mt-3">
@@ -1267,6 +1345,72 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             />
           </div>
         </Card>
+        <MobileCardStack>
+          <MobileEntityCard title="ГДРС по выбранным проектам">
+            <div className="space-y-2">
+              {projectRows.map((row) => (
+                <MobileMetricGrid
+                  key={row.project}
+                  columns={4}
+                  items={[
+                    { label: "Проект", value: row.project },
+                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                    { label: "СКУД", value: fmtInt(row.fact) },
+                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
+                  ]}
+                />
+              ))}
+            </div>
+          </MobileEntityCard>
+          <MobileEntityCard title={matrixTitle}>
+            <div className="space-y-2">
+              {matrixRows.map((row, index) => (
+                <MobileMetricGrid
+                  key={`${row.kind}-${row.label}-${index}`}
+                  columns={4}
+                  items={[
+                    { label: "Контрагент", value: row.label },
+                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                    { label: "СКУД", value: fmtInt(row.skud) },
+                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
+                  ]}
+                />
+              ))}
+            </div>
+          </MobileEntityCard>
+          <MobileEntityCard title="Детализация по периодам">
+            <div className="space-y-2">
+              {dynamicsRows.map((row) => (
+                <MobileMetricGrid
+                  key={row.period}
+                  columns={4}
+                  items={[
+                    { label: "Период", value: row.period },
+                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                    { label: "Факт", value: fmtInt(row.fact) },
+                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
+                  ]}
+                />
+              ))}
+            </div>
+          </MobileEntityCard>
+          <MobileEntityCard title={pieTitle}>
+            <div className="space-y-2">
+              {contractorRows.map((row) => (
+                <MobileMetricGrid
+                  key={row.contractor}
+                  columns={4}
+                  items={[
+                    { label: "Контрагент", value: row.contractor },
+                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                    { label: "Факт", value: fmtInt(row.fact) },
+                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
+                  ]}
+                />
+              ))}
+            </div>
+          </MobileEntityCard>
+        </MobileCardStack>
       </div>
     </AppShell>
   );

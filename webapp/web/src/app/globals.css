@@ -393,7 +393,45 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   .bi-filters-cols-5,
   .bi-filters-cols-4,
   .bi-filters-cols-3 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bi-filters-field-label {
+    min-height: 0;
+    margin-bottom: 0.35rem;
+    font-size: 0.9375rem;
+  }
+
+  .bi-filter-chip-list {
+    gap: 0.5rem;
+    max-height: min(40vh, 16rem);
+  }
+
+  .bi-filter-chip {
+    min-height: 2.75rem;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9375rem;
+    line-height: 1.2;
+    border-radius: 0.75rem;
+  }
+
+  .bi-filters-select {
+    height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .bi-filters-check {
+    min-height: 3rem;
+    gap: 0.75rem;
+  }
+
+  .bi-filters-check-input {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .bi-filters-check-label {
+    font-size: 0.9375rem;
   }
 }
 

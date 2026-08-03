@@ -541,7 +541,7 @@ def build_gdrs_payload(
                     "name": name,
                     "plan": plan_v,
                     "fact": fact_v,
-                    "deviation": abs(dev_v),
+                    "deviation": dev_v,
                 }
             )
 
@@ -553,9 +553,9 @@ def build_gdrs_payload(
             "name": r["contractor"],
             "plan": r["plan"],
             "fact": r["fact"],
-            "deviation": abs(int(r["deviation"])),
+            "deviation": int(r["deviation"]),
         }
-        for r in contractor_rows[:30]
+        for r in contractor_rows
     ]
 
     week_labels: list[str] = []
@@ -722,7 +722,7 @@ def build_gdrs_payload(
         "filters": base_filters,
         "kpis": kpis,
         "tremor": {
-            "by_project": by_project[:30],
+            "by_project": by_project,
             "by_contractor": by_contractor,
             "pie": pie_rows,
             "dynamics": dynamics_chart,

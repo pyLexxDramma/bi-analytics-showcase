@@ -354,7 +354,7 @@ export function BaselineDeviationView() {
       : "Отклонение от базового плана (таблица)";
 
   return (
-    <AppShell title="Отклонение от базового плана">
+    <AppShell title="Отклонение от базового плана" loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>

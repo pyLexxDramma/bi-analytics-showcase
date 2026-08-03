@@ -211,7 +211,7 @@ export function BddsPlanFactView() {
     <AppShell
       title="БДДС расходы (план, факт, уточненный план)"
       subtitle="Прогнозный бюджет: план, факт и БДДС прогноз по лотам MSP"
-    >
+     loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
         <FiltersReset onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
