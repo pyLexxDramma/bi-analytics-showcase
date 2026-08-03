@@ -3,7 +3,7 @@
 > **Полный повторный проход (все экраны заново):** см. отдельный план  
 > [`PARITY_FULL_REGRESSION_PLAN.md`](./PARITY_FULL_REGRESSION_PLAN.md).  
 > Этот файл остаётся журналом деталей по §; статусы нового цикла — в плане регресса.  
-> Цикл 02.08–03.08.2026: **§0–§9 ✅** → **§10** проектная документация 🔄 (Plotly desktop 1:1 + mobile).
+> Цикл 02.08–03.08.2026: **§0–§10 ✅** → **§11** рабочая документация 🔄.
 >
 > **Mobile-таблицы (все дашборды):** на `<lg` таблицы → блоки/карточки (`MobileEntityCard` / эквивалент) с сохранением подсветки (красный/зелёный), выделений и шрифтов desktop. Аудит §1–§9: см. `PARITY_FULL_REGRESSION_PLAN.md` §«Аудит mobile-таблиц».
 >
@@ -51,8 +51,8 @@
 | 7 | График проекта | `/timeline/project-schedule` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ковенанты=main; date pad; mobile compact gantt+cards (`51b4758`) |
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Plotly 1:1; y=0; modebar desktop; mobile cards+без modebar; download (`182242d`) |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ЗОС=main; ковенанты points+таблица; фильтры kit; mobile cards; ⛶ под modebar (`de0fa01`) |
-| 10 | Проектная документация | `/docs/project-documentation` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx (3 таблицы) | ✓ | Plotly desktop 1:1 (pie/line/monthly); mobile cards; правило графиков для всех § |
-| 11 | Рабочая документация | `/docs/working-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД rd_plan+tessa; обе вкладки; см. §11 |
+| 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx (3 таблицы) | ✓ | Plotly pie/line/monthly/gantt 1:1; mobile cards; правило графиков |
+| 11 | Рабочая документация | `/docs/working-documentation` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | старт регресса |
 | 12 | ГДРС (люди) | `/gdrs/people` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §12 |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §13 |
 | 14 | Предписания по подрядчикам | `/prescriptions` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; см. §14 |
@@ -441,9 +441,9 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 ### Регресс 03.08.2026
 
-Статус: 🔄 desktop Plotly 1:1 (подписи/точки/цвета main+delay) + mobile cards; приёмка на стенде.
+Статус: ✅ принято на стенде 03.08.2026 (регресс).
 
-- Desktop (`lg+`): pie «Исполнение ПД»; line «Динамика» `lines+markers+text` + цвета main; monthly overlay жёлтый/зелёный «+N»; **Gantt Plotly** жёлт/зелён/красн + даты у полос (`cb0d60b`…gantt).
+- Desktop (`lg+`): pie «Исполнение ПД»; line «Динамика» `lines+markers+text` + цвета main; monthly overlay жёлтый/зелёный «+N»; **Gantt Plotly** жёлт/зелён/красн + даты у полос (`942c375`…`0dbd50f`).
 - Mobile: 3 таблицы → `MobileCardStack` + highlight; графики можно облегчить.
 - Правило цикла (все дашборды): desktop Plotly = main; mobile — облегчение где уместно (`PARITY_FULL_REGRESSION_PLAN.md`).
 - Техдолг: single-select период/проект vs multi main.
@@ -480,6 +480,10 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 ---
 
 ## §11 Рабочая документация
+
+### Регресс 03.08.2026
+
+Статус: 🔄 старт регресса — скрины main↔showcase desktop+~390 (Plotly desktop 1:1, mobile cards).
 
 ### Черновик 31.07.2026
 
