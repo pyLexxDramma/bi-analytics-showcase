@@ -26,6 +26,11 @@ import {
 } from "@/components/dashboard-filters";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 import { CHART_RU, withRuDocDynamics } from "@/lib/chart-ru";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
@@ -56,6 +61,14 @@ function deviationClass(value: number | null | undefined): string {
   return value < 0
     ? "font-semibold text-[hsl(348,100%,45%)] dark:text-[#ff5454]"
     : "font-semibold text-[#15803d] dark:text-[#46d68a]";
+}
+
+function highlightFromDays(
+  days: number | null | undefined,
+): "none" | "bad" | "ok" {
+  if (days == null || days === 0) return "ok";
+  if (days < 0) return "bad";
+  return "ok";
 }
 
 function fmtDev(value: number | null | undefined): string {
@@ -637,10 +650,54 @@ function ProjectDocumentationScreen({
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Таблица Выдача проектной документации по проектам</Title>
               </div>
-              <div className="max-h-[28rem] overflow-auto">
-                {!mainRows.length ? (
-                  <div className="px-4 py-10 text-center text-sm">Нет строк по фильтрам.</div>
-                ) : (
+              {!mainRows.length ? (
+                <div className="px-4 py-10 text-center text-sm">Нет строк по фильтрам.</div>
+              ) : (
+                <>
+                  <MobileCardStack>
+                    {mainRows.map((row, index) => {
+                      const ahead = (row.dev_end_days ?? 0) > 0;
+                      return (
+                        <MobileEntityCard
+                          key={`m-pd-${row.project}-${row.section}-${index}`}
+                          title={`${row.project}: ${row.section}`}
+                          badge={row.dev_end || undefined}
+                          badgeTone={
+                            row.dev_end_days == null
+                              ? "neutral"
+                              : row.dev_end_days < 0
+                                ? "bad"
+                                : "ok"
+                          }
+                        >
+                          <MobileMetricGrid
+                            columns={2}
+                            items={[
+                              { label: "№", value: row.n ?? index + 1 },
+                              { label: "Раздел", value: row.section },
+                              {
+                                label: "Базовое",
+                                value: row.base_end ?? "—",
+                                highlight: ahead ? "ok" : "date",
+                              },
+                              {
+                                label: "Окончание",
+                                value: row.plan_end ?? "—",
+                                highlight: ahead ? "ok" : "date",
+                              },
+                              {
+                                label: "Откл.",
+                                value: row.dev_end || "—",
+                                className: deviationClass(row.dev_end_days),
+                                highlight: highlightFromDays(row.dev_end_days),
+                              },
+                            ]}
+                          />
+                        </MobileEntityCard>
+                      );
+                    })}
+                  </MobileCardStack>
+                  <div className="hidden max-h-[28rem] overflow-auto pt-10 lg:block">
                   <table className="min-w-full border-separate border-spacing-0 text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr>
@@ -706,8 +763,9 @@ function ProjectDocumentationScreen({
                       })}
                     </tbody>
                   </table>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
               <div className="px-4 py-3">
                 <DownloadTableButton
                   getTable={mainExport}
@@ -775,10 +833,67 @@ function ProjectDocumentationScreen({
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Детальная таблица</Title>
               </div>
-              <div className="max-h-[28rem] overflow-auto">
-                {!detailRows.length ? (
-                  <div className="px-4 py-10 text-center text-sm">Нет данных.</div>
-                ) : (
+              {!detailRows.length ? (
+                <div className="px-4 py-10 text-center text-sm">Нет данных.</div>
+              ) : (
+                <>
+                  <MobileCardStack>
+                    {detailRows.map((row, i) => (
+                      <MobileEntityCard
+                        key={`m-det-${row.project}-${row.section}-${i}`}
+                        title={`${row.project}: ${row.work_name || row.section}`}
+                        badge={row.dev_end || undefined}
+                        badgeTone={
+                          row.dev_end_days == null
+                            ? "neutral"
+                            : row.dev_end_days < 0
+                              ? "bad"
+                              : "ok"
+                        }
+                      >
+                        <MobileMetricGrid
+                          columns={2}
+                          items={[
+                            { label: "Раздел", value: row.section },
+                            { label: "Статус", value: row.status || "—" },
+                            {
+                              label: "Начало",
+                              value: row.start || "—",
+                              highlight: "date",
+                            },
+                            {
+                              label: "Баз. нач.",
+                              value: row.base_start || "—",
+                              highlight: "date",
+                            },
+                            {
+                              label: "Окончание",
+                              value: row.finish || "—",
+                              highlight: "date",
+                            },
+                            {
+                              label: "Баз. оконч.",
+                              value: row.base_finish || "—",
+                              highlight: "date",
+                            },
+                            {
+                              label: "Откл. нач.",
+                              value: row.dev_start || "—",
+                              className: deviationClass(row.dev_start_days),
+                              highlight: highlightFromDays(row.dev_start_days),
+                            },
+                            {
+                              label: "Откл. оконч.",
+                              value: row.dev_end || "—",
+                              className: deviationClass(row.dev_end_days),
+                              highlight: highlightFromDays(row.dev_end_days),
+                            },
+                          ]}
+                        />
+                      </MobileEntityCard>
+                    ))}
+                  </MobileCardStack>
+                  <div className="hidden max-h-[28rem] overflow-auto pt-10 lg:block">
                   <table className="min-w-full border-separate border-spacing-0 text-xs">
                     <thead className="sticky top-0 z-10">
                       <tr>
@@ -835,8 +950,9 @@ function ProjectDocumentationScreen({
                       ))}
                     </tbody>
                   </table>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
               <div className="px-4 py-3">
                 <DownloadTableButton
                   getTable={detailExport}
@@ -852,7 +968,35 @@ function ProjectDocumentationScreen({
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title>Таблица Сводка по просрочке выдачи документации</Title>
               </div>
-              <div className="overflow-auto">
+              {!summaryRows.length ? (
+                <div className="px-4 py-10 text-center text-sm">Нет данных.</div>
+              ) : (
+                <>
+                  <MobileCardStack>
+                    {summaryRows.map((row) => (
+                      <MobileEntityCard
+                        key={`m-sum-${row.project}`}
+                        title={row.project}
+                        badge={row.overdue_label}
+                        badgeTone={row.overdue < 0 ? "bad" : "ok"}
+                      >
+                        <MobileMetricGrid
+                          columns={2}
+                          items={[
+                            { label: "План ПД", value: row.plan },
+                            { label: "Факт ПД", value: row.fact },
+                            {
+                              label: "Просрочка",
+                              value: row.overdue_label,
+                              className: deviationClass(row.overdue),
+                              highlight: row.overdue < 0 ? "bad" : "ok",
+                            },
+                          ]}
+                        />
+                      </MobileEntityCard>
+                    ))}
+                  </MobileCardStack>
+                  <div className="hidden overflow-auto pt-10 lg:block">
                 <table className="min-w-full border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
@@ -891,11 +1035,13 @@ function ProjectDocumentationScreen({
                     ))}
                   </tbody>
                 </table>
-              </div>
+                  </div>
+                </>
+              )}
               <div className="px-4 py-3">
                 <DownloadTableButton
                   getTable={summaryExport}
-                  fileStem="rd_delay_summary"
+                  fileStem="pd_delay_summary"
                   disabled={!summaryRows.length}
                 />
               </div>
