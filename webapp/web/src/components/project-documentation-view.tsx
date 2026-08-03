@@ -4,9 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Card,
-  DonutChart,
   Grid,
-  LineChart,
   Metric,
   Text,
   Title,
@@ -31,7 +29,11 @@ import {
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
-import { CHART_RU, withRuDocDynamics } from "@/lib/chart-ru";
+import {
+  PdDynamicsLineChart,
+  PdExecutionPieChart,
+} from "@/components/project-documentation-charts";
+import { CHART_RU } from "@/lib/chart-ru";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const TH =
@@ -211,7 +213,7 @@ function ProjectDocumentationScreen({
 }) {
   const [tab, setTab] = useState<TabId>("main");
   const [filters, setFilters] = useState(INITIAL);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [dateReady, setDateReady] = useState(false);
   const [data, setData] = useState<ProjectDocumentationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -256,10 +258,7 @@ function ProjectDocumentationScreen({
   const selectClass = FILTER_SELECT_CLASS;
 
   const kpis = data?.kpis;
-  const dynamics = useMemo(
-    () => withRuDocDynamics(data?.tremor.dynamics ?? []),
-    [data?.tremor.dynamics],
-  );
+  const dynamics = data?.tremor.dynamics ?? [];
   const monthly = useMemo(
     () =>
       (data?.tremor.monthly ?? []).map((row) => ({
@@ -360,12 +359,6 @@ function ProjectDocumentationScreen({
       sheetName: "Сводка просрочки ПД",
     };
   }, [summaryRows, data?.delay.summary_columns]);
-
-  const donutColors = (data?.tremor.status_mix ?? []).map((item) => {
-    if (item.name.includes("Заверш")) return "blue";
-    if (item.name.includes("работ")) return "amber";
-    return "rose";
-  }) as ("blue" | "amber" | "rose")[];
 
   return (
     <AppShell title={title}>
@@ -563,34 +556,35 @@ function ProjectDocumentationScreen({
       {tab === "main" ? (
         <div className="space-y-6">
           <FullscreenPanel fill disabled={!data?.tremor.status_mix.length}>
-            <Card className="rounded-xl">
-              <Title>Исполнение ПД</Title>
-              <div className="mt-4 grid gap-4 md:grid-cols-[12rem_1fr]">
-                <div className="flex flex-col justify-center gap-3 text-sm">
-                  {(data?.tremor.status_mix ?? []).map((item) => (
-                    <div key={item.name} className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-3 w-3 rounded-sm"
-                        style={{ background: item.color || "#2E86AB" }}
-                      />
-                      <span>{item.name}</span>
-                    </div>
-                  ))}
+            {(zoomed) => (
+              <Card className="rounded-xl">
+                <Title>Исполнение ПД</Title>
+                <div className="mt-4 grid gap-4 md:grid-cols-[12rem_1fr]">
+                  <div className="flex flex-col justify-center gap-3 text-sm">
+                    {(data?.tremor.status_mix ?? []).map((item) => (
+                      <div key={item.name} className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-3 w-3 rounded-sm"
+                          style={{ background: item.color || "#2E86AB" }}
+                        />
+                        <span>
+                          {item.name}: {item.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="min-h-[16rem]">
+                    <PdExecutionPieChart
+                      rows={data?.tremor.status_mix ?? []}
+                      fullscreen={zoomed}
+                    />
+                  </div>
                 </div>
-                <DonutChart
-                  className="h-64"
-                  data={data?.tremor.status_mix ?? []}
-                  category="value"
-                  index="name"
-                  colors={donutColors.length ? donutColors : ["blue", "rose"]}
-                  showLabel
-                  valueFormatter={(v) => `${v}`}
-                />
-              </div>
-              <Text className="mt-2 text-center text-xs text-tremor-content dark:text-dark-tremor-content">
-                График Исполнение ПД
-              </Text>
-            </Card>
+                <Text className="mt-2 text-center text-xs text-tremor-content dark:text-dark-tremor-content">
+                  График Исполнение ПД
+                </Text>
+              </Card>
+            )}
           </FullscreenPanel>
 
           <Grid numItemsSm={2} numItemsLg={6} className="gap-4">
@@ -627,22 +621,17 @@ function ProjectDocumentationScreen({
           </Grid>
 
           <FullscreenPanel fill disabled={!dynamics.length}>
-            <Card className="rounded-xl">
-              <Title>График Динамика выдачи ПД</Title>
-              <LineChart
-                className="mt-6 h-80"
-                data={dynamics}
-                index="period_label"
-                categories={[CHART_RU.planBp, CHART_RU.forecast, CHART_RU.factLine]}
-                colors={["blue", "orange", "emerald"]}
-                yAxisWidth={48}
-                showLegend
-                showAnimation
-                showGridLines
-                valueFormatter={(v) => `${Math.round(v)}`}
-              />
-              <Text className="mt-2 text-center text-xs">Количество разделов ПД · Период</Text>
-            </Card>
+            {(zoomed) => (
+              <Card className="rounded-xl">
+                <Title>График Динамика выдачи ПД</Title>
+                <div className="mt-4">
+                  <PdDynamicsLineChart rows={dynamics} fullscreen={zoomed} />
+                </div>
+                <Text className="mt-2 text-center text-xs">
+                  Количество разделов ПД · Период
+                </Text>
+              </Card>
+            )}
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!mainRows.length}>
