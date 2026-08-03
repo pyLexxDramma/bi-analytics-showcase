@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { Text } from "@tremor/react";
 import type { BaselineDeviationPayload } from "@/lib/api";
 import { CHART_RU } from "@/lib/chart-ru";
+import { PLOTLY_CONFIG } from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -311,10 +312,8 @@ export function BaselineDeviationChart({
               data={built.data as never}
               layout={built.layout as never}
               config={{
-                displayModeBar: true,
-                displaylogo: false,
-                responsive: true,
-                modeBarButtonsToRemove: ["lasso2d", "select2d"],
+                ...PLOTLY_CONFIG,
+                scrollZoom: false,
               }}
               style={{ width: "100%", height: built.chartHeight }}
               useResizeHandler

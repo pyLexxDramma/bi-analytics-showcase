@@ -3,6 +3,11 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { DeviationReasonsPayload } from "@/lib/api";
+import {
+  PLOTLY_AXIS_LINE,
+  PLOTLY_CONFIG,
+  PLOTLY_ZEROLINE,
+} from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -117,7 +122,7 @@ export function DeviationFacetChart({
           range: [0, yTop],
           gridcolor: theme.grid,
           tickfont: { size: 11, color: theme.axis },
-          zeroline: false,
+          ...PLOTLY_ZEROLINE,
         },
         xaxis: {
           title: {
@@ -126,6 +131,7 @@ export function DeviationFacetChart({
           },
           tickfont: { size: 11, color: theme.axis },
           automargin: true,
+          ...PLOTLY_AXIS_LINE,
         },
         legend: {
           orientation: "v" as const,
@@ -145,7 +151,7 @@ export function DeviationFacetChart({
           activecolor: "#0f766e",
         },
       },
-      config: { displayModeBar: true, responsive: true, locale: "ru" },
+      config: { ...PLOTLY_CONFIG },
     };
   }, [facet, periodLabel, fullscreen, theme]);
 
@@ -240,12 +246,13 @@ export function DeviationStackChart({
           range: [0, yTop],
           gridcolor: theme.grid,
           tickfont: { size: 11, color: theme.axis },
-          zeroline: false,
+          ...PLOTLY_ZEROLINE,
         },
         xaxis: {
           title: { text: "Период", font: { size: 13, color: theme.axis } },
           tickfont: { size: 11, color: theme.axis },
           automargin: true,
+          ...PLOTLY_AXIS_LINE,
         },
         legend: {
           orientation: "v" as const,
@@ -265,7 +272,7 @@ export function DeviationStackChart({
           activecolor: "#0f766e",
         },
       },
-      config: { displayModeBar: true, responsive: true, locale: "ru" },
+      config: { ...PLOTLY_CONFIG },
     };
   }, [rows, projects, colors, fullscreen, theme]);
 

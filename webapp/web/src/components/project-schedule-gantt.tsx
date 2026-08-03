@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { Text } from "@tremor/react";
 import type { ProjectSchedulePayload } from "@/lib/api";
+import { PLOTLY_CONFIG } from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -394,11 +395,8 @@ export function ProjectScheduleGantt({
         font: { color: "#94a3b8", size: taskFont },
       },
       config: {
-        displayModeBar: true,
-        responsive: true,
-        displaylogo: false,
+        ...PLOTLY_CONFIG,
         scrollZoom: false,
-        modeBarButtonsToRemove: ["lasso2d", "select2d"],
       },
       chartHeight,
       plotHeight,

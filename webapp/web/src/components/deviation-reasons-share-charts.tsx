@@ -3,6 +3,11 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { DeviationReasonsPayload } from "@/lib/api";
+import {
+  PLOTLY_AXIS_LINE,
+  PLOTLY_CONFIG,
+  PLOTLY_ZEROLINE,
+} from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -109,7 +114,10 @@ export function DeviationReasonsBarChart({
           automargin: true,
           tickfont: { size: 13, color: theme.axis },
           gridcolor: theme.grid,
-          zeroline: false,
+          ...PLOTLY_ZEROLINE,
+          zerolinecolor: theme.dark
+            ? "rgba(148, 163, 184, 0.85)"
+            : "rgba(100, 116, 139, 0.85)",
           dtick: ymax <= 8 ? 1 : undefined,
         },
         xaxis: {
@@ -124,20 +132,38 @@ export function DeviationReasonsBarChart({
           tickvals: x,
           ticktext,
           tickfont: { size: 13, color: theme.axis },
+          ...PLOTLY_AXIS_LINE,
+          linecolor: theme.dark
+            ? "rgba(148, 163, 184, 0.85)"
+            : "rgba(100, 116, 139, 0.85)",
         },
         bargap: n === 1 ? 0.72 : n <= 4 ? 0.45 : 0.28,
         showlegend: false,
+        shapes: [
+          {
+            type: "line" as const,
+            xref: "paper" as const,
+            x0: 0,
+            x1: 1,
+            yref: "y" as const,
+            y0: 0,
+            y1: 0,
+            layer: "below" as const,
+            line: {
+              color: theme.dark
+                ? "rgba(148, 163, 184, 0.9)"
+                : "rgba(71, 85, 105, 0.9)",
+              width: 1.5,
+            },
+          },
+        ],
         modebar: {
           bgcolor: "rgba(0,0,0,0)",
           color: theme.axis,
           activecolor: "#0f766e",
         },
       },
-      config: {
-        displayModeBar: true,
-        responsive: true,
-        locale: "ru",
-      },
+      config: { ...PLOTLY_CONFIG },
     };
   }, [rows, fullscreen, theme]);
 
@@ -231,11 +257,7 @@ export function DeviationReasonsPieChart({
           activecolor: "#0f766e",
         },
       },
-      config: {
-        displayModeBar: true,
-        responsive: true,
-        locale: "ru",
-      },
+      config: { ...PLOTLY_CONFIG },
     };
   }, [rows, fullscreen, theme]);
 
