@@ -377,66 +377,154 @@ export function GdrsContractorsPieChart({
   );
 }
 
+function shortPeriodLabel(period: string): string {
+  // "01.07.2026" → "01.07"; leave week/month labels as-is when short
+  const m = period.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (m) return `${m[1]}.${m[2]}`;
+  return period;
+}
+
 export function GdrsDynamicsLineChart({
   rows,
   fullscreen = false,
+  compact = false,
 }: {
   rows: Array<{ period: string; plan: number; fact: number }>;
   fullscreen?: boolean;
+  /** Mobile: без подписей на точках, горизонтальный скролл при «День». */
+  compact?: boolean;
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
-    const x = rows.map((row) => row.period);
+    const dense = rows.length > 12;
+    const showPointText = !compact && !dense;
+    const x = rows.map((row) =>
+      compact ? shortPeriodLabel(row.period) : row.period,
+    );
     const plan = rows.map((row) => row.plan);
     const fact = rows.map((row) => row.fact);
     const maximum = Math.max(1, ...plan, ...fact);
+    const chartWidth =
+      compact && dense
+        ? Math.max(560, rows.length * 36)
+        : undefined;
+    const height = compact
+      ? 300
+      : fullscreen
+        ? Math.max(520, Math.min(window.innerHeight - 32, 760))
+        : 440;
+    const mode = showPointText
+      ? ("lines+markers+text" as const)
+      : ("lines+markers" as const);
     return {
       data: [
         {
           type: "scatter" as const,
-          mode: "lines+markers+text" as const,
+          mode,
           name: "План",
           x,
           y: plan,
-          text: plan.map((value) => String(Math.round(value))),
-          textposition: "top center" as const,
-          textfont: { color: "#2563eb", size: 10 },
-          line: { color: "#2563eb", width: 2.5 },
-          marker: { color: "#2563eb", size: 8, line: { color: "#ffffff", width: 1 } },
+          ...(showPointText
+            ? {
+                text: plan.map((value) => String(Math.round(value))),
+                textposition: "top center" as const,
+                textfont: { color: "#2563eb", size: 10 },
+              }
+            : {}),
+          customdata: rows.map((row) => row.period),
+          line: { color: "#2563eb", width: compact ? 2 : 2.5 },
+          marker: {
+            color: "#2563eb",
+            size: compact ? 6 : 8,
+            line: { color: "#ffffff", width: 1 },
+          },
           cliponaxis: false,
-          hovertemplate: "<b>%{x}</b><br>План: %{y}<extra></extra>",
+          hovertemplate: "<b>%{customdata}</b><br>План: %{y}<extra></extra>",
         },
         {
           type: "scatter" as const,
-          mode: "lines+markers+text" as const,
+          mode,
           name: "Факт",
           x,
           y: fact,
-          text: fact.map((value) => String(Math.round(value))),
-          textposition: "top center" as const,
-          textfont: { color: "#ea580c", size: 10 },
-          line: { color: "#ea580c", width: 2.5 },
-          marker: { color: "#ea580c", size: 8, line: { color: "#ffffff", width: 1 } },
+          ...(showPointText
+            ? {
+                text: fact.map((value) => String(Math.round(value))),
+                textposition: "top center" as const,
+                textfont: { color: "#ea580c", size: 10 },
+              }
+            : {}),
+          customdata: rows.map((row) => row.period),
+          line: { color: "#ea580c", width: compact ? 2 : 2.5 },
+          marker: {
+            color: "#ea580c",
+            size: compact ? 6 : 8,
+            line: { color: "#ffffff", width: 1 },
+          },
           cliponaxis: false,
-          hovertemplate: "<b>%{x}</b><br>Факт: %{y}<extra></extra>",
+          hovertemplate: "<b>%{customdata}</b><br>Факт: %{y}<extra></extra>",
         },
       ],
       layout: {
-        height: fullscreen ? Math.max(520, Math.min(window.innerHeight - 32, 760)) : 440,
-        margin: { l: 56, r: 36, t: 76, b: 110 },
+        width: chartWidth,
+        height,
+        margin: compact
+          ? { l: 40, r: 12, t: 40, b: 72 }
+          : { l: 56, r: 36, t: 76, b: 110 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         hovermode: "x unified" as const,
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
-        legend: { orientation: "h" as const, y: 1.15, x: 0.5, xanchor: "center" as const },
-        xaxis: { title: "Период", tickangle: -35, tickfont: { size: 11, color: theme.axis }, gridcolor: theme.grid, automargin: true },
-        yaxis: { title: "Среднее число в день", range: [0, maximum * 1.16], tickfont: { size: 11, color: theme.axis }, gridcolor: theme.grid, zeroline: false },
-        modebar: { bgcolor: "rgba(0,0,0,0)", color: theme.axis, activecolor: "#0f766e" },
+        legend: {
+          orientation: "h" as const,
+          y: compact ? 1.12 : 1.15,
+          x: 0.5,
+          xanchor: "center" as const,
+          font: { size: compact ? 11 : 12 },
+        },
+        xaxis: {
+          title: compact ? undefined : "Период",
+          tickangle: -45,
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
+          gridcolor: theme.grid,
+          automargin: true,
+          ...(compact && !dense
+            ? { nticks: Math.min(8, rows.length) }
+            : {}),
+        },
+        yaxis: {
+          title: compact ? undefined : "Среднее число в день",
+          range: [0, maximum * (compact ? 1.08 : 1.16)],
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
+          gridcolor: theme.grid,
+          zeroline: false,
+        },
+        modebar: {
+          bgcolor: "rgba(0,0,0,0)",
+          color: theme.axis,
+          activecolor: "#0f766e",
+        },
       },
-      config: { ...PLOTLY_CONFIG },
+      config: {
+        ...PLOTLY_CONFIG,
+        ...(compact ? { displayModeBar: false } : {}),
+      },
     };
-  }, [fullscreen, rows, theme]);
+  }, [compact, fullscreen, rows, theme]);
 
   if (!rows.length) return empty("Нет точек динамики.");
-  return <PlotlyFigure data={figure.data} layout={figure.layout} config={figure.config} useResizeHandler style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div className={compact && rows.length > 12 ? "overflow-x-auto" : ""}>
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{
+          width: compact && rows.length > 12 ? "max-content" : "100%",
+          height: "100%",
+        }}
+      />
+    </div>
+  );
 }

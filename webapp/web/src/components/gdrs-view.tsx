@@ -1064,7 +1064,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} fullscreen={zoomed} />
             </div>
             <div className="mt-4 lg:hidden">
-              <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} />
+              <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} compact />
             </div>
           </Card>}
         </FullscreenPanel>
