@@ -3,7 +3,7 @@
 > **Полный повторный проход (все экраны заново):** см. отдельный план  
 > [`PARITY_FULL_REGRESSION_PLAN.md`](./PARITY_FULL_REGRESSION_PLAN.md).  
 > Этот файл остаётся журналом деталей по §; статусы нового цикла — в плане регресса.  
-> Цикл 02.08–03.08.2026: **§0–§6 ✅**, mobile kit §1–§5 ✅ → далее **§7** график проекта.
+> Цикл 02.08–03.08.2026: **§0–§7 ✅**, mobile kit §1–§5 ✅ → далее **§8** причины отклонений.
 
 Цикл на экран (как договорились):
 
@@ -44,8 +44,8 @@
 | 4 | Утверждённый бюджет план/факт | `/finance/approved-budget` | ✅ принят на стенде 02.08.2026 (регресс) | ✓ CSV+xlsx (2 таблицы) | ✓ (график и таблицы) | ИТОГО 13207/5881/−7326; проекты/срезы = main; SVG-gauge + Tremor |
 | 5 | БДДС расходы (план, факт, уточн.) | `/finance/bdds-plan-fact` | ✅ принят на стенде 02.08.2026 | ✓ CSV+xlsx (2 таблицы) | ✓ (график+таблицы) | ИТОГО 6716.1/3889.8/6716.1; редактор лотов; mobile fit (`533d0c8`) |
 | 6 | Контрольные точки | `/timeline/control-points` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | цифры=main; mobile cards+pills; desktop fit (`a074d6a`) |
-| 7 | График проекта | `/timeline/project-schedule` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | после kit; скрины main↔showcase desktop+~390 |
-| 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; доля+динамика Tremor; см. §8 |
+| 7 | График проекта | `/timeline/project-schedule` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ковенанты=main; date pad; mobile compact gantt+cards (`51b4758`) |
+| 8 | Причины отклонений | `/timeline/deviation-reasons` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | mobile cards на 3 таблицах; KPI/графики как 31.07 |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; Plotly end-bars РД; см. §9 |
 | 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx (3 таблицы) | ✓ | БД через core_bridge; обе вкладки; см. §10 |
 | 11 | Рабочая документация | `/docs/working-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД rd_plan+tessa; обе вкладки; см. §11 |
@@ -308,6 +308,14 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 ## §7 График проекта
 
+### Регресс 03.08.2026
+
+Статус: ✅ принято на стенде 03.08.2026 (`51b4758`).
+
+- Ковенанты: ромбы plan/fact как main; WBS ancestor-блок через `import_renderers_module`; cache `v4`.
+- Desktop: отступ дат от ромбов (`COVENANT_LABEL_GAP_MS`).
+- Mobile: compact gantt (без дат на оси); таблица `MobileEntityCard` / `MobileMetricGrid`.
+
 ### Черновик 31.07.2026
 
 Статус: ✅ принято на стенде 31.07.2026 (`81e280f`).
@@ -336,6 +344,10 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 ---
 
 ## §8 Причины отклонений
+
+### Регресс 03.08.2026
+
+Статус: 🔄 mobile kit на таблицах (`MobileEntityCard`); ждём приёмку на стенде.
 
 ### Черновик 31.07.2026
 

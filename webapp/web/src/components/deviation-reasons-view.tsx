@@ -17,6 +17,11 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 import { CHART_RU, withRuReasonCount } from "@/lib/chart-ru";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
@@ -693,58 +698,97 @@ export function DeviationReasonsView() {
                 Число отклонений по проекту и месяцу
               </Title>
             </div>
-            <FullscreenPanel disabled={!sortedPmRows.length}>
-              <div className="overflow-x-auto p-1 pt-10">
-                {sortedPmRows.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                    Нет данных по периодам.
-                  </div>
-                ) : (
-                  <table className="min-w-full border-collapse text-xs">
-                    <thead>
-                      <tr>
-                        <SortHeader
-                          label="Проект"
-                          sortKey="project"
-                          sort={pmSort}
-                          onSort={togglePmSort}
+            <FullscreenPanel
+              disabled={!sortedPmRows.length}
+              className="!overflow-x-hidden"
+            >
+              {sortedPmRows.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                  Нет данных по периодам.
+                </div>
+              ) : (
+                <>
+                  <MobileCardStack>
+                    {sortedPmRows.map((row) => (
+                      <MobileEntityCard
+                        key={`${row.project}-${row.period_key}-${row._index}`}
+                        title={row.project}
+                        badge={row.count}
+                        badgeTone="neutral"
+                      >
+                        <MobileMetricGrid
+                          columns={2}
+                          items={[
+                            { label: "Период", value: row.period },
+                            { label: "Отклонений", value: row.count },
+                          ]}
                         />
-                        <SortHeader
-                          label="Период (месяц)"
-                          sortKey="period"
-                          sort={pmSort}
-                          onSort={togglePmSort}
-                        />
-                        <SortHeader
-                          label="Количество отклонений"
-                          sortKey="count"
-                          sort={pmSort}
-                          onSort={togglePmSort}
-                        />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedPmRows.map((row) => (
-                        <tr
-                          key={`${row.project}-${row.period_key}-${row._index}`}
-                          className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
-                        >
-                          <td className={`${TD} font-medium`}>{row.project}</td>
-                          <td className={TD}>{row.period}</td>
-                          <td className={`${TD} tabular-nums`}>{row.count}</td>
+                      </MobileEntityCard>
+                    ))}
+                    <MobileEntityCard
+                      title="Итого"
+                      badge={dynamics.project_month_total}
+                      badgeTone="neutral"
+                    >
+                      <MobileMetricGrid
+                        columns={2}
+                        items={[
+                          { label: "Период", value: "—" },
+                          {
+                            label: "Отклонений",
+                            value: dynamics.project_month_total,
+                          },
+                        ]}
+                      />
+                    </MobileEntityCard>
+                  </MobileCardStack>
+                  <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
+                    <table className="min-w-full border-collapse text-xs">
+                      <thead>
+                        <tr>
+                          <SortHeader
+                            label="Проект"
+                            sortKey="project"
+                            sort={pmSort}
+                            onSort={togglePmSort}
+                          />
+                          <SortHeader
+                            label="Период (месяц)"
+                            sortKey="period"
+                            sort={pmSort}
+                            onSort={togglePmSort}
+                          />
+                          <SortHeader
+                            label="Количество отклонений"
+                            sortKey="count"
+                            sort={pmSort}
+                            onSort={togglePmSort}
+                          />
                         </tr>
-                      ))}
-                      <tr className="bg-slate-100 font-semibold dark:bg-slate-800/60">
-                        <td className={TD}>Итого</td>
-                        <td className={TD} />
-                        <td className={`${TD} tabular-nums`}>
-                          {dynamics.project_month_total}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                      </thead>
+                      <tbody>
+                        {sortedPmRows.map((row) => (
+                          <tr
+                            key={`${row.project}-${row.period_key}-${row._index}`}
+                            className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
+                          >
+                            <td className={`${TD} font-medium`}>{row.project}</td>
+                            <td className={TD}>{row.period}</td>
+                            <td className={`${TD} tabular-nums`}>{row.count}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-slate-100 font-semibold dark:bg-slate-800/60">
+                          <td className={TD}>Итого</td>
+                          <td className={TD} />
+                          <td className={`${TD} tabular-nums`}>
+                            {dynamics.project_month_total}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </FullscreenPanel>
             <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <DownloadTableButton
@@ -794,68 +838,110 @@ export function DeviationReasonsView() {
                 Сводная таблица (проект / причина)
               </Title>
             </div>
-            <FullscreenPanel disabled={!sortedSumRows.length}>
-              <div className="overflow-x-auto p-1 pt-10">
-                {sortedSumRows.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                    Нет сводных данных.
-                  </div>
-                ) : (
-                  <table className="min-w-full border-collapse text-xs">
-                    <thead>
-                      <tr>
-                        <SortHeader
-                          label="Проект"
-                          sortKey="project"
-                          sort={sumSort}
-                          onSort={toggleSumSort}
+            <FullscreenPanel
+              disabled={!sortedSumRows.length}
+              className="!overflow-x-hidden"
+            >
+              {sortedSumRows.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                  Нет сводных данных.
+                </div>
+              ) : (
+                <>
+                  <MobileCardStack>
+                    {sortedSumRows.map((row) => (
+                      <MobileEntityCard
+                        key={`${row.project}-${row.reason}-${row._index}`}
+                        title={`${row.project}: ${row.reason}`}
+                        badge={row.count}
+                        badgeTone="neutral"
+                      >
+                        <MobileMetricGrid
+                          columns={2}
+                          items={[
+                            { label: "Отклонений", value: row.count },
+                            { label: "Дней", value: row.days },
+                          ]}
                         />
-                        <SortHeader
-                          label="Причина отклонений"
-                          sortKey="reason"
-                          sort={sumSort}
-                          onSort={toggleSumSort}
-                        />
-                        <SortHeader
-                          label="Количество отклонений"
-                          sortKey="count"
-                          sort={sumSort}
-                          onSort={toggleSumSort}
-                        />
-                        <SortHeader
-                          label="Всего дней отклонений"
-                          sortKey="days"
-                          sort={sumSort}
-                          onSort={toggleSumSort}
-                        />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedSumRows.map((row) => (
-                        <tr
-                          key={`${row.project}-${row.reason}-${row._index}`}
-                          className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
-                        >
-                          <td className={`${TD} font-medium`}>{row.project}</td>
-                          <td className={`${TD} max-w-md text-left`}>{row.reason}</td>
-                          <td className={`${TD} tabular-nums`}>{row.count}</td>
-                          <td className={`${TD} tabular-nums`}>{row.days}</td>
+                      </MobileEntityCard>
+                    ))}
+                    <MobileEntityCard
+                      title="Итого"
+                      badge={dynamics.summary_totals?.count ?? 0}
+                      badgeTone="neutral"
+                    >
+                      <MobileMetricGrid
+                        columns={2}
+                        items={[
+                          {
+                            label: "Отклонений",
+                            value: dynamics.summary_totals?.count ?? 0,
+                          },
+                          {
+                            label: "Дней",
+                            value: dynamics.summary_totals?.days ?? 0,
+                          },
+                        ]}
+                      />
+                    </MobileEntityCard>
+                  </MobileCardStack>
+                  <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
+                    <table className="min-w-full border-collapse text-xs">
+                      <thead>
+                        <tr>
+                          <SortHeader
+                            label="Проект"
+                            sortKey="project"
+                            sort={sumSort}
+                            onSort={toggleSumSort}
+                          />
+                          <SortHeader
+                            label="Причина отклонений"
+                            sortKey="reason"
+                            sort={sumSort}
+                            onSort={toggleSumSort}
+                          />
+                          <SortHeader
+                            label="Количество отклонений"
+                            sortKey="count"
+                            sort={sumSort}
+                            onSort={toggleSumSort}
+                          />
+                          <SortHeader
+                            label="Всего дней отклонений"
+                            sortKey="days"
+                            sort={sumSort}
+                            onSort={toggleSumSort}
+                          />
                         </tr>
-                      ))}
-                      <tr className="bg-slate-100 font-semibold dark:bg-slate-800/60">
-                        <td className={TD}>Итого</td>
-                        <td className={TD}>Итого</td>
-                        <td className={`${TD} tabular-nums`}>
-                          {dynamics.summary_totals?.count ?? 0}
-                        </td>
-                        <td className={`${TD} tabular-nums`}>
-                          {dynamics.summary_totals?.days ?? 0}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                      </thead>
+                      <tbody>
+                        {sortedSumRows.map((row) => (
+                          <tr
+                            key={`${row.project}-${row.reason}-${row._index}`}
+                            className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
+                          >
+                            <td className={`${TD} font-medium`}>{row.project}</td>
+                            <td className={`${TD} max-w-md text-left`}>{row.reason}</td>
+                            <td className={`${TD} tabular-nums`}>{row.count}</td>
+                            <td className={`${TD} tabular-nums`}>{row.days}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-slate-100 font-semibold dark:bg-slate-800/60">
+                          <td className={TD}>Итого</td>
+                          <td className={TD}>Итого</td>
+                          <td className={`${TD} tabular-nums`}>
+                            {dynamics.summary_totals?.count ?? 0}
+                          </td>
+                          <td className={`${TD} tabular-nums`}>
+                            {dynamics.summary_totals?.days ?? 0}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </FullscreenPanel>
             <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <DownloadTableButton
@@ -875,79 +961,136 @@ export function DeviationReasonsView() {
               Детальные данные
             </Title>
           </div>
-          <FullscreenPanel disabled={!sortedRows.length}>
-            <div className="overflow-x-auto p-1 pt-10">
-              {loading && !data ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  Загрузка…
-                </div>
-              ) : sortedRows.length === 0 ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  По макету нет строк: уровень 5, непустая причина, отклонение окончания &lt; 0.
-                </div>
-              ) : (
-                <table className="min-w-full border-collapse text-xs">
-                  <thead>
-                    <tr>
-                      {columns.map((label) => {
-                        const sortKey = COL_SORT[label];
-                        if (!sortKey) {
-                          return (
-                            <th key={label} className={TH}>
-                              {label}
-                            </th>
-                          );
+          <FullscreenPanel
+            disabled={!sortedRows.length}
+            className="!overflow-x-hidden"
+          >
+            {loading && !data ? (
+              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                Загрузка…
+              </div>
+            ) : sortedRows.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                По макету нет строк: уровень 5, непустая причина, отклонение окончания &lt; 0.
+              </div>
+            ) : (
+              <>
+                <MobileCardStack>
+                  {sortedRows.map((row) => (
+                    <div
+                      key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}
+                      className="overflow-hidden rounded-xl border-l-4"
+                      style={{ borderLeftColor: row.bucket_color }}
+                    >
+                      <MobileEntityCard
+                        title={
+                          row.project && row.task
+                            ? `${row.project}: ${row.task}`
+                            : (row.task ?? row.project ?? "—")
                         }
-                        return (
-                          <SortHeader
-                            key={label}
-                            label={label}
-                            sortKey={sortKey}
-                            sort={tableSort}
-                            onSort={toggleSort}
-                            tint={DATE_COLS.has(label)}
-                          />
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedRows.map((row) => (
-                      <tr
-                        key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}
-                        className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
+                        badge={
+                          row.end_diff_days != null ? row.end_diff_days : undefined
+                        }
+                        badgeTone={
+                          row.end_diff_days == null
+                            ? "neutral"
+                            : row.end_diff_days < 0
+                              ? "bad"
+                              : "ok"
+                        }
                       >
-                        <td className={`${TD} tabular-nums`}>{row.task_id ?? "—"}</td>
-                        <td className={`${TD} font-medium`}>{row.project}</td>
-                        <td className={TD}>{row.block ?? "—"}</td>
-                        <td className={`${TD} max-w-xs text-left`}>{row.task ?? "—"}</td>
-                        <td className={TD}>{row.building ?? "—"}</td>
-                        <td className={`${TD} ${DATE_BG} tabular-nums`}>
-                          {row.plan_end ?? "—"}
-                        </td>
-                        <td className={`${TD} ${DATE_BG} tabular-nums`}>
-                          {row.base_end ?? "—"}
-                        </td>
-                        <td
-                          className={`${TD} ${DATE_BG} tabular-nums ${deviationClass(row.end_diff_days)}`}
-                        >
-                          {row.end_diff_days ?? "—"}
-                        </td>
-                        <td
-                          className={`${TD} max-w-xs text-left font-semibold`}
-                          style={{ borderLeft: `4px solid ${row.bucket_color}` }}
-                        >
-                          {row.reason}
-                        </td>
-                        <td className={`${TD} max-w-xs truncate text-left`}>
-                          {row.notes ?? "—"}
-                        </td>
+                        <MobileMetricGrid
+                          columns={2}
+                          items={[
+                            { label: "ID", value: row.task_id ?? "—" },
+                            { label: "Блок", value: row.block ?? "—" },
+                            { label: "Строение", value: row.building ?? "—" },
+                            { label: "Окончание", value: row.plan_end ?? "—" },
+                            {
+                              label: "Базовое",
+                              value: row.base_end ?? "—",
+                            },
+                            {
+                              label: "Откл.",
+                              value: row.end_diff_days ?? "—",
+                              className: deviationClass(row.end_diff_days),
+                            },
+                            { label: "Причина", value: row.reason || "—" },
+                            { label: "Заметки", value: row.notes || "—" },
+                          ]}
+                        />
+                      </MobileEntityCard>
+                    </div>
+                  ))}
+                </MobileCardStack>
+                <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
+                  <table className="min-w-full border-collapse text-xs">
+                    <thead>
+                      <tr>
+                        {columns.map((label) => {
+                          const sortKey = COL_SORT[label];
+                          if (!sortKey) {
+                            return (
+                              <th key={label} className={TH}>
+                                {label}
+                              </th>
+                            );
+                          }
+                          return (
+                            <SortHeader
+                              key={label}
+                              label={label}
+                              sortKey={sortKey}
+                              sort={tableSort}
+                              onSort={toggleSort}
+                              tint={DATE_COLS.has(label)}
+                            />
+                          );
+                        })}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                    </thead>
+                    <tbody>
+                      {sortedRows.map((row) => (
+                        <tr
+                          key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}
+                          className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
+                        >
+                          <td className={`${TD} tabular-nums`}>
+                            {row.task_id ?? "—"}
+                          </td>
+                          <td className={`${TD} font-medium`}>{row.project}</td>
+                          <td className={TD}>{row.block ?? "—"}</td>
+                          <td className={`${TD} max-w-xs text-left`}>
+                            {row.task ?? "—"}
+                          </td>
+                          <td className={TD}>{row.building ?? "—"}</td>
+                          <td className={`${TD} ${DATE_BG} tabular-nums`}>
+                            {row.plan_end ?? "—"}
+                          </td>
+                          <td className={`${TD} ${DATE_BG} tabular-nums`}>
+                            {row.base_end ?? "—"}
+                          </td>
+                          <td
+                            className={`${TD} ${DATE_BG} tabular-nums ${deviationClass(row.end_diff_days)}`}
+                          >
+                            {row.end_diff_days ?? "—"}
+                          </td>
+                          <td
+                            className={`${TD} max-w-xs text-left font-semibold`}
+                            style={{ borderLeft: `4px solid ${row.bucket_color}` }}
+                          >
+                            {row.reason}
+                          </td>
+                          <td className={`${TD} max-w-xs truncate text-left`}>
+                            {row.notes ?? "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </FullscreenPanel>
           <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <DownloadTableButton
