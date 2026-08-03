@@ -255,59 +255,111 @@ function MultiSelect({
   );
 }
 
-function StatusChips({
+/** Фильтр «Раздел» как main `st.multiselect`: чипы выбранных + сетка чекбоксов 3 кол. */
+function SectionChipMultiSelect({
+  label,
   options,
   values,
   onChange,
+  allToken = "Все",
 }: {
+  label: string;
   options: string[];
   values: string[];
   onChange: (next: string[]) => void;
+  allToken?: string;
 }) {
-  const allSelected = !values.length || values.length === options.length;
+  const opts = options.filter((o) => o && o !== allToken);
+  const allSelected =
+    !values.length ||
+    values.includes(allToken) ||
+    (opts.length > 0 && opts.every((o) => values.includes(o)));
+  const selected = allSelected ? opts : values.filter((v) => v !== allToken && opts.includes(v));
+
+  const setSelected = (next: string[]) => {
+    if (!next.length || next.length === opts.length) {
+      onChange([allToken]);
+      return;
+    }
+    onChange(next);
+  };
+
+  const truncate = (s: string, n = 18) =>
+    s.length > n ? `${s.slice(0, n - 1)}…` : s;
+
   return (
-    <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
-        className={`rounded-full px-3 py-1 text-xs font-medium ${
-          allSelected
-            ? "bg-emerald-600 text-white"
-            : "bg-tremor-background-muted text-tremor-content dark:bg-dark-tremor-background-muted"
-        }`}
-        onClick={() => onChange(options)}
-      >
-        Все
-      </button>
-      {options.map((st) => {
-        const on = allSelected || values.includes(st);
-        return (
+    <FilterField label={label}>
+      <div className="mt-1 overflow-hidden rounded-tremor-default border border-tremor-border bg-tremor-background dark:border-dark-tremor-border dark:bg-dark-tremor-background">
+        <div className="max-h-28 overflow-y-auto border-b border-tremor-border p-1.5 dark:border-dark-tremor-border">
+          <div className="flex flex-wrap gap-1">
+            {selected.length ? (
+              selected.map((item) => (
+                <span
+                  key={item}
+                  title={item}
+                  className="inline-flex max-w-full items-center gap-0.5 rounded bg-[#e5e7eb] px-1.5 py-0.5 text-[11px] leading-tight text-[#111827] dark:bg-slate-700 dark:text-slate-100"
+                >
+                  <span className="truncate">{truncate(item)}</span>
+                  <button
+                    type="button"
+                    aria-label={`Убрать ${item}`}
+                    className="shrink-0 px-0.5 text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                    onClick={() => setSelected(selected.filter((x) => x !== item))}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            ) : (
+              <span className="px-1 text-[11px] text-tremor-content dark:text-dark-tremor-content">
+                Нет выбранных разделов
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 border-b border-tremor-border px-2 py-1 text-[11px] dark:border-dark-tremor-border">
           <button
-            key={st}
             type="button"
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              on
-                ? "bg-sky-600 text-white"
-                : "bg-tremor-background-muted text-tremor-content dark:bg-dark-tremor-background-muted"
-            }`}
-            onClick={() => {
-              if (allSelected) {
-                onChange([st]);
-                return;
-              }
-              if (on) {
-                const next = values.filter((v) => v !== st);
-                onChange(next.length ? next : options);
-              } else {
-                const next = [...values, st];
-                onChange(next.length === options.length ? options : next);
-              }
-            }}
+            className="text-sky-700 hover:underline dark:text-sky-300"
+            onClick={() => setSelected(opts)}
           >
-            {st}
+            Выбрать все
           </button>
-        );
-      })}
-    </div>
+          <button
+            type="button"
+            className="text-slate-500 hover:underline dark:text-slate-400"
+            onClick={() => setSelected([])}
+          >
+            Снять все
+          </button>
+        </div>
+        <div className="max-h-36 overflow-y-auto p-1.5">
+          <div className="grid grid-cols-1 gap-x-2 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
+            {opts.map((item) => {
+              const on = selected.includes(item);
+              return (
+                <label
+                  key={item}
+                  title={item}
+                  className="flex min-w-0 cursor-pointer items-center gap-1.5 text-[11px] leading-snug text-[#111827] dark:text-slate-100"
+                >
+                  <input
+                    type="checkbox"
+                    className="bi-filters-check-input shrink-0"
+                    checked={on}
+                    onChange={() => {
+                      if (on) setSelected(selected.filter((x) => x !== item));
+                      else setSelected([...selected, item]);
+                    }}
+                  />
+                  <span className="truncate">{truncate(item, 22)}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </FilterField>
   );
 }
 
@@ -631,14 +683,16 @@ export function WorkingDocumentationView() {
         title={tab === "main" ? "План выдачи РД — фильтры" : "Фильтры"}
       >
         <FiltersReset onClick={resetFilters} />
-        <FilterFieldsRow cols={3}>
+        <div className="max-w-md">
           <MultiSelect
             label="Проекты"
             options={data?.filters.projects ?? ["Все"]}
             values={filters.projects}
             onChange={(projects) => setFilters((f) => ({ ...f, projects }))}
           />
-          <MultiSelect
+        </div>
+        <FilterFieldsRow cols={3}>
+          <SectionChipMultiSelect
             label="Раздел"
             options={data?.filters.sections ?? ["Все"]}
             values={filters.sections}
@@ -659,6 +713,25 @@ export function WorkingDocumentationView() {
               ))}
             </select>
           </FilterField>
+          <SectionChipMultiSelect
+            label="Статус"
+            options={["Все", ...(data?.filters.statuses ?? [])]}
+            values={
+              filters.statuses.length
+                ? filters.statuses
+                : data?.filters.statuses?.length
+                  ? ["Все"]
+                  : []
+            }
+            onChange={(statuses) => {
+              if (!statuses.length || statuses.includes("Все")) {
+                setFilters((f) => ({ ...f, statuses: [] }));
+                return;
+              }
+              setFilters((f) => ({ ...f, statuses }));
+            }}
+            allToken="Все"
+          />
         </FilterFieldsRow>
         {filters.periodMode !== "Весь период (за всё время)" ? (
           <FilterFieldsRow cols={3}>
@@ -689,16 +762,6 @@ export function WorkingDocumentationView() {
             <div />
           </FilterFieldsRow>
         ) : null}
-        <div>
-          <Text className="mb-1 text-sm text-tremor-content dark:text-dark-tremor-content">
-            Статус
-          </Text>
-          <StatusChips
-            options={data?.filters.statuses ?? []}
-            values={filters.statuses}
-            onChange={(statuses) => setFilters((f) => ({ ...f, statuses }))}
-          />
-        </div>
         {tab === "delay" ? (
           <FilterFieldsRow cols={3}>
             <FilterField label="Отображение">
