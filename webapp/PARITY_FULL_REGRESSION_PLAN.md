@@ -10,7 +10,7 @@
 | Эталон UI/цифр | `[main]` Streamlit (`bi-analytics` / `:8501`) |
 | Стенд showcase | CloudPub / VPS webapp (Next + FastAPI) |
 | Старт цикла | 02.08.2026 |
-| Текущий экран | ✅ §0–§12 → ⬜ §13 ГДРС (техника) |
+| Текущий экран | ✅ §0–§13 → ⬜ §14 Предписания |
 | Mobile | обязателен на **каждом** экране (тот же URL, ~390px) |
 
 **Правила цикла (зафиксировано):**
@@ -169,7 +169,7 @@ showcase active ──────┘
 | 10 | Проектная документация | `/docs/project-documentation` | ПД | ✅ |
 | 11 | Рабочая документация | `/docs/working-documentation` | РД | ✅ |
 | 12 | ГДРС (люди) | `/gdrs/people` | ГДРС люди | ✅ |
-| 13 | ГДРС (техника) | `/gdrs/equipment` | ГДРС техника | ⬜ |
+| 13 | ГДРС (техника) | `/gdrs/equipment` | ГДРС техника | ✅ |
 | 14 | Предписания по подрядчикам | `/prescriptions` | Предписания | ⬜ |
 | 15 | Исполнительная документация | `/executive-docs` | Исп. документация | ⬜ |
 | 16 | ДЗ/КЗ подрядчиков | `/debit-credit` | ДЗ/КЗ | ⬜ |
@@ -238,6 +238,7 @@ python scripts/check_jobs_store.py
 | 03.08.2026 | Правило | все § | Desktop Plotly: подписи/точки/цвета = main; mobile — облегчение где уместно |
 | 03.08.2026 | §11 Рабочая документация | overdue 520; Plotly; chip filters | ✅ стенд: Plotly; table colors; Gantt labels; BDDS chips + scroll (`3e03a99`…`c9e115f`) |
 | 03.08.2026 | §12 ГДРС (люди) | desktop+mobile Plotly | ✅ стенд: |Δ| bars; pie legend; dynamics scroll; chips/sheet (`e79d9a8`…`c80e82a`) |
+| 03.08.2026 | §13 ГДРС (техника) | тот же UI что §12 | ✅ стенд smoke `/gdrs/equipment` (наследует Plotly compact §12) |
 | 03.08.2026 | Правило | все § | Mobile-фильтры: bottom sheet + крупные чипы (`FiltersCard`) |
 
 После каждого стендового «ок» добавлять строку сюда и ставить ✅ в матрице §6.
