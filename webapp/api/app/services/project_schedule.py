@@ -12,6 +12,7 @@ import pandas as pd
 from app.config import DATA_MODE, WEB_DB_PATH
 from app.services.core_bridge import (
     import_dashboard_module,
+    import_renderers_module,
     load_msp_frame,
     prepare_web_db,
 )
@@ -68,8 +69,12 @@ def _gantt_row_dates(row: dict[str, Any]) -> list[date]:
     return out
 
 
-def _filter_gantt_outlier_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Убрать с диаграммы выбросы дат и нулевые полосы (начало = конец); таблица без изменений."""
+def _filter_gantt_outlier_rows(
+    rows: list[dict[str, Any]],
+    *,
+    covenant_mode: bool = False,
+) -> list[dict[str, Any]]:
+    """Убрать с диаграммы выбросы дат; нулевые полосы — только вне режима ковенантов."""
 
     def _has_zero_span(row: dict[str, Any]) -> bool:
         """Скрыть, если план или факт — точка (начало = конец)."""
@@ -93,7 +98,7 @@ def _filter_gantt_outlier_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any
     lo, hi = _robust_date_window(all_dates)
 
     def _keep(row: dict[str, Any]) -> bool:
-        if _has_zero_span(row):
+        if not covenant_mode and _has_zero_span(row):
             return False
         ds = _gantt_row_dates(row)
         if not ds:
@@ -296,6 +301,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
                 "only_delay": False,
                 "level_skipped": False,
                 "multi_project": True,
+                "covenant_mode": False,
             },
         },
         "gantt": {
@@ -305,6 +311,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "plan_color": PLAN_COLOR,
             "fact_color": FACT_COLOR,
             "label_pct": False,
+            "covenant_mode": False,
             "rows": [],
         },
         "rows": [],
@@ -312,7 +319,26 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
     }
 
 
-def _block_values(frame: pd.DataFrame, block_col: str | None) -> list[str]:
+def _block_values(
+    frame: pd.DataFrame,
+    block_col: str | None,
+    *,
+    level_col: str | None = None,
+    task_col: str | None = None,
+) -> list[str]:
+    if frame is None or getattr(frame, "empty", True):
+        return []
+    try:
+        renderers = import_renderers_module()
+        vals = renderers._gantt_block_filter_values_for_df(
+            frame,
+            level_col=level_col,
+            task_col=task_col,
+        )
+        if vals:
+            return list(vals)
+    except Exception:
+        pass
     if not block_col or block_col not in frame.columns:
         return []
     values = (
@@ -333,15 +359,87 @@ def _block_values(frame: pd.DataFrame, block_col: str | None) -> list[str]:
     return uniq
 
 
-def _building_values(frame: pd.DataFrame, level_col: str | None, task_col: str | None) -> list[str]:
-    if frame is None or getattr(frame, "empty", True) or not level_col or not task_col:
+def _apply_block_filter(
+    frame: pd.DataFrame,
+    *,
+    block_name: str,
+    block_col: str | None,
+    level_col: str | None,
+    task_col: str | None,
+) -> pd.DataFrame:
+    """Как main `_gantt_apply_block_filter`: WBS-предки + имя/block, не только equality."""
+    if (
+        block_name == "Все"
+        or not block_col
+        or frame is None
+        or getattr(frame, "empty", True)
+    ):
+        return frame
+    sel = _cmp_key(block_name)
+    if level_col and task_col and level_col in frame.columns and task_col in frame.columns:
+        try:
+            renderers = import_renderers_module()
+            work = renderers._dev_tasks_build_ancestor_keys(
+                frame.copy(), level_col, task_col
+            )
+            key_col = renderers._gantt_block_ancestor_key_col(frame, level_col, task_col)
+            k2 = work["_dt_lvl2_key"].astype(str).map(_cmp_key)
+            k3 = work["_dt_lvl3_key"].astype(str).map(_cmp_key)
+            kf = work[key_col].astype(str).map(_cmp_key)
+            nm = work[task_col].astype(str).map(
+                lambda x: _cmp_key(_clean_task_label(x))
+            )
+            blk = (
+                work[block_col].astype(str).map(_cmp_key)
+                if block_col in work.columns
+                else pd.Series("", index=work.index)
+            )
+            mask = (kf == sel) | (k2 == sel) | (k3 == sel) | (nm == sel) | (blk == sel)
+            # work.reset_index — маска по позиции; вернуть строки исходного frame
+            return frame.iloc[mask.to_numpy()].copy()
+        except Exception:
+            pass
+    if block_col in frame.columns:
+        return frame.loc[
+            frame[block_col].astype(str).map(_cmp_key) == sel
+        ].copy()
+    return frame
+
+
+def _building_values(
+    frame: pd.DataFrame,
+    level_col: str | None,
+    task_col: str | None,
+    *,
+    building_col: str | None = None,
+) -> list[str]:
+    if frame is None or getattr(frame, "empty", True):
+        return []
+    try:
+        renderers = import_renderers_module()
+        vals = renderers._gantt_building_filter_values_for_df(
+            frame,
+            level_col=level_col,
+            task_col=task_col,
+            building_col=building_col if building_col and building_col in frame.columns else None,
+        )
+        if vals:
+            return list(vals)
+    except Exception:
+        pass
+    if not level_col or not task_col:
         return []
     if level_col not in frame.columns or task_col not in frame.columns:
         return []
     ln = pd.to_numeric(frame[level_col], errors="coerce")
+    try:
+        renderers = import_renderers_module()
+        _, bld_tier = renderers._deviations_msp_tier_levels(ln)
+    except Exception:
+        bld_tier = 3
     names = [
         _clean_task_label(x)
-        for x in frame.loc[ln == 3.0, task_col].dropna().astype(str).tolist()
+        for x in frame.loc[ln == float(bld_tier), task_col].dropna().astype(str).tolist()
     ]
     return sorted(
         {n for n in names if n and n.casefold() not in {"nan", "none"}},
@@ -355,14 +453,25 @@ def _apply_building_slice(
     building: str,
     level_col: str,
     task_col: str,
+    building_col: str | None = None,
 ) -> pd.DataFrame:
     if building == "Все" or frame.empty:
         return frame
+    sel = _cmp_key(building)
+    if building_col and building_col in frame.columns:
+        mask = frame[building_col].astype(str).map(_cmp_key) == sel
+        if bool(mask.any()):
+            return frame.loc[mask].copy()
+        return frame.iloc[0:0].copy()
     ln = pd.to_numeric(frame[level_col], errors="coerce")
+    try:
+        renderers = import_renderers_module()
+        _, bld_tier = renderers._deviations_msp_tier_levels(ln)
+    except Exception:
+        bld_tier = 3
     names = frame[task_col].astype(str).map(_clean_task_label)
     keys = names.map(_cmp_key)
-    sel = _cmp_key(building)
-    mask = (ln == 3.0) & (keys == sel)
+    mask = (ln == float(bld_tier)) & (keys == sel)
     if not bool(mask.any()):
         return frame.iloc[0:0].copy()
     positions = list(range(len(frame)))
@@ -371,7 +480,7 @@ def _apply_building_slice(
     end = len(frame)
     for pos in positions[start + 1 :]:
         lv = ln.iloc[pos]
-        if pd.notna(lv) and int(lv) <= 3:
+        if pd.notna(lv) and int(lv) <= int(bld_tier):
             end = pos
             break
     return frame.iloc[start:end].copy()
@@ -437,7 +546,7 @@ def build_project_schedule_payload(
     label_pct: bool = False,
 ) -> dict[str, Any]:
     cache_key = (
-        f"v3|p={project or 'Все'}|l={level}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v4|p={project or 'Все'}|l={level}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|hc={int(hide_completed)}|od={int(only_delay)}|sr={int(show_reasons)}"
         f"|sl={int(show_lots)}|lp={int(label_pct)}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -510,16 +619,28 @@ def build_project_schedule_payload(
             )
 
         after_project = plot_df.copy()
-        available_blocks = ["Все"] + _block_values(plot_df, block_col)
+        available_blocks = ["Все"] + _block_values(
+            plot_df, block_col, level_col=level_col, task_col=task_col
+        )
         applied_block = block if block in available_blocks else "Все"
-        if applied_block != "Все" and block_col and block_col in plot_df.columns:
-            plot_df = plot_df.loc[
-                plot_df[block_col].astype(str).map(_cmp_key) == _cmp_key(applied_block)
-            ].copy()
+        if applied_block != "Все":
+            plot_df = _apply_block_filter(
+                plot_df,
+                block_name=applied_block,
+                block_col=block_col,
+                level_col=level_col,
+                task_col=task_col,
+            )
 
         covenant = _is_covenant_block(applied_block)
+        building_col = _sched_col(
+            after_project,
+            ["building", "строение", "Строение", "Корпус", "корпус"],
+        )
         bld_source = after_project if covenant else plot_df
-        available_buildings = ["Все"] + _building_values(bld_source, level_col, task_col)
+        available_buildings = ["Все"] + _building_values(
+            bld_source, level_col, task_col, building_col=building_col
+        )
         applied_building = building if building in available_buildings else "Все"
         if applied_building != "Все" and level_col and task_col:
             sliced = _apply_building_slice(
@@ -527,11 +648,16 @@ def build_project_schedule_payload(
                 building=applied_building,
                 level_col=level_col,
                 task_col=task_col,
+                building_col=building_col,
             )
-            if covenant and applied_block != "Все" and block_col and block_col in sliced.columns:
-                sliced = sliced.loc[
-                    sliced[block_col].astype(str).map(_cmp_key) == _cmp_key(applied_block)
-                ].copy()
+            if covenant and applied_block != "Все":
+                sliced = _apply_block_filter(
+                    sliced,
+                    block_name=applied_block,
+                    block_col=block_col,
+                    level_col=level_col,
+                    task_col=task_col,
+                )
             plot_df = sliced
 
         level_sel = level if level in {"Верхний уровень", "Детальный уровень", "4", "5"} else "Верхний уровень"
@@ -610,6 +736,7 @@ def build_project_schedule_payload(
                 "only_delay": only_delay,
                 "level_skipped": level_skipped,
                 "multi_project": applied_project == "Все",
+                "covenant_mode": bool(covenant),
             }
             cache_set("project-schedule", cache_key, payload)
             return payload
@@ -692,6 +819,31 @@ def build_project_schedule_payload(
                     pct_val = round(float(pct), 1)
                 except (TypeError, ValueError):
                     pct_val = None
+            # Main «Ковенанты»: план = base end, факт = plan end (точки-вехи).
+            if covenant:
+                plan_point = base_end if pd.notna(base_end) else plan_end
+                fact_point = plan_end
+                gantt_rows.append(
+                    {
+                        "project": project_name or None,
+                        "task": task,
+                        "label": label,
+                        "pct_complete": pct_val,
+                        "baseline": {
+                            "start": _fmt_iso(plan_point),
+                            "end": _fmt_iso(plan_point),
+                            "start_label": _fmt_display(plan_point, _DATE_BAR_FMT),
+                            "end_label": _fmt_display(plan_point, _DATE_BAR_FMT),
+                        },
+                        "current": {
+                            "start": _fmt_iso(fact_point),
+                            "end": _fmt_iso(fact_point),
+                            "start_label": _fmt_display(fact_point, _DATE_BAR_FMT),
+                            "end_label": _fmt_display(fact_point, _DATE_BAR_FMT),
+                        },
+                    }
+                )
+                continue
             gantt_rows.append(
                 {
                     "project": project_name or None,
@@ -712,7 +864,7 @@ def build_project_schedule_payload(
                     },
                 }
             )
-        gantt_rows = _filter_gantt_outlier_rows(gantt_rows)
+        gantt_rows = _filter_gantt_outlier_rows(gantt_rows, covenant_mode=covenant)
 
         table_rows: list[dict[str, Any]] = []
         for _, row in table_df.iterrows():
@@ -834,6 +986,7 @@ def build_project_schedule_payload(
                     "only_delay": only_delay,
                     "level_skipped": level_skipped,
                     "multi_project": multi_project,
+                    "covenant_mode": bool(covenant),
                 },
             },
             "gantt": {
@@ -843,6 +996,7 @@ def build_project_schedule_payload(
                 "plan_color": PLAN_COLOR,
                 "fact_color": FACT_COLOR,
                 "label_pct": label_pct,
+                "covenant_mode": bool(covenant),
                 "rows": gantt_rows,
             },
             "rows": table_rows,

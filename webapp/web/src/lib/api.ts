@@ -922,6 +922,7 @@ export type ProjectSchedulePayload = {
       only_delay: boolean;
       level_skipped?: boolean;
       multi_project?: boolean;
+      covenant_mode?: boolean;
     };
   };
   gantt: {
@@ -931,6 +932,7 @@ export type ProjectSchedulePayload = {
     plan_color: string;
     fact_color: string;
     label_pct: boolean;
+    covenant_mode?: boolean;
     rows: Array<{
       project: string | null;
       task: string;
