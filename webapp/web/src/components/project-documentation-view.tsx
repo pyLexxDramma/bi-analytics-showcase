@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  BarChart,
   Card,
   Grid,
   Metric,
@@ -32,8 +31,8 @@ import {
 import {
   PdDynamicsLineChart,
   PdExecutionPieChart,
+  PdMonthlyCumulativeChart,
 } from "@/components/project-documentation-charts";
-import { CHART_RU } from "@/lib/chart-ru";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const TH =
@@ -165,6 +164,15 @@ function PdDelayGantt({
         const baseW = width(row.start, row.base_finish);
         const green = row.fact_dur > 0 && row.finish && !row.delay_end;
         const red = row.delay_dur > 0 && row.delay_end;
+        const greenW = green ? width(row.start, row.finish) : 0;
+        const redLeft = pct(row.base_finish);
+        const redW = red ? width(row.base_finish, row.delay_end) : 0;
+        const endLabel = row.finish_label || row.base_label;
+        const labelLeft = red
+          ? Math.min(redLeft + redW + 0.4, 92)
+          : green
+            ? Math.min(baseLeft + greenW + 0.4, 92)
+            : Math.min(baseLeft + baseW + 0.4, 92);
         return (
           <div key={row.label} className="grid grid-cols-[9rem_1fr] items-center gap-2">
             <div className="truncate text-right text-xs font-medium">{row.label}</div>
@@ -179,7 +187,7 @@ function PdDelayGantt({
                   className="absolute top-1 h-5 rounded-sm bg-[#27AE60]"
                   style={{
                     left: `${baseLeft}%`,
-                    width: `${width(row.start, row.finish)}%`,
+                    width: `${greenW}%`,
                   }}
                   title={`Окончание ${row.finish_label}`}
                 />
@@ -188,11 +196,19 @@ function PdDelayGantt({
                 <div
                   className="absolute top-1 h-5 rounded-sm bg-[#C0392B]"
                   style={{
-                    left: `${pct(row.base_finish)}%`,
-                    width: `${width(row.base_finish, row.delay_end)}%`,
+                    left: `${redLeft}%`,
+                    width: `${redW}%`,
                   }}
                   title={`Просрочка до ${row.finish_label}`}
                 />
+              ) : null}
+              {endLabel ? (
+                <span
+                  className="pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium text-[#1a1a1a] dark:text-slate-100"
+                  style={{ left: `${labelLeft}%` }}
+                >
+                  {endLabel}
+                </span>
               ) : null}
             </div>
           </div>
@@ -259,15 +275,7 @@ function ProjectDocumentationScreen({
 
   const kpis = data?.kpis;
   const dynamics = data?.tremor.dynamics ?? [];
-  const monthly = useMemo(
-    () =>
-      (data?.tremor.monthly ?? []).map((row) => ({
-        ...row,
-        [CHART_RU.plan]: row.plan,
-        [CHART_RU.fact]: row.fact,
-      })),
-    [data?.tremor.monthly],
-  );
+  const monthly = data?.tremor.monthly ?? [];
 
   const mainRows = useMemo(() => {
     const rows = [...(data?.rows ?? [])];
@@ -485,7 +493,7 @@ function ProjectDocumentationScreen({
             </FilterField>
             <FilterField label="Статус">
               <span className="mt-1 inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-                Просрочка по утверждению
+                Просрочено подрядчиком
               </span>
             </FilterField>
             <FilterField label="Дата">
@@ -797,24 +805,17 @@ function ProjectDocumentationScreen({
           </div>
 
           <FullscreenPanel fill disabled={!monthly.length}>
-            <Card className="rounded-xl">
-              <Title>Динамика выдачи ПД по месяцам</Title>
-              <BarChart
-                className="mt-6 h-80"
-                data={monthly}
-                index="month_label"
-                categories={[CHART_RU.plan, CHART_RU.fact]}
-                colors={["blue", "emerald"]}
-                layout="vertical"
-                yAxisWidth={110}
-                showLegend
-                showAnimation
-                valueFormatter={(v) => `${Math.round(v)}`}
-              />
-              <Text className="mt-2 text-center text-xs">
-                График Выдача проектной документации по месяцам
-              </Text>
-            </Card>
+            {(zoomed) => (
+              <Card className="rounded-xl">
+                <Title>Динамика выдачи ПД по месяцам</Title>
+                <div className="mt-4">
+                  <PdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
+                </div>
+                <Text className="mt-2 text-center text-xs">
+                  График Выдача проектной документации по месяцам
+                </Text>
+              </Card>
+            )}
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!detailRows.length}>

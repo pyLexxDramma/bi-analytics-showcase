@@ -631,7 +631,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
                 {"id": "section", "label": "По разделу"},
             ],
             "status_legend": [
-                {"id": "ontime", "label": "Выдано в срок/вперёд графика", "tone": "ok"},
+                {"id": "issued", "label": "Выдано в производство работ", "tone": "bad"},
                 {"id": "overdue", "label": "Просрочено подрядчиком", "tone": "bad"},
             ],
             "applied": {
@@ -1183,7 +1183,7 @@ def build_project_documentation_payload(
                     {"id": "section", "label": "По разделу"},
                 ],
                 "status_legend": [
-                    {"id": "ontime", "label": "Выдано в срок/вперёд графика", "tone": "ok"},
+                    {"id": "issued", "label": "Выдано в производство работ", "tone": "bad"},
                     {"id": "overdue", "label": "Просрочено подрядчиком", "tone": "bad"},
                 ],
                 "applied": {
