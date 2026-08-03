@@ -44,7 +44,7 @@
 | 4 | Утверждённый бюджет план/факт | `/finance/approved-budget` | ✅ принят на стенде 02.08.2026 (регресс) | ✓ CSV+xlsx (2 таблицы) | ✓ (график и таблицы) | ИТОГО 13207/5881/−7326; проекты/срезы = main; SVG-gauge + Tremor |
 | 5 | БДДС расходы (план, факт, уточн.) | `/finance/bdds-plan-fact` | ✅ принят на стенде 02.08.2026 | ✓ CSV+xlsx (2 таблицы) | ✓ (график+таблицы) | ИТОГО 6716.1/3889.8/6716.1; редактор лотов; mobile fit (`533d0c8`) |
 | 6 | Контрольные точки | `/timeline/control-points` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | цифры=main; mobile cards+pills; desktop fit (`a074d6a`) |
-| 7 | График проекта | `/timeline/project-schedule` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | повторная сверка main↔showcase desktop+~390 |
+| 7 | График проекта | `/timeline/project-schedule` | ✅ принято на стенде 31.07.2026 · ⬜ регресс после kit | ✓ CSV+xlsx | ✓ | ждём после mobile kit §1–§5 |
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; доля+динамика Tremor; см. §8 |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; Plotly end-bars РД; см. §9 |
 | 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx (3 таблицы) | ✓ | БД через core_bridge; обе вкладки; см. §10 |

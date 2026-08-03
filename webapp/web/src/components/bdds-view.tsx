@@ -171,7 +171,7 @@ function MobilePeriodBlocks({
       {blocks.map((block) => (
         <section
           key={block.project}
-          className="overflow-hidden rounded-lg border-2 border-[#94a3b8] dark:border-[#7a9ec4]"
+          className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] dark:border-white"
         >
           <div className={`${BANNER} border-b border-[#94a3b8] dark:border-[#7a9ec4]`}>
             {block.project}
@@ -216,7 +216,7 @@ function MobilePeriodBlocks({
           </table>
         </section>
       ))}
-      <section className="overflow-hidden rounded-lg border-2 border-[#94a3b8] dark:border-[#7a9ec4]">
+      <section className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] dark:border-white">
         <table className="w-full table-fixed border-collapse text-xs">
           <colgroup>
             <col className="w-[28%]" />
@@ -266,7 +266,7 @@ function MobileProjectBlocks({
       {rows.map((row) => (
         <section
           key={row.project}
-          className="overflow-hidden rounded-lg border-2 border-[#94a3b8] dark:border-[#7a9ec4]"
+          className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] dark:border-white"
         >
           <div className={`${BANNER} border-b border-[#94a3b8] dark:border-[#7a9ec4]`}>
             {row.project}
@@ -293,7 +293,7 @@ function MobileProjectBlocks({
           </dl>
         </section>
       ))}
-      <section className="overflow-hidden rounded-lg border-2 border-[#94a3b8] dark:border-[#7a9ec4]">
+      <section className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] dark:border-white">
         <div className={`${TOTAL_ROW} px-3 py-2`}>ИТОГО · млн ₽</div>
         <dl className="grid grid-cols-3 gap-0 text-center text-xs">
           <div className={`${CELL} px-1 py-2`}>

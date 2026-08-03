@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FinanceBarChart } from "@/components/finance-bar-chart";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import { MobileCardStack, MobileEntityCard, MobileMetricGrid } from "@/components/mobile-entity-card";
 import { fetchApprovedBudget, type ApprovedBudgetPayload } from "@/lib/api";
 import type { ExportTable } from "@/lib/table-export";
 
@@ -241,8 +242,160 @@ export function ApprovedBudgetView() {
     <div className="space-y-6">
       <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className="grid gap-4 sm:grid-cols-3">{[["План", gauge.plan_mlrd, gauge.plan / 1e6, "100%", ""], ["Факт", gauge.fact_mlrd, gauge.fact / 1e6, pct(gauge.fact_pct), "text-emerald-700 dark:text-emerald-300"], ["Отклонение", gauge.deviation_mlrd, gauge.deviation / 1e6, pct(gauge.deviation_pct), "text-rose-700 dark:text-rose-300"]].map(([label, bln, value, percent, color]) => <div key={String(label)} className={String(color)}><Text>{label}</Text><div className="mt-1 text-xl font-bold tabular-nums">{Number(bln).toFixed(2)} млрд</div><Text>{Number(value).toFixed(1)} млн. руб.</Text><Text>{percent}</Text></div>)}</div></div></Card>
       <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} />}</FullscreenPanel></Card>
-      <Card className="overflow-hidden rounded-xl p-0"><div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border"><Title>{data?.labels.period_table_title ?? "Сводная таблица по месяцам"}</Title></div><FullscreenPanel disabled={!periodRows.length}><div className="overflow-x-auto p-1 pt-10"><table className={TABLE}><thead><tr><SortHeader label="Месяц" sortKey="period" sort={periodSort} onSort={toggleSort(setPeriodSort)} /><SortHeader label="План, млн. руб." sortKey="plan" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" /><SortHeader label="Факт, млн. руб." sortKey="fact" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" /><SortHeader label="Отклонение, млн. руб." sortKey="deviation" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" /></tr></thead><tbody>{periodRows.map((row) => <tr key={row.period} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"><td className={`${CELL} ${BODY}`}>{row.period}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mln(row.plan)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mln(row.fact)}</td><td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation)}`}>{mln(row.deviation)}</td></tr>)}<tr className={TOTAL}><td className={`${CELL} px-3 py-2`}>ИТОГО</td><td className={`${CELL} ${BODY} text-right`}>{mln(data?.totals.plan ?? 0)}</td><td className={`${CELL} ${BODY} text-right`}>{mln(data?.totals.fact ?? 0)}</td><td className={`${CELL} ${BODY} text-right ${deviationClass(data?.totals.deviation ?? 0)}`}>{mln(data?.totals.deviation ?? 0)}</td></tr></tbody></table></div></FullscreenPanel></Card><DownloadTableButton getTable={periodExport} fileStem="utverzhdennyy_byudzhet_po_mesyacam" disabled={!periodRows.length} />
-      <Card className="overflow-hidden rounded-xl p-0"><div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border"><Title>{data?.labels.project_table_title ?? "Таблица утверждённого бюджет план/факт по проектам"}</Title></div><FullscreenPanel disabled={!projectRows.length}><div className="overflow-x-auto p-1 pt-10"><table className={TABLE}><thead><tr><SortHeader label="Проект" sortKey="project" sort={projectSort} onSort={toggleSort(setProjectSort)} />{(["plan", "fact", "remainder", "deviation", "completion_pct", "contract_coverage_pct"] as ProjectMetric[]).map((key) => <SortHeader key={key} label={projectHeaders[key]} sortKey={key} sort={projectSort} onSort={toggleSort(setProjectSort)} align="right" />)}</tr></thead><tbody>{projectRows.map((row) => <tr key={row.project} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"><td className={`${CELL} ${BODY}`}>{row.project}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.plan)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.fact)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.remainder)}</td><td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation)}`}>{mln(row.deviation)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(row.completion_pct)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(row.contract_coverage_pct)}</td></tr>)}<tr className={TOTAL}><td className={`${CELL} px-3 py-2`}>ИТОГО</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.plan ?? 0)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.fact ?? 0)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.remainder ?? 0)}</td><td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>{mln(data?.totals.deviation ?? 0)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(data?.gauge.fact_pct ?? 0)}</td><td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(0)}</td></tr></tbody></table></div></FullscreenPanel></Card><DownloadTableButton getTable={projectExport} fileStem="utverzhdennyy_byudzhet_po_proektam" disabled={!projectRows.length} />
+      <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
+        <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+          <Title>{data?.labels.period_table_title ?? "Сводная таблица по месяцам"}</Title>
+        </div>
+        <FullscreenPanel disabled={!periodRows.length} className="!overflow-x-hidden">
+          <MobileCardStack>
+            {periodRows.map((row) => (
+              <MobileEntityCard key={row.period} title={row.period}>
+                <MobileMetricGrid
+                  items={[
+                    { label: "План", value: mlnPlain(row.plan) },
+                    { label: "Факт", value: mlnPlain(row.fact) },
+                    { label: "Откл.", value: mlnPlain(row.deviation), className: deviationClass(row.deviation) },
+                  ]}
+                />
+              </MobileEntityCard>
+            ))}
+            <MobileEntityCard title="ИТОГО">
+              <MobileMetricGrid
+                items={[
+                  { label: "План", value: mlnPlain(data?.totals.plan ?? 0) },
+                  { label: "Факт", value: mlnPlain(data?.totals.fact ?? 0) },
+                  {
+                    label: "Откл.",
+                    value: mlnPlain(data?.totals.deviation ?? 0),
+                    className: deviationClass(data?.totals.deviation ?? 0),
+                  },
+                ]}
+              />
+              <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">Значения — млн ₽</p>
+            </MobileEntityCard>
+          </MobileCardStack>
+          <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
+            <table className={TABLE}>
+              <thead>
+                <tr>
+                  <SortHeader label="Месяц" sortKey="period" sort={periodSort} onSort={toggleSort(setPeriodSort)} />
+                  <SortHeader label="План, млн. руб." sortKey="plan" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" />
+                  <SortHeader label="Факт, млн. руб." sortKey="fact" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" />
+                  <SortHeader label="Отклонение, млн. руб." sortKey="deviation" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" />
+                </tr>
+              </thead>
+              <tbody>
+                {periodRows.map((row) => (
+                  <tr key={row.period} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20">
+                    <td className={`${CELL} ${BODY}`}>{row.period}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mln(row.plan)}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mln(row.fact)}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation)}`}>{mln(row.deviation)}</td>
+                  </tr>
+                ))}
+                <tr className={TOTAL}>
+                  <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
+                  <td className={`${CELL} ${BODY} text-right`}>{mln(data?.totals.plan ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-right`}>{mln(data?.totals.fact ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-right ${deviationClass(data?.totals.deviation ?? 0)}`}>{mln(data?.totals.deviation ?? 0)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </FullscreenPanel>
+      </Card>
+      <DownloadTableButton getTable={periodExport} fileStem="utverzhdennyy_byudzhet_po_mesyacam" disabled={!periodRows.length} />
+      <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
+        <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+          <Title>{data?.labels.project_table_title ?? "Таблица утверждённого бюджет план/факт по проектам"}</Title>
+        </div>
+        <FullscreenPanel disabled={!projectRows.length} className="!overflow-x-hidden">
+          <MobileCardStack>
+            {projectRows.map((row) => (
+              <MobileEntityCard
+                key={row.project}
+                title={row.project}
+                badge={pct(row.completion_pct)}
+                badgeTone={Number(row.completion_pct ?? 0) >= 100 ? "ok" : Number(row.completion_pct ?? 0) >= 50 ? "warn" : "bad"}
+              >
+                <MobileMetricGrid
+                  columns={2}
+                  items={[
+                    { label: "План", value: mlnPlain(row.plan) },
+                    { label: "Факт", value: mlnPlain(row.fact) },
+                    { label: "Остаток", value: mlnPlain(row.remainder) },
+                    { label: "Откл.", value: mlnPlain(row.deviation), className: deviationClass(row.deviation) },
+                    { label: "% вып.", value: pct(row.completion_pct) },
+                    { label: "% контр.", value: pct(row.contract_coverage_pct) },
+                  ]}
+                />
+              </MobileEntityCard>
+            ))}
+            <MobileEntityCard title="ИТОГО" badge={pct(data?.gauge.fact_pct ?? 0)} badgeTone="neutral">
+              <MobileMetricGrid
+                columns={2}
+                items={[
+                  { label: "План", value: mlnPlain(data?.totals.plan ?? 0) },
+                  { label: "Факт", value: mlnPlain(data?.totals.fact ?? 0) },
+                  { label: "Остаток", value: mlnPlain(data?.totals.remainder ?? 0) },
+                  {
+                    label: "Откл.",
+                    value: mlnPlain(data?.totals.deviation ?? 0),
+                    className: deviationClass(data?.totals.deviation ?? 0),
+                  },
+                  { label: "% вып.", value: pct(data?.gauge.fact_pct ?? 0) },
+                  { label: "% контр.", value: pct(0) },
+                ]}
+              />
+              <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">Значения — млн ₽</p>
+            </MobileEntityCard>
+          </MobileCardStack>
+          <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
+            <table className={TABLE}>
+              <thead>
+                <tr>
+                  <SortHeader label="Проект" sortKey="project" sort={projectSort} onSort={toggleSort(setProjectSort)} />
+                  {(
+                    ["plan", "fact", "remainder", "deviation", "completion_pct", "contract_coverage_pct"] as ProjectMetric[]
+                  ).map((key) => (
+                    <SortHeader
+                      key={key}
+                      label={projectHeaders[key]}
+                      sortKey={key}
+                      sort={projectSort}
+                      onSort={toggleSort(setProjectSort)}
+                      align="right"
+                    />
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {projectRows.map((row) => (
+                  <tr key={row.project} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20">
+                    <td className={`${CELL} ${BODY}`}>{row.project}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.plan)}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.fact)}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.remainder)}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation)}`}>{mln(row.deviation)}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(row.completion_pct)}</td>
+                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(row.contract_coverage_pct)}</td>
+                  </tr>
+                ))}
+                <tr className={TOTAL}>
+                  <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
+                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.plan ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.fact ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.remainder ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>{mln(data?.totals.deviation ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(data?.gauge.fact_pct ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(0)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </FullscreenPanel>
+      </Card>
+      <DownloadTableButton getTable={projectExport} fileStem="utverzhdennyy_byudzhet_po_proektam" disabled={!projectRows.length} />
       {data?.hints.length ? <Card className="rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"><Text className="font-medium text-amber-900 dark:text-amber-200">О данных для план-факта:</Text><ul className="mt-2 list-disc pl-5 text-sm text-amber-900 dark:text-amber-200">{data.hints.map((hint) => <li key={hint}>{hint}</li>)}</ul></Card> : null}
     </div>
   </AppShell>;

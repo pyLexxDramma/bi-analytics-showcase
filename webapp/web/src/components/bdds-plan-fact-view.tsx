@@ -445,7 +445,7 @@ export function BddsPlanFactView() {
                       {dataRows.map((row) => (
                         <div
                           key={row.period}
-                          className="min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
+                          className="min-w-0 rounded-xl border-[3px] border-[#94a3b8] p-3 text-xs dark:border-white"
                         >
                           <div className="mb-2 break-words font-semibold">{row.period}</div>
                           <dl className="grid grid-cols-2 gap-1">
@@ -469,7 +469,7 @@ export function BddsPlanFactView() {
                         </div>
                       ))}
                       {totalRow ? (
-                        <div className={`min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 text-xs font-bold ${TOTAL}`}>
+                        <div className={`min-w-0 rounded-xl border-[3px] border-[#94a3b8] p-3 text-xs font-bold dark:border-white ${TOTAL}`}>
                           <div className="mb-2">ИТОГО</div>
                           <dl className="grid grid-cols-2 gap-1">
                             <dt>План</dt>
@@ -584,7 +584,7 @@ export function BddsPlanFactView() {
                     {(data?.status_rows ?? []).map((row, index) => (
                       <div
                         key={`${row.month}-${row.project}-${index}`}
-                        className="min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 text-xs dark:border-[#7a9ec4]"
+                        className="min-w-0 rounded-xl border-[3px] border-[#94a3b8] p-3 text-xs dark:border-white"
                       >
                         <div className="mb-1 break-words font-semibold">
                           {row.month} · {row.project}
