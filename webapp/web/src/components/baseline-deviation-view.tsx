@@ -10,6 +10,11 @@ import { AppShell } from "@/components/app-shell";
 import { BaselineDeviationChart } from "@/components/baseline-deviation-chart";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
@@ -522,55 +527,94 @@ export function BaselineDeviationView() {
           ) : plates.length === 0 ? (
             <Text>Нет данных для плашек KPI.</Text>
           ) : (
-            <div className="space-y-2">
-              {plates.map((plate, index) => (
-                <div
-                  key={`${plate.project ?? "one"}-${index}`}
-                  className="grid gap-2 rounded-lg border border-tremor-border bg-tremor-background px-3 py-2.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background md:grid-cols-2 xl:grid-cols-5"
-                >
-                  {plate.project ? (
+            <>
+              <MobileCardStack>
+                {plates.map((plate, index) => (
+                  <MobileEntityCard
+                    key={`m-${plate.project ?? "one"}-${index}`}
+                    title={plate.project || data?.kpis.metric_task || "ЗОС"}
+                    badge={plate.dev ?? undefined}
+                    badgeTone={
+                      plate.dev_days == null
+                        ? "neutral"
+                        : plate.dev_days < 0
+                          ? "bad"
+                          : "ok"
+                    }
+                  >
+                    <MobileMetricGrid
+                      columns={2}
+                      items={[
+                        { label: "План оконч.", value: plate.plan_end ?? "Н/Д" },
+                        { label: "Факт оконч.", value: plate.fact_end ?? "Н/Д" },
+                        {
+                          label: "Отклонение",
+                          value: plate.dev ?? "Н/Д",
+                          className: plateDevClass(plate.dev_days),
+                        },
+                        {
+                          label: "Макс. |откл.|",
+                          value: plate.max_abs_dev_days ?? "Н/Д",
+                          className:
+                            (plate.max_abs_dev_days ?? 0) > 0
+                              ? "text-rose-600 dark:text-rose-400"
+                              : "",
+                        },
+                      ]}
+                    />
+                  </MobileEntityCard>
+                ))}
+              </MobileCardStack>
+              <div className="hidden space-y-2 lg:block">
+                {plates.map((plate, index) => (
+                  <div
+                    key={`${plate.project ?? "one"}-${index}`}
+                    className="grid gap-2 rounded-lg border border-tremor-border bg-tremor-background px-3 py-2.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background md:grid-cols-2 xl:grid-cols-5"
+                  >
+                    {plate.project ? (
+                      <div>
+                        <Text className="!text-xs">Проект</Text>
+                        <p className="mt-0.5 text-base font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                          {plate.project}
+                        </p>
+                      </div>
+                    ) : null}
                     <div>
-                      <Text className="!text-xs">Проект</Text>
-                      <p className="mt-0.5 text-base font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                        {plate.project}
+                      <Text className="!text-xs">План окончания проекта</Text>
+                      <p className="mt-0.5 text-xl font-bold tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                        {plate.plan_end ?? "Н/Д"}
                       </p>
                     </div>
-                  ) : null}
-                  <div>
-                    <Text className="!text-xs">План окончания проекта</Text>
-                    <p className="mt-0.5 text-xl font-bold tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {plate.plan_end ?? "Н/Д"}
-                    </p>
+                    <div>
+                      <Text className="!text-xs">Факт окончания проекта</Text>
+                      <p className="mt-0.5 text-xl font-bold tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                        {plate.fact_end ?? "Н/Д"}
+                      </p>
+                    </div>
+                    <div>
+                      <Text className="!text-xs">Отклонение</Text>
+                      <p
+                        className={`mt-0.5 text-xl font-bold tabular-nums ${plateDevClass(plate.dev_days)}`}
+                      >
+                        {plate.dev ?? "Н/Д"}
+                      </p>
+                    </div>
+                    <div>
+                      <Text className="!text-xs">Максимальное отклонение (дней)</Text>
+                      <p
+                        className={`mt-0.5 text-xl font-bold tabular-nums ${
+                          (plate.max_abs_dev_days ?? 0) > 0
+                            ? "text-rose-600 dark:text-rose-400"
+                            : ""
+                        }`}
+                      >
+                        {plate.max_abs_dev_days ?? "Н/Д"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <Text className="!text-xs">Факт окончания проекта</Text>
-                    <p className="mt-0.5 text-xl font-bold tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      {plate.fact_end ?? "Н/Д"}
-                    </p>
-                  </div>
-                  <div>
-                    <Text className="!text-xs">Отклонение</Text>
-                    <p
-                      className={`mt-0.5 text-xl font-bold tabular-nums ${plateDevClass(plate.dev_days)}`}
-                    >
-                      {plate.dev ?? "Н/Д"}
-                    </p>
-                  </div>
-                  <div>
-                    <Text className="!text-xs">Максимальное отклонение (дней)</Text>
-                    <p
-                      className={`mt-0.5 text-xl font-bold tabular-nums ${
-                        (plate.max_abs_dev_days ?? 0) > 0
-                          ? "text-rose-600 dark:text-rose-400"
-                          : ""
-                      }`}
-                    >
-                      {plate.max_abs_dev_days ?? "Н/Д"}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
@@ -607,61 +651,188 @@ export function BaselineDeviationView() {
               </Text>
             </div>
           </div>
-          <FullscreenPanel disabled={rows.length === 0}>
-            <div className="max-h-[36rem] overflow-auto pt-8">
-              {rows.length === 0 ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  Нет строк по выбранным фильтрам.
-                </div>
-              ) : (
-                <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
-                  <thead className="sticky top-0 z-20">
-                    <tr>
-                      {columns.map((label) => (
-                        <SortHeader
-                          key={label}
-                          label={label}
-                          sortKey={sortKeyForCol(label)}
-                          sort={tableSort}
-                          onSort={toggleSort}
-                          tint={DATE_COLS.has(label)}
+          <FullscreenPanel
+            disabled={rows.length === 0}
+            className="!overflow-x-hidden"
+          >
+            {rows.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                Нет строк по выбранным фильтрам.
+              </div>
+            ) : (
+              <>
+                <MobileCardStack>
+                  {sortedRows.map((row) => {
+                    const title =
+                      row.project && row.task
+                        ? `${row.project}: ${row.task}`
+                        : (row.task ?? row.project ?? "—");
+                    const badge =
+                      row.dev_end_days != null
+                        ? row.dev_end_days
+                        : row.dev_end || undefined;
+                    return (
+                      <MobileEntityCard
+                        key={`m-${row.project}-${row.task_id ?? row.task}-${row._index}`}
+                        title={title}
+                        badge={badge}
+                        badgeTone={
+                          row.dev_end_days == null
+                            ? "neutral"
+                            : row.dev_end_days < 0
+                              ? "bad"
+                              : "ok"
+                        }
+                      >
+                        <MobileMetricGrid
+                          columns={2}
+                          items={
+                            showReasons
+                              ? [
+                                  { label: "ID", value: row.task_id ?? "—" },
+                                  { label: "Блок", value: row.block ?? "—" },
+                                  {
+                                    label: "Строение",
+                                    value: row.building ?? "—",
+                                  },
+                                  {
+                                    label: "Окончание",
+                                    value: row.plan_end ?? "—",
+                                  },
+                                  {
+                                    label: "Базовое",
+                                    value: row.base_end ?? "—",
+                                  },
+                                  {
+                                    label: "Откл.",
+                                    value:
+                                      row.dev_end_days ?? row.dev_end ?? "—",
+                                    className: deviationClass(row.dev_end_days),
+                                  },
+                                  {
+                                    label: "Причина",
+                                    value: row.reason || "—",
+                                  },
+                                  {
+                                    label: "Заметки",
+                                    value: row.notes || "—",
+                                  },
+                                ]
+                              : [
+                                  { label: "ID", value: row.task_id ?? "—" },
+                                  {
+                                    label: "Начало",
+                                    value: row.plan_start ?? "—",
+                                  },
+                                  {
+                                    label: "Баз. нач.",
+                                    value: row.base_start ?? "—",
+                                  },
+                                  {
+                                    label: "Откл. нач.",
+                                    value:
+                                      row.dev_start_days ??
+                                      row.dev_start ??
+                                      "—",
+                                    className: deviationClass(
+                                      row.dev_start_days,
+                                    ),
+                                  },
+                                  {
+                                    label: "Окончание",
+                                    value: row.plan_end ?? "—",
+                                  },
+                                  {
+                                    label: "Баз. оконч.",
+                                    value: row.base_end ?? "—",
+                                  },
+                                  {
+                                    label: "Откл. оконч.",
+                                    value:
+                                      row.dev_end_days ?? row.dev_end ?? "—",
+                                    className: deviationClass(row.dev_end_days),
+                                  },
+                                  ...(showDur
+                                    ? [
+                                        {
+                                          label: "Длит.",
+                                          value: row.plan_dur_days ?? "—",
+                                        },
+                                        {
+                                          label: "Баз. длит.",
+                                          value: row.base_dur_days ?? "—",
+                                        },
+                                        {
+                                          label: "Откл. длит.",
+                                          value:
+                                            row.dev_dur_days ??
+                                            row.dev_dur ??
+                                            "—",
+                                          className: deviationClass(
+                                            row.dev_dur_days,
+                                          ),
+                                        },
+                                      ]
+                                    : []),
+                                ]
+                          }
                         />
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedRows.map((row) => (
-                      <tr key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}>
-                        {columns.map((col) => {
-                          const tint = DATE_COLS.has(col);
-                          const isDev =
-                            col === "Отклонение" ||
-                            col === "Откл. окончания" ||
-                            col === "Откл. начала" ||
-                            col === "Откл. длит.";
-                          const days =
-                            col === "Откл. начала"
-                              ? row.dev_start_days
-                              : col === "Откл. длит."
-                                ? row.dev_dur_days
-                                : row.dev_end_days;
-                          return (
-                            <td
-                              key={col}
-                              className={`${TD} ${tint ? DATE_BG : ""} ${
-                                isDev ? deviationClass(days) : ""
-                              } tabular-nums`}
-                            >
-                              {displayDev(row, col)}
-                            </td>
-                          );
-                        })}
+                      </MobileEntityCard>
+                    );
+                  })}
+                </MobileCardStack>
+                <div className="hidden max-h-[36rem] overflow-auto pt-8 lg:block">
+                  <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
+                    <thead className="sticky top-0 z-20">
+                      <tr>
+                        {columns.map((label) => (
+                          <SortHeader
+                            key={label}
+                            label={label}
+                            sortKey={sortKeyForCol(label)}
+                            sort={tableSort}
+                            onSort={toggleSort}
+                            tint={DATE_COLS.has(label)}
+                          />
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                    </thead>
+                    <tbody>
+                      {sortedRows.map((row) => (
+                        <tr
+                          key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}
+                        >
+                          {columns.map((col) => {
+                            const tint = DATE_COLS.has(col);
+                            const isDev =
+                              col === "Отклонение" ||
+                              col === "Откл. окончания" ||
+                              col === "Откл. начала" ||
+                              col === "Откл. длит.";
+                            const days =
+                              col === "Откл. начала"
+                                ? row.dev_start_days
+                                : col === "Откл. длит."
+                                  ? row.dev_dur_days
+                                  : row.dev_end_days;
+                            return (
+                              <td
+                                key={col}
+                                className={`${TD} ${tint ? DATE_BG : ""} ${
+                                  isDev ? deviationClass(days) : ""
+                                } tabular-nums`}
+                              >
+                                {displayDev(row, col)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </FullscreenPanel>
           <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <DownloadTableButton getTable={() => exportTable} fileStem="baseline_deviation" />

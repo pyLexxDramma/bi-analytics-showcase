@@ -10,7 +10,7 @@
 | Эталон UI/цифр | `[main]` Streamlit (`bi-analytics` / `:8501`) |
 | Стенд showcase | CloudPub / VPS webapp (Next + FastAPI) |
 | Старт цикла | 02.08.2026 |
-| Текущий экран | ✅ §0–§7 → 🔄 §8 Причины отклонений |
+| Текущий экран | ✅ §0–§8 → 🔄 §9 Отклонение от базового плана |
 | Mobile | обязателен на **каждом** экране (тот же URL, ~390px) |
 
 **Правила цикла (зафиксировано):**
@@ -140,8 +140,8 @@ showcase active ──────┘
 | 5 | БДДС план/факт/уточн. | `/finance/bdds-plan-fact` | БДДС план/факт | ✅ |
 | 6 | Контрольные точки | `/timeline/control-points` | Контрольные точки | ✅ |
 | 7 | График проекта | `/timeline/project-schedule` | График проекта | ✅ |
-| 8 | Причины отклонений | `/timeline/deviation-reasons` | Причины отклонений | 🔄 |
-| 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | Откл. от БП | ⬜ |
+| 8 | Причины отклонений | `/timeline/deviation-reasons` | Причины отклонений | ✅ |
+| 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | Откл. от БП | 🔄 |
 | 10 | Проектная документация | `/docs/project-documentation` | ПД | ⬜ |
 | 11 | Рабочая документация | `/docs/working-documentation` | РД | ⬜ |
 | 12 | ГДРС (люди) | `/gdrs/people` | ГДРС люди | ⬜ |
@@ -208,7 +208,8 @@ python scripts/check_jobs_store.py
 | 03.08.2026 | §6 + mobile kit | Дмитровский +91/−19/+304; Есипово −270 | ✅ стенд: цифры=main; mobile cards+pills; desktop fit (`b7d0eff`…`a074d6a`) |
 | 03.08.2026 | Mobile kit §1–§5 | shared + §4 cards | ✅ стенд (`edecdd3`) |
 | 03.08.2026 | §7 График проекта | ковенанты+mobile | ✅ стенд: date pad ромбов; compact gantt; mobile cards (`11544a9`…`51b4758`) |
-| 03.08.2026 | §8 Причины отклонений | — | 🔄 старт: скрины main↔showcase desktop+~390 |
+| 03.08.2026 | §8 Причины отклонений | desktop 1:1+mobile | ✅ стенд: Plotly bar/pie; y=0; modebar; download portal; mobile без modebar (`210855e`…`182242d`) |
+| 03.08.2026 | §9 Отклонение от базового плана | — | 🔄 старт: скрины main↔showcase desktop+~390 |
 
 После каждого стендового «ок» добавлять строку сюда и ставить ✅ в матрице §6.
 

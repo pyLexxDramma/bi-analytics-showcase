@@ -3,7 +3,7 @@
 > **Полный повторный проход (все экраны заново):** см. отдельный план  
 > [`PARITY_FULL_REGRESSION_PLAN.md`](./PARITY_FULL_REGRESSION_PLAN.md).  
 > Этот файл остаётся журналом деталей по §; статусы нового цикла — в плане регресса.  
-> Цикл 02.08–03.08.2026: **§0–§7 ✅**, mobile kit §1–§5 ✅ → далее **§8** причины отклонений.
+> Цикл 02.08–03.08.2026: **§0–§8 ✅**, mobile kit §1–§5 ✅ → далее **§9** отклонение от базового плана.
 
 Цикл на экран (как договорились):
 
@@ -45,8 +45,8 @@
 | 5 | БДДС расходы (план, факт, уточн.) | `/finance/bdds-plan-fact` | ✅ принят на стенде 02.08.2026 | ✓ CSV+xlsx (2 таблицы) | ✓ (график+таблицы) | ИТОГО 6716.1/3889.8/6716.1; редактор лотов; mobile fit (`533d0c8`) |
 | 6 | Контрольные точки | `/timeline/control-points` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | цифры=main; mobile cards+pills; desktop fit (`a074d6a`) |
 | 7 | График проекта | `/timeline/project-schedule` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ковенанты=main; date pad; mobile compact gantt+cards (`51b4758`) |
-| 8 | Причины отклонений | `/timeline/deviation-reasons` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | mobile cards на 3 таблицах; KPI/графики как 31.07 |
-| 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; Plotly end-bars РД; см. §9 |
+| 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Plotly 1:1; y=0; modebar desktop; mobile cards+без modebar; download (`182242d`) |
+| 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | 🔄 регресс 03.08.2026 | ✓ CSV+xlsx | ✓ | после §8; mobile cards + скрины desktop+~390 |
 | 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx (3 таблицы) | ✓ | БД через core_bridge; обе вкладки; см. §10 |
 | 11 | Рабочая документация | `/docs/working-documentation` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД rd_plan+tessa; обе вкладки; см. §11 |
 | 12 | ГДРС (люди) | `/gdrs/people` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД gdrs_fact+1С; см. §12 |
@@ -347,7 +347,11 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 ### Регресс 03.08.2026
 
-Статус: 🔄 desktop 1:1 Plotly (bar+pie+facets+stack); mobile cards; ждём приёмку на стенде.
+Статус: ✅ принято на стенде 03.08.2026 (`182242d`).
+
+- Desktop 1:1 Plotly bar+pie+facets+stack; черта y=0; modebar как main; download portal.
+- Mobile: cards на таблицах; modebar скрыт, только fullscreen.
+- Светлая тема по умолчанию (`theme_v3`).
 
 ### Черновик 31.07.2026
 
@@ -381,6 +385,10 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 ---
 
 ## §9 Отклонение от базового плана
+
+### Регресс 03.08.2026
+
+Статус: 🔄 mobile kit + приёмка desktop цифр; ждём скрины на стенде.
 
 ### Черновик 31.07.2026
 
