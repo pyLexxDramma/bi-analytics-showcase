@@ -43,7 +43,7 @@ function ChipList({
   );
 }
 
-/** Single-select as horizontal chips (like BDDS «Проект»). */
+/** Single-select: desktop = native `<select>` (как main), mobile = chips. */
 export function FilterChipSelect({
   label,
   value,
@@ -57,13 +57,27 @@ export function FilterChipSelect({
   onChange: (next: string) => void;
   disabled?: boolean;
 }) {
-  const row = (
+  const normalized = options.map(normChipOption);
+  const desktop = (
+    <select
+      className={`${FILTER_SELECT_CLASS}${label != null ? "" : ""}`}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {normalized.map(({ value: v, label: lab }) => (
+        <option key={v} value={v}>
+          {lab}
+        </option>
+      ))}
+    </select>
+  );
+  const chips = (
     <ChipList
       itemCount={options.length}
       className={label != null ? "mt-2" : ""}
     >
-      {options.map((opt) => {
-        const { value: v, label: lab } = normChipOption(opt);
+      {normalized.map(({ value: v, label: lab }) => {
         const on = value === v;
         return (
           <button
@@ -79,20 +93,26 @@ export function FilterChipSelect({
       })}
     </ChipList>
   );
-  if (label == null) return row;
+  const body = (
+    <>
+      <div className="hidden lg:block">{desktop}</div>
+      <div className="lg:hidden">{chips}</div>
+    </>
+  );
+  if (label == null) return body;
   return (
     <div className="bi-filters-field block text-sm">
       <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
         {label}
       </span>
-      {row}
+      {body}
     </div>
   );
 }
 
 /**
- * Multi-select chips. Empty `values` = «Все» (no filter).
- * `options` may include the all-token; it is ignored for individual chips.
+ * Multi-select: empty `values` = «Все».
+ * Desktop = native select (закрытый вид как main); mobile = chips.
  */
 export function FilterChipMulti({
   label,
@@ -111,7 +131,26 @@ export function FilterChipMulti({
 }) {
   const opts = options.filter((o) => o && o !== allLabel);
   const allOn = values.length === 0;
-  const row = (
+  const desktopValue = values.length === 1 ? values[0]! : "";
+  const desktop = (
+    <select
+      className={FILTER_SELECT_CLASS}
+      value={desktopValue}
+      disabled={disabled}
+      onChange={(e) => {
+        const next = e.target.value;
+        onChange(next ? [next] : []);
+      }}
+    >
+      <option value="">{allLabel}</option>
+      {opts.map((name) => (
+        <option key={name} value={name}>
+          {name}
+        </option>
+      ))}
+    </select>
+  );
+  const chips = (
     <ChipList
       itemCount={opts.length + 1}
       className={label != null ? "mt-2" : ""}
@@ -142,13 +181,19 @@ export function FilterChipMulti({
       })}
     </ChipList>
   );
-  if (label == null) return row;
+  const body = (
+    <>
+      <div className="hidden lg:block">{desktop}</div>
+      <div className="lg:hidden">{chips}</div>
+    </>
+  );
+  if (label == null) return body;
   return (
     <div className="bi-filters-field block text-sm">
       <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
         {label}
       </span>
-      {row}
+      {body}
     </div>
   );
 }

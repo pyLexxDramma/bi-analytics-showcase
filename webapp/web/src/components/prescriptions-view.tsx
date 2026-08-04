@@ -12,11 +12,14 @@ import {
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
-  FilterNativeMultiAsSelect,
   FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import {
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 import {
   PrescriptionsContractorChart,
   PrescriptionsObjectsChart,
@@ -365,110 +368,34 @@ export function PrescriptionsView() {
     >
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset onClick={reset} />
-        {/* Desktop: select как main Streamlit (не chips). */}
-        <div className="hidden lg:block">
-          <FilterFieldsRow cols={4}>
-            <FilterNativeMultiAsSelect
-              label="Проект"
-              options={data?.filters.projects ?? []}
-              values={filters.projects}
-              onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
-              allLabel="Все"
-            />
-            <FilterNativeMultiAsSelect
-              label="Подрядчик"
-              options={data?.filters.contractors ?? []}
-              values={filters.contractors}
-              onChange={(contractors) =>
-                setFilters((state) => ({ ...state, contractors }))
-              }
-              allLabel="Все подрядчики"
-            />
-            <FilterField label="№ договора (частичный поиск)">
-              <ContractNoSuggest
-                value={filters.contract_q}
-                options={contractOptions}
-                onChange={(contract_q) =>
-                  setFilters((state) => ({ ...state, contract_q }))
-                }
-              />
-            </FilterField>
-            <FilterField label="Период">
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_from}
-                  onChange={(e) =>
-                    setFilters((state) => ({
-                      ...state,
-                      date_from: e.target.value,
-                    }))
-                  }
-                  className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
-                  aria-label="Дата с"
-                />
-                <input
-                  type="date"
-                  min={data?.filters.date_min ?? undefined}
-                  max={data?.filters.date_max ?? undefined}
-                  value={filters.date_to}
-                  onChange={(e) =>
-                    setFilters((state) => ({
-                      ...state,
-                      date_to: e.target.value,
-                    }))
-                  }
-                  className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
-                  aria-label="Дата по"
-                />
-              </div>
-            </FilterField>
-          </FilterFieldsRow>
-          <FilterChecksRow cols={4}>
-            <FilterCheck
-              label="Не отображать устраненные предписания"
-              checked={filters.hide_resolved}
-              onChange={(e) =>
-                setFilters((state) => ({
-                  ...state,
-                  hide_resolved: e.target.checked,
-                }))
+        <FilterFieldsRow cols={4}>
+          <FilterChipMulti
+            label="Проект"
+            options={data?.filters.projects ?? []}
+            values={filters.projects}
+            onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
+            allLabel="Все"
+          />
+          <FilterChipMulti
+            label="Подрядчик"
+            options={data?.filters.contractors ?? []}
+            values={filters.contractors}
+            onChange={(contractors) =>
+              setFilters((state) => ({ ...state, contractors }))
+            }
+            allLabel="Все подрядчики"
+          />
+          <FilterField label="№ договора (частичный поиск)">
+            <ContractNoSuggest
+              value={filters.contract_q}
+              options={contractOptions}
+              onChange={(contract_q) =>
+                setFilters((state) => ({ ...state, contract_q }))
               }
             />
-            <div />
-            <div />
-            <div />
-          </FilterChecksRow>
-        </div>
-        {/* Mobile: chips + bottom sheet. */}
-        <div className="lg:hidden">
-          <FilterFieldsRow cols={5}>
-            <FilterChipMulti
-              label="Проекты"
-              options={data?.filters.projects ?? []}
-              values={filters.projects}
-              onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
-            />
-            <FilterChipMulti
-              label="Подрядчики"
-              options={data?.filters.contractors ?? []}
-              values={filters.contractors}
-              onChange={(contractors) =>
-                setFilters((state) => ({ ...state, contractors }))
-              }
-            />
-            <FilterField label="№ договора">
-              <ContractNoSuggest
-                value={filters.contract_q}
-                options={contractOptions}
-                onChange={(contract_q) =>
-                  setFilters((state) => ({ ...state, contract_q }))
-                }
-              />
-            </FilterField>
-            <FilterField label="Дата с">
+          </FilterField>
+          <FilterField label="Период">
+            <div className="mt-1 grid grid-cols-2 gap-2">
               <input
                 type="date"
                 min={data?.filters.date_min ?? undefined}
@@ -480,10 +407,9 @@ export function PrescriptionsView() {
                     date_from: e.target.value,
                   }))
                 }
-                className={FILTER_SELECT_CLASS}
+                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
+                aria-label="Дата с"
               />
-            </FilterField>
-            <FilterField label="Дата по">
               <input
                 type="date"
                 min={data?.filters.date_min ?? undefined}
@@ -495,27 +421,27 @@ export function PrescriptionsView() {
                     date_to: e.target.value,
                   }))
                 }
-                className={FILTER_SELECT_CLASS}
+                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
+                aria-label="Дата по"
               />
-            </FilterField>
-          </FilterFieldsRow>
-          <FilterChecksRow cols={5}>
-            <FilterCheck
-              label="Не отображать устраненные предписания"
-              checked={filters.hide_resolved}
-              onChange={(e) =>
-                setFilters((state) => ({
-                  ...state,
-                  hide_resolved: e.target.checked,
-                }))
-              }
-            />
-            <div />
-            <div />
-            <div />
-            <div />
-          </FilterChecksRow>
-        </div>
+            </div>
+          </FilterField>
+        </FilterFieldsRow>
+        <FilterChecksRow cols={4}>
+          <FilterCheck
+            label="Не отображать устраненные предписания"
+            checked={filters.hide_resolved}
+            onChange={(e) =>
+              setFilters((state) => ({
+                ...state,
+                hide_resolved: e.target.checked,
+              }))
+            }
+          />
+          <div />
+          <div />
+          <div />
+        </FilterChecksRow>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} строк`}
           {data?.meta.version_id != null
@@ -651,7 +577,7 @@ export function PrescriptionsView() {
           )}
         </FullscreenPanel>
 
-        <Card className="overflow-hidden rounded-xl p-0">
+        <Card className="hidden overflow-hidden rounded-xl p-0 lg:block">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               Детальная таблица по предписаниям
@@ -743,6 +669,87 @@ export function PrescriptionsView() {
             />
           </div>
         </Card>
+
+        <div className="lg:hidden">
+          <Title className="mb-3 px-2 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            Детальная таблица по предписаниям
+          </Title>
+          {!rows.length ? (
+            <Text className="px-2 py-6 text-center">Нет строк по фильтрам.</Text>
+          ) : (
+            <div className="flex flex-col gap-3 px-2 pb-2">
+              {rows.map((row, index) => (
+                <MobileEntityCard
+                  key={`${row.pred_number}-${index}`}
+                  title={row.contractor || "—"}
+                  badge={row.status}
+                  badgeTone={
+                    row.status_chip === "overdue"
+                      ? "bad"
+                      : row.status_chip === "ok"
+                        ? "ok"
+                        : "warn"
+                  }
+                  className={
+                    row.row_tone === "overdue"
+                      ? "!border-rose-400 dark:!border-rose-500"
+                      : row.row_tone === "resolved"
+                        ? "!border-emerald-400 dark:!border-emerald-500"
+                        : ""
+                  }
+                >
+                  <MobileMetricGrid
+                    columns={2}
+                    items={[
+                      { label: "Проект", value: row.project || "—" },
+                      { label: "№ договора", value: row.contract_no || "—" },
+                      { label: "№ документа", value: row.doc_number || "—" },
+                      { label: "№ предписания", value: row.pred_number || "—" },
+                      { label: "Дата выдачи", value: row.issue_date || "—", highlight: "date" },
+                      { label: "Срок", value: row.due_date || "—", highlight: "date" },
+                      {
+                        label: "Факт устранения",
+                        value: row.completion_date || "—",
+                        highlight: "date",
+                      },
+                      {
+                        label: "Дней просрочки",
+                        value: row.overdue_days,
+                        highlight: row.overdue_days > 0 ? "bad" : "none",
+                        className:
+                          row.overdue_days > 0
+                            ? "text-rose-600 dark:text-rose-400"
+                            : undefined,
+                      },
+                      {
+                        label: "Критическое",
+                        value: row.critical ? "Да" : "—",
+                        highlight: row.critical ? "bad" : "none",
+                      },
+                      {
+                        label: "Остановка",
+                        value: row.stop_work ? "Да" : "—",
+                        highlight: row.stop_work ? "bad" : "none",
+                      },
+                    ]}
+                  />
+                  {row.name ? (
+                    <p className="mt-2 text-xs leading-snug text-tremor-content dark:text-dark-tremor-content">
+                      {row.name}
+                    </p>
+                  ) : null}
+                </MobileEntityCard>
+              ))}
+            </div>
+          )}
+          <div className="mt-3 px-2">
+            <DownloadTableButton
+              getTable={exportTable}
+              fileStem="predpisania"
+              disabled={!rows.length}
+            />
+          </div>
+        </div>
       </div>
     </AppShell>
   );
