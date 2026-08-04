@@ -376,6 +376,11 @@ export function ProjectScheduleView() {
                       badge={badge}
                       badgeTone={badgeTone}
                     >
+                      <div className="mb-2 text-[11px] leading-snug tabular-nums text-tremor-content dark:text-dark-tremor-content">
+                        План {(row.base_start || "—")} → {(row.base_end || "—")}
+                        <span className="mx-1 opacity-40">·</span>
+                        Факт {(row.plan_start || "—")} → {(row.plan_end || "—")}
+                      </div>
                       <MobileMetricGrid
                         columns={2}
                         items={[
@@ -389,15 +394,11 @@ export function ProjectScheduleView() {
                             label: "%",
                             value: row.pct_complete == null ? "—" : `${row.pct_complete}%`,
                           },
-                          { label: "Начало", value: row.plan_start ?? "—" },
-                          { label: "Баз. нач.", value: row.base_start ?? "—" },
                           {
                             label: "Откл. нач.",
                             value: row.dev_start || "—",
                             className: deviationClass(row.dev_start_days),
                           },
-                          { label: "Окончание", value: row.plan_end ?? "—" },
-                          { label: "Баз. оконч.", value: row.base_end ?? "—" },
                           {
                             label: "Откл. оконч.",
                             value: row.dev_end || "—",

@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { Text } from "@tremor/react";
 import type { ProjectSchedulePayload } from "@/lib/api";
 import { PLOTLY_CONFIG } from "@/lib/plotly-config";
+import { useIsLandscape, useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -18,17 +19,22 @@ const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
 const PLAN = "#14b8a6";
 const FACT = "#fb923c";
 const SCROLL_VISIBLE_ROWS = 18;
-const ROW_PX = 48;
-const BAR_WIDTH = 0.12;
-const LANE_GAP = 0.03;
-/** Верх/низ как у Plotly margin — чтобы строки совпали с полосами. */
+const ROW_PX_DESKTOP = 48;
+const ROW_PX_MOBILE_FIT = 64;
+const ROW_PX_MOBILE_WIDE = 72;
+const BAR_WIDTH_DESKTOP = 0.12;
+const BAR_WIDTH_MOBILE = 0.18;
+const LANE_GAP_DESKTOP = 0.03;
+const LANE_GAP_MOBILE = 0.06;
 const MARGIN_TOP = 20;
 const MARGIN_BOTTOM = 64;
 const DAY_MS = 24 * 3600 * 1000;
-/** Отступ подписи даты от ромба (desktop ковенанты). */
 const COVENANT_LABEL_GAP_MS = 14 * DAY_MS;
-/** Колонка имён ≈ 1/4 (линии шире ~3×). */
-const LABEL_COL_PCT = 24;
+const LABEL_COL_DESKTOP = 24;
+const LABEL_COL_MOBILE = 28;
+const MOBILE_CHART_MIN_PX = 960;
+
+type GanttRow = ProjectSchedulePayload["gantt"]["rows"][number];
 
 function toMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -36,7 +42,6 @@ function toMs(iso: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-/** Перенос в ≤2 строки для HTML-колонки имён. */
 function wrapTaskLabelLines(name: string, widthChars = 28, maxLines = 2): string[] {
   const s = String(name || "").trim();
   if (!s) return [""];
@@ -68,10 +73,15 @@ function wrapTaskLabelLines(name: string, widthChars = 28, maxLines = 2): string
   return lines.slice(0, maxLines);
 }
 
-function laneOffset(lane: "plan" | "fact", hasFact: boolean): number {
+function laneOffset(
+  lane: "plan" | "fact",
+  hasFact: boolean,
+  barWidth: number,
+  laneGap: number,
+): number {
   if (!hasFact) return 0;
   const idx = lane === "plan" ? 0 : 1;
-  return (idx - 0.5) * (BAR_WIDTH + LANE_GAP) * 2;
+  return (idx - 0.5) * (barWidth + laneGap) * 2;
 }
 
 function sameDay(
@@ -80,6 +90,20 @@ function sameDay(
 ): boolean {
   if (!a || !b) return false;
   return a.slice(0, 10) === b.slice(0, 10);
+}
+
+/** Одна строка дат под задачей на обычном мобильном виде. */
+function rowDateSummary(row: GanttRow, covenantMode: boolean): string {
+  if (covenantMode) {
+    const p = row.baseline.end_label || "—";
+    const f = row.current.end_label || "—";
+    return `П ${p} · Ф ${f}`;
+  }
+  const ps = row.baseline.start_label || "—";
+  const pe = row.baseline.end_label || "—";
+  const fs = row.current.start_label || "—";
+  const fe = row.current.end_label || "—";
+  return `П ${ps}→${pe} · Ф ${fs}→${fe}`;
 }
 
 export function ProjectScheduleGantt({
@@ -94,27 +118,50 @@ export function ProjectScheduleGantt({
   const factColor = data.gantt.fact_color || FACT;
   const labelPct = data.gantt.label_pct;
   const covenantMode = Boolean(data.gantt.covenant_mode ?? data.filters?.applied?.covenant_mode);
-  // Даты начала/конца — как на desktop (и в режиме «Ковенанты» тоже).
-  const showAxisDateLabels = true;
+  const mobile = useIsMobileViewport();
+  const landscape = useIsLandscape();
+
+  /**
+   * Широкий режим с датами на полосах и гориз. скроллом —
+   * только «Развернуть» + альбом на телефоне. Иначе даты — под именем / в карточках.
+   */
+  const expandedWide = mobile && fullscreen && landscape;
+  const fitMobile = mobile && !expandedWide;
+  const showAxisDateLabels = !mobile || expandedWide;
+
+  const rowPx = fitMobile
+    ? ROW_PX_MOBILE_FIT
+    : mobile
+      ? ROW_PX_MOBILE_WIDE
+      : ROW_PX_DESKTOP;
+  const barWidth = mobile ? BAR_WIDTH_MOBILE : BAR_WIDTH_DESKTOP;
+  const laneGap = mobile ? LANE_GAP_MOBILE : LANE_GAP_DESKTOP;
+  const labelColPct = fitMobile ? LABEL_COL_MOBILE : mobile ? 20 : LABEL_COL_DESKTOP;
 
   const built = useMemo(() => {
     if (!rows.length) return null;
 
     const labelLines = rows.map((row) =>
-      wrapTaskLabelLines(row.label, fullscreen ? 34 : 28, 2),
+      wrapTaskLabelLines(
+        row.label,
+        fullscreen ? 34 : fitMobile ? 22 : mobile ? 18 : 28,
+        fitMobile ? 1 : 2,
+      ),
     );
+    const dateSummaries = rows.map((row) => rowDateSummary(row, covenantMode));
     const n = rows.length;
     const hasFact = true;
-    const taskFont = fullscreen ? 13 : 11;
-    const labelFont = fullscreen ? 12 : 11;
+    const taskFont = fullscreen ? 13 : fitMobile ? 10 : mobile ? 10 : 11;
+    const labelFont = fullscreen ? 12 : 10;
 
-    const planY = rows.map((_, i) => i + laneOffset("plan", hasFact && !labelPct && !covenantMode));
-    const factY = rows.map((_, i) => i + laneOffset("fact", hasFact));
+    const planY = rows.map((_, i) =>
+      i + laneOffset("plan", hasFact && !labelPct && !covenantMode, barWidth, laneGap),
+    );
+    const factY = rows.map((_, i) => i + laneOffset("fact", hasFact, barWidth, laneGap));
 
     const traces: Array<Record<string, unknown>> = [];
 
     if (covenantMode) {
-      // Main `_build_covenants_points_figure`: ромбы план/факт по дате окончания.
       const planX = rows.map((row) => toMs(row.baseline.end));
       const factX = rows.map((row) => toMs(row.current.end));
       const yVals = rows.map((_, i) => i);
@@ -126,7 +173,7 @@ export function ProjectScheduleGantt({
         x: planX,
         y: yVals,
         marker: {
-          size: 11,
+          size: expandedWide ? 13 : 11,
           color: planColor,
           symbol: "diamond",
           line: { width: 1, color: "#ffffff" },
@@ -144,7 +191,7 @@ export function ProjectScheduleGantt({
         x: factX,
         y: yVals,
         marker: {
-          size: 11,
+          size: expandedWide ? 13 : 11,
           color: factColor,
           symbol: "diamond",
           line: { width: 1, color: "#ffffff" },
@@ -156,40 +203,80 @@ export function ProjectScheduleGantt({
         customdata: rows.map((row) => [row.label, row.current.end_label || "—"]),
       });
 
-      rows.forEach((row, i) => {
-        const pe = toMs(row.baseline.end);
-        const fe = toMs(row.current.end);
-        const planLeft = pe != null && fe != null ? pe <= fe : true;
-        if (showAxisDateLabels && pe != null && row.baseline.end_label) {
-          traces.push({
-            type: "scatter",
-            mode: "text",
-            x: [planLeft ? pe - COVENANT_LABEL_GAP_MS : pe + COVENANT_LABEL_GAP_MS],
-            y: [i],
-            text: [planLeft ? `${row.baseline.end_label}\u00a0` : `\u00a0${row.baseline.end_label}`],
-            textposition: planLeft ? "middle left" : "middle right",
-            textfont: { size: labelFont, color: planColor, family: "Arial" },
-            hoverinfo: "skip",
-            showlegend: false,
-            cliponaxis: false,
-          });
-        }
-        if (showAxisDateLabels && fe != null && row.current.end_label) {
-          const factLeft = pe != null && fe != null ? fe < pe : false;
-          traces.push({
-            type: "scatter",
-            mode: "text",
-            x: [factLeft ? fe - COVENANT_LABEL_GAP_MS : fe + COVENANT_LABEL_GAP_MS],
-            y: [i],
-            text: [factLeft ? `${row.current.end_label}\u00a0` : `\u00a0${row.current.end_label}`],
-            textposition: factLeft ? "middle left" : "middle right",
-            textfont: { size: labelFont, color: factColor, family: "Arial" },
-            hoverinfo: "skip",
-            showlegend: false,
-            cliponaxis: false,
-          });
-        }
-      });
+      if (showAxisDateLabels) {
+        rows.forEach((row, i) => {
+          const pe = toMs(row.baseline.end);
+          const fe = toMs(row.current.end);
+          if (pe != null && row.baseline.end_label) {
+            if (expandedWide) {
+              traces.push({
+                type: "scatter",
+                mode: "text",
+                x: [pe],
+                y: [i - 0.22],
+                text: [row.baseline.end_label],
+                textposition: "top center",
+                textfont: { size: labelFont, color: planColor, family: "Arial" },
+                hoverinfo: "skip",
+                showlegend: false,
+                cliponaxis: false,
+              });
+            } else {
+              const planLeft = fe != null ? pe <= fe : true;
+              traces.push({
+                type: "scatter",
+                mode: "text",
+                x: [planLeft ? pe - COVENANT_LABEL_GAP_MS : pe + COVENANT_LABEL_GAP_MS],
+                y: [i],
+                text: [
+                  planLeft
+                    ? `${row.baseline.end_label}\u00a0`
+                    : `\u00a0${row.baseline.end_label}`,
+                ],
+                textposition: planLeft ? "middle left" : "middle right",
+                textfont: { size: labelFont, color: planColor, family: "Arial" },
+                hoverinfo: "skip",
+                showlegend: false,
+                cliponaxis: false,
+              });
+            }
+          }
+          if (fe != null && row.current.end_label) {
+            if (expandedWide) {
+              traces.push({
+                type: "scatter",
+                mode: "text",
+                x: [fe],
+                y: [i + 0.22],
+                text: [row.current.end_label],
+                textposition: "bottom center",
+                textfont: { size: labelFont, color: factColor, family: "Arial" },
+                hoverinfo: "skip",
+                showlegend: false,
+                cliponaxis: false,
+              });
+            } else {
+              const factLeft = pe != null ? fe < pe : false;
+              traces.push({
+                type: "scatter",
+                mode: "text",
+                x: [factLeft ? fe - COVENANT_LABEL_GAP_MS : fe + COVENANT_LABEL_GAP_MS],
+                y: [i],
+                text: [
+                  factLeft
+                    ? `${row.current.end_label}\u00a0`
+                    : `\u00a0${row.current.end_label}`,
+                ],
+                textposition: factLeft ? "middle left" : "middle right",
+                textfont: { size: labelFont, color: factColor, family: "Arial" },
+                hoverinfo: "skip",
+                showlegend: false,
+                cliponaxis: false,
+              });
+            }
+          }
+        });
+      }
     } else {
       const planBase = rows.map((row) => toMs(row.baseline.start));
       const planLen = rows.map((row) => {
@@ -215,7 +302,7 @@ export function ProjectScheduleGantt({
           base: planBase,
           x: planLen,
           marker: { color: planColor },
-          width: BAR_WIDTH,
+          width: barWidth,
           textposition: "none",
           showlegend: false,
           cliponaxis: true,
@@ -237,7 +324,7 @@ export function ProjectScheduleGantt({
         base: factBase,
         x: factLen,
         marker: { color: factColor },
-        width: BAR_WIDTH,
+        width: barWidth,
         textposition: "none",
         showlegend: false,
         cliponaxis: true,
@@ -252,61 +339,105 @@ export function ProjectScheduleGantt({
         ]),
       });
 
-      type EdgeBucket = { x: number[]; y: number[]; text: string[] };
-      const buckets: Record<string, EdgeBucket> = {};
-      const pushEdge = (
-        key: string,
-        x: number | null,
-        y: number,
-        text: string,
-      ) => {
-        if (!showAxisDateLabels || x == null || !text) return;
-        if (!buckets[key]) buckets[key] = { x: [], y: [], text: [] };
-        buckets[key].x.push(x);
-        buckets[key].y.push(y);
-        buckets[key].text.push(text);
-      };
+      if (showAxisDateLabels) {
+        type EdgeBucket = {
+          x: number[];
+          y: number[];
+          text: string[];
+          position: string;
+        };
+        const buckets: Record<string, EdgeBucket> = {};
+        const pushEdge = (
+          key: string,
+          x: number | null,
+          y: number,
+          text: string,
+          position: string,
+        ) => {
+          if (x == null || !text) return;
+          if (!buckets[key]) buckets[key] = { x: [], y: [], text: [], position };
+          buckets[key].x.push(x);
+          buckets[key].y.push(y);
+          buckets[key].text.push(text);
+        };
 
-      rows.forEach((row, i) => {
-        const py = planY[i];
-        const fy = factY[i];
-        const ps = toMs(row.baseline.start);
-        const pe = toMs(row.baseline.end);
-        const fs = toMs(row.current.start);
-        const fe = toMs(row.current.end);
+        rows.forEach((row, i) => {
+          const py = planY[i];
+          const fy = factY[i];
+          const ps = toMs(row.baseline.start);
+          const pe = toMs(row.baseline.end);
+          const fs = toMs(row.current.start);
+          const fe = toMs(row.current.end);
 
-        if (!labelPct) {
-          pushEdge("plan|start", ps, py, row.baseline.start_label || "");
-          pushEdge("plan|end", pe, py, row.baseline.end_label || "");
-        }
-        if (!sameDay(row.current.start, row.baseline.start) || labelPct) {
-          pushEdge("fact|start", fs, fy, row.current.start_label || "");
-        }
-        if (!sameDay(row.current.end, row.baseline.end) || labelPct) {
-          pushEdge("fact|end", fe, fy, row.current.end_label || "");
-        }
-        if (labelPct && row.pct_complete != null && fe != null) {
-          pushEdge("fact|pct", fe, fy, `${row.pct_complete}%`);
-        }
-      });
+          const startPos = expandedWide ? "top center" : "middle left";
+          const endPos = expandedWide ? "bottom center" : "middle right";
+          const startYShift = expandedWide ? -0.08 : 0;
+          const endYShift = expandedWide ? 0.08 : 0;
 
-      (Object.entries(buckets) as Array<[string, EdgeBucket]>).forEach(([key, bucket]) => {
-        if (!bucket.x.length) return;
-        const [, edge] = key.split("|");
-        const color = key.startsWith("fact") ? factColor : planColor;
-        traces.push({
-          type: "scatter",
-          mode: "text",
-          x: bucket.x,
-          y: bucket.y,
-          text: bucket.text,
-          textposition: edge === "end" || edge === "pct" ? "middle right" : "middle left",
-          textfont: { size: labelFont, color, family: "Arial" },
-          hoverinfo: "skip",
-          showlegend: false,
-          cliponaxis: true,
+          if (!labelPct) {
+            pushEdge(
+              "plan|start",
+              ps,
+              py + startYShift,
+              row.baseline.start_label || "",
+              startPos,
+            );
+            pushEdge(
+              "plan|end",
+              pe,
+              py + endYShift,
+              row.baseline.end_label || "",
+              endPos,
+            );
+          }
+          if (!sameDay(row.current.start, row.baseline.start) || labelPct) {
+            pushEdge(
+              "fact|start",
+              fs,
+              fy + startYShift,
+              row.current.start_label || "",
+              startPos,
+            );
+          }
+          if (!sameDay(row.current.end, row.baseline.end) || labelPct) {
+            pushEdge(
+              "fact|end",
+              fe,
+              fy + endYShift,
+              row.current.end_label || "",
+              endPos,
+            );
+          }
+          if (labelPct && row.pct_complete != null && fe != null) {
+            pushEdge(
+              "fact|pct",
+              fe,
+              fy + endYShift,
+              `${row.pct_complete}%`,
+              expandedWide ? "bottom center" : "middle right",
+            );
+          }
         });
-      });
+
+        (Object.entries(buckets) as Array<[string, EdgeBucket]>).forEach(
+          ([key, bucket]) => {
+            if (!bucket.x.length) return;
+            const color = key.startsWith("fact") ? factColor : planColor;
+            traces.push({
+              type: "scatter",
+              mode: "text",
+              x: bucket.x,
+              y: bucket.y,
+              text: bucket.text,
+              textposition: bucket.position,
+              textfont: { size: labelFont, color, family: "Arial" },
+              hoverinfo: "skip",
+              showlegend: false,
+              cliponaxis: !expandedWide,
+            });
+          },
+        );
+      }
     }
 
     const barMs: number[] = [];
@@ -328,26 +459,40 @@ export function ProjectScheduleGantt({
     if (lo == null && apiLo != null) lo = apiLo;
     if (hi == null && apiHi != null) hi = apiHi;
     const span = lo != null && hi != null ? Math.max(hi - lo, DAY_MS) : DAY_MS;
+    const padLo = expandedWide
+      ? Math.max(55 * DAY_MS, span * 0.1)
+      : Math.max(45 * DAY_MS, span * 0.08);
+    const padHi = expandedWide
+      ? Math.max(45 * DAY_MS, span * 0.1)
+      : Math.max(30 * DAY_MS, span * 0.06);
     const xRange =
-      lo != null && hi != null
-        ? [lo - Math.max(45 * DAY_MS, span * 0.08), hi + Math.max(30 * DAY_MS, span * 0.06)]
-        : undefined;
+      lo != null && hi != null ? [lo - padLo, hi + padHi] : undefined;
 
-    const plotHeight = Math.max(280, n * ROW_PX);
+    const plotHeight = Math.max(280, n * rowPx);
     const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
-    const lanePad = 0.4;
+    const lanePad = expandedWide ? 0.55 : 0.4;
 
     return {
       labelLines,
+      dateSummaries,
       taskFont,
+      rowPx,
+      labelColPct,
+      showDateUnderLabel: fitMobile,
+      chartMinWidth: expandedWide ? MOBILE_CHART_MIN_PX : undefined,
       data: traces,
       layout: {
         barmode: "overlay",
         bargap: 0.78,
-        bargroupgap: LANE_GAP,
+        bargroupgap: laneGap,
         height: chartHeight,
         autosize: true,
-        margin: { l: 8, r: 40, t: MARGIN_TOP, b: MARGIN_BOTTOM },
+        margin: {
+          l: 8,
+          r: expandedWide ? 28 : 40,
+          t: MARGIN_TOP,
+          b: MARGIN_BOTTOM,
+        },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         showlegend: false,
@@ -390,7 +535,7 @@ export function ProjectScheduleGantt({
       plotHeight,
       viewportHeight: Math.min(
         chartHeight,
-        Math.min(n, SCROLL_VISIBLE_ROWS) * ROW_PX + MARGIN_TOP + MARGIN_BOTTOM,
+        Math.min(n, SCROLL_VISIBLE_ROWS) * rowPx + MARGIN_TOP + MARGIN_BOTTOM,
       ),
     };
   }, [
@@ -401,6 +546,13 @@ export function ProjectScheduleGantt({
     covenantMode,
     showAxisDateLabels,
     fullscreen,
+    mobile,
+    fitMobile,
+    expandedWide,
+    rowPx,
+    barWidth,
+    laneGap,
+    labelColPct,
     data.gantt.range_start,
     data.gantt.range_end,
   ]);
@@ -429,16 +581,41 @@ export function ProjectScheduleGantt({
           <Text>Факт</Text>
         </span>
       </div>
+      {fitMobile ? (
+        <Text className="mb-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
+          Даты — под названием задачи и в карточках таблицы. Чтобы видеть даты на
+          полосах: «Развернуть» и повернуть телефон горизонтально.
+        </Text>
+      ) : null}
+      {expandedWide ? (
+        <Text className="mb-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
+          Свайпните график вправо — таймлайн увеличен, даты у начала сверху и у
+          конца снизу.
+        </Text>
+      ) : null}
       <div
-        className="gantt-schedule-scroll-wrap overflow-y-auto overflow-x-hidden rounded-md border border-tremor-border dark:border-dark-tremor-border"
+        className={`gantt-schedule-scroll-wrap rounded-md border border-tremor-border dark:border-dark-tremor-border ${
+          expandedWide ? "overflow-auto" : "overflow-y-auto overflow-x-hidden"
+        }`}
         style={{ maxHeight: viewportMax }}
       >
-        <div className="flex w-full" style={{ minHeight: built.chartHeight }}>
-          {/* Имена: отдельная колонка, прижаты к левому краю — без пересечения с линиями. */}
+        <div
+          className="flex"
+          style={{
+            minHeight: built.chartHeight,
+            minWidth: built.chartMinWidth
+              ? `calc(${built.labelColPct}% + ${built.chartMinWidth}px)`
+              : "100%",
+            width: "100%",
+          }}
+        >
           <div
-            className="shrink-0 border-r border-tremor-border dark:border-dark-tremor-border"
+            className={`shrink-0 border-r border-tremor-border bg-tremor-background dark:border-dark-tremor-border dark:bg-dark-tremor-background ${
+              expandedWide ? "sticky left-0 z-10" : ""
+            }`}
             style={{
-              width: `${LABEL_COL_PCT}%`,
+              width: `${built.labelColPct}%`,
+              minWidth: fitMobile ? 108 : undefined,
               paddingTop: MARGIN_TOP,
               paddingBottom: MARGIN_BOTTOM,
             }}
@@ -446,9 +623,9 @@ export function ProjectScheduleGantt({
             {built.labelLines.map((lines, i) => (
               <div
                 key={`${rows[i]?.label ?? i}-${i}`}
-                className="flex items-center justify-start overflow-hidden px-2 text-left leading-tight text-tremor-content dark:text-dark-tremor-content"
+                className="flex flex-col justify-center overflow-hidden px-1.5 text-left leading-tight text-tremor-content dark:text-dark-tremor-content"
                 style={{
-                  height: ROW_PX,
+                  height: built.rowPx,
                   fontSize: built.taskFont,
                 }}
                 title={rows[i]?.label}
@@ -460,10 +637,24 @@ export function ProjectScheduleGantt({
                     </span>
                   ))}
                 </span>
+                {built.showDateUnderLabel ? (
+                  <span
+                    className="mt-0.5 block truncate tabular-nums text-[9px] leading-snug opacity-80"
+                    title={built.dateSummaries[i]}
+                  >
+                    {built.dateSummaries[i]}
+                  </span>
+                ) : null}
               </div>
             ))}
           </div>
-          <div className="min-w-0 flex-1" style={{ width: `${100 - LABEL_COL_PCT}%` }}>
+          <div
+            className="min-w-0 flex-1"
+            style={{
+              width: `${100 - built.labelColPct}%`,
+              minWidth: built.chartMinWidth,
+            }}
+          >
             <PlotlyFigure
               data={built.data as never}
               layout={built.layout as never}
