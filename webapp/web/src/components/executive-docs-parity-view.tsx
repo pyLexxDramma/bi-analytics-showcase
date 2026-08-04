@@ -1,11 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  BarChart,
   Card,
-  Grid,
-  Metric,
   Text,
   Title,
 } from "@tremor/react";
@@ -26,6 +23,13 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import {
+  ExecutiveDynamicsChart,
+  ExecutiveObjectsChart,
+  ExecutiveOverdueChart,
+  ExecutiveStatusChart,
+} from "@/components/executive-docs-charts";
+import { MobileEntityCard, MobileMetricGrid } from "@/components/mobile-entity-card";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -54,16 +58,6 @@ const DETAIL_COLS: Array<[string, string]> = [
   ["status_display", "Статус"],
   ["creation_date", "Дата создания"],
 ];
-
-function statusBarColor(status: string): "orange" | "yellow" | "rose" | "emerald" | "slate" {
-  const s = status.toLowerCase();
-  if (s.includes("согласован") && !s.includes("на согласован")) return "emerald";
-  if (s.includes("подписан")) return "emerald";
-  if (s.includes("доработ")) return "yellow";
-  if (s.includes("согласован")) return "orange";
-  if (s.includes("отказ") || s.includes("отмен")) return "rose";
-  return "slate";
-}
 
 function chipClass(chip: string | undefined): string {
   switch (chip) {
@@ -129,6 +123,21 @@ export function ExecutiveDocsParityView() {
     void load(filters);
   }, [filters, load]);
 
+  useEffect(() => {
+    if (
+      data?.filters.date_min &&
+      data.filters.date_max &&
+      !filters.date_from &&
+      !filters.date_to
+    ) {
+      setFilters((current) => ({
+        ...current,
+        date_from: data.filters.date_min!,
+        date_to: data.filters.date_max!,
+      }));
+    }
+  }, [data?.filters.date_max, data?.filters.date_min, filters.date_from, filters.date_to]);
+
   const reset = () =>
     setFilters({
       project: "Все",
@@ -139,48 +148,6 @@ export function ExecutiveDocsParityView() {
       granularity: "month",
       hide_overdue_if_signed: true,
     });
-
-  const statusChart = useMemo(
-    () =>
-      (data?.tremor.by_status ?? []).map((row) => ({
-        status: row.status,
-        Количество: row.count,
-      })),
-    [data?.tremor.by_status],
-  );
-
-  const statusColors = useMemo(
-    () => statusChart.map((row) => statusBarColor(row.status)),
-    [statusChart],
-  );
-
-  const objectChart = useMemo(
-    () =>
-      (data?.tremor.by_object ?? []).map((row) => ({
-        object: row.object,
-        Количество: row.count,
-      })),
-    [data?.tremor.by_object],
-  );
-
-  const dynamicsChart = useMemo(
-    () =>
-      (data?.tremor.dynamics ?? []).map((row) => ({
-        period: row.period,
-        Количество: row.new_docs,
-      })),
-    [data?.tremor.dynamics],
-  );
-
-  const exportCatalog = useCallback((): ExportTable | null => {
-    const catalog = data?.filters.catalog ?? [];
-    if (!catalog.length) return null;
-    const keys = Object.keys(catalog[0]);
-    return {
-      header: [keys],
-      rows: catalog.map((row) => keys.map((key) => row[key] as ExportCell)),
-    };
-  }, [data?.filters.catalog]);
 
   const exportDetail = useCallback((): ExportTable | null => {
     const rows = data?.rows ?? [];
@@ -220,7 +187,7 @@ export function ExecutiveDocsParityView() {
     <AppShell
       title="Исполнительная документация"
       subtitle="TESSA · сдача, согласование и просрочки ИД"
-     loading={loading}>
+      loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
         <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={5}>
@@ -239,37 +206,29 @@ export function ExecutiveDocsParityView() {
               onChange={(value) => setFilters((s) => ({ ...s, [key]: value }))}
             />
           ))}
-          <FilterField label="Период с">
-            <input
-              type="date"
-              min={data?.filters.date_min ?? undefined}
-              max={data?.filters.date_max ?? undefined}
-              value={filters.date_from}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, date_from: e.target.value }))
-              }
-              className={FILTER_SELECT_CLASS}
-            />
+          <FilterField label="Период">
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                min={data?.filters.date_min ?? undefined}
+                max={filters.date_to || data?.filters.date_max || undefined}
+                value={filters.date_from}
+                onChange={(e) => setFilters((s) => ({ ...s, date_from: e.target.value }))}
+                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
+                aria-label="Период с"
+              />
+              <input
+                type="date"
+                min={filters.date_from || data?.filters.date_min || undefined}
+                max={data?.filters.date_max ?? undefined}
+                value={filters.date_to}
+                onChange={(e) => setFilters((s) => ({ ...s, date_to: e.target.value }))}
+                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
+                aria-label="Период по"
+              />
+            </div>
           </FilterField>
-          <FilterField label="Период по">
-            <input
-              type="date"
-              min={data?.filters.date_min ?? undefined}
-              max={data?.filters.date_max ?? undefined}
-              value={filters.date_to}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, date_to: e.target.value }))
-              }
-              className={FILTER_SELECT_CLASS}
-            />
-          </FilterField>
-        </FilterFieldsRow>
-        <FilterFieldsRow cols={5}>
           <FilterChipSelect label="Гранулярность" value={filters.granularity} options={(data?.filters.granularities ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(granularity) => setFilters((s) => ({ ...s, granularity }))} />
-          <div />
-          <div />
-          <div />
-          <div />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>
           <FilterCheck
@@ -308,133 +267,179 @@ export function ExecutiveDocsParityView() {
         </Card>
       ) : null}
 
-      <Card className="mb-6 rounded-xl">
-        <button
-          type="button"
-          onClick={() => setCatalogOpen((v) => !v)}
-          className="flex w-full items-center justify-between text-left"
+      <div className="space-y-6">
+        <FiltersCard
+          title="Справочник видов документов ИД"
+          open={catalogOpen}
+          onToggle={() => setCatalogOpen((v) => !v)}
         >
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-            Справочник видов документов ИД
-          </Title>
-          <span>{catalogOpen ? "▲" : "▼"}</span>
-        </button>
-        {catalogOpen ? (
-          <>
-            <div className="mt-3 max-h-64 overflow-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="sticky top-0 bg-tremor-background-subtle dark:bg-dark-tremor-background-subtle">
-                  <tr>
-                    {Object.keys(data?.filters.catalog[0] ?? {}).map((key) => (
-                      <th key={key} className="whitespace-nowrap px-3 py-2 text-xs">
-                        {key}
-                      </th>
+          <Text className="mb-3 text-xs">
+            Соответствие KindName из TESSA группам отчёта. Колонка «Строк в
+            данных» — по текущей выгрузке до фильтров.
+          </Text>
+          <div className="overflow-x-auto rounded-lg border border-tremor-border dark:border-dark-tremor-border">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="bg-tremor-background-subtle dark:bg-dark-tremor-background-subtle">
+                  {(
+                    data?.filters.catalog?.[0]
+                      ? Object.keys(data.filters.catalog[0])
+                      : ["KindName", "Группа", "Описание", "В отчёте ИД", "Строк в данных"]
+                  ).map((col) => (
+                    <th
+                      key={col}
+                      className="whitespace-nowrap px-3 py-2 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content"
+                    >
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.filters.catalog ?? []).map((row, index) => (
+                  <tr
+                    key={`${String(row.KindName ?? index)}-${index}`}
+                    className="border-t border-tremor-border dark:border-dark-tremor-border"
+                  >
+                    {Object.keys(data?.filters.catalog?.[0] ?? row).map((col) => (
+                      <td
+                        key={col}
+                        className="max-w-xs px-3 py-2 align-top text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                      >
+                        {String(row[col] ?? "—")}
+                      </td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {(data?.filters.catalog ?? []).map((row, index) => (
-                    <tr
-                      key={index}
-                      className="border-t border-tremor-border dark:border-dark-tremor-border"
-                    >
-                      {Object.values(row).map((value, i) => (
-                        <td key={i} className="whitespace-nowrap px-3 py-2">
-                          {String(value ?? "—")}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3">
-              <DownloadTableButton
-                getTable={exportCatalog}
-                fileStem="exec_doc_kinds"
-                disabled={!data?.filters.catalog?.length}
-              />
-            </div>
-          </>
-        ) : null}
-      </Card>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3">
+            <DownloadTableButton
+              getTable={() => {
+                const rows = data?.filters.catalog ?? [];
+                if (!rows.length) return null;
+                const columns = Object.keys(rows[0]!);
+                return {
+                  header: [columns],
+                  rows: rows.map((row) =>
+                    columns.map((col) => row[col] as ExportCell),
+                  ),
+                } satisfies ExportTable;
+              }}
+              fileStem="exec_doc_kinds"
+              disabled={!data?.filters.catalog?.length}
+            />
+          </div>
+        </FiltersCard>
 
-      <div className="space-y-6">
         <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-          Исполнительная документация накопительно
+          Таблица Исполнительная документация накопительно
         </Title>
-        <Grid numItemsSm={2} numItemsLg={3} className="gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
           {(
             [
-              ["Всего документов", kpis?.total_docs, "border-sky-300"],
-              ["Отказы", kpis?.declined, "border-rose-300"],
-              ["На согласовании", kpis?.on_agree, "border-amber-300"],
-              ["Принято", kpis?.signed, "border-emerald-300"],
-              ["У подрядчика", kpis?.on_rework, "border-cyan-300"],
-              ["Всего просрочек", kpis?.overdue_total, "border-rose-400"],
+              [
+                "Всего документов",
+                kpis?.total_docs,
+                "Уникальные документы в текущей выборке",
+                "bg-slate-100 border-slate-300 text-slate-800 dark:bg-slate-800/80 dark:border-slate-600 dark:text-slate-100",
+              ],
+              [
+                "Отказы",
+                kpis?.declined,
+                "Документы со статусом отказа",
+                "bg-rose-50 border-rose-300 text-rose-950 dark:bg-rose-950/40 dark:border-rose-500/50 dark:text-rose-100",
+              ],
+              [
+                "На согласовании",
+                kpis?.on_agree,
+                "Документы у заказчика",
+                "bg-amber-50 border-amber-300 text-amber-950 dark:bg-amber-950/40 dark:border-amber-500/50 dark:text-amber-100",
+              ],
+              [
+                "Принято",
+                kpis?.signed,
+                "Только статус «Подписан»",
+                "bg-emerald-50 border-emerald-300 text-emerald-950 dark:bg-emerald-950/40 dark:border-emerald-500/50 dark:text-emerald-100",
+              ],
+              [
+                "У подрядчика",
+                kpis?.on_rework,
+                "Документы на доработке",
+                "bg-slate-100 border-slate-300 text-slate-800 dark:bg-slate-800/80 dark:border-slate-600 dark:text-slate-100",
+              ],
+              [
+                "Всего просрочек",
+                kpis?.overdue_total,
+                "Подрядчик + заказчик",
+                "bg-rose-50 border-rose-300 text-rose-950 dark:bg-rose-950/40 dark:border-rose-500/50 dark:text-rose-100",
+              ],
             ] as const
-          ).map(([title, value, border]) => (
-            <Card key={title} className={`rounded-xl border ${border}`}>
-              <Text>{title}</Text>
-              <Metric className="mt-2">{value ?? "—"}</Metric>
-            </Card>
+          ).map(([title, value, subtitle, color]) => (
+            <div
+              key={title}
+              className={`rounded-[14px] border px-4 py-3.5 shadow-sm ${color}`}
+            >
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {title}
+              </div>
+              <div className="mt-2 text-[28px] font-extrabold leading-none tabular-nums">
+                {value ?? "—"}
+              </div>
+              <div className="mt-2 text-xs leading-snug text-slate-500 dark:text-slate-400">
+                {subtitle}
+              </div>
+            </div>
           ))}
-        </Grid>
+        </div>
 
-        <Grid numItemsLg={2} className="gap-6">
+        <div className="grid gap-6 lg:grid-cols-2">
           <FullscreenPanel fill>
             <Card className="rounded-xl">
               <Title>Просрочка подрядчика (сдача ИД)</Title>
-              <Metric className="mt-2 text-rose-600 dark:text-rose-400">
-                {kpis?.contractor_overdue.count ?? 0}
-              </Metric>
+              <Text className="mt-1">Документов на доработке у подрядчика</Text>
+              <div className="mt-1 text-3xl font-bold text-rose-600 dark:text-rose-400">{kpis?.contractor_overdue.count ?? 0}</div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                <Text>До 7 дней: {kpis?.contractor_overdue.bucket_0_7 ?? 0}</Text>
-                <Text>7–30 дней: {kpis?.contractor_overdue.bucket_8_30 ?? 0}</Text>
-                <Text>&gt; 30 дней: {kpis?.contractor_overdue.bucket_30_plus ?? 0}</Text>
+                <div>
+                  <Text>До 7 дней</Text>
+                  <div className="text-lg font-semibold tabular-nums">{kpis?.contractor_overdue.bucket_0_7 ?? 0}</div>
+                </div>
+                <div>
+                  <Text>7–30 дней</Text>
+                  <div className="text-lg font-semibold tabular-nums">{kpis?.contractor_overdue.bucket_8_30 ?? 0}</div>
+                </div>
+                <div>
+                  <Text>&gt; 30 дней</Text>
+                  <div className="text-lg font-semibold tabular-nums">{kpis?.contractor_overdue.bucket_30_plus ?? 0}</div>
+                </div>
               </div>
-              <BarChart
-                className="mt-6 h-72"
-                data={(data?.tremor.overdue_contractor ?? []).map((row) => ({
-                  contractor: row.contractor,
-                  Количество: row.count,
-                }))}
-                index="contractor"
-                categories={["Количество"]}
-                colors={["rose"]}
-                layout="horizontal"
-                showLegend={false}
-                yAxisWidth={140}
-              />
+              <div className="mt-4"><ExecutiveOverdueChart rows={data?.tremor.overdue_contractor ?? []} /></div>
             </Card>
           </FullscreenPanel>
           <FullscreenPanel fill>
             <Card className="rounded-xl">
               <Title>Просрочка заказчика (согласование)</Title>
-              <Metric className="mt-2 text-amber-600 dark:text-amber-400">
-                {kpis?.customer_overdue.count ?? 0}
-              </Metric>
+              <Text className="mt-1">Документов на согласовании у заказчика</Text>
+              <div className="mt-1 text-3xl font-bold text-amber-600 dark:text-amber-400">{kpis?.customer_overdue.count ?? 0}</div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                <Text>До 7 дней: {kpis?.customer_overdue.bucket_0_7 ?? 0}</Text>
-                <Text>7–30 дней: {kpis?.customer_overdue.bucket_8_30 ?? 0}</Text>
-                <Text>&gt; 30 дней: {kpis?.customer_overdue.bucket_30_plus ?? 0}</Text>
+                <div>
+                  <Text>До 7 дней</Text>
+                  <div className="text-lg font-semibold tabular-nums">{kpis?.customer_overdue.bucket_0_7 ?? 0}</div>
+                </div>
+                <div>
+                  <Text>7–30 дней</Text>
+                  <div className="text-lg font-semibold tabular-nums">{kpis?.customer_overdue.bucket_8_30 ?? 0}</div>
+                </div>
+                <div>
+                  <Text>&gt; 30 дней</Text>
+                  <div className="text-lg font-semibold tabular-nums">{kpis?.customer_overdue.bucket_30_plus ?? 0}</div>
+                </div>
               </div>
-              <BarChart
-                className="mt-6 h-72"
-                data={(data?.tremor.overdue_customer ?? []).map((row) => ({
-                  contractor: row.contractor,
-                  Количество: row.count,
-                }))}
-                index="contractor"
-                categories={["Количество"]}
-                colors={["amber"]}
-                layout="horizontal"
-                showLegend={false}
-                yAxisWidth={140}
-              />
+              <div className="mt-4"><ExecutiveOverdueChart rows={data?.tremor.overdue_customer ?? []} customer /></div>
             </Card>
           </FullscreenPanel>
-        </Grid>
+        </div>
 
         <div className="flex gap-6 border-b border-tremor-border dark:border-dark-tremor-border">
           {tabBtn("sum", "Накопительным итогом")}
@@ -443,34 +448,20 @@ export function ExecutiveDocsParityView() {
         </div>
 
         {tab === "sum" ? (
-          <Grid numItemsLg={2} className="gap-6">
+          <div className="space-y-6">
             <FullscreenPanel fill>
               <Card className="rounded-xl">
                 <Title>Распределение по статусам</Title>
-                <BarChart
-                  className="mt-6 h-80"
-                  data={statusChart}
-                  index="status"
-                  categories={["Количество"]}
-                  colors={statusColors}
-                  showLegend={false}
-                />
+                <div className="mt-4"><ExecutiveStatusChart rows={data?.tremor.by_status ?? []} /></div>
               </Card>
             </FullscreenPanel>
             <FullscreenPanel fill>
               <Card className="rounded-xl">
                 <Title>Документы по объектам</Title>
-                <BarChart
-                  className="mt-6 h-80"
-                  data={objectChart}
-                  index="object"
-                  categories={["Количество"]}
-                  colors={["teal"]}
-                  showLegend={false}
-                />
+                <div className="mt-4"><ExecutiveObjectsChart rows={data?.tremor.by_object ?? []} /></div>
               </Card>
             </FullscreenPanel>
-          </Grid>
+          </div>
         ) : null}
 
         {tab === "dyn" ? (
@@ -483,14 +474,7 @@ export function ExecutiveDocsParityView() {
                 )?.label ?? "месяц"}
                 , по дате создания)
               </Title>
-              <BarChart
-                className="mt-6 h-96"
-                data={dynamicsChart}
-                index="period"
-                categories={["Количество"]}
-                colors={["blue"]}
-                showLegend={false}
-              />
+              <div className="mt-4"><ExecutiveDynamicsChart rows={data?.tremor.dynamics ?? []} /></div>
               <Text className="mt-2">
                 График поступления документов по выбранной гранулярности
               </Text>
@@ -499,7 +483,8 @@ export function ExecutiveDocsParityView() {
         ) : null}
 
         {tab === "detail" ? (
-          <Card className="overflow-hidden rounded-xl p-0">
+          <>
+            <Card className="hidden overflow-hidden rounded-xl p-0 lg:block">
             <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <Title>Детальный отчёт по сдаче и согласованию ИД</Title>
             </div>
@@ -560,7 +545,62 @@ export function ExecutiveDocsParityView() {
                 disabled={!data?.rows?.length}
               />
             </div>
-          </Card>
+            </Card>
+            <div className="lg:hidden">
+            <Title className="mb-3 px-2 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+              Детальный отчёт по сдаче и согласованию ИД
+            </Title>
+            {!data?.rows?.length ? (
+              <Text className="px-2 py-6 text-center">Нет строк</Text>
+            ) : (
+              <div className="flex flex-col gap-3 px-2 pb-2">
+                {data.rows.map((row, index) => (
+                  <MobileEntityCard
+                    key={`${row.doc_number}-${index}`}
+                    title={row.doc_number || "—"}
+                    badge={row.status_display ?? row.status}
+                    badgeTone={
+                      row.status_chip === "accepted"
+                        ? "ok"
+                        : row.status_chip === "declined"
+                          ? "bad"
+                          : "warn"
+                    }
+                  >
+                    <MobileMetricGrid
+                      columns={2}
+                      items={[
+                        { label: "Контрагент", value: row.contractor || "—" },
+                        { label: "Объект", value: row.project || "—" },
+                        { label: "Тип", value: row.kind || "—" },
+                        { label: "План сдачи", value: row.plan_date || "—", highlight: "date" },
+                        { label: "Факт сдачи", value: row.fact_date || "—", highlight: "date" },
+                        {
+                          label: "Просрочка сдачи",
+                          value: fmtLate(row.submit_late_days),
+                          highlight: (row.submit_late_days ?? 0) > 0 ? "bad" : "none",
+                          className: (row.submit_late_days ?? 0) > 0 ? "text-rose-600 dark:text-rose-400" : undefined,
+                        },
+                        { label: "Передача заказчику", value: row.transfer_date || "—", highlight: "date" },
+                        { label: "Согласование", value: row.agree_date || "—", highlight: "date" },
+                        {
+                          label: "Просрочка соглас.",
+                          value: fmtLate(row.agree_late_days),
+                          highlight: (row.agree_late_days ?? 0) > 0 ? "bad" : "none",
+                          className: (row.agree_late_days ?? 0) > 0 ? "text-rose-600 dark:text-rose-400" : undefined,
+                        },
+                        { label: "Дата создания", value: row.creation_date || "—", highlight: "date" },
+                      ]}
+                    />
+                  </MobileEntityCard>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 px-2">
+              <DownloadTableButton getTable={exportDetail} fileStem="executive_docs" disabled={!data?.rows?.length} />
+            </div>
+            </div>
+          </>
         ) : null}
       </div>
     </AppShell>
