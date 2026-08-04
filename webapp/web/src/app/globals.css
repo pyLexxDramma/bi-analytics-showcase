@@ -484,3 +484,96 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   accent-color: #2563eb;
 }
 
+/* Предписания: KPI-кружки как в main `_pred_kpi_circles_html` */
+.pred-kpi-wrap {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 8px 16px 16px;
+  margin: 0;
+}
+.dark .pred-kpi-wrap {
+  background: #13151c;
+  border-color: #333;
+}
+.pred-kpi-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 12px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+.dark .pred-kpi-title {
+  color: #fafafa;
+  border-bottom-color: #444;
+}
+.pred-kpi-circles {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pred-kpi-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pred-kpi-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.pred-kpi-circle .n {
+  font-size: 22px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.pred-kpi-circle .s {
+  font-size: 9px;
+  opacity: 0.92;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+.pred-kpi-circle.blue {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+}
+.pred-kpi-circle.green {
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+}
+.pred-kpi-circle.orange {
+  background: linear-gradient(135deg, #e67e22, #d35400);
+}
+.pred-kpi-circle.red {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+.pred-kpi-circle.burgundy {
+  background: linear-gradient(135deg, #922b3e, #722f37);
+}
+.pred-kpi-info h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+.dark .pred-kpi-info h4 {
+  color: #fafafa;
+}
+.pred-kpi-info p {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.35;
+}
+.dark .pred-kpi-info p {
+  color: #a0a0a0;
+}
+
+

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card, Grid, Metric, Text, Title } from "@tremor/react";
+import { Card, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -275,14 +275,86 @@ export function PrescriptionsView() {
     );
 
   const kpis = data?.kpis;
-  const circleKpis = [
-    ["Всего", kpis?.total, "neutral"],
-    ["Неустраненные", kpis?.unresolved, "warn"],
-    ["Устраненные", kpis?.resolved, "ok"],
-    ["Просроченные неустраненные", kpis?.overdue_unresolved, "danger"],
-    ["Критические", kpis?.critical, "danger"],
-    ["Остановка работ", kpis?.stop_work, "danger"],
-  ] as const;
+  const topMetrics = [
+    {
+      label: "Всего предписаний",
+      value: kpis?.total,
+      tone: "neutral" as const,
+    },
+    {
+      label: "Устраненные предписания",
+      value: kpis?.resolved,
+      tone: "ok" as const,
+    },
+    {
+      label: "Неустраненные",
+      value: kpis?.unresolved,
+      tone: "warn" as const,
+    },
+    {
+      label: "Непросроченные",
+      value: kpis?.non_overdue,
+      tone: "ok" as const,
+    },
+  ];
+  const keyIndicators = [
+    {
+      tone: "blue" as const,
+      value: kpis?.total,
+      title: "Всего предписаний",
+      hint: "Все записи в выборке",
+    },
+    {
+      tone: "blue" as const,
+      value: kpis?.unresolved,
+      title: "Неустраненные предписания",
+      hint: "Общее количество",
+    },
+    {
+      tone: "green" as const,
+      value: kpis?.resolved,
+      title: "Устраненные предписания",
+      hint: "Закрыты или устранены",
+    },
+    {
+      tone: "orange" as const,
+      value: kpis?.overdue_unresolved,
+      title: "Просроченные неустраненные предписания",
+      hint: "Неустранённые с истёкшим сроком",
+    },
+    {
+      tone: "red" as const,
+      value: kpis?.critical,
+      title: "Критические предписания",
+      hint: "Неустраненные предписания с тегом «КРИТИЧНЫЙ» в Tessa_Teg (TESSA)",
+    },
+    {
+      tone: "burgundy" as const,
+      value: kpis?.stop_work,
+      title: "Остановка работ",
+      hint: "Неустраненные предписания с тегом «Приостановка работ» в Tessa_Teg (TESSA)",
+    },
+  ];
+
+  const KeyIndicatorsPanel = ({ className = "" }: { className?: string }) => (
+    <div className={`pred-kpi-wrap ${className}`}>
+      <div className="pred-kpi-title">Ключевые показатели</div>
+      <div className="pred-kpi-circles">
+        {keyIndicators.map((item) => (
+          <div key={item.title} className="pred-kpi-item">
+            <div className={`pred-kpi-circle ${item.tone}`}>
+              <span className="n">{item.value ?? "—"}</span>
+              <span className="s">всего</span>
+            </div>
+            <div className="pred-kpi-info">
+              <h4>{item.title}</h4>
+              <p>{item.hint}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <AppShell
@@ -373,99 +445,78 @@ export function PrescriptionsView() {
       ) : null}
 
       <div className="space-y-6">
-        <Grid numItemsSm={2} numItemsLg={4} className="gap-6">
-          {(
-            [
-              ["Всего", kpis?.total, "text-tremor-content-strong"],
-              [
-                "Устраненные",
-                kpis?.resolved,
-                "text-emerald-600 dark:text-emerald-400",
-              ],
-              [
-                "Неустраненные",
-                kpis?.unresolved,
-                "text-orange-600 dark:text-orange-400",
-              ],
-              [
-                "Непросроченные",
-                kpis?.non_overdue,
-                "text-emerald-600 dark:text-emerald-400",
-              ],
-            ] as const
-          ).map(([title, value, color]) => (
-            <Card key={title} className="rounded-xl">
-              <Text>{title}</Text>
-              <Metric className={`mt-2 ${color}`}>{value ?? "—"}</Metric>
-            </Card>
-          ))}
-        </Grid>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          {circleKpis.map(([title, value, tone]) => (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+          {topMetrics.map((item) => (
             <div
-              key={title}
-              className={`rounded-xl border p-3 text-center ${
-                tone === "danger"
-                  ? "border-rose-300"
-                  : tone === "warn"
-                    ? "border-orange-300"
-                    : tone === "ok"
-                      ? "border-emerald-300"
-                      : "border-tremor-border dark:border-dark-tremor-border"
-              }`}
+              key={item.label}
+              className="rounded-xl border border-tremor-border bg-tremor-background px-4 py-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
             >
-              <div className="text-xl font-bold tabular-nums">{value ?? "—"}</div>
-              <Text>{title}</Text>
+              <Text className="text-sm text-tremor-content dark:text-dark-tremor-content">
+                {item.label}
+              </Text>
+              <div
+                className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${
+                  item.tone === "ok"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : item.tone === "warn"
+                      ? "text-orange-600 dark:text-orange-400"
+                      : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                }`}
+              >
+                {item.value ?? "—"}
+              </div>
             </div>
           ))}
         </div>
 
-        <FullscreenPanel fill>
-          {(zoomed) => (
-            <Card className="rounded-xl">
-              <div
-                className="pred-leg mb-2 flex flex-wrap items-center gap-4 text-sm text-tremor-content-strong dark:text-dark-tremor-content-strong"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-3.5 w-3.5 rounded-sm"
-                    style={{ background: "#E67E22" }}
-                    aria-hidden
-                  />
-                  <strong>Внутри столбца</strong> — только просроченные (не все).
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span
-                    className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-bold text-white"
-                    style={{ background: "#3498db" }}
-                    aria-hidden
-                  >
-                    N
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)] lg:items-start">
+          <FullscreenPanel fill>
+            {(zoomed) => (
+              <Card className="rounded-xl">
+                <div className="pred-leg mb-2 flex flex-wrap items-center gap-4 text-sm text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-3.5 w-3.5 rounded-sm"
+                      style={{ background: "#E67E22" }}
+                      aria-hidden
+                    />
+                    <strong>Внутри столбца</strong> — только просроченные (не все).
                   </span>
-                  <strong>Синий пузырёк справа</strong> —{" "}
-                  {filters.hide_resolved
-                    ? "все неустранённые по подрядчику."
-                    : "всего предписаний по подрядчику."}
-                </span>
-              </div>
-              <div className="mt-2 hidden lg:block">
-                <PrescriptionsContractorChart
-                  rows={contractorChart}
-                  hideResolved={filters.hide_resolved}
-                  fullscreen={zoomed}
-                />
-              </div>
-              <div className="mt-2 lg:hidden">
-                <PrescriptionsContractorChart
-                  rows={contractorChart}
-                  hideResolved={filters.hide_resolved}
-                  compact
-                />
-              </div>
-            </Card>
-          )}
-        </FullscreenPanel>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      style={{ background: "#3498db" }}
+                      aria-hidden
+                    >
+                      N
+                    </span>
+                    <strong>Синий пузырёк справа</strong> —{" "}
+                    {filters.hide_resolved
+                      ? "все неустранённые по подрядчику."
+                      : "всего предписаний по подрядчику."}
+                  </span>
+                </div>
+                <div className="mt-2 hidden lg:block">
+                  <PrescriptionsContractorChart
+                    rows={contractorChart}
+                    hideResolved={filters.hide_resolved}
+                    fullscreen={zoomed}
+                  />
+                </div>
+                <div className="mt-2 lg:hidden">
+                  <PrescriptionsContractorChart
+                    rows={contractorChart}
+                    hideResolved={filters.hide_resolved}
+                    compact
+                  />
+                </div>
+              </Card>
+            )}
+          </FullscreenPanel>
+          <KeyIndicatorsPanel className="hidden lg:block" />
+        </div>
+
+        <KeyIndicatorsPanel className="lg:hidden" />
 
         <FullscreenPanel fill>
           {(zoomed) => (
