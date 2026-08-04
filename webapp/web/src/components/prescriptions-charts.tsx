@@ -93,7 +93,6 @@ export function PrescriptionsContractorChart({
     const y = ordered.map((row) => row.contractor);
     const totals = ordered.map((row) => row.total);
     const overdues = ordered.map((row) => row.overdue);
-    const totalOverdueAll = overdues.reduce((sum, v) => sum + v, 0);
     const xmax = Math.max(...totals, 1);
     const axisUpper = axisUpperBound(xmax);
     const bubbleShift = Math.max(axisUpper * 0.06, 0.5);
