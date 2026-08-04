@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any, Optional
+import re
 
 import pandas as pd
 
@@ -43,6 +44,7 @@ def _empty_payload(message: str | None = None) -> dict[str, Any]:
         "filters": {
             "projects": [],
             "contractors": [],
+            "contract_nos": [],
             "date_min": None,
             "date_max": None,
             "applied": {
@@ -410,6 +412,23 @@ def build_prescriptions_payload(
         ),
         key=str.casefold,
     )
+    _uuid_re = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        re.I,
+    )
+    contract_nos: list[str] = []
+    if contract_col:
+        _seen: set[str] = set()
+        for value in pred[contract_col].dropna().tolist():
+            text = _clean(value, "")
+            if not text or _uuid_re.match(text):
+                continue
+            key = text.casefold()
+            if key in _seen:
+                continue
+            _seen.add(key)
+            contract_nos.append(text)
+        contract_nos.sort(key=str.casefold)
     selected_projects = _split_csv(projects)
     selected_contractors = _split_csv(contractors)
     view = pred.copy()
@@ -532,6 +551,7 @@ def build_prescriptions_payload(
         "filters": {
             "projects": project_values,
             "contractors": contractor_values,
+            "contract_nos": contract_nos,
             "date_min": issue_min.date().isoformat() if pd.notna(issue_min) else None,
             "date_max": issue_max.date().isoformat() if pd.notna(issue_max) else None,
             "applied": {

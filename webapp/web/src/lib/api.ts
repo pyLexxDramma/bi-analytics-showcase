@@ -1655,6 +1655,8 @@ export type PrescriptionsPayload = {
   filters: {
     projects: string[];
     contractors: string[];
+    /** Уникальные № договора для автоподсказок (как datalist в main). */
+    contract_nos?: string[];
     date_min: string | null;
     date_max: string | null;
     applied: {

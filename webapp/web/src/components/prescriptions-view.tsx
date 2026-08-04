@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, Grid, Metric, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
@@ -32,6 +32,84 @@ type Filters = {
   hide_resolved: boolean;
 };
 type SortState = { key: string; asc: boolean } | null;
+
+function contractSearchKey(value: string): string {
+  return value.trim().toLocaleLowerCase("ru-RU").replace(/\u00a0/g, " ");
+}
+
+function ContractNoSuggest({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const q = contractSearchKey(value);
+  const matches = useMemo(() => {
+    if (!q) return [];
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const option of options) {
+      const key = contractSearchKey(option);
+      if (!key || seen.has(key)) continue;
+      if (!key.includes(q)) continue;
+      seen.add(key);
+      out.push(option);
+      if (out.length >= 20) break;
+    }
+    return out;
+  }, [options, q]);
+
+  useEffect(() => {
+    const onDoc = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <input
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        className={FILTER_SELECT_CLASS}
+        placeholder="Частичный поиск"
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={open && matches.length > 0}
+        aria-autocomplete="list"
+      />
+      {open && matches.length > 0 ? (
+        <ul className="absolute z-40 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-slate-600 bg-slate-900 py-1 text-sm text-slate-100 shadow-lg dark:border-slate-500 dark:bg-slate-950">
+          {matches.map((option) => (
+            <li key={option}>
+              <button
+                type="button"
+                className="block w-full truncate px-3 py-1.5 text-left hover:bg-slate-700"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+              >
+                {option}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 
 const STATUS_KEYS = [
   "Остановка работ",
@@ -88,21 +166,24 @@ export function PrescriptionsView() {
   const [error, setError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState<SortState>(null);
+  const contractOptionsRef = useRef<string[]>([]);
 
   const load = useCallback(async (next: Filters) => {
     setLoading(true);
     setError(null);
     try {
-      setData(
-        await fetchPrescriptions({
-          projects: next.projects,
-          contractors: next.contractors,
-          contract_q: next.contract_q || undefined,
-          date_from: next.date_from || undefined,
-          date_to: next.date_to || undefined,
-          hide_resolved: next.hide_resolved ? "true" : undefined,
-        }),
-      );
+      const payload = await fetchPrescriptions({
+        projects: next.projects,
+        contractors: next.contractors,
+        contract_q: next.contract_q || undefined,
+        date_from: next.date_from || undefined,
+        date_to: next.date_to || undefined,
+        hide_resolved: next.hide_resolved ? "true" : undefined,
+      });
+      if (payload.filters.contract_nos?.length) {
+        contractOptionsRef.current = payload.filters.contract_nos;
+      }
+      setData(payload);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -111,8 +192,17 @@ export function PrescriptionsView() {
   }, []);
 
   useEffect(() => {
-    void load(filters);
+    const delayMs = filters.contract_q ? 320 : 0;
+    const timer = window.setTimeout(() => {
+      void load(filters);
+    }, delayMs);
+    return () => window.clearTimeout(timer);
   }, [filters, load]);
+
+  const contractOptions =
+    data?.filters.contract_nos?.length
+      ? data.filters.contract_nos
+      : contractOptionsRef.current;
 
   const rows = useMemo(() => {
     const next = [...(data?.rows ?? [])];
@@ -206,16 +296,12 @@ export function PrescriptionsView() {
           <FilterChipMulti label="Проекты" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
           <FilterChipMulti label="Подрядчики" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((state) => ({ ...state, contractors }))} />
           <FilterField label="№ договора">
-            <input
+            <ContractNoSuggest
               value={filters.contract_q}
-              onChange={(e) =>
-                setFilters((state) => ({
-                  ...state,
-                  contract_q: e.target.value,
-                }))
+              options={contractOptions}
+              onChange={(contract_q) =>
+                setFilters((state) => ({ ...state, contract_q }))
               }
-              className={FILTER_SELECT_CLASS}
-              placeholder="Частичный поиск"
             />
           </FilterField>
           <FilterField label="Дата с">
