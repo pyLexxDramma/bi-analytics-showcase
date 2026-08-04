@@ -20,8 +20,8 @@ const SCROLL_VISIBLE_ROWS = 18;
 const ROW_PX = 44;
 const BAR_WIDTH = 0.14;
 const LANE_GAP = 0.04;
-const MARGIN_TOP = 12;
-const MARGIN_BOTTOM = 72;
+const MARGIN_TOP = 44;
+const MARGIN_BOTTOM = 88;
 const DAY_MS = 24 * 3600 * 1000;
 const LABEL_COL_PCT = 28;
 
@@ -67,6 +67,21 @@ function wrapTaskLabelLines(name: string, widthChars = 30, maxLines = 2): string
       rest.length > widthChars + 8 ? `${rest.slice(0, widthChars + 6)}…` : rest;
   }
   return lines.slice(0, maxLines);
+}
+
+function chartLegend(fullscreen: boolean) {
+  // Сверху: снизу пересекалась с title оси X («Дата…») → «каша» на десктопе
+  return {
+    orientation: "h" as const,
+    yanchor: "bottom" as const,
+    y: 1.02,
+    xanchor: "center" as const,
+    x: 0.5,
+    font: { size: fullscreen ? 13 : 12 },
+    bgcolor: "rgba(0,0,0,0)",
+    tracegroupgap: 16,
+    itemsizing: "constant" as const,
+  };
 }
 
 function laneOffset(lane: "base" | "plan", hasPlan: boolean): number {
@@ -183,20 +198,13 @@ export function BaselineDeviationChart({
           plot_bgcolor: "rgba(0,0,0,0)",
           shapes,
           showlegend: true,
-          legend: {
-            orientation: "h",
-            yanchor: "top",
-            y: -0.08,
-            xanchor: "center",
-            x: 0.5,
-            font: { size: fullscreen ? 13 : 11 },
-          },
+          legend: chartLegend(fullscreen),
           xaxis: {
             type: "date",
             tickformat: "%d.%m.%Y",
             range: [xMin, xMax],
             automargin: true,
-            title: { text: "Дата", standoff: 18, font: { size: 12 } },
+            title: { text: "Дата", standoff: 12, font: { size: 12 } },
             gridcolor: "rgba(148,163,184,0.25)",
             zeroline: false,
           },
@@ -343,22 +351,15 @@ export function BaselineDeviationChart({
         plot_bgcolor: "rgba(0,0,0,0)",
         shapes,
         showlegend: true,
-        legend: {
-          orientation: "h",
-          yanchor: "top",
-          y: -0.08,
-          xanchor: "center",
-          x: 0.5,
-          font: { size: fullscreen ? 13 : 11 },
-        },
+        legend: chartLegend(fullscreen),
         xaxis: {
           type: "date",
           tickformat: "%d.%m.%Y",
           range: [originMs, xMax + xPad],
           automargin: true,
           title: {
-            text: "Дата (от начала шкалы до окончания)",
-            standoff: 18,
+            text: "Дата",
+            standoff: 12,
             font: { size: 12 },
           },
           gridcolor: "rgba(148,163,184,0.25)",
