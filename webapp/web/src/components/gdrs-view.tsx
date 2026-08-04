@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -336,6 +337,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const [dynSort, setDynSort] = useState<SortState>(null);
   const [ctrSort, setCtrSort] = useState<SortState>(null);
   const [mtxSort, setMtxSort] = useState<SortState>(null);
+  const matrixGroupHdrRef = useRef<HTMLTableRowElement>(null);
+  const [matrixGroupHdrH, setMatrixGroupHdrH] = useState(40);
 
   const load = useCallback(
     async (next: Filters) => {
@@ -543,6 +546,32 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const dynTitle = data?.meta.dyn_title ?? copy.dynTitle;
   const matrixTitle =
     data?.meta.matrix_title ?? copy.matrixTitle;
+
+  const showMatrixWeeks =
+    Boolean(matrixMeta.show_week_columns && matrixMeta.week_labels.length);
+  const matrixHdrStickyTop = showMatrixWeeks ? matrixGroupHdrH || 40 : 0;
+  const matrixHdrBorder = dark ? "#94a3b8" : "#4b5563";
+  const matrixHdrPal = useMemo(
+    () => ({ ...pal, border: matrixHdrBorder }),
+    [pal, matrixHdrBorder],
+  );
+
+  useLayoutEffect(() => {
+    if (!showMatrixWeeks) {
+      setMatrixGroupHdrH(0);
+      return;
+    }
+    const el = matrixGroupHdrRef.current;
+    if (!el) return;
+    const sync = () => {
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      setMatrixGroupHdrH(h > 0 ? h : 0);
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showMatrixWeeks, matrixMeta.week_plan_keys.length, matrixMeta.week_skud_keys.length, dark, matrixRows.length]);
 
   const td = (extra?: CSSProperties): CSSProperties => ({
     border: `1px solid ${pal.borderCell}`,
@@ -785,12 +814,12 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               style={{ borderCollapse: "separate", borderSpacing: 0 }}
             >
               <thead>
-                {matrixMeta.show_week_columns && matrixMeta.week_labels.length ? (
-                  <tr>
+                {showMatrixWeeks ? (
+                  <tr ref={matrixGroupHdrRef}>
                     <th
                       colSpan={2}
                       style={{
-                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
+                        border: `2px solid ${matrixHdrBorder}`,
                         backgroundColor: pal.thBg,
                         color: pal.thFg,
                         position: "sticky",
@@ -804,7 +833,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={3}
                       style={{
-                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
+                        border: `2px solid ${matrixHdrBorder}`,
                         backgroundColor: pal.planHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -819,7 +848,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={1}
                       style={{
-                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
+                        border: `2px solid ${matrixHdrBorder}`,
                         backgroundColor: pal.devHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -834,7 +863,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={matrixMeta.week_plan_keys.length}
                       style={{
-                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
+                        border: `2px solid ${matrixHdrBorder}`,
                         backgroundColor: pal.planHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -849,7 +878,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={matrixMeta.week_skud_keys.length}
                       style={{
-                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
+                        border: `2px solid ${matrixHdrBorder}`,
                         backgroundColor: pal.skudHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -869,14 +898,14 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="label"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    palette={matrixHdrPal}
                     borderWidth={2}
-                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyTop={matrixHdrStickyTop}
                     stickyLeft={0}
                     zIndex={6}
                     className="min-w-[12rem] max-w-[14rem]"
                     style={{
-                      boxShadow: "2px 0 0 0 rgba(0,0,0,0.06)",
+                      boxShadow: "2px 0 0 0 rgba(0,0,0,0.06), 0 2px 0 0 rgba(0,0,0,0.12)",
                     }}
                   />
                   <SortHeader
@@ -884,14 +913,14 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="vid_raboty"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    palette={matrixHdrPal}
                     borderWidth={2}
-                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyTop={matrixHdrStickyTop}
                     stickyLeft="12rem"
                     zIndex={6}
                     className="min-w-[10rem] max-w-[14rem]"
                     style={{
-                      boxShadow: "2px 0 0 0 rgba(0,0,0,0.06)",
+                      boxShadow: "2px 0 0 0 rgba(0,0,0,0.06), 0 2px 0 0 rgba(0,0,0,0.12)",
                     }}
                   />
                   <SortHeader
@@ -899,46 +928,58 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="plan"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    palette={matrixHdrPal}
                     borderWidth={2}
-                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyTop={matrixHdrStickyTop}
                     zIndex={4}
-                    style={{ backgroundColor: pal.planHdr }}
+                    style={{
+                      backgroundColor: pal.planHdr,
+                      boxShadow: "0 2px 0 0 rgba(0,0,0,0.12)",
+                    }}
                   />
                   <SortHeader
                     label="СКУД"
                     sortKey="skud"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    palette={matrixHdrPal}
                     borderWidth={2}
-                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyTop={matrixHdrStickyTop}
                     zIndex={4}
-                    style={{ backgroundColor: pal.skudHdr }}
+                    style={{
+                      backgroundColor: pal.skudHdr,
+                      boxShadow: "0 2px 0 0 rgba(0,0,0,0.12)",
+                    }}
                   />
                   <SortHeader
                     label="Отклонение"
                     sortKey="deviation"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    palette={matrixHdrPal}
                     borderWidth={2}
-                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyTop={matrixHdrStickyTop}
                     zIndex={4}
-                    style={{ backgroundColor: pal.devHdr }}
+                    style={{
+                      backgroundColor: pal.devHdr,
+                      boxShadow: "0 2px 0 0 rgba(0,0,0,0.12)",
+                    }}
                   />
                   <SortHeader
                     label="Отклонение %"
                     sortKey="delta_pct"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    palette={matrixHdrPal}
                     borderWidth={2}
-                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyTop={matrixHdrStickyTop}
                     zIndex={4}
-                    style={{ backgroundColor: pal.devHdr }}
+                    style={{
+                      backgroundColor: pal.devHdr,
+                      boxShadow: "0 2px 0 0 rgba(0,0,0,0.12)",
+                    }}
                   />
-                  {matrixMeta.show_week_columns
+                  {showMatrixWeeks
                     ? matrixMeta.week_plan_keys.map((k, i) => (
                         <SortHeader
                           key={k}
@@ -946,15 +987,18 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                           sortKey={k}
                           sort={mtxSort}
                           onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
-                          palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                          palette={matrixHdrPal}
                           borderWidth={2}
-                          stickyTop="2.5rem"
+                          stickyTop={matrixHdrStickyTop}
                           zIndex={4}
-                          style={{ backgroundColor: pal.planHdr }}
+                          style={{
+                            backgroundColor: pal.planHdr,
+                            boxShadow: "0 2px 0 0 rgba(0,0,0,0.12)",
+                          }}
                         />
                       ))
                     : null}
-                  {matrixMeta.show_week_columns
+                  {showMatrixWeeks
                     ? matrixMeta.week_skud_keys.map((k, i) => (
                         <SortHeader
                           key={k}
@@ -962,11 +1006,14 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                           sortKey={k}
                           sort={mtxSort}
                           onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
-                          palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                          palette={matrixHdrPal}
                           borderWidth={2}
-                          stickyTop="2.5rem"
+                          stickyTop={matrixHdrStickyTop}
                           zIndex={4}
-                          style={{ backgroundColor: pal.skudHdr }}
+                          style={{
+                            backgroundColor: pal.skudHdr,
+                            boxShadow: "0 2px 0 0 rgba(0,0,0,0.12)",
+                          }}
                         />
                       ))
                     : null}
