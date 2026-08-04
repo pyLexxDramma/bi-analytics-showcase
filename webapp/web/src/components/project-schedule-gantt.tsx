@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Text } from "@tremor/react";
 import type { ProjectSchedulePayload } from "@/lib/api";
 import { PLOTLY_CONFIG } from "@/lib/plotly-config";
@@ -82,18 +82,6 @@ function sameDay(
   return a.slice(0, 10) === b.slice(0, 10);
 }
 
-function useCompactViewport() {
-  const [compact, setCompact] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1023px)");
-    const sync = () => setCompact(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  return compact;
-}
-
 export function ProjectScheduleGantt({
   data,
   fullscreen = false,
@@ -106,8 +94,8 @@ export function ProjectScheduleGantt({
   const factColor = data.gantt.fact_color || FACT;
   const labelPct = data.gantt.label_pct;
   const covenantMode = Boolean(data.gantt.covenant_mode ?? data.filters?.applied?.covenant_mode);
-  const compact = useCompactViewport();
-  const showAxisDateLabels = fullscreen || !compact;
+  // Даты начала/конца — как на desktop (и в режиме «Ковенанты» тоже).
+  const showAxisDateLabels = true;
 
   const built = useMemo(() => {
     if (!rows.length) return null;
@@ -411,7 +399,6 @@ export function ProjectScheduleGantt({
     factColor,
     labelPct,
     covenantMode,
-    compact,
     showAxisDateLabels,
     fullscreen,
     data.gantt.range_start,
@@ -442,11 +429,6 @@ export function ProjectScheduleGantt({
           <Text>Факт</Text>
         </span>
       </div>
-      {compact && !fullscreen ? (
-        <Text className="mb-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
-          На телефоне даты у точек скрыты — смотрите подсказку по ромбу и карточки таблицы.
-        </Text>
-      ) : null}
       <div
         className="gantt-schedule-scroll-wrap overflow-y-auto overflow-x-hidden rounded-md border border-tremor-border dark:border-dark-tremor-border"
         style={{ maxHeight: viewportMax }}
