@@ -1,15 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  BarChart,
-  Card,
-  DonutChart,
-  Grid,
-  Metric,
-  Text,
-  Title,
-} from "@tremor/react";
+import { Card, Grid, Metric, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -24,6 +16,11 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import {
+  PrescriptionsContractorChart,
+  PrescriptionsObjectsChart,
+  PrescriptionsStatusPieChart,
+} from "@/components/prescriptions-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -35,15 +32,6 @@ type Filters = {
   hide_resolved: boolean;
 };
 type SortState = { key: string; asc: boolean } | null;
-type TremorColor =
-  | "rose"
-  | "red"
-  | "orange"
-  | "emerald"
-  | "amber"
-  | "yellow"
-  | "fuchsia"
-  | "slate";
 
 const STATUS_KEYS = [
   "Остановка работ",
@@ -53,14 +41,7 @@ const STATUS_KEYS = [
   "Устранено с просрочкой",
 ] as const;
 
-/** Tremor принимает имена палитры, не hex — hex даёт чёрные сегменты. */
-const STATUS_TREMOR_COLOR: Record<string, TremorColor> = {
-  "Остановка работ": "rose",
-  Критические: "red",
-  "Не устранено": "orange",
-  "Сдано в срок": "emerald",
-  "Устранено с просрочкой": "amber",
-};
+const UNRESOLVED_STATUS_KEYS = ["Остановка работ", "Критические", "Не устранено"] as const;
 
 const tableColumns: Array<[string, string]> = [
   ["status", "Статус предписания"],
@@ -146,57 +127,35 @@ export function PrescriptionsView() {
   }, [data?.rows, sort]);
 
   const contractorChart = useMemo(
-    () =>
-      (data?.tremor.by_contractor ?? []).map((row) => ({
-        contractor: row.contractor,
-        Всего: row.total,
-        Просрочено: row.overdue,
-      })),
+    () => data?.tremor.by_contractor ?? [],
     [data?.tremor.by_contractor],
   );
 
   const statusChart = useMemo(
     () =>
       (data?.tremor.by_status ?? []).map((row) => ({
-        name: row.name,
+        status: row.status,
         value: row.value,
+        share_pct: row.share_pct,
       })),
     [data?.tremor.by_status],
   );
 
-  const statusColors = useMemo(
-    () =>
-      statusChart.map(
-        (row) => STATUS_TREMOR_COLOR[row.name] ?? ("slate" as TremorColor),
-      ),
-    [statusChart],
-  );
-
-  const objectCategories = useMemo(() => {
-    const present = new Set<string>();
-    for (const row of data?.tremor.by_object ?? []) {
-      for (const key of STATUS_KEYS) {
-        if (Number((row as Record<string, unknown>)[key] ?? 0) > 0) present.add(key);
-      }
-    }
-    return STATUS_KEYS.filter((key) => present.has(key));
-  }, [data?.tremor.by_object]);
-
-  const objectColors = useMemo(
-    () => objectCategories.map((key) => STATUS_TREMOR_COLOR[key] ?? "slate"),
-    [objectCategories],
-  );
+  const objectStatusKeys = filters.hide_resolved ? UNRESOLVED_STATUS_KEYS : STATUS_KEYS;
 
   const objectChart = useMemo(
     () =>
       (data?.tremor.by_object ?? []).map((row) => {
-        const out: Record<string, string | number> = { object: row.object };
-        for (const key of objectCategories) {
+        const out: Record<string, string | number> = {
+          object: row.object,
+          total: Number((row as Record<string, unknown>).total ?? 0),
+        };
+        for (const key of objectStatusKeys) {
           out[key] = Number((row as Record<string, unknown>)[key] ?? 0);
         }
         return out;
-      }),
-    [data?.tremor.by_object, objectCategories],
+      }) as Array<{ object: string; total: number } & Record<string, number>>,
+    [data?.tremor.by_object, objectStatusKeys],
   );
 
   const reset = () =>
@@ -376,63 +335,90 @@ export function PrescriptionsView() {
           ))}
         </div>
 
-        <Grid numItemsLg={2} className="gap-6">
-          <FullscreenPanel fill>
+        <FullscreenPanel fill>
+          {(zoomed) => (
             <Card className="rounded-xl">
-              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                Предписания по подрядчикам
-              </Title>
-              <Text className="mt-1">Всего и просроченные неустраненные</Text>
-              <BarChart
-                className="mt-6 h-96"
-                data={contractorChart}
-                index="contractor"
-                categories={["Всего", "Просрочено"]}
-                colors={["orange", "amber"]}
-                layout="horizontal"
-                valueFormatter={(value) => String(Math.round(Number(value)))}
-                showLegend
-                showGridLines
-                yAxisWidth={160}
-              />
+              <div
+                className="pred-leg mb-2 flex flex-wrap items-center gap-4 text-sm text-tremor-content-strong dark:text-dark-tremor-content-strong"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-3.5 w-3.5 rounded-sm"
+                    style={{ background: "#E67E22" }}
+                    aria-hidden
+                  />
+                  <strong>Внутри столбца</strong> — только просроченные (не все).
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-bold text-white"
+                    style={{ background: "#3498db" }}
+                    aria-hidden
+                  >
+                    N
+                  </span>
+                  <strong>Синий пузырёк справа</strong> —{" "}
+                  {filters.hide_resolved
+                    ? "все неустранённые по подрядчику."
+                    : "всего предписаний по подрядчику."}
+                </span>
+              </div>
+              <div className="mt-2 hidden lg:block">
+                <PrescriptionsContractorChart
+                  rows={contractorChart}
+                  hideResolved={filters.hide_resolved}
+                  fullscreen={zoomed}
+                />
+              </div>
+              <div className="mt-2 lg:hidden">
+                <PrescriptionsContractorChart
+                  rows={contractorChart}
+                  hideResolved={filters.hide_resolved}
+                  compact
+                />
+              </div>
             </Card>
-          </FullscreenPanel>
-          <FullscreenPanel fill>
+          )}
+        </FullscreenPanel>
+
+        <FullscreenPanel fill>
+          {(zoomed) => (
             <Card className="rounded-xl">
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
                 Предписания по статусам
               </Title>
-              <DonutChart
-                className="mt-6 h-72"
-                data={statusChart}
-                index="name"
-                category="value"
-                colors={statusColors}
-                valueFormatter={(value) => String(Math.round(Number(value)))}
-                showLabel
-                showAnimation
-              />
+              <div className="mt-4 hidden lg:block">
+                <PrescriptionsStatusPieChart rows={statusChart} fullscreen={zoomed} />
+              </div>
+              <div className="mt-4 lg:hidden">
+                <PrescriptionsStatusPieChart rows={statusChart} compact />
+              </div>
             </Card>
-          </FullscreenPanel>
-        </Grid>
+          )}
+        </FullscreenPanel>
 
         <FullscreenPanel fill>
-          <Card className="rounded-xl">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Предписания по объектам
-            </Title>
-            <BarChart
-              className="mt-6 h-96"
-              data={objectChart}
-              index="object"
-              categories={[...objectCategories]}
-              colors={objectColors}
-              stack
-              valueFormatter={(value) => String(Math.round(Number(value)))}
-              showLegend
-              showGridLines
-            />
-          </Card>
+          {(zoomed) => (
+            <Card className="rounded-xl">
+              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+                Предписания по объектам
+              </Title>
+              <div className="mt-4 hidden lg:block">
+                <PrescriptionsObjectsChart
+                  rows={objectChart}
+                  statusKeys={[...objectStatusKeys]}
+                  fullscreen={zoomed}
+                />
+              </div>
+              <div className="mt-4 lg:hidden">
+                <PrescriptionsObjectsChart
+                  rows={objectChart}
+                  statusKeys={[...objectStatusKeys]}
+                  compact
+                />
+              </div>
+            </Card>
+          )}
         </FullscreenPanel>
 
         <Card className="overflow-hidden rounded-xl p-0">
