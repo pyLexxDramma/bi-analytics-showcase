@@ -27,7 +27,9 @@ const BAR_WIDTH_MOBILE = 0.18;
 const LANE_GAP_DESKTOP = 0.03;
 const LANE_GAP_MOBILE = 0.06;
 const MARGIN_TOP = 20;
-const MARGIN_BOTTOM = 64;
+/** У основного графика ось X скрыта — шкала в отдельной закреплённой полосе. */
+const MARGIN_BOTTOM_PLOT = 12;
+const AXIS_STRIP_H = 56;
 const DAY_MS = 24 * 3600 * 1000;
 const COVENANT_LABEL_GAP_MS = 14 * DAY_MS;
 const LABEL_COL_DESKTOP = 24;
@@ -469,8 +471,22 @@ export function ProjectScheduleGantt({
       lo != null && hi != null ? [lo - padLo, hi + padHi] : undefined;
 
     const plotHeight = Math.max(280, n * rowPx);
-    const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
+    const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM_PLOT;
     const lanePad = expandedWide ? 0.55 : 0.4;
+    const marginR = expandedWide ? 28 : 40;
+    const marginL = 8;
+
+    const xAxisShared = {
+      type: "date" as const,
+      range: xRange,
+      tickformat: "%d-%m-%y",
+      tickangle: -35,
+      showgrid: true,
+      gridcolor: "rgba(148,163,184,0.25)",
+      automargin: false,
+      fixedrange: true,
+      domain: [0, 1],
+    };
 
     return {
       labelLines,
@@ -480,6 +496,8 @@ export function ProjectScheduleGantt({
       labelColPct,
       showDateUnderLabel: fitMobile,
       chartMinWidth: expandedWide ? MOBILE_CHART_MIN_PX : undefined,
+      marginL,
+      marginR,
       data: traces,
       layout: {
         barmode: "overlay",
@@ -488,10 +506,10 @@ export function ProjectScheduleGantt({
         height: chartHeight,
         autosize: true,
         margin: {
-          l: 8,
-          r: expandedWide ? 28 : 40,
+          l: marginL,
+          r: marginR,
           t: MARGIN_TOP,
-          b: MARGIN_BOTTOM,
+          b: MARGIN_BOTTOM_PLOT,
         },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
@@ -499,16 +517,12 @@ export function ProjectScheduleGantt({
         hovermode: false,
         dragmode: mobile ? false : "zoom",
         xaxis: {
-          type: "date",
-          title: { text: "Период", standoff: 8 },
-          range: xRange,
-          tickformat: "%d-%m-%y",
-          tickangle: -35,
-          showgrid: true,
-          gridcolor: "rgba(148,163,184,0.25)",
-          automargin: false,
-          fixedrange: false,
-          domain: [0, 1],
+          ...xAxisShared,
+          // Шкала всегда в полосе снизу — здесь только сетка
+          showticklabels: false,
+          title: { text: "" },
+          ticks: "",
+          fixedrange: mobile,
         },
         yaxis: {
           type: "linear",
@@ -527,15 +541,41 @@ export function ProjectScheduleGantt({
         },
         font: { color: "#94a3b8", size: taskFont },
       },
+      axisLayout: {
+        height: AXIS_STRIP_H,
+        autosize: true,
+        margin: { l: marginL, r: marginR, t: 4, b: 36 },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        showlegend: false,
+        hovermode: false,
+        dragmode: false,
+        xaxis: {
+          ...xAxisShared,
+          title: { text: "Период", standoff: 4 },
+          showticklabels: true,
+          ticks: "outside",
+          side: "bottom",
+          showgrid: false,
+        },
+        yaxis: {
+          visible: false,
+          fixedrange: true,
+          range: [0, 1],
+        },
+        font: { color: "#64748b", size: 11 },
+      },
       config: {
         ...PLOTLY_CONFIG,
         scrollZoom: false,
+        displayModeBar: false,
       },
       chartHeight,
       plotHeight,
+      axisHeight: AXIS_STRIP_H,
       viewportHeight: Math.min(
         chartHeight,
-        Math.min(n, SCROLL_VISIBLE_ROWS) * rowPx + MARGIN_TOP + MARGIN_BOTTOM,
+        Math.min(n, SCROLL_VISIBLE_ROWS) * rowPx + MARGIN_TOP + MARGIN_BOTTOM_PLOT,
       ),
     };
   }, [
@@ -569,8 +609,16 @@ export function ProjectScheduleGantt({
     ? undefined
     : `${built.viewportHeight}px`;
 
+  const bodyMinWidth = built.chartMinWidth
+    ? `calc(${built.labelColPct}% + ${built.chartMinWidth}px)`
+    : "100%";
+
   return (
-    <div className="w-full min-w-0">
+    <div
+      className={`gantt-root flex w-full min-w-0 flex-col ${
+        fullscreen ? "h-full min-h-0" : ""
+      }`}
+    >
       <div className="mb-2 flex flex-wrap gap-4 text-sm">
         <span className="inline-flex items-center gap-2">
           <span className="inline-block h-2.5 w-6 rounded" style={{ background: planColor }} />
@@ -590,82 +638,103 @@ export function ProjectScheduleGantt({
       {expandedWide ? (
         <Text className="mb-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
           Листайте вверх/вниз и вправо — таймлайн увеличен, даты у начала сверху и у
-          конца снизу.
+          конца снизу. Шкала времени закреплена внизу.
         </Text>
       ) : null}
+
       <div
-        className={`gantt-schedule-scroll-wrap rounded-md border border-tremor-border dark:border-dark-tremor-border ${
-          fullscreen
-            ? "overflow-visible"
-            : expandedWide
-              ? "overflow-auto"
-              : "overflow-y-auto overflow-x-hidden"
+        className={`min-h-0 flex-1 ${
+          expandedWide || fullscreen ? "overflow-x-auto" : "overflow-x-hidden"
         }`}
-        style={viewportMax ? { maxHeight: viewportMax } : undefined}
       >
-        <div
-          className="flex"
-          style={{
-            minHeight: built.chartHeight,
-            minWidth: built.chartMinWidth
-              ? `calc(${built.labelColPct}% + ${built.chartMinWidth}px)`
-              : "100%",
-            width: "100%",
-          }}
-        >
+        <div style={{ minWidth: bodyMinWidth, width: "100%" }}>
           <div
-            className={`shrink-0 border-r border-tremor-border bg-tremor-background dark:border-dark-tremor-border dark:bg-dark-tremor-background ${
-              expandedWide ? "sticky left-0 z-10" : ""
-            }`}
-            style={{
-              width: `${built.labelColPct}%`,
-              minWidth: fitMobile ? 108 : undefined,
-              paddingTop: MARGIN_TOP,
-              paddingBottom: MARGIN_BOTTOM,
-            }}
+            className="gantt-schedule-scroll-wrap overflow-y-auto overflow-x-hidden rounded-t-md border border-b-0 border-tremor-border dark:border-dark-tremor-border"
+            style={viewportMax ? { maxHeight: viewportMax } : undefined}
           >
-            {built.labelLines.map((lines, i) => (
+            <div className="flex" style={{ minHeight: built.chartHeight, width: "100%" }}>
               <div
-                key={`${rows[i]?.label ?? i}-${i}`}
-                className="flex flex-col justify-center overflow-hidden px-1.5 text-left leading-tight text-tremor-content dark:text-dark-tremor-content"
+                className="shrink-0 border-r border-tremor-border bg-tremor-background dark:border-dark-tremor-border dark:bg-dark-tremor-background"
                 style={{
-                  height: built.rowPx,
-                  fontSize: built.taskFont,
+                  width: `${built.labelColPct}%`,
+                  minWidth: fitMobile ? 108 : undefined,
+                  paddingTop: MARGIN_TOP,
+                  paddingBottom: MARGIN_BOTTOM_PLOT,
                 }}
-                title={rows[i]?.label}
               >
-                <span className="block w-full whitespace-normal break-words">
-                  {lines.map((line, li) => (
-                    <span key={li} className="block truncate">
-                      {line}
-                    </span>
-                  ))}
-                </span>
-                {built.showDateUnderLabel ? (
-                  <span
-                    className="mt-0.5 block truncate tabular-nums text-[9px] leading-snug opacity-80"
-                    title={built.dateSummaries[i]}
+                {built.labelLines.map((lines, i) => (
+                  <div
+                    key={`${rows[i]?.label ?? i}-${i}`}
+                    className="flex flex-col justify-center overflow-hidden px-1.5 text-left leading-tight text-tremor-content dark:text-dark-tremor-content"
+                    style={{
+                      height: built.rowPx,
+                      fontSize: built.taskFont,
+                    }}
+                    title={rows[i]?.label}
                   >
-                    {built.dateSummaries[i]}
-                  </span>
-                ) : null}
+                    <span className="block w-full whitespace-normal break-words">
+                      {lines.map((line, li) => (
+                        <span key={li} className="block truncate">
+                          {line}
+                        </span>
+                      ))}
+                    </span>
+                    {built.showDateUnderLabel ? (
+                      <span
+                        className="mt-0.5 block truncate tabular-nums text-[9px] leading-snug opacity-80"
+                        title={built.dateSummaries[i]}
+                      >
+                        {built.dateSummaries[i]}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
               </div>
-            ))}
+              <div
+                className="min-w-0 flex-1"
+                style={{
+                  width: `${100 - built.labelColPct}%`,
+                  minWidth: built.chartMinWidth,
+                }}
+              >
+                <PlotlyFigure
+                  data={built.data as never}
+                  layout={built.layout as never}
+                  config={built.config as never}
+                  useResizeHandler
+                  style={{ width: "100%", height: built.chartHeight }}
+                />
+              </div>
+            </div>
           </div>
-          <div
-            className="min-w-0 flex-1"
-            style={{
-              width: `${100 - built.labelColPct}%`,
-              minWidth: built.chartMinWidth,
-            }}
-          >
-            <PlotlyFigure
-              data={built.data as never}
-              layout={built.layout as never}
-              config={built.config as never}
-              useResizeHandler
-              style={{ width: "100%", height: built.chartHeight }}
-            />
+
+          <div className="gantt-axis-strip shrink-0 rounded-b-md border border-tremor-border bg-tremor-background dark:border-dark-tremor-border dark:bg-dark-tremor-background">
+            <div className="flex w-full">
+              <div
+                className="flex shrink-0 items-center border-r border-tremor-border px-1.5 text-[10px] font-semibold uppercase tracking-wide text-tremor-content dark:border-dark-tremor-border dark:text-dark-tremor-content"
+                style={{
+                  width: `${built.labelColPct}%`,
+                  minWidth: fitMobile ? 108 : undefined,
+                }}
+              >
+                Период
+              </div>
+              <div
+                className="min-w-0 flex-1"
+                style={{
+                  width: `${100 - built.labelColPct}%`,
+                  minWidth: built.chartMinWidth,
+                }}
+              >
+                <PlotlyFigure
+                  data={[] as never}
+                  layout={built.axisLayout as never}
+                  config={built.config as never}
+                  useResizeHandler
+                  style={{ width: "100%", height: built.axisHeight }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
