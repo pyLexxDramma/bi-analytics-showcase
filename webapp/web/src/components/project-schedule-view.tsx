@@ -336,7 +336,7 @@ export function ProjectScheduleView() {
       ) : (
         <div className="space-y-6">
           <Card className="rounded-xl">
-            <FullscreenPanel disabled={!data?.gantt.rows.length} fill>
+            <FullscreenPanel disabled={!data?.gantt.rows.length} fill chartGestures={false}>
               {(zoomed) =>
                 data ? <ProjectScheduleGantt data={data} fullscreen={zoomed} /> : null
               }

@@ -33,15 +33,15 @@ export function FullscreenPanel({
   disabled = false,
   toolbar,
   fill = false,
+  /** Plotly-зум/панорама в развёрнутом виде. Для ганта — false: иначе touch-action:none ломает скролл. */
+  chartGestures = true,
   className = "",
 }: {
-  /** Функция получает признак фуллскрина — контент может увеличить масштаб. */
   children: ReactNode | ((active: boolean) => ReactNode);
   disabled?: boolean;
-  /** Кнопки рядом с зумом (например «Скачать таблицу»). */
   toolbar?: ReactNode;
-  /** Растянуть контент на весь экран вместо центрирования (графики). */
   fill?: boolean;
+  chartGestures?: boolean;
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -163,7 +163,7 @@ export function FullscreenPanel({
             : ""
         }
       >
-        <ChartInteractiveProvider active={active}>
+        <ChartInteractiveProvider active={active && chartGestures}>
           {typeof children === "function" ? children(active) : children}
         </ChartInteractiveProvider>
       </div>

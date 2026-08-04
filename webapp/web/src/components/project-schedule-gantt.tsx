@@ -497,7 +497,7 @@ export function ProjectScheduleGantt({
         plot_bgcolor: "rgba(0,0,0,0)",
         showlegend: false,
         hovermode: false,
-        dragmode: "zoom",
+        dragmode: mobile ? false : "zoom",
         xaxis: {
           type: "date",
           title: { text: "Период", standoff: 8 },
@@ -566,7 +566,7 @@ export function ProjectScheduleGantt({
   }
 
   const viewportMax = fullscreen
-    ? "calc(100vh - 96px)"
+    ? undefined
     : `${built.viewportHeight}px`;
 
   return (
@@ -589,15 +589,19 @@ export function ProjectScheduleGantt({
       ) : null}
       {expandedWide ? (
         <Text className="mb-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
-          Свайпните график вправо — таймлайн увеличен, даты у начала сверху и у
+          Листайте вверх/вниз и вправо — таймлайн увеличен, даты у начала сверху и у
           конца снизу.
         </Text>
       ) : null}
       <div
         className={`gantt-schedule-scroll-wrap rounded-md border border-tremor-border dark:border-dark-tremor-border ${
-          expandedWide ? "overflow-auto" : "overflow-y-auto overflow-x-hidden"
+          fullscreen
+            ? "overflow-visible"
+            : expandedWide
+              ? "overflow-auto"
+              : "overflow-y-auto overflow-x-hidden"
         }`}
-        style={{ maxHeight: viewportMax }}
+        style={viewportMax ? { maxHeight: viewportMax } : undefined}
       >
         <div
           className="flex"

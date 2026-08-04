@@ -711,6 +711,16 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     touch-action: pan-x pan-y;
   }
 
+  /* Гантт в оверлее: жесты принадлежат скроллу панели, не Plotly-зуму */
+  .bi-fs-mobile-overlay .gantt-schedule-scroll-wrap .js-plotly-plot,
+  .bi-fs-mobile-overlay .gantt-schedule-scroll-wrap .js-plotly-plot .plot-container,
+  .bi-fs-mobile-overlay .gantt-schedule-scroll-wrap .js-plotly-plot .svg-container,
+  .bi-fs-mobile-overlay .gantt-schedule-scroll-wrap .js-plotly-plot .draglayer,
+  .bi-fs-mobile-overlay .gantt-schedule-scroll-wrap .js-plotly-plot .nsewdrag,
+  .bi-fs-mobile-overlay .gantt-schedule-scroll-wrap .js-plotly-plot .drag {
+    touch-action: pan-x pan-y !important;
+  }
+
   /* ===== Mobile v2: фильтры листом снизу ===== */
   .bi-filters-trigger {
     display: flex;
