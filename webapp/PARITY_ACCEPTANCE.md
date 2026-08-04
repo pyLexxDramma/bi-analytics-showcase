@@ -3,7 +3,7 @@
 > **Полный повторный проход (все экраны заново):** см. отдельный план  
 > [`PARITY_FULL_REGRESSION_PLAN.md`](./PARITY_FULL_REGRESSION_PLAN.md).  
 > Этот файл остаётся журналом деталей по §; статусы нового цикла — в плане регресса.  
-> **Mobile-фильтры (все дашборды, 03.08.2026):** на `<lg` — bottom sheet + крупные чипы (≥44px); desktop — accordion/chips. См. `PARITY_FULL_REGRESSION_PLAN.md`.
+> **Mobile-фильтры (все дашборды, 03.08.2026):** на `<lg` — bottom sheet + крупные чипы (≥44px). **Desktop — как main:** select/date/text, не chips (кроме экранов, где chips есть в Streamlit). См. `PARITY_FULL_REGRESSION_PLAN.md`.
 >
 > Цикл 02.08–03.08.2026: **§0–§13 ✅** → **§14** Предписания ⬜.
 >
@@ -604,14 +604,17 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 Статус: 🔄 в работе (без ✅ до приёмки на стенде — см. `deploy-acceptance-first`).
 
-- Фильтры проверены построчно по коду main (`dashboard_predpisania`, `dashboards/_renderers.py`):
-  Проект (multiselect), Подрядчик (multiselect), № договора (частичный поиск + автокомплит),
-  Период (даты выдачи), чекбокс «Не отображать устраненные предписания» — набор и дефолты
-  showcase уже 1:1 (chips вместо native multiselect — принятая конвенция showcase).
+- Фильтры desktop (решение 04.08.2026): **native select как main**, не chips
+  (`FilterNativeMultiAsSelect` + автокомплит № договора + период двумя датами в одном поле).
+  Mobile (`<lg`) — chips + bottom sheet. Набор: Проект, Подрядчик, № договора, Период,
+  чекбокс «Не отображать устраненные».
 - Фильтр «Исполнитель (согласование)» / «Все инженеры» из скрина не найден в текущем коде main
   (`main`/`release` идентичны для `_renderers.py`): переменная `sel_curator` в `dashboard_predpisania`
   зафиксирована как `"Все кураторы"` и виджет для неё не рендерится — dead code, а не активный
   фильтр. Требует уточнения у пользователя перед добавлением (риск данных/парности — см. ниже).
+- KPI desktop 1:1: полоска 4× metric + «Ключевые показатели» (кружки) справа от bar-чарта.
+- Данные на active version (локально v6): total=144, resolved=33, unresolved=111,
+  non_overdue=16, overdue_unresolved=106, critical=0, stop_work=0 — совпадает со скринами main.
 - Графики переведены с Tremor (BarChart/DonutChart) на **Plotly 1:1 с main**:
   - «Предписания по подрядчикам» — горизонтальный overlay-bar (фон = всего/неустранено,
     сплошной оранжевый `#E67E22` сегмент = просроченные с белой подписью внутри, синий

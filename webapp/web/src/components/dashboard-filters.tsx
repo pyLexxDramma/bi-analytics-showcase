@@ -207,6 +207,83 @@ export function FiltersReset({
   );
 }
 
+/**
+ * Desktop native `<select>` (паритет main Streamlit select/multiselect в закрытом виде).
+ * Пустое value = «Все» / без фильтра.
+ */
+export function FilterNativeSelect({
+  label,
+  value,
+  options,
+  onChange,
+  allLabel = "Все",
+  disabled,
+}: {
+  label?: ReactNode;
+  value: string;
+  options: string[];
+  onChange: (next: string) => void;
+  allLabel?: string;
+  disabled?: boolean;
+}) {
+  const field = (
+    <select
+      className={FILTER_SELECT_CLASS}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{allLabel}</option>
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+  );
+  if (label == null) return field;
+  return (
+    <label className="bi-filters-field block text-sm">
+      <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
+        {label}
+      </span>
+      {field}
+    </label>
+  );
+}
+
+/**
+ * Multi через native select: пустой массив = все; одно значение = фильтр.
+ * Для UI как main (placeholder «Все …» в одной строке).
+ */
+export function FilterNativeMultiAsSelect({
+  label,
+  values,
+  options,
+  onChange,
+  allLabel = "Все",
+  disabled,
+}: {
+  label?: ReactNode;
+  values: string[];
+  options: string[];
+  onChange: (next: string[]) => void;
+  allLabel?: string;
+  disabled?: boolean;
+}) {
+  const current = values.length === 1 ? values[0]! : "";
+  return (
+    <FilterNativeSelect
+      label={label}
+      value={current}
+      options={options}
+      allLabel={allLabel}
+      disabled={disabled}
+      onChange={(next) => onChange(next ? [next] : [])}
+    />
+  );
+}
+
 /** Row of selects — same column tracks as FilterChecksRow (main `st.columns(5)`). */
 export function FilterFieldsRow({
   cols = 5,

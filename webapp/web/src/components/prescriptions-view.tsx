@@ -12,6 +12,7 @@ import {
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
+  FilterNativeMultiAsSelect,
   FILTER_SELECT_CLASS,
   FiltersCard,
   FiltersReset,
@@ -82,7 +83,7 @@ function ContractNoSuggest({
         }}
         onFocus={() => setOpen(true)}
         className={FILTER_SELECT_CLASS}
-        placeholder="Частичный поиск"
+        placeholder="Все договоры"
         autoComplete="off"
         role="combobox"
         aria-expanded={open && matches.length > 0}
@@ -364,65 +365,157 @@ export function PrescriptionsView() {
     >
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
         <FiltersReset onClick={reset} />
-        <FilterFieldsRow cols={5}>
-          <FilterChipMulti label="Проекты" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
-          <FilterChipMulti label="Подрядчики" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((state) => ({ ...state, contractors }))} />
-          <FilterField label="№ договора">
-            <ContractNoSuggest
-              value={filters.contract_q}
-              options={contractOptions}
-              onChange={(contract_q) =>
-                setFilters((state) => ({ ...state, contract_q }))
-              }
+        {/* Desktop: select как main Streamlit (не chips). */}
+        <div className="hidden lg:block">
+          <FilterFieldsRow cols={4}>
+            <FilterNativeMultiAsSelect
+              label="Проект"
+              options={data?.filters.projects ?? []}
+              values={filters.projects}
+              onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
+              allLabel="Все"
             />
-          </FilterField>
-          <FilterField label="Дата с">
-            <input
-              type="date"
-              min={data?.filters.date_min ?? undefined}
-              max={data?.filters.date_max ?? undefined}
-              value={filters.date_from}
+            <FilterNativeMultiAsSelect
+              label="Подрядчик"
+              options={data?.filters.contractors ?? []}
+              values={filters.contractors}
+              onChange={(contractors) =>
+                setFilters((state) => ({ ...state, contractors }))
+              }
+              allLabel="Все подрядчики"
+            />
+            <FilterField label="№ договора (частичный поиск)">
+              <ContractNoSuggest
+                value={filters.contract_q}
+                options={contractOptions}
+                onChange={(contract_q) =>
+                  setFilters((state) => ({ ...state, contract_q }))
+                }
+              />
+            </FilterField>
+            <FilterField label="Период">
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  min={data?.filters.date_min ?? undefined}
+                  max={data?.filters.date_max ?? undefined}
+                  value={filters.date_from}
+                  onChange={(e) =>
+                    setFilters((state) => ({
+                      ...state,
+                      date_from: e.target.value,
+                    }))
+                  }
+                  className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
+                  aria-label="Дата с"
+                />
+                <input
+                  type="date"
+                  min={data?.filters.date_min ?? undefined}
+                  max={data?.filters.date_max ?? undefined}
+                  value={filters.date_to}
+                  onChange={(e) =>
+                    setFilters((state) => ({
+                      ...state,
+                      date_to: e.target.value,
+                    }))
+                  }
+                  className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
+                  aria-label="Дата по"
+                />
+              </div>
+            </FilterField>
+          </FilterFieldsRow>
+          <FilterChecksRow cols={4}>
+            <FilterCheck
+              label="Не отображать устраненные предписания"
+              checked={filters.hide_resolved}
               onChange={(e) =>
                 setFilters((state) => ({
                   ...state,
-                  date_from: e.target.value,
+                  hide_resolved: e.target.checked,
                 }))
               }
-              className={FILTER_SELECT_CLASS}
             />
-          </FilterField>
-          <FilterField label="Дата по">
-            <input
-              type="date"
-              min={data?.filters.date_min ?? undefined}
-              max={data?.filters.date_max ?? undefined}
-              value={filters.date_to}
+            <div />
+            <div />
+            <div />
+          </FilterChecksRow>
+        </div>
+        {/* Mobile: chips + bottom sheet. */}
+        <div className="lg:hidden">
+          <FilterFieldsRow cols={5}>
+            <FilterChipMulti
+              label="Проекты"
+              options={data?.filters.projects ?? []}
+              values={filters.projects}
+              onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
+            />
+            <FilterChipMulti
+              label="Подрядчики"
+              options={data?.filters.contractors ?? []}
+              values={filters.contractors}
+              onChange={(contractors) =>
+                setFilters((state) => ({ ...state, contractors }))
+              }
+            />
+            <FilterField label="№ договора">
+              <ContractNoSuggest
+                value={filters.contract_q}
+                options={contractOptions}
+                onChange={(contract_q) =>
+                  setFilters((state) => ({ ...state, contract_q }))
+                }
+              />
+            </FilterField>
+            <FilterField label="Дата с">
+              <input
+                type="date"
+                min={data?.filters.date_min ?? undefined}
+                max={data?.filters.date_max ?? undefined}
+                value={filters.date_from}
+                onChange={(e) =>
+                  setFilters((state) => ({
+                    ...state,
+                    date_from: e.target.value,
+                  }))
+                }
+                className={FILTER_SELECT_CLASS}
+              />
+            </FilterField>
+            <FilterField label="Дата по">
+              <input
+                type="date"
+                min={data?.filters.date_min ?? undefined}
+                max={data?.filters.date_max ?? undefined}
+                value={filters.date_to}
+                onChange={(e) =>
+                  setFilters((state) => ({
+                    ...state,
+                    date_to: e.target.value,
+                  }))
+                }
+                className={FILTER_SELECT_CLASS}
+              />
+            </FilterField>
+          </FilterFieldsRow>
+          <FilterChecksRow cols={5}>
+            <FilterCheck
+              label="Не отображать устраненные предписания"
+              checked={filters.hide_resolved}
               onChange={(e) =>
                 setFilters((state) => ({
                   ...state,
-                  date_to: e.target.value,
+                  hide_resolved: e.target.checked,
                 }))
               }
-              className={FILTER_SELECT_CLASS}
             />
-          </FilterField>
-        </FilterFieldsRow>
-        <FilterChecksRow cols={5}>
-          <FilterCheck
-            label="Не отображать устраненные предписания"
-            checked={filters.hide_resolved}
-            onChange={(e) =>
-              setFilters((state) => ({
-                ...state,
-                hide_resolved: e.target.checked,
-              }))
-            }
-          />
-          <div />
-          <div />
-          <div />
-          <div />
-        </FilterChecksRow>
+            <div />
+            <div />
+            <div />
+            <div />
+          </FilterChecksRow>
+        </div>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} строк`}
           {data?.meta.version_id != null
