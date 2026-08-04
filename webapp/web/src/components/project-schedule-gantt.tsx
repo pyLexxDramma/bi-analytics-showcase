@@ -29,7 +29,7 @@ const LANE_GAP_MOBILE = 0.06;
 const MARGIN_TOP = 20;
 /** У основного графика ось X скрыта — шкала в отдельной закреплённой полосе. */
 const MARGIN_BOTTOM_PLOT = 12;
-const AXIS_STRIP_H = 56;
+const AXIS_STRIP_H = 72;
 const DAY_MS = 24 * 3600 * 1000;
 const COVENANT_LABEL_GAP_MS = 14 * DAY_MS;
 const LABEL_COL_DESKTOP = 24;
@@ -544,7 +544,8 @@ export function ProjectScheduleGantt({
       axisLayout: {
         height: AXIS_STRIP_H,
         autosize: true,
-        margin: { l: marginL, r: marginR, t: 4, b: 36 },
+        // Запас снизу под наклонённые даты; title у оси убран — «Период» слева в колонке
+        margin: { l: marginL, r: marginR, t: 2, b: 52 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         showlegend: false,
@@ -552,18 +553,21 @@ export function ProjectScheduleGantt({
         dragmode: false,
         xaxis: {
           ...xAxisShared,
-          title: { text: "Период", standoff: 4 },
+          title: { text: "" },
           showticklabels: true,
           ticks: "outside",
+          ticklen: 4,
+          tickangle: -30,
           side: "bottom",
           showgrid: false,
+          automargin: false,
         },
         yaxis: {
           visible: false,
           fixedrange: true,
           range: [0, 1],
         },
-        font: { color: "#64748b", size: 11 },
+        font: { color: "#334155", size: 11 },
       },
       config: {
         ...PLOTLY_CONFIG,
