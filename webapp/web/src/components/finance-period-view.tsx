@@ -145,6 +145,7 @@ export function FinancePeriodView({
             showLegend
             showAnimation
             showGridLines
+            showTooltip={false}
           />
         </Card>
 

@@ -9,12 +9,10 @@ import {
   LabelList,
   Legend,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { Text } from "@tremor/react";
-import { formatMln } from "@/lib/format";
 
 export type FinanceBarPoint = {
   period: string;
@@ -227,14 +225,6 @@ export function FinanceBarChart({
               tickFormatter={(v) =>
                 Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 })
               }
-            />
-            <Tooltip
-              formatter={(value) => formatMln(Number(value))}
-              labelStyle={{ fontWeight: 600 }}
-              contentStyle={{
-                borderRadius: 8,
-                border: "1px solid #e2e8f0",
-              }}
             />
             <Legend wrapperStyle={{ fontSize: compact ? 11 : 13 }} />
             <Bar

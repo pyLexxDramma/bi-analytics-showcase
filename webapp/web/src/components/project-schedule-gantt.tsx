@@ -363,7 +363,7 @@ export function ProjectScheduleGantt({
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         showlegend: false,
-        hovermode: "closest",
+        hovermode: false,
         dragmode: "zoom",
         xaxis: {
           type: "date",

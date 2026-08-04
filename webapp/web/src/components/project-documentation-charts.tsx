@@ -199,7 +199,7 @@ export function PdDynamicsLineChart({
         margin: { l: 56, r: 36, t: 72, b: 88 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        hovermode: "x unified" as const,
+        hovermode: false as const,
         legend: {
           orientation: "h" as const,
           y: 1.14,

@@ -473,7 +473,7 @@ export function GdrsDynamicsLineChart({
           : { l: 56, r: 36, t: 76, b: 110 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
-        hovermode: "x unified" as const,
+        hovermode: false as const,
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
         legend: {
           orientation: "h" as const,
