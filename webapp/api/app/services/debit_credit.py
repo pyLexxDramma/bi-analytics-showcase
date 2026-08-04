@@ -26,14 +26,116 @@ def _clean(value: Any, empty: str = "—") -> str:
 
 
 def _find_col(df: pd.DataFrame, names: list[str]) -> str | None:
-    """Как main `_find_col`: частичное совпадение без учёта регистра."""
-    cols_lower = [str(c).lower().strip() for c in df.columns]
+    """Как main `_find_col`, но сначала точное имя — иначе «Аванс» ловит «…ПоАвансам»."""
+    cols = [str(c) for c in df.columns]
+    cols_lower = [c.lower().strip() for c in cols]
+    for name in names:
+        needle = name.lower().strip()
+        for i, col in enumerate(cols_lower):
+            if col == needle:
+                return cols[i]
     for name in names:
         needle = name.lower().strip()
         for i, col in enumerate(cols_lower):
             if needle in col or col in needle:
-                return str(df.columns[i])
+                return cols[i]
     return None
+
+
+def _partner_brand_key(name: str) -> str:
+    key = " ".join(str(name or "").casefold().split())
+    if "есипово" in key and key.startswith("ис "):
+        return "ис есипово"
+    if "есипово" in key:
+        return "ис есипово"
+    return key
+
+
+def _read_orphan_advance_mln() -> float:
+    """Аванс из итоговой строки DK (без контрагента/договора), млн руб. — как main."""
+    import json
+
+    from app.config import WEB_DATA_DIR
+
+    if not WEB_DATA_DIR.is_dir():
+        return 0.0
+    files = sorted(
+        [
+            p
+            for p in WEB_DATA_DIR.iterdir()
+            if p.is_file() and "DK" in p.name.upper() and p.suffix.lower() == ".json"
+        ],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )[:5]
+    for path in files:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        except Exception:
+            continue
+        if not isinstance(raw, list):
+            continue
+        total = 0.0
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            contr = item.get("Контрагент") or {}
+            dog = item.get("Договор") or {}
+            org = item.get("Организация") or {}
+            has_c = isinstance(contr, dict) and bool(
+                str(contr.get("НаименованиеКонтрагента", "") or "").strip()
+                or str(contr.get("ID_Контрагента", "") or "").strip()
+            )
+            has_d = isinstance(dog, dict) and bool(
+                str(dog.get("ID_Договора", "") or "").strip()
+                or str(dog.get("НомерДоговора", "") or "").strip()
+            )
+            has_o = isinstance(org, dict) and bool(
+                str(org.get("ID_Организации", "") or "").strip()
+            )
+            if has_c or has_d or has_o:
+                continue
+            try:
+                total += float(item.get("ОстатокНаКонецПериодаПоАвансам", 0) or 0)
+            except (TypeError, ValueError):
+                pass
+        if total > 1e-6:
+            return total / 1e6
+    return 0.0
+
+
+def _apply_orphan_advance_to_chart_rows(
+    chart_rows: list[dict[str, Any]], orphan_mln: float
+) -> list[dict[str, Any]]:
+    """Переносит orphan-аванс на ИС Есипово / max КС-2 — стек получает синий сегмент."""
+    if orphan_mln <= 1e-6 or not chart_rows:
+        return chart_rows
+    rows = [dict(r) for r in chart_rows]
+    pick = None
+    best_ks2 = -1.0
+    for i, row in enumerate(rows):
+        brand = _partner_brand_key(str(row.get("label", "")))
+        ks2 = float(row.get("КС-2") or 0)
+        if brand == "ис есипово" and ks2 > best_ks2:
+            best_ks2 = ks2
+            pick = i
+    if pick is None:
+        for i, row in enumerate(rows):
+            if abs(float(row.get("Аванс") or 0)) > 1e-6:
+                continue
+            ks2 = float(row.get("КС-2") or 0)
+            if ks2 > best_ks2:
+                best_ks2 = ks2
+                pick = i
+    if pick is None:
+        pick = max(range(len(rows)), key=lambda i: float(rows[i].get("КС-2") or 0))
+    adv = float(rows[pick].get("Аванс") or 0) + orphan_mln
+    ks2 = float(rows[pick].get("КС-2") or 0)
+    rows[pick]["Аванс"] = round(adv, 3)
+    dev = ks2 - adv
+    rows[pick]["Отклонение ≥0"] = round(max(dev, 0.0), 3)
+    rows[pick]["Отклонение <0"] = round(min(dev, 0.0), 3)
+    return rows
 
 
 def _to_num(series: pd.Series) -> pd.Series:
@@ -167,9 +269,18 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
             "Сумма договора",
         ],
     )
-    advance_col = _find_col(work, ["Аванс", "Авансированная сумма", "ВсегоОплат_Аванс", "advance"])
+    advance_col = _find_col(
+        work, ["Аванс", "Авансированная сумма", "ВсегоОплат_Аванс", "advance"]
+    )
+    advance_end_col = _find_col(
+        work,
+        [
+            "ОстатокНаКонецПериодаПоАвансам",
+            "Остаток на конец периода по авансам",
+        ],
+    )
     advance_alt_col = _find_col(
-        work, ["ОстатокНаКонецПериодаПоАвансам", "Остаток на конец периода по авансам"]
+        work, ["ОстатокНаНачалоПериодаПоАвансам", "Остаток на начало периода по авансам"]
     )
     paid_col = _find_col(work, ["Выплачено", "Выплаченная сумма", "ВсегоОплат", "paid"])
     gross_col = _find_col(
@@ -253,15 +364,20 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
                         ks2.ne(0), partner_ids.map(by_partner.to_dict()).fillna(0.0)
                     )
 
+    # Как main: «Аванс» часто пустой → берём ОстатокНаКонецПериодаПоАвансам (не «НаНачало»).
     advance = _to_num(work[advance_col]) if advance_col else pd.Series(0.0, index=work.index)
-    if float(advance.abs().sum()) < 1e-9 and advance_alt_col:
-        advance = _to_num(work[advance_alt_col])
+    if float(advance.abs().sum()) < 1e-9 and advance_end_col:
+        advance = _to_num(work[advance_end_col])
     paid = _to_num(work[paid_col]) if paid_col else pd.Series(0.0, index=work.index)
     gross = _to_num(work[gross_col]) if gross_col else pd.Series(0.0, index=work.index)
     adv_end = (
-        _to_num(work[advance_alt_col])
-        if advance_alt_col
-        else pd.Series(0.0, index=work.index)
+        _to_num(work[advance_end_col])
+        if advance_end_col
+        else (
+            _to_num(work[advance_alt_col])
+            if advance_alt_col
+            else pd.Series(0.0, index=work.index)
+        )
     )
     balance = gross - adv_end
     dates = (
@@ -339,8 +455,8 @@ def build_debit_credit_payload(
         .rename(columns={"contractor": "label"})
     )
     chart_src["deviation"] = chart_src.ks2 - chart_src.advance
-    chart_src["_rank"] = chart_src.advance.abs() + chart_src.ks2.abs()
-    chart_src = chart_src.sort_values("_rank", ascending=False, kind="stable").head(20)
+    chart_src["_rank"] = chart_src[["advance", "ks2", "deviation"]].abs().max(axis=1)
+    chart_src = chart_src.sort_values("_rank", ascending=False, kind="stable").head(28)
     chart_rows = []
     for _, row in chart_src.iterrows():
         adv = float(row.advance) / 1e6
@@ -356,8 +472,25 @@ def build_debit_credit_payload(
             }
         )
 
+    chart_rows = _apply_orphan_advance_to_chart_rows(
+        chart_rows, _read_orphan_advance_mln()
+    )
+
+    detail = (
+        view.groupby(["project", "contractor", "contract"], as_index=False, dropna=False)
+        .agg(
+            contract_date=("contract_date", "min"),
+            contract_sum=("contract_sum", "max"),
+            advance=("advance", "sum"),
+            ks2=("ks2", "sum"),
+            fulfilled=("fulfilled", "sum"),
+            paid=("paid", "sum"),
+            balance=("balance", "sum"),
+        )
+    )
+
     rows: list[dict[str, Any]] = []
-    for _, row in view.iterrows():
+    for _, row in detail.iterrows():
         delta = float(row.advance) - float(row.ks2)
         contract = float(row.contract_sum)
         sem = _semaphore(delta, contract)
@@ -384,12 +517,12 @@ def build_debit_credit_payload(
         )
 
     totals = {
-        "contract_sum": round(float(view.contract_sum.sum()), 2),
-        "advance": round(float(view.advance.sum()), 2),
-        "ks2": round(float(view.ks2.sum()), 2),
-        "fulfilled": round(float(view.fulfilled.sum()), 2),
-        "paid": round(float(view.paid.sum()), 2),
-        "balance": round(float(view.balance.sum()), 2),
+        "contract_sum": round(float(detail.contract_sum.sum()), 2),
+        "advance": round(float(detail.advance.sum()), 2),
+        "ks2": round(float(detail.ks2.sum()), 2),
+        "fulfilled": round(float(detail.fulfilled.sum()), 2),
+        "paid": round(float(detail.paid.sum()), 2),
+        "balance": round(float(detail.balance.sum()), 2),
     }
     totals["advance_ks2"] = round(totals["advance"] - totals["ks2"], 2)
     total_sem = _semaphore(totals["advance_ks2"], totals["contract_sum"])
@@ -432,7 +565,11 @@ def build_debit_credit_payload(
         "chart": {
             "rows": chart_rows,
             "mode": mode,
-            "caption": f"Топ {len(chart_rows)} из {int(view.contractor.nunique())} контрагентов",
+            "caption": (
+                f"График показывает топ-{len(chart_rows)} из "
+                f"{int(view.contractor.nunique())} контрагентов/договоров "
+                "по убыванию значения."
+            ),
             "unit": "млн ₽",
         },
         "rows": rows,

@@ -4,7 +4,7 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react
 
 /** Shared select look — fixed height so all fields share one baseline. */
 export const FILTER_SELECT_CLASS =
-  "bi-filters-select mt-1 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong disabled:opacity-50";
+  "bi-filters-select w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong disabled:opacity-50";
 
 /** BDDS-style chip buttons for categorical filters. */
 export const FILTER_CHIP_CLASS =
@@ -95,13 +95,13 @@ export function FilterChipSelect({
   );
   const body = (
     <>
-      <div className="hidden lg:block">{desktop}</div>
-      <div className="lg:hidden">{chips}</div>
+      <div className="bi-filters-field-control hidden lg:block">{desktop}</div>
+      <div className="bi-filters-field-control lg:hidden">{chips}</div>
     </>
   );
   if (label == null) return body;
   return (
-    <div className="bi-filters-field block text-sm">
+    <div className="bi-filters-field text-sm">
       <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
         {label}
       </span>
@@ -183,13 +183,13 @@ export function FilterChipMulti({
   );
   const body = (
     <>
-      <div className="hidden lg:block">{desktop}</div>
-      <div className="lg:hidden">{chips}</div>
+      <div className="bi-filters-field-control hidden lg:block">{desktop}</div>
+      <div className="bi-filters-field-control lg:hidden">{chips}</div>
     </>
   );
   if (label == null) return body;
   return (
-    <div className="bi-filters-field block text-sm">
+    <div className="bi-filters-field text-sm">
       <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
         {label}
       </span>
@@ -288,11 +288,11 @@ export function FilterNativeSelect({
   );
   if (label == null) return field;
   return (
-    <label className="bi-filters-field block text-sm">
+    <label className="bi-filters-field text-sm">
       <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
         {label}
       </span>
-      {field}
+      <div className="bi-filters-field-control">{field}</div>
     </label>
   );
 }
@@ -359,11 +359,11 @@ export function FilterField({
   children: ReactNode;
 }) {
   return (
-    <label className="bi-filters-field block text-sm">
+    <label className="bi-filters-field text-sm">
       <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
         {label}
       </span>
-      {children}
+      <div className="bi-filters-field-control">{children}</div>
     </label>
   );
 }

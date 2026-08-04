@@ -372,7 +372,7 @@ html.dark .js-plotly-plot .modebar-btn.active path {
 .bi-filters-grid {
   display: grid;
   gap: 0.75rem 0.75rem;
-  align-items: start;
+  align-items: stretch;
   width: 100%;
 }
 
@@ -445,18 +445,33 @@ html.dark .js-plotly-plot .modebar-btn.active path {
 }
 
 /* Подписи полей — одна высота (2 строки), чтобы select стояли на одной линии */
+.bi-filters-field {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
 .bi-filters-field-label {
   display: flex;
   align-items: flex-end;
+  flex: 0 0 auto;
   min-height: 2.5rem;
   line-height: 1.25;
   font-size: 0.8125rem;
   font-weight: 600;
 }
 
+.bi-filters-field-control {
+  margin-top: auto;
+  padding-top: 0.25rem;
+  flex: 0 0 auto;
+}
+
 .bi-filters-select {
   height: 2.5rem;
   box-sizing: border-box;
+  margin-top: 0;
 }
 
 /* Чекбоксы — иконки на одной линии, под левым краем select своей колонки */

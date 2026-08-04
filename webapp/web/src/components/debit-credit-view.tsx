@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart, Card, Text, Title } from "@tremor/react";
+import { useCallback, useEffect, useState } from "react";
+import { Card, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
+import { DebitCreditChart, DebitCreditChartLegend } from "@/components/debit-credit-chart";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
 import {
   FilterField,
@@ -34,9 +40,6 @@ const initial: Filters = {
   display_view: "Без группировки",
 };
 
-const GROUP_CATS = ["Аванс", "КС-2", "Отклонение ≥0", "Отклонение <0"] as const;
-const STACK_CATS = ["Отклонение ≥0", "КС-2", "Аванс"] as const;
-
 function mln(value: number | null | undefined): string {
   if (value == null || Number.isNaN(Number(value))) return "—";
   return (Number(value) / 1e6).toLocaleString("ru-RU", {
@@ -56,7 +59,7 @@ export function DebitCreditView() {
   const [data, setData] = useState<DebitCreditPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   const load = useCallback(async (next: Filters) => {
     setLoading(true);
@@ -85,14 +88,6 @@ export function DebitCreditView() {
   }, [filters, load]);
 
   const stacked = filters.display_view === "С группировкой";
-  const categories = useMemo(
-    () => (stacked ? [...STACK_CATS] : [...GROUP_CATS]),
-    [stacked],
-  );
-  const colors = stacked
-    ? (["gray", "amber", "blue"] as const)
-    : (["blue", "amber", "gray", "rose"] as const);
-
   const exportTable = useCallback((): ExportTable | null => {
     if (!data?.rows.length) return null;
     return {
@@ -106,6 +101,7 @@ export function DebitCreditView() {
           "Аванс",
           "Допущения по авансированию %",
           "Выполнено (КС-2)",
+          "Остаток",
           "Аванс − КС-2",
         ],
       ],
@@ -118,6 +114,7 @@ export function DebitCreditView() {
         row.advance,
         row.advance_pct ?? "",
         row.ks2,
+        row.balance,
         row.advance_ks2,
       ]),
     };
@@ -133,7 +130,7 @@ export function DebitCreditView() {
         <FilterFieldsRow cols={5}>
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />
           <FilterChipSelect label="Подрядчик" value={filters.contractor} options={data?.filters.contractors ?? ["Все"]} onChange={(contractor) => setFilters((s) => ({ ...s, contractor }))} />
-          <FilterField label="№ договора">
+          <FilterField label="№ договора (частичный поиск)">
             <input
               className={FILTER_SELECT_CLASS}
               placeholder="Частичный поиск"
@@ -144,31 +141,33 @@ export function DebitCreditView() {
             />
           </FilterField>
           <FilterField label="Период">
-            <div className="flex gap-1">
+            <div className="grid grid-cols-2 gap-1">
               <input
                 type="date"
-                className={FILTER_SELECT_CLASS + " !mt-0"}
+                className={FILTER_SELECT_CLASS}
                 min={data?.filters.date_min ?? undefined}
                 max={data?.filters.date_max ?? undefined}
                 value={filters.date_from}
                 onChange={(e) =>
                   setFilters((s) => ({ ...s, date_from: e.target.value }))
                 }
+                aria-label="Период с"
               />
               <input
                 type="date"
-                className={FILTER_SELECT_CLASS + " !mt-0"}
+                className={FILTER_SELECT_CLASS}
                 min={data?.filters.date_min ?? undefined}
                 max={data?.filters.date_max ?? undefined}
                 value={filters.date_to}
                 onChange={(e) =>
                   setFilters((s) => ({ ...s, date_to: e.target.value }))
                 }
+                aria-label="Период по"
               />
             </div>
           </FilterField>
           <FilterChipSelect
-            label="Отображение"
+            label="Вид отображения"
             value={filters.display_view}
             options={["Без группировки", "С группировкой"]}
             onChange={(display_view) => setFilters((s) => ({ ...s, display_view: display_view as Filters["display_view"] }))}
@@ -194,31 +193,27 @@ export function DebitCreditView() {
       ) : null}
 
       <FullscreenPanel fill>
-        <Card className="mb-6 rounded-xl">
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-            Авансы и КС-2
-          </Title>
-          <Text className="mt-1">
-            {data?.chart.caption ?? "…"} · {data?.chart.unit ?? "млн ₽"}
+        <Card className="mb-6 overflow-visible rounded-xl">
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-100">
+            {data?.chart.caption ?? "График показывает топ-28 контрагентов/договоров по убыванию значения."}
+          </div>
+          <div className="mt-4 hidden lg:block">
+            <DebitCreditChart rows={data?.chart.rows ?? []} stacked={stacked} />
+            <DebitCreditChartLegend stacked={stacked} />
+          </div>
+          <div className="mt-4 lg:hidden">
+            <DebitCreditChart rows={data?.chart.rows ?? []} stacked={stacked} compact />
+            <DebitCreditChartLegend stacked={stacked} />
+          </div>
+          <Text className="mt-3">
+            {stacked
+              ? "Суммы по подрядчику. С группировкой (стек): отклонение ≥0 (сер.) → КС-2 (жёлт.) → Аванс (син.)."
+              : "Суммы по подрядчику. Без группировки: Аванс (син.), КС-2 (жёлт.), отклонение ≥0 (сер.), отклонение <0 (красн., ниже 0)."}
           </Text>
-          <BarChart
-            className="mt-6 h-96"
-            data={data?.chart.rows ?? []}
-            index="label"
-            categories={categories}
-            colors={[...colors]}
-            stack={stacked}
-            valueFormatter={(v) =>
-              Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })
-            }
-            showLegend
-            showGridLines
-            yAxisWidth={48}
-          />
         </Card>
       </FullscreenPanel>
 
-      <Card className="overflow-hidden rounded-xl p-0">
+      <Card className="hidden overflow-hidden rounded-xl p-0 lg:block">
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
             Таблица по подрядчику и договору
@@ -233,10 +228,11 @@ export function DebitCreditView() {
                   "Подрядчик",
                   "Договор",
                   "Договор стоимость",
-                  "Всего выполненных обязательств",
+                  "Всего выполненных обязательств по платежам",
                   "Аванс",
                   "Допущения по авансированию %",
                   "Выполнено (КС-2)",
+                  "Остаток",
                   "Аванс − КС-2",
                 ].map((label) => (
                   <th
@@ -274,6 +270,9 @@ export function DebitCreditView() {
                     {mln(row.ks2)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {mln(row.balance)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                     {mln(row.advance_ks2)}
                   </td>
                 </tr>
@@ -303,6 +302,9 @@ export function DebitCreditView() {
                   {mln(data?.totals.ks2)}
                 </td>
                 <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  {mln(data?.totals.balance)}
+                </td>
+                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
                   {mln(data?.totals.advance_ks2)}
                 </td>
               </tr>
@@ -321,6 +323,90 @@ export function DebitCreditView() {
           />
         </div>
       </Card>
+      <div className="lg:hidden">
+        <Title className="mb-3 px-2 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+          Таблица по подрядчику и договору
+        </Title>
+        {!data?.rows.length ? (
+          <Text className="px-2 py-6 text-center">Нет строк</Text>
+        ) : (
+          <MobileCardStack>
+            {data.rows.map((row, index) => (
+              <MobileEntityCard
+                key={`${row.contract}-${index}`}
+                title={row.contractor}
+                badge={row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                badgeTone={
+                  row.advance_tone === "red"
+                    ? "bad"
+                    : row.advance_tone === "yellow"
+                      ? "warn"
+                      : "ok"
+                }
+              >
+                <div className="mb-2 text-xs text-tremor-content dark:text-dark-tremor-content">
+                  {row.contract} · {row.project}
+                </div>
+                <MobileMetricGrid
+                  columns={2}
+                  items={[
+                    { label: "Стоимость", value: mln(row.contract_sum) },
+                    { label: "Обязательства", value: mln(row.fulfilled) },
+                    { label: "Аванс", value: mln(row.advance) },
+                    { label: "КС-2", value: mln(row.ks2) },
+                    { label: "Остаток", value: mln(row.balance) },
+                    {
+                      label: "Аванс − КС-2",
+                      value: `${toneDot(row.advance_tone)} ${mln(row.advance_ks2)}`,
+                      highlight: row.advance_tone === "red" ? "bad" : "none",
+                    },
+                  ]}
+                />
+              </MobileEntityCard>
+            ))}
+            <MobileEntityCard
+              title="ИТОГО"
+              badge={
+                data?.totals.advance_pct == null
+                  ? "—"
+                  : `${data.totals.advance_pct}%`
+              }
+              badgeTone={
+                data?.totals.advance_tone === "red"
+                  ? "bad"
+                  : data?.totals.advance_tone === "yellow"
+                    ? "warn"
+                    : "ok"
+              }
+            >
+              <MobileMetricGrid
+                columns={2}
+                items={[
+                  { label: "Стоимость", value: mln(data?.totals.contract_sum) },
+                  { label: "Обязательства", value: mln(data?.totals.fulfilled) },
+                  { label: "Аванс", value: mln(data?.totals.advance) },
+                  { label: "КС-2", value: mln(data?.totals.ks2) },
+                  { label: "Остаток", value: mln(data?.totals.balance) },
+                  {
+                    label: "Аванс − КС-2",
+                    value: `${toneDot(data?.totals.advance_tone)} ${mln(data?.totals.advance_ks2)}`,
+                  },
+                ]}
+              />
+            </MobileEntityCard>
+          </MobileCardStack>
+        )}
+        <div className="space-y-2 px-2 pb-3 text-sm">
+          <Text>
+            Цветовые индикаторы (Аванс − КС-2): 🟢 delta ≤ 0 или ≤ 30% стоимости договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%.
+          </Text>
+          <DownloadTableButton
+            getTable={exportTable}
+            fileStem="debit_credit"
+            disabled={!data?.rows?.length}
+          />
+        </div>
+      </div>
     </AppShell>
   );
 }
