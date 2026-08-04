@@ -169,17 +169,21 @@ export function RdDynamicsLineChart({
   fullscreen?: boolean;
 }) {
   const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
+  const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const height = fullscreen
       ? Math.max(520, Math.min(window.innerHeight * 0.62, 760))
-      : 420;
+      : compact
+        ? 360
+        : 420;
     const x = rows.map((r) => r.period_label || r.period);
     const plan = rows.map((r) => r.plan);
     const fact = rows.map((r) => r.fact);
     const yMax = Math.max(1, ...plan, ...fact);
-    const yHead = Math.max(yMax * 0.1, 4);
+    const yHead = Math.max(yMax * (compact ? 0.08 : 0.1), 4);
     // Прореживание подписей оси X как main (~≤12 тиков), без наложения месяцев.
-    const tickStep = Math.max(1, Math.ceil(x.length / 12));
+    const tickStep = Math.max(1, Math.ceil(x.length / (compact ? 8 : 12)));
     const tickvals: string[] = [];
     const ticktext: string[] = [];
     for (let i = 0; i < x.length; i += tickStep) {
@@ -190,21 +194,26 @@ export function RdDynamicsLineChart({
       tickvals.push(x[x.length - 1]);
       ticktext.push(x[x.length - 1]);
     }
+    /** Mobile: без text на точках — иначе плато и легенда сверху слипаются. */
     const mk = (
       y: number[],
       name: string,
       color: string,
     ): Record<string, unknown> => ({
       type: "scatter",
-      mode: "lines+markers+text",
+      mode: compact ? "lines+markers" : "lines+markers+text",
       name,
       x,
       y,
-      text: y.map(pointLabel),
-      textposition: "top center",
-      textfont: { color, size: 10 },
+      ...(compact
+        ? {}
+        : {
+            text: y.map(pointLabel),
+            textposition: "top center",
+            textfont: { color, size: 10 },
+          }),
       line: { color, width: 2.5 },
-      marker: { size: 8, color, line: { width: 1, color: "#fff" } },
+      marker: { size: compact ? 7 : 8, color, line: { width: 1, color: "#fff" } },
       cliponaxis: false,
       hovertemplate: `<b>%{x}</b><br>${name}: %{y}<extra></extra>`,
     });
@@ -212,20 +221,32 @@ export function RdDynamicsLineChart({
       data: [mk(plan, CHART_RU.plan, RD_PLAN), mk(fact, CHART_RU.fact, RD_FACT)],
       layout: {
         height,
-        margin: { l: 56, r: 36, t: 72, b: 100 },
+        margin: compact
+          ? { l: 48, r: 20, t: 28, b: 108 }
+          : { l: 56, r: 36, t: 72, b: 100 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         hovermode: false as const,
-        legend: {
-          orientation: "h" as const,
-          y: 1.14,
-          x: 0.5,
-          xanchor: "center" as const,
-          font: { size: 13, color: theme.axis },
-        },
+        legend: compact
+          ? {
+              orientation: "h" as const,
+              y: -0.32,
+              yanchor: "top" as const,
+              x: 0.5,
+              xanchor: "center" as const,
+              font: { size: 11, color: theme.axis },
+              bgcolor: "rgba(0,0,0,0)",
+            }
+          : {
+              orientation: "h" as const,
+              y: 1.14,
+              x: 0.5,
+              xanchor: "center" as const,
+              font: { size: 13, color: theme.axis },
+            },
         xaxis: {
           title: {
-            text: "Период",
+            text: compact ? "" : "Период",
             standoff: 22,
             font: { size: 12, color: theme.axis },
           },
@@ -233,14 +254,14 @@ export function RdDynamicsLineChart({
           tickvals,
           ticktext,
           tickangle: -35,
-          tickfont: { size: 11, color: theme.axis },
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           automargin: true,
         },
         yaxis: {
           title: {
-            text: "Количество разделов РД",
-            font: { size: 12, color: theme.axis },
+            text: compact ? "Разделы РД" : "Количество разделов РД",
+            font: { size: compact ? 11 : 12, color: theme.axis },
           },
           tickfont: { size: 10, color: theme.axis },
           gridcolor: theme.grid,
@@ -256,7 +277,7 @@ export function RdDynamicsLineChart({
       },
       config: { ...PLOTLY_CONFIG },
     };
-  }, [rows, fullscreen, theme]);
+  }, [rows, fullscreen, theme, compact]);
 
   if (!rows.length) {
     return (
@@ -513,7 +534,7 @@ export function RdDelayGanttChart({
       data.push({
         type: "bar",
         orientation: "h",
-        name: "Дата по договору",
+        name: compact ? "Договор" : "Дата по договору",
         y: yellowY,
         x: yellowLen,
         base: yellowBase,
@@ -527,7 +548,7 @@ export function RdDelayGanttChart({
       data.push({
         type: "bar",
         orientation: "h",
-        name: "Прогнозная дата",
+        name: compact ? "Прогноз" : "Прогнозная дата",
         y: greenY,
         x: greenLen,
         base: greenBase,
@@ -569,7 +590,7 @@ export function RdDelayGanttChart({
 
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.62, 780))
-      : Math.max(compact ? 300 : 280, (compact ? 140 : 120) + sorted.length * (compact ? 48 : 52));
+      : Math.max(compact ? 320 : 280, (compact ? 160 : 120) + sorted.length * (compact ? 48 : 52));
 
     return {
       data,
@@ -577,8 +598,9 @@ export function RdDelayGanttChart({
         height,
         barmode: "overlay" as const,
         bargap: 0.44,
+        // Запас снизу: тики + легенда в 2 ряда, без «Дата Периодвору»
         margin: compact
-          ? { l: 8, r: 72, t: 20, b: 118 }
+          ? { l: 8, r: 64, t: 16, b: 168 }
           : { l: 16, r: 160, t: 56, b: 56 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
@@ -586,12 +608,13 @@ export function RdDelayGanttChart({
         legend: compact
           ? {
               orientation: "h" as const,
-              y: -0.28,
+              y: -0.42,
               yanchor: "top" as const,
               x: 0,
               xanchor: "left" as const,
               font: { size: 10, color: theme.axis },
               bgcolor: "rgba(0,0,0,0)",
+              traceorder: "normal" as const,
             }
           : {
               orientation: "h" as const,
@@ -603,16 +626,16 @@ export function RdDelayGanttChart({
         xaxis: {
           type: "date" as const,
           title: {
-            text: "Период",
-            font: { size: compact ? 11 : 12, color: theme.axis },
-            standoff: compact ? 8 : 18,
+            text: compact ? "" : "Период",
+            font: { size: 12, color: theme.axis },
+            standoff: 18,
           },
-          tickformat: "%d.%m.%Y",
-          tickangle: compact ? -90 : 0,
-          nticks: compact ? 6 : 8,
+          tickformat: "%d.%m.%y",
+          tickangle: compact ? -45 : 0,
+          nticks: compact ? 5 : 8,
           tickfont: { size: compact ? 9 : 11, color: theme.axis },
           gridcolor: theme.grid,
-          automargin: true,
+          automargin: !compact,
           ...(xRange ? { range: xRange } : {}),
         },
         yaxis: {

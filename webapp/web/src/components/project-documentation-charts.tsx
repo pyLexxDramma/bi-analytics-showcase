@@ -579,7 +579,7 @@ export function PdDelayGanttChart({
         bargap: 0.44,
         // Mobile: легенда снизу — иначе наезжает на первую полосу
         margin: compact
-          ? { l: 8, r: 72, t: 20, b: 118 }
+          ? { l: 8, r: 64, t: 16, b: 168 }
           : { l: 16, r: 140, t: 56, b: 56 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
@@ -587,7 +587,7 @@ export function PdDelayGanttChart({
         legend: compact
           ? {
               orientation: "h" as const,
-              y: -0.28,
+              y: -0.42,
               yanchor: "top" as const,
               x: 0,
               xanchor: "left" as const,
@@ -604,15 +604,16 @@ export function PdDelayGanttChart({
         xaxis: {
           type: "date" as const,
           title: {
-            text: "Период",
+            text: compact ? "" : "Период",
             font: { size: compact ? 11 : 12, color: theme.axis },
             standoff: compact ? 8 : 4,
           },
-          tickformat: "%d.%m.%Y",
-          tickangle: compact ? -90 : 0,
+          tickformat: compact ? "%d.%m.%y" : "%d.%m.%Y",
+          tickangle: compact ? -45 : 0,
+          nticks: compact ? 5 : undefined,
           tickfont: { size: compact ? 9 : 11, color: theme.axis },
           gridcolor: theme.grid,
-          automargin: true,
+          automargin: !compact,
           ...(xRange ? { range: xRange } : {}),
         },
         yaxis: {
