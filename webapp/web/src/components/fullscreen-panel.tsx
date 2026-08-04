@@ -115,7 +115,7 @@ export function FullscreenPanel({
       } ${
         active
           ? mobile
-            ? "bi-fs-mobile-overlay fixed inset-0 z-[60] overflow-auto"
+            ? "bi-fs-mobile-overlay fixed inset-0 z-[60]"
             : "h-screen w-screen overflow-auto"
           : "overflow-x-auto"
       } ${className}`}
@@ -145,13 +145,21 @@ export function FullscreenPanel({
           {active ? "✕" : "⛶"}
         </button>
       </div>
-      {/* min-w-fit — иначе при контенте шире экрана justify-center срезает левый край */}
+      {/*
+        Desktop table fullscreen: center short tables; long ones scroll via host.
+        Mobile overlay: never use items-center — it clips the top of tall matrices
+        and breaks touch scroll. Scroll lives on .bi-fs-mobile-scroll.
+      */}
       <div
         className={
           active
             ? fill
-              ? "h-full w-full"
-              : "flex min-h-full min-w-fit items-center justify-center p-4"
+              ? mobile
+                ? "bi-fs-mobile-scroll h-full w-full"
+                : "h-full w-full"
+              : mobile
+                ? "bi-fs-mobile-scroll min-w-0 p-3 pt-14"
+                : "flex min-h-full min-w-fit items-center justify-center p-4"
             : ""
         }
       >
