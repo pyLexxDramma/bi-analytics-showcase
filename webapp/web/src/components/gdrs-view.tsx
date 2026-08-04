@@ -225,6 +225,10 @@ function SortHeader({
   onSort,
   style,
   palette,
+  stickyTop = 0,
+  stickyLeft,
+  zIndex = 2,
+  className = "",
 }: {
   label: string;
   sortKey: string;
@@ -232,18 +236,23 @@ function SortHeader({
   onSort: (key: string) => void;
   style?: CSSProperties;
   palette: GdrsPalette;
+  stickyTop?: number | string;
+  stickyLeft?: number | string;
+  zIndex?: number;
+  className?: string;
 }) {
   const active = sort?.key === sortKey;
   return (
     <th
-      className="px-2 py-2 text-center text-xs font-semibold"
+      className={`px-2 py-2 text-center text-xs font-semibold ${className}`}
       style={{
         border: `1px solid ${palette.border}`,
         backgroundColor: palette.thBg,
         color: palette.thFg,
         position: "sticky",
-        top: 0,
-        zIndex: 2,
+        top: stickyTop,
+        left: stickyLeft,
+        zIndex,
         ...style,
       }}
     >
@@ -761,251 +770,319 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           </Card>}
         </FullscreenPanel>
 
-        <Card className="hidden overflow-x-auto rounded-xl lg:block">
+        <Card className="hidden rounded-xl lg:block">
           <div className="mb-3 flex items-center justify-between gap-3">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               {matrixTitle}
               {data?.meta.period_label ? `, ${data.meta.period_label}` : ""}
             </Title>
           </div>
-          <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              {matrixMeta.show_week_columns && matrixMeta.week_labels.length ? (
+          <div className="max-h-[min(70vh,42rem)] w-full min-w-0 overflow-auto overscroll-contain rounded-md border border-tremor-border dark:border-dark-tremor-border">
+            <table
+              className="min-w-full text-sm"
+              style={{ borderCollapse: "separate", borderSpacing: 0 }}
+            >
+              <thead>
+                {matrixMeta.show_week_columns && matrixMeta.week_labels.length ? (
+                  <tr>
+                    <th
+                      colSpan={2}
+                      style={{
+                        border: `1px solid ${pal.border}`,
+                        backgroundColor: pal.thBg,
+                        color: pal.thFg,
+                        position: "sticky",
+                        top: 0,
+                        left: 0,
+                        zIndex: 6,
+                        minWidth: "22rem",
+                        boxShadow: "2px 0 0 0 rgba(0,0,0,0.06)",
+                      }}
+                    />
+                    <th
+                      colSpan={3}
+                      style={{
+                        border: `1px solid ${pal.border}`,
+                        backgroundColor: pal.planHdr,
+                        color: pal.thFg,
+                        textAlign: "center",
+                        fontWeight: 700,
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 5,
+                      }}
+                    >
+                      План / СКУД / Откл.
+                    </th>
+                    <th
+                      colSpan={1}
+                      style={{
+                        border: `1px solid ${pal.border}`,
+                        backgroundColor: pal.devHdr,
+                        color: pal.thFg,
+                        textAlign: "center",
+                        fontWeight: 700,
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 5,
+                      }}
+                    >
+                      Доля / откл.
+                    </th>
+                    <th
+                      colSpan={matrixMeta.week_plan_keys.length}
+                      style={{
+                        border: `1px solid ${pal.border}`,
+                        backgroundColor: pal.planHdr,
+                        color: pal.thFg,
+                        textAlign: "center",
+                        fontWeight: 700,
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 5,
+                      }}
+                    >
+                      План по неделям
+                    </th>
+                    <th
+                      colSpan={matrixMeta.week_skud_keys.length}
+                      style={{
+                        border: `1px solid ${pal.border}`,
+                        backgroundColor: pal.skudHdr,
+                        color: pal.thFg,
+                        textAlign: "center",
+                        fontWeight: 700,
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 5,
+                      }}
+                    >
+                      СКУД по неделям
+                    </th>
+                  </tr>
+                ) : null}
                 <tr>
-                  <th
-                    colSpan={2}
+                  <SortHeader
+                    label="Контрагент"
+                    sortKey="label"
+                    sort={mtxSort}
+                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    palette={pal}
+                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyLeft={0}
+                    zIndex={6}
+                    className="min-w-[12rem] max-w-[14rem]"
                     style={{
-                      border: `1px solid ${pal.border}`,
-                      backgroundColor: pal.thBg,
-                      color: pal.thFg,
+                      boxShadow: "2px 0 0 0 rgba(0,0,0,0.06)",
                     }}
                   />
-                  <th
-                    colSpan={3}
+                  <SortHeader
+                    label="Вид работ"
+                    sortKey="vid_raboty"
+                    sort={mtxSort}
+                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    palette={pal}
+                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    stickyLeft="12rem"
+                    zIndex={6}
+                    className="min-w-[10rem] max-w-[14rem]"
                     style={{
-                      border: `1px solid ${pal.border}`,
-                      backgroundColor: pal.planHdr,
-                      color: pal.thFg,
-                      textAlign: "center",
-                      fontWeight: 700,
+                      boxShadow: "2px 0 0 0 rgba(0,0,0,0.06)",
                     }}
-                  >
-                    План / СКУД / Откл.
-                  </th>
-                  <th
-                    colSpan={1}
-                    style={{
-                      border: `1px solid ${pal.border}`,
-                      backgroundColor: pal.devHdr,
-                      color: pal.thFg,
-                      textAlign: "center",
-                      fontWeight: 700,
-                    }}
-                  >
-                    Доля / откл.
-                  </th>
-                  <th
-                    colSpan={matrixMeta.week_plan_keys.length}
-                    style={{
-                      border: `1px solid ${pal.border}`,
-                      backgroundColor: pal.planHdr,
-                      color: pal.thFg,
-                      textAlign: "center",
-                      fontWeight: 700,
-                    }}
-                  >
-                    План по неделям
-                  </th>
-                  <th
-                    colSpan={matrixMeta.week_skud_keys.length}
-                    style={{
-                      border: `1px solid ${pal.border}`,
-                      backgroundColor: pal.skudHdr,
-                      color: pal.thFg,
-                      textAlign: "center",
-                      fontWeight: 700,
-                    }}
-                  >
-                    СКУД по неделям
-                  </th>
+                  />
+                  <SortHeader
+                    label="План"
+                    sortKey="plan"
+                    sort={mtxSort}
+                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    palette={pal}
+                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    zIndex={4}
+                    style={{ backgroundColor: pal.planHdr }}
+                  />
+                  <SortHeader
+                    label="СКУД"
+                    sortKey="skud"
+                    sort={mtxSort}
+                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    palette={pal}
+                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    zIndex={4}
+                    style={{ backgroundColor: pal.skudHdr }}
+                  />
+                  <SortHeader
+                    label="Отклонение"
+                    sortKey="deviation"
+                    sort={mtxSort}
+                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    palette={pal}
+                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    zIndex={4}
+                    style={{ backgroundColor: pal.devHdr }}
+                  />
+                  <SortHeader
+                    label="Отклонение %"
+                    sortKey="delta_pct"
+                    sort={mtxSort}
+                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    palette={pal}
+                    stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
+                    zIndex={4}
+                    style={{ backgroundColor: pal.devHdr }}
+                  />
+                  {matrixMeta.show_week_columns
+                    ? matrixMeta.week_plan_keys.map((k, i) => (
+                        <SortHeader
+                          key={k}
+                          label={matrixMeta.week_labels[i] ?? k}
+                          sortKey={k}
+                          sort={mtxSort}
+                          onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
+                          palette={pal}
+                          stickyTop="2.5rem"
+                          zIndex={4}
+                          style={{ backgroundColor: pal.planHdr }}
+                        />
+                      ))
+                    : null}
+                  {matrixMeta.show_week_columns
+                    ? matrixMeta.week_skud_keys.map((k, i) => (
+                        <SortHeader
+                          key={k}
+                          label={matrixMeta.week_labels[i] ?? k}
+                          sortKey={k}
+                          sort={mtxSort}
+                          onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
+                          palette={pal}
+                          stickyTop="2.5rem"
+                          zIndex={4}
+                          style={{ backgroundColor: pal.skudHdr }}
+                        />
+                      ))
+                    : null}
                 </tr>
-              ) : null}
-              <tr>
-                <SortHeader
-                  label="Контрагент"
-                  sortKey="label"
-                  sort={mtxSort}
-                  onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                />
-                <SortHeader
-                  label="Вид работ"
-                  sortKey="vid_raboty"
-                  sort={mtxSort}
-                  onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                />
-                <SortHeader
-                  label="План"
-                  sortKey="plan"
-                  sort={mtxSort}
-                  onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.planHdr }}
-                />
-                <SortHeader
-                  label="СКУД"
-                  sortKey="skud"
-                  sort={mtxSort}
-                  onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.skudHdr }}
-                />
-                <SortHeader
-                  label="Отклонение"
-                  sortKey="deviation"
-                  sort={mtxSort}
-                  onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-                <SortHeader
-                  label="Отклонение %"
-                  sortKey="delta_pct"
-                  sort={mtxSort}
-                  onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-                {matrixMeta.show_week_columns
-                  ? matrixMeta.week_plan_keys.map((k, i) => (
-                      <SortHeader
-                        key={k}
-                        label={matrixMeta.week_labels[i] ?? k}
-                        sortKey={k}
-                        sort={mtxSort}
-                        onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
-                        palette={pal}
-                  style={{ backgroundColor: pal.planHdr }}
-                      />
-                    ))
-                  : null}
-                {matrixMeta.show_week_columns
-                  ? matrixMeta.week_skud_keys.map((k, i) => (
-                      <SortHeader
-                        key={k}
-                        label={matrixMeta.week_labels[i] ?? k}
-                        sortKey={k}
-                        sort={mtxSort}
-                        onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
-                        palette={pal}
-                  style={{ backgroundColor: pal.skudHdr }}
-                      />
-                    ))
-                  : null}
-              </tr>
-            </thead>
-            <tbody>
-              {matrixRows.map((r, i) => {
-                const bold =
-                  r.kind === "subtotal" || r.kind === "grand_total";
-                const rowBg =
-                  r.kind === "grand_total"
-                    ? pal.grandBg
-                    : r.kind === "subtotal"
-                      ? pal.subtotalBg
-                      : undefined;
-                return (
-                  <tr key={`${r.kind}-${r.label}-${i}`}>
-                    <td
-                      style={td({
-                        textAlign: "left",
-                        fontWeight: bold ? 700 : 500,
-                        backgroundColor: rowBg,
-                        color:
-                          r.kind === "row" ? pal.linkFg : undefined,
-                      })}
-                    >
-                      {r.label}
-                    </td>
-                    <td style={td({ textAlign: "left", backgroundColor: rowBg })}>
-                      {r.vid_raboty}
-                    </td>
-                    <td
-                      style={td({
-                        textAlign: "right",
-                        fontWeight: bold ? 700 : undefined,
-                        backgroundColor: bold ? pal.planBold : pal.planBg,
-                      })}
-                    >
-                      {fmtInt(r.plan)}
-                    </td>
-                    <td
-                      style={td({
-                        textAlign: "right",
-                        fontWeight: bold ? 700 : undefined,
-                        backgroundColor: bold ? pal.skudBold : pal.skudBg,
-                      })}
-                    >
-                      {fmtInt(r.skud)}
-                    </td>
-                    <td
-                      style={td({
-                        textAlign: "right",
-                        fontWeight: bold ? 700 : undefined,
-                        ...dev(r.deviation),
-                      })}
-                    >
-                      {fmtSigned(r.deviation)}
-                    </td>
-                    <td
-                      style={td({
-                        textAlign: "right",
-                        fontWeight: bold ? 700 : undefined,
-                        ...dev(r.delta_pct),
-                      })}
-                    >
-                      {fmtPct(r.delta_pct)}
-                    </td>
-                    {matrixMeta.show_week_columns
-                      ? matrixMeta.week_plan_keys.map((k) => (
-                          <td
-                            key={k}
-                            style={td({
-                              textAlign: "right",
-                              backgroundColor: pal.planBg,
-                            })}
-                          >
-                            {fmtInt(
-                              Number(
-                                (r as Record<string, unknown>)[k] ?? 0,
-                              ),
-                            )}
-                          </td>
-                        ))
-                      : null}
-                    {matrixMeta.show_week_columns
-                      ? matrixMeta.week_skud_keys.map((k) => (
-                          <td
-                            key={k}
-                            style={td({
-                              textAlign: "right",
-                              backgroundColor: pal.skudBg,
-                            })}
-                          >
-                            {fmtInt(
-                              Number(
-                                (r as Record<string, unknown>)[k] ?? 0,
-                              ),
-                            )}
-                          </td>
-                        ))
-                      : null}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {matrixRows.map((r, i) => {
+                  const bold =
+                    r.kind === "subtotal" || r.kind === "grand_total";
+                  const rowBg =
+                    r.kind === "grand_total"
+                      ? pal.grandBg
+                      : r.kind === "subtotal"
+                        ? pal.subtotalBg
+                        : undefined;
+                  const stickyBg =
+                    rowBg ?? (dark ? "rgb(15 23 42)" : "#ffffff");
+                  return (
+                    <tr key={`${r.kind}-${r.label}-${i}`}>
+                      <td
+                        style={td({
+                          textAlign: "left",
+                          fontWeight: bold ? 700 : 500,
+                          backgroundColor: stickyBg,
+                          color:
+                            r.kind === "row" ? pal.linkFg : undefined,
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 3,
+                          minWidth: "12rem",
+                          maxWidth: "14rem",
+                          boxShadow: "2px 0 0 0 rgba(0,0,0,0.06)",
+                        })}
+                      >
+                        {r.label}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "left",
+                          backgroundColor: stickyBg,
+                          position: "sticky",
+                          left: "12rem",
+                          zIndex: 3,
+                          minWidth: "10rem",
+                          maxWidth: "14rem",
+                          boxShadow: "2px 0 0 0 rgba(0,0,0,0.06)",
+                        })}
+                      >
+                        {r.vid_raboty}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: bold ? 700 : undefined,
+                          backgroundColor: bold ? pal.planBold : pal.planBg,
+                        })}
+                      >
+                        {fmtInt(r.plan)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: bold ? 700 : undefined,
+                          backgroundColor: bold ? pal.skudBold : pal.skudBg,
+                        })}
+                      >
+                        {fmtInt(r.skud)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: bold ? 700 : undefined,
+                          ...dev(r.deviation),
+                        })}
+                      >
+                        {fmtSigned(r.deviation)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: bold ? 700 : undefined,
+                          ...dev(r.delta_pct),
+                        })}
+                      >
+                        {fmtPct(r.delta_pct)}
+                      </td>
+                      {matrixMeta.show_week_columns
+                        ? matrixMeta.week_plan_keys.map((k) => (
+                            <td
+                              key={k}
+                              style={td({
+                                textAlign: "right",
+                                backgroundColor: pal.planBg,
+                              })}
+                            >
+                              {fmtInt(
+                                Number(
+                                  (r as Record<string, unknown>)[k] ?? 0,
+                                ),
+                              )}
+                            </td>
+                          ))
+                        : null}
+                      {matrixMeta.show_week_columns
+                        ? matrixMeta.week_skud_keys.map((k) => (
+                            <td
+                              key={k}
+                              style={td({
+                                textAlign: "right",
+                                backgroundColor: pal.skudBg,
+                              })}
+                            >
+                              {fmtInt(
+                                Number(
+                                  (r as Record<string, unknown>)[k] ?? 0,
+                                ),
+                              )}
+                            </td>
+                          ))
+                        : null}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           <div className="mt-3">
             <DownloadTableButton
               getTable={exportMatrixTable}
