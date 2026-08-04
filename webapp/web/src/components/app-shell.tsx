@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   DashboardLoadingOverlay,
+  DashboardSkeleton,
   useDelayedLoading,
 } from "@/components/dashboard-loading";
+import { confirmFeedback, tapFeedback } from "@/lib/haptics";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 import {
   applyThemeClass,
   readTheme,
@@ -43,7 +46,9 @@ export function AppShell({
 }) {
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const showLoading = useDelayedLoading(loading, 1000);
+  const mobile = useIsMobileViewport();
+  const showLoading = useDelayedLoading(loading, mobile ? 400 : 1000);
+  const showSkeleton = showLoading && mobile;
 
   useEffect(() => {
     applyThemeClass(readTheme());
@@ -76,12 +81,16 @@ export function AppShell({
   }, [menuOpen]);
 
   const setTheme = (mode: ThemeMode) => {
+    confirmFeedback();
     setDark(mode === "dark");
     writeTheme(mode);
     applyThemeClass(mode);
   };
 
-  const closeMenu = () => setMenuOpen(false);
+  const closeMenu = () => {
+    tapFeedback();
+    setMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
@@ -91,7 +100,7 @@ export function AppShell({
 
       {menuOpen ? (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-[#f8f9fb] dark:bg-dark-tremor-background lg:hidden"
+          className="bi-safe-area fixed inset-0 z-50 flex flex-col bg-[#f8f9fb] dark:bg-dark-tremor-background lg:hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Меню"
@@ -120,8 +129,12 @@ export function AppShell({
 
       <div className="relative min-h-screen min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
         <div
-          className={`mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
-            showLoading ? "pointer-events-none select-none blur-[2px]" : ""
+          className={`bi-safe-area mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
+            showLoading
+              ? showSkeleton
+                ? "pointer-events-none select-none"
+                : "pointer-events-none select-none blur-[2px]"
+              : ""
           }`}
           aria-hidden={showLoading || undefined}
         >
@@ -129,7 +142,10 @@ export function AppShell({
             <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
               <button
                 type="button"
-                onClick={() => setMenuOpen(true)}
+                onClick={() => {
+                  tapFeedback();
+                  setMenuOpen(true);
+                }}
                 className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-lg font-semibold text-tremor-content-emphasis shadow-tremor-input lg:hidden dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis"
                 aria-label="Открыть меню"
                 aria-expanded={menuOpen}
@@ -157,7 +173,13 @@ export function AppShell({
           </header>
           <div className="min-w-0 max-w-full">{children}</div>
         </div>
-        {showLoading ? <DashboardLoadingOverlay /> : null}
+        {showLoading ? (
+          showSkeleton ? (
+            <DashboardSkeleton />
+          ) : (
+            <DashboardLoadingOverlay />
+          )
+        ) : null}
       </div>
     </div>
   );

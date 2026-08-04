@@ -18,6 +18,37 @@ export function useDelayedLoading(loading: boolean, delayMs = 1000): boolean {
   return show;
 }
 
+/**
+ * Mobile v2: вместо размытого экрана — каркас будущего дашборда.
+ * Блюр всей страницы на телефоне читался как «подвисло»; скелетон показывает,
+ * что и где появится. Оверлей, а не замена контента: под ним живёт запрос экрана.
+ */
+export function DashboardSkeleton() {
+  return (
+    <div
+      className="absolute inset-0 z-40 overflow-hidden bg-tremor-background-muted px-3 pt-2 dark:bg-dark-tremor-background-muted"
+      aria-busy="true"
+      aria-live="polite"
+      role="status"
+    >
+      <span className="sr-only">Загрузка дашборда</span>
+      <div className="bi-skeleton mb-4 h-12 w-full rounded-xl" aria-hidden />
+      <div className="bi-skeleton mb-4 h-56 w-full rounded-xl" aria-hidden />
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="mb-3 rounded-xl border border-tremor-border p-3 dark:border-dark-tremor-border">
+          <div className="bi-skeleton mb-3 h-4 w-2/3 rounded" aria-hidden />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bi-skeleton h-12 rounded-lg" aria-hidden />
+            <div className="bi-skeleton h-12 rounded-lg" aria-hidden />
+            <div className="bi-skeleton h-12 rounded-lg" aria-hidden />
+            <div className="bi-skeleton h-12 rounded-lg" aria-hidden />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function DashboardLoadingOverlay() {
   return (
     <>

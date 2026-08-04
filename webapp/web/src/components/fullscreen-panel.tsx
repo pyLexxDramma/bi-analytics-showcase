@@ -7,6 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { ChartInteractiveProvider } from "@/lib/chart-interaction";
+import { tapFeedback } from "@/lib/haptics";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 type FullscreenDocument = Document & {
   webkitFullscreenElement?: Element;
@@ -20,6 +23,10 @@ type FullscreenElement = HTMLElement & {
 /**
  * Зум матриц/графиков «на весь экран» как в [main]: выход по ✕ и Esc,
  * состояние экрана (фильтры, данные) не сбрасывается — меняется только контейнер.
+ *
+ * Mobile v2: на `<lg` вместо Fullscreen API (iOS Safari не разворачивает `div`)
+ * используется fixed-оверлей; внутри него графику возвращается зум/панорама.
+ * Desktop-ветка — прежний Fullscreen API, без изменений.
  */
 export function FullscreenPanel({
   children,
@@ -38,14 +45,17 @@ export function FullscreenPanel({
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const [active, setActive] = useState(false);
+  const mobile = useIsMobileViewport();
+  const [nativeActive, setNativeActive] = useState(false);
+  const [overlayActive, setOverlayActive] = useState(false);
+  const active = mobile ? overlayActive : nativeActive;
 
   useEffect(() => {
     const sync = () => {
       const host = hostRef.current;
       const doc = document as FullscreenDocument;
       const current = document.fullscreenElement || doc.webkitFullscreenElement;
-      setActive(!!host && current === host);
+      setNativeActive(!!host && current === host);
     };
     document.addEventListener("fullscreenchange", sync);
     document.addEventListener("webkitfullscreenchange", sync);
@@ -55,7 +65,30 @@ export function FullscreenPanel({
     };
   }, []);
 
+  useEffect(() => {
+    if (!mobile) setOverlayActive(false);
+  }, [mobile]);
+
+  useEffect(() => {
+    if (!overlayActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOverlayActive(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [overlayActive]);
+
   const toggle = useCallback(async () => {
+    if (mobile) {
+      tapFeedback();
+      setOverlayActive((v) => !v);
+      return;
+    }
     const host = hostRef.current;
     if (!host) return;
     const doc = document as FullscreenDocument;
@@ -72,7 +105,7 @@ export function FullscreenPanel({
     } catch {
       /* браузер отказал в fullscreen — экран остаётся рабочим */
     }
-  }, []);
+  }, [mobile]);
 
   return (
     <div
@@ -80,7 +113,11 @@ export function FullscreenPanel({
       className={`relative min-w-0 max-w-full bg-tremor-background dark:bg-dark-tremor-background ${
         fill ? "bi-fs-fill" : "bi-fs-table"
       } ${
-        active ? "h-screen w-screen overflow-auto" : "overflow-x-auto"
+        active
+          ? mobile
+            ? "bi-fs-mobile-overlay fixed inset-0 z-[60] overflow-auto"
+            : "h-screen w-screen overflow-auto"
+          : "overflow-x-auto"
       } ${className}`}
     >
       <div
@@ -100,7 +137,10 @@ export function FullscreenPanel({
           title={active ? "Выйти из полного экрана (Esc)" : "На весь экран"}
           onClick={() => void toggle()}
           disabled={disabled}
-          className="rounded-md border-0 bg-transparent px-2 py-1 text-sm text-slate-500 shadow-none hover:text-teal-700 disabled:opacity-40 dark:text-slate-400 dark:hover:text-teal-300"
+          aria-label={active ? "Выйти из полного экрана" : "На весь экран"}
+          className={`bi-fs-toggle rounded-md border-0 bg-transparent px-2 py-1 text-sm text-slate-500 shadow-none hover:text-teal-700 disabled:opacity-40 dark:text-slate-400 dark:hover:text-teal-300 ${
+            active ? "bi-fs-toggle-active" : ""
+          }`}
         >
           {active ? "✕" : "⛶"}
         </button>
@@ -115,7 +155,9 @@ export function FullscreenPanel({
             : ""
         }
       >
-        {typeof children === "function" ? children(active) : children}
+        <ChartInteractiveProvider active={active}>
+          {typeof children === "function" ? children(active) : children}
+        </ChartInteractiveProvider>
       </div>
     </div>
   );

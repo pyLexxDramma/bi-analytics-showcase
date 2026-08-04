@@ -591,4 +591,449 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   color: #a0a0a0;
 }
 
+/* ===== Mobile v2 (<lg): тач-физика. Desktop не затрагивается ===== */
+@media (max-width: 1023px) {
+  /*
+   * Полотно Plotly пропускает панорамирование страницы/скроллера:
+   * палец листает контент, а не рисует рамку зума. Pinch на полотне выключен —
+   * зум доступен в развёрнутом виде («Развернуть»).
+   */
+  .js-plotly-plot,
+  .js-plotly-plot .plot-container,
+  .js-plotly-plot .svg-container,
+  .js-plotly-plot .draglayer,
+  .js-plotly-plot .nsewdrag,
+  .js-plotly-plot .drag {
+    touch-action: pan-x pan-y !important;
+  }
+
+  /* Развёрнутый график — жесты снова принадлежат Plotly */
+  .bi-fs-mobile-overlay .js-plotly-plot,
+  .bi-fs-mobile-overlay .js-plotly-plot .plot-container,
+  .bi-fs-mobile-overlay .js-plotly-plot .svg-container,
+  .bi-fs-mobile-overlay .js-plotly-plot .draglayer,
+  .bi-fs-mobile-overlay .js-plotly-plot .nsewdrag,
+  .bi-fs-mobile-overlay .js-plotly-plot .drag {
+    touch-action: none !important;
+  }
+
+  /* Горизонтальные скроллеры не «оттягивают» страницу и не вызывают back-swipe */
+  .overflow-x-auto,
+  .overflow-auto {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Тонкая, но видимая полоса прокрутки — сигнал «контент продолжается вправо» */
+  .overflow-x-auto::-webkit-scrollbar,
+  .overflow-auto::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb,
+  .overflow-auto::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.55);
+    border-radius: 999px;
+  }
+
+  html.dark .overflow-x-auto::-webkit-scrollbar-thumb,
+  html.dark .overflow-auto::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.55);
+  }
+
+  /*
+   * Кнопка разворота на телефоне — компактная иконка в углу: подпись перекрывала
+   * заголовок и шапку таблицы. Приглушена, пока панель не развёрнута.
+   */
+  .bi-fs-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: none;
+    opacity: 0.65;
+  }
+
+  html.dark .bi-fs-toggle {
+    background: rgba(17, 24, 39, 0.72);
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+
+  /* В развёрнутом виде ✕ должен быть крупным и заметным */
+  .bi-fs-toggle.bi-fs-toggle-active {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+    font-size: 1.125rem;
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
+  }
+
+  html.dark .bi-fs-toggle.bi-fs-toggle-active {
+    background: rgba(17, 24, 39, 0.95);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+
+  .bi-fs-mobile-overlay {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* ===== Mobile v2: фильтры листом снизу ===== */
+  .bi-filters-trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding: 0 0.875rem;
+    border-radius: 0.875rem;
+    border: 1px solid rgb(226 232 240);
+    background: #fff;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: rgb(15 23 42);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  html.dark .bi-filters-trigger {
+    border-color: rgb(51 65 85);
+    background: rgb(17 24 39);
+    color: rgb(226 232 240);
+    box-shadow: none;
+  }
+
+  .bi-filters-trigger:active {
+    transform: scale(0.99);
+  }
+
+  .bi-filters-trigger-icon {
+    font-size: 1rem;
+    opacity: 0.7;
+  }
+
+  .bi-filters-trigger-badge {
+    min-width: 1.5rem;
+    padding: 0 0.375rem;
+    border-radius: 999px;
+    background: rgb(5 150 105);
+    color: #fff;
+    font-size: 0.75rem;
+    line-height: 1.5rem;
+    text-align: center;
+  }
+
+  .bi-sheet-root {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+  }
+
+  .bi-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.45);
+    animation: bi-sheet-fade 0.18s ease-out;
+  }
+
+  .bi-sheet-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: 72vh;
+    border-radius: 1.25rem 1.25rem 0 0;
+    background: #fff;
+    box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.22);
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: bi-sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: max-height 0.2s ease-out;
+  }
+
+  .bi-sheet-panel-full {
+    max-height: calc(100vh - 2rem);
+  }
+
+  html.dark .bi-sheet-panel {
+    background: rgb(15 20 28);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+  }
+
+  .bi-sheet-grip-zone {
+    flex: 0 0 auto;
+    padding: 0.5rem 1rem 0.75rem;
+    touch-action: none;
+  }
+
+  .bi-sheet-grip {
+    display: block;
+    width: 2.5rem;
+    height: 0.25rem;
+    margin: 0 auto 0.625rem;
+    border-radius: 999px;
+    background: rgba(100, 116, 139, 0.4);
+  }
+
+  .bi-sheet-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: rgb(15 23 42);
+  }
+
+  html.dark .bi-sheet-title {
+    color: rgb(226 232 240);
+  }
+
+  .bi-sheet-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 1rem 1rem;
+  }
+
+  .bi-sheet-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem 0.875rem;
+    border-top: 1px solid rgb(226 232 240);
+    background: inherit;
+  }
+
+  html.dark .bi-sheet-actions {
+    border-top-color: rgb(51 65 85);
+  }
+
+  .bi-sheet-btn-primary,
+  .bi-sheet-btn-ghost {
+    min-height: 2.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .bi-sheet-btn-primary {
+    flex: 1 1 auto;
+    background: rgb(5 150 105);
+    color: #fff;
+  }
+
+  .bi-sheet-btn-ghost {
+    flex: 0 0 auto;
+    padding: 0 1rem;
+    border: 1px solid rgb(226 232 240);
+    color: rgb(51 65 85);
+  }
+
+  html.dark .bi-sheet-btn-ghost {
+    border-color: rgb(51 65 85);
+    color: rgb(203 213 225);
+  }
+
+  /* Чипы фильтров — тач-таргет ≥44px */
+  .bi-filter-chip {
+    min-height: 2.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .bi-filter-chip-search {
+    min-height: 2.75rem;
+  }
+
+  /* Внутри листа список чипов скроллит сам лист, а не вложенный блок */
+  .bi-sheet-body .bi-filter-chip-list {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Вырез и домашний индикатор: viewport-fit=cover требует своих отступов */
+  .bi-safe-area {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  /* ===== Mobile v2: карточки вместо таблиц ===== */
+
+  /* Карточка вне вьюпорта не считается браузером — первый кадр длинного стека дешевле */
+  .bi-mobile-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
+  }
+
+  .bi-card-more,
+  .bi-card-more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(51 65 85);
+  }
+
+  .bi-card-more {
+    width: 100%;
+  }
+
+  .bi-card-more-btn {
+    min-height: 2.75rem;
+  }
+
+  html.dark .bi-card-more,
+  html.dark .bi-card-more-btn {
+    border-color: rgb(51 65 85);
+    background: rgb(17 24 39);
+    color: rgb(203 213 225);
+  }
+
+  /* Сводная карточка (ИТОГО) над списком */
+  .bi-card-pinned {
+    position: relative;
+  }
+
+  .bi-card-pinned::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 0.75rem;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.55);
+    pointer-events: none;
+  }
+
+  .bi-segmented {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.1875rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .bi-segmented::-webkit-scrollbar {
+    display: none;
+  }
+
+  html.dark .bi-segmented {
+    border-color: rgb(51 65 85);
+    background: rgb(17 24 39);
+  }
+
+  .bi-segmented > button {
+    flex: 1 0 auto;
+    min-height: 2.375rem;
+    padding: 0 0.75rem;
+    border-radius: 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: rgb(71 85 105);
+  }
+
+  html.dark .bi-segmented > button {
+    color: rgb(148 163 184);
+  }
+
+  .bi-segmented > button.bi-segmented-on {
+    background: #fff;
+    color: rgb(5 150 105);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  }
+
+  html.dark .bi-segmented > button.bi-segmented-on {
+    background: rgb(30 41 59);
+    color: rgb(52 211 153);
+    box-shadow: none;
+  }
+
+  /* Каркас загрузки: мягкая «волна» по плейсхолдеру */
+  .bi-skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(148, 163, 184, 0.16) 25%,
+      rgba(148, 163, 184, 0.3) 37%,
+      rgba(148, 163, 184, 0.16) 63%
+    );
+    background-size: 400% 100%;
+    animation: bi-skeleton-wave 1.3s ease-in-out infinite;
+  }
+
+  html.dark .bi-skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(148, 163, 184, 0.1) 25%,
+      rgba(148, 163, 184, 0.22) 37%,
+      rgba(148, 163, 184, 0.1) 63%
+    );
+    background-size: 400% 100%;
+  }
+
+  @keyframes bi-skeleton-wave {
+    from {
+      background-position: 100% 50%;
+    }
+    to {
+      background-position: 0 50%;
+    }
+  }
+
+  @keyframes bi-sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes bi-sheet-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Системная настройка «меньше движения» отключает всю мобильную анимацию */
+@media (prefers-reduced-motion: reduce) {
+  .bi-sheet-panel,
+  .bi-sheet-backdrop,
+  .bi-skeleton {
+    animation: none !important;
+  }
+
+  .bi-sheet-panel {
+    transition: none !important;
+  }
+
+  .bi-filters-trigger:active {
+    transform: none;
+  }
+}
+
 

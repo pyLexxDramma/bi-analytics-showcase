@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DebitCreditChart, DebitCreditChartLegend } from "@/components/debit-credit-chart";
@@ -10,6 +10,7 @@ import {
   MobileCardStack,
   MobileEntityCard,
   MobileMetricGrid,
+  MobileSortControl,
 } from "@/components/mobile-entity-card";
 import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
 import {
@@ -54,12 +55,23 @@ function toneDot(tone: string | undefined): string {
   return "🟢";
 }
 
+type MobileSortKey = "contractor" | "contract_sum" | "advance_pct" | "advance_ks2";
+
+const MOBILE_SORT_OPTIONS: Array<{ value: MobileSortKey; label: string }> = [
+  { value: "contractor", label: "Подрядчик" },
+  { value: "contract_sum", label: "Стоимость" },
+  { value: "advance_pct", label: "Аванс %" },
+  { value: "advance_ks2", label: "Аванс − КС-2" },
+];
+
 export function DebitCreditView() {
   const [filters, setFilters] = useState<Filters>(initial);
   const [data, setData] = useState<DebitCreditPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(true);
+  const [sortKey, setSortKey] = useState<MobileSortKey>("contractor");
+  const [sortDesc, setSortDesc] = useState(false);
 
   const load = useCallback(async (next: Filters) => {
     setLoading(true);
@@ -88,6 +100,20 @@ export function DebitCreditView() {
   }, [filters, load]);
 
   const stacked = filters.display_view === "С группировкой";
+
+  // Сортировка только для мобильных карточек: таблица на desktop идёт в порядке API
+  const mobileRows = useMemo(() => {
+    const rows = data?.rows ?? [];
+    const dir = sortDesc ? -1 : 1;
+    return [...rows].sort((a, b) => {
+      if (sortKey === "contractor") {
+        return dir * a.contractor.localeCompare(b.contractor, "ru");
+      }
+      const av = Number(a[sortKey] ?? 0);
+      const bv = Number(b[sortKey] ?? 0);
+      return dir * (av - bv);
+    });
+  }, [data, sortKey, sortDesc]);
   const exportTable = useCallback((): ExportTable | null => {
     if (!data?.rows.length) return null;
     return {
@@ -330,71 +356,98 @@ export function DebitCreditView() {
         {!data?.rows.length ? (
           <Text className="px-2 py-6 text-center">Нет строк</Text>
         ) : (
-          <MobileCardStack>
-            {data.rows.map((row, index) => (
-              <MobileEntityCard
-                key={`${row.contract}-${index}`}
-                title={row.contractor}
-                badge={row.advance_pct == null ? "—" : `${row.advance_pct}%`}
-                badgeTone={
-                  row.advance_tone === "red"
-                    ? "bad"
-                    : row.advance_tone === "yellow"
-                      ? "warn"
-                      : "ok"
-                }
-              >
-                <div className="mb-2 text-xs text-tremor-content dark:text-dark-tremor-content">
-                  {row.contract} · {row.project}
-                </div>
-                <MobileMetricGrid
-                  columns={2}
-                  items={[
-                    { label: "Стоимость", value: mln(row.contract_sum) },
-                    { label: "Обязательства", value: mln(row.fulfilled) },
-                    { label: "Аванс", value: mln(row.advance) },
-                    { label: "КС-2", value: mln(row.ks2) },
-                    { label: "Остаток", value: mln(row.balance) },
-                    {
-                      label: "Аванс − КС-2",
-                      value: `${toneDot(row.advance_tone)} ${mln(row.advance_ks2)}`,
-                      highlight: row.advance_tone === "red" ? "bad" : "none",
-                    },
-                  ]}
-                />
-              </MobileEntityCard>
-            ))}
-            <MobileEntityCard
-              title="ИТОГО"
-              badge={
-                data?.totals.advance_pct == null
-                  ? "—"
-                  : `${data.totals.advance_pct}%`
-              }
-              badgeTone={
-                data?.totals.advance_tone === "red"
-                  ? "bad"
-                  : data?.totals.advance_tone === "yellow"
-                    ? "warn"
-                    : "ok"
+          <>
+            <MobileSortControl
+              value={sortKey}
+              options={MOBILE_SORT_OPTIONS}
+              onChange={setSortKey}
+              desc={sortDesc}
+              onToggleDir={() => setSortDesc((v) => !v)}
+            />
+            <MobileCardStack
+              pinned={
+                <MobileEntityCard
+                  className="bi-card-pinned"
+                  title="ИТОГО"
+                  badge={
+                    data.totals.advance_pct == null
+                      ? "—"
+                      : `${data.totals.advance_pct}%`
+                  }
+                  badgeTone={
+                    data.totals.advance_tone === "red"
+                      ? "bad"
+                      : data.totals.advance_tone === "yellow"
+                        ? "warn"
+                        : "ok"
+                  }
+                  more={
+                    <MobileMetricGrid
+                      columns={2}
+                      items={[
+                        { label: "Обязательства", value: mln(data.totals.fulfilled) },
+                        { label: "Остаток", value: mln(data.totals.balance) },
+                      ]}
+                    />
+                  }
+                >
+                  <MobileMetricGrid
+                    columns={2}
+                    items={[
+                      { label: "Стоимость", value: mln(data.totals.contract_sum) },
+                      { label: "Аванс", value: mln(data.totals.advance) },
+                      { label: "КС-2", value: mln(data.totals.ks2) },
+                      {
+                        label: "Аванс − КС-2",
+                        value: `${toneDot(data.totals.advance_tone)} ${mln(data.totals.advance_ks2)}`,
+                      },
+                    ]}
+                  />
+                </MobileEntityCard>
               }
             >
-              <MobileMetricGrid
-                columns={2}
-                items={[
-                  { label: "Стоимость", value: mln(data?.totals.contract_sum) },
-                  { label: "Обязательства", value: mln(data?.totals.fulfilled) },
-                  { label: "Аванс", value: mln(data?.totals.advance) },
-                  { label: "КС-2", value: mln(data?.totals.ks2) },
-                  { label: "Остаток", value: mln(data?.totals.balance) },
-                  {
-                    label: "Аванс − КС-2",
-                    value: `${toneDot(data?.totals.advance_tone)} ${mln(data?.totals.advance_ks2)}`,
-                  },
-                ]}
-              />
-            </MobileEntityCard>
-          </MobileCardStack>
+              {mobileRows.map((row, index) => (
+                <MobileEntityCard
+                  key={`${row.contract}-${index}`}
+                  title={row.contractor}
+                  badge={row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                  badgeTone={
+                    row.advance_tone === "red"
+                      ? "bad"
+                      : row.advance_tone === "yellow"
+                        ? "warn"
+                        : "ok"
+                  }
+                  more={
+                    <MobileMetricGrid
+                      columns={2}
+                      items={[
+                        { label: "Обязательства", value: mln(row.fulfilled) },
+                        { label: "Остаток", value: mln(row.balance) },
+                      ]}
+                    />
+                  }
+                >
+                  <div className="mb-2 text-xs text-tremor-content dark:text-dark-tremor-content">
+                    {row.contract} · {row.project}
+                  </div>
+                  <MobileMetricGrid
+                    columns={2}
+                    items={[
+                      { label: "Стоимость", value: mln(row.contract_sum) },
+                      { label: "Аванс", value: mln(row.advance) },
+                      { label: "КС-2", value: mln(row.ks2) },
+                      {
+                        label: "Аванс − КС-2",
+                        value: `${toneDot(row.advance_tone)} ${mln(row.advance_ks2)}`,
+                        highlight: row.advance_tone === "red" ? "bad" : "none",
+                      },
+                    ]}
+                  />
+                </MobileEntityCard>
+              ))}
+            </MobileCardStack>
+          </>
         )}
         <div className="space-y-2 px-2 pb-3 text-sm">
           <Text>

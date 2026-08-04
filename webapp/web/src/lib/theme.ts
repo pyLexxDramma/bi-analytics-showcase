@@ -22,8 +22,26 @@ export function writeTheme(mode: ThemeMode): void {
   }
 }
 
+/** Цвет системной строки браузера на телефоне — по выбранной в приложении теме. */
+const BAR_COLOR: Record<ThemeMode, string> = {
+  light: "#f8f9fb",
+  dark: "#0c1219",
+};
+
 export function applyThemeClass(mode: ThemeMode): void {
   const root = document.documentElement;
   if (mode === "dark") root.classList.add("dark");
   else root.classList.remove("dark");
+
+  const meta = document.querySelector<HTMLMetaElement>(
+    'meta[name="theme-color"]:not([media])',
+  );
+  if (meta) {
+    meta.content = BAR_COLOR[mode];
+  } else {
+    const created = document.createElement("meta");
+    created.name = "theme-color";
+    created.content = BAR_COLOR[mode];
+    document.head.appendChild(created);
+  }
 }

@@ -1,6 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { FiltersSheet } from "@/components/filters-sheet";
+import { confirmFeedback, tapFeedback } from "@/lib/haptics";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 /** Shared select look — fixed height so all fields share one baseline. */
 export const FILTER_SELECT_CLASS =
@@ -8,9 +12,9 @@ export const FILTER_SELECT_CLASS =
 
 /** BDDS-style chip buttons for categorical filters. */
 export const FILTER_CHIP_CLASS =
-  "rounded-md border px-2.5 py-1 text-xs border-tremor-border bg-white text-tremor-content-strong disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong";
+  "bi-filter-chip rounded-md border px-2.5 py-1 text-xs border-tremor-border bg-white text-tremor-content-strong disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong";
 export const FILTER_CHIP_ON_CLASS =
-  "rounded-md border px-2.5 py-1 text-xs border-emerald-600 bg-emerald-50 text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200";
+  "bi-filter-chip rounded-md border px-2.5 py-1 text-xs border-emerald-600 bg-emerald-50 text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200";
 
 export type FilterChipOption = string | { value: string; label: string };
 
@@ -20,7 +24,7 @@ function normChipOption(opt: FilterChipOption): { value: string; label: string }
 }
 
 /** ~6 chip-rows visible; longer lists scroll (как старые MultiSelect max-h). */
-const CHIP_LIST_BASE = "flex flex-wrap content-start gap-2";
+const CHIP_LIST_BASE = "bi-filter-chip-list flex flex-wrap content-start gap-2";
 const CHIP_LIST_SCROLL = "max-h-52 overflow-y-auto overscroll-contain pr-0.5";
 const CHIP_SCROLL_AFTER = 7;
 
@@ -43,6 +47,41 @@ function ChipList({
   );
 }
 
+/** Длинные списки (подрядчики, проекты) на телефоне без поиска непригодны. */
+const CHIP_SEARCH_AFTER = 12;
+
+function ChipSearch({
+  value,
+  onChange,
+  count,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  count: number;
+}) {
+  return (
+    <input
+      type="search"
+      inputMode="search"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={`Поиск · ${count}`}
+      className="bi-filter-chip-search mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+    />
+  );
+}
+
+function useChipFilter<T extends { label: string }>(items: T[]) {
+  const [query, setQuery] = useState("");
+  const searchable = items.length > CHIP_SEARCH_AFTER;
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!searchable || !needle) return items;
+    return items.filter((item) => item.label.toLowerCase().includes(needle));
+  }, [items, query, searchable]);
+  return { query, setQuery, searchable, visible };
+}
+
 /** Single-select: desktop = native `<select>` (как main), mobile = chips. */
 export function FilterChipSelect({
   label,
@@ -58,6 +97,7 @@ export function FilterChipSelect({
   disabled?: boolean;
 }) {
   const normalized = options.map(normChipOption);
+  const { query, setQuery, searchable, visible } = useChipFilter(normalized);
   const desktop = (
     <select
       className={`${FILTER_SELECT_CLASS}${label != null ? "" : ""}`}
@@ -73,25 +113,30 @@ export function FilterChipSelect({
     </select>
   );
   const chips = (
-    <ChipList
-      itemCount={options.length}
-      className={label != null ? "mt-2" : ""}
-    >
-      {normalized.map(({ value: v, label: lab }) => {
-        const on = value === v;
-        return (
-          <button
-            key={v}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(v)}
-            className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-          >
-            {lab}
-          </button>
-        );
-      })}
-    </ChipList>
+    <div className={label != null ? "mt-2" : ""}>
+      {searchable ? (
+        <ChipSearch value={query} onChange={setQuery} count={normalized.length} />
+      ) : null}
+      <ChipList itemCount={visible.length}>
+        {visible.map(({ value: v, label: lab }) => {
+          const on = value === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                tapFeedback();
+                onChange(v);
+              }}
+              className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+            >
+              {lab}
+            </button>
+          );
+        })}
+      </ChipList>
+    </div>
   );
   const body = (
     <>
@@ -111,8 +156,131 @@ export function FilterChipSelect({
 }
 
 /**
+ * Desktop-мультивыбор: нативный `<select multiple>` неудобен (Ctrl+клик, растянутый
+ * список), поэтому — кнопка со сводкой и выпадающий список чекбоксов, как в main.
+ */
+function MultiSelectDropdown({
+  values,
+  options,
+  onChange,
+  allLabel,
+  disabled,
+}: {
+  values: string[];
+  options: string[];
+  onChange: (next: string[]) => void;
+  allLabel: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const searchable = options.length > CHIP_SEARCH_AFTER;
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!searchable || !needle) return options;
+    return options.filter((name) => name.toLowerCase().includes(needle));
+  }, [options, query, searchable]);
+
+  const summary =
+    values.length === 0
+      ? allLabel
+      : values.length === 1
+        ? values[0]!
+        : `Выбрано: ${values.length}`;
+
+  const toggle = (name: string) => {
+    onChange(
+      values.includes(name)
+        ? values.filter((item) => item !== name)
+        : [...values, name],
+    );
+  };
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={`${FILTER_SELECT_CLASS} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className="truncate">{summary}</span>
+        <span aria-hidden className="shrink-0 text-xs opacity-60">
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-multiselectable
+          className="absolute left-0 right-0 top-full z-30 mt-1 rounded-tremor-default border border-tremor-border bg-tremor-background p-2 shadow-tremor-dropdown dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+        >
+          {searchable ? (
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={`Поиск · ${options.length}`}
+              className="mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-1.5 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+            />
+          ) : null}
+          <div className="max-h-64 overflow-y-auto overscroll-contain">
+            <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-tremor-default text-tremor-content-strong hover:bg-tremor-background-subtle dark:text-dark-tremor-content-strong dark:hover:bg-dark-tremor-background-subtle">
+              <input
+                type="checkbox"
+                checked={values.length === 0}
+                onChange={() => onChange([])}
+              />
+              {allLabel}
+            </label>
+            {visible.map((name) => (
+              <label
+                key={name}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-tremor-default text-tremor-content-strong hover:bg-tremor-background-subtle dark:text-dark-tremor-content-strong dark:hover:bg-dark-tremor-background-subtle"
+              >
+                <input
+                  type="checkbox"
+                  checked={values.includes(name)}
+                  onChange={() => toggle(name)}
+                />
+                <span className="truncate">{name}</span>
+              </label>
+            ))}
+            {visible.length === 0 ? (
+              <div className="px-2 py-2 text-tremor-default text-tremor-content dark:text-dark-tremor-content">
+                Ничего не найдено
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Multi-select: empty `values` = «Все».
- * Desktop = native select (закрытый вид как main); mobile = chips.
+ * Desktop = выпадающий список с чекбоксами; mobile = chips.
  */
 export function FilterChipMulti({
   label,
@@ -131,55 +299,54 @@ export function FilterChipMulti({
 }) {
   const opts = options.filter((o) => o && o !== allLabel);
   const allOn = values.length === 0;
-  const desktopValue = values.length === 1 ? values[0]! : "";
+  const {
+    query,
+    setQuery,
+    searchable,
+    visible: visibleOpts,
+  } = useChipFilter(opts.map((name) => ({ label: name })));
   const desktop = (
-    <select
-      className={FILTER_SELECT_CLASS}
-      value={desktopValue}
+    <MultiSelectDropdown
+      values={values}
+      options={opts}
+      onChange={onChange}
+      allLabel={allLabel}
       disabled={disabled}
-      onChange={(e) => {
-        const next = e.target.value;
-        onChange(next ? [next] : []);
-      }}
-    >
-      <option value="">{allLabel}</option>
-      {opts.map((name) => (
-        <option key={name} value={name}>
-          {name}
-        </option>
-      ))}
-    </select>
+    />
   );
   const chips = (
-    <ChipList
-      itemCount={opts.length + 1}
-      className={label != null ? "mt-2" : ""}
-    >
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange([])}
-        className={allOn ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-      >
-        {allLabel}
-      </button>
-      {opts.map((name) => {
-        const on = values.includes(name);
-        return (
-          <button
-            key={name}
-            type="button"
-            disabled={disabled}
-            onClick={() =>
-              onChange(on ? values.filter((p) => p !== name) : [...values, name])
-            }
-            className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-          >
-            {name}
-          </button>
-        );
-      })}
-    </ChipList>
+    <div className={label != null ? "mt-2" : ""}>
+      {searchable ? (
+        <ChipSearch value={query} onChange={setQuery} count={opts.length} />
+      ) : null}
+      <ChipList itemCount={visibleOpts.length + 1}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange([])}
+          className={allOn ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+        >
+          {allLabel}
+        </button>
+        {visibleOpts.map(({ label: name }) => {
+          const on = values.includes(name);
+          return (
+            <button
+              key={name}
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                tapFeedback();
+                onChange(on ? values.filter((p) => p !== name) : [...values, name]);
+              }}
+              className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </ChipList>
+    </div>
   );
   const body = (
     <>
@@ -211,13 +378,55 @@ export function FiltersCard({
   open,
   onToggle,
   title = "Фильтры",
+  activeCount,
+  onReset,
   children,
 }: {
   open: boolean;
   onToggle: () => void;
   title?: string;
+  activeCount?: number;
+  onReset?: () => void;
   children: ReactNode;
 }) {
+  const mobile = useIsMobileViewport();
+  // Лист держим на собственном состоянии: экраны с `open=true` по умолчанию
+  // (например «Дебиторка») иначе открывали бы его при загрузке страницы.
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  if (mobile) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => {
+            tapFeedback();
+            setSheetOpen(true);
+          }}
+          aria-expanded={sheetOpen}
+          className="bi-filters-trigger mb-4"
+        >
+          <span className="bi-filters-trigger-icon" aria-hidden>
+            ⛭
+          </span>
+          <span className="flex-1 text-left">{title}</span>
+          {activeCount ? (
+            <span className="bi-filters-trigger-badge">{activeCount}</span>
+          ) : null}
+          <span aria-hidden>▾</span>
+        </button>
+        <FiltersSheet
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          title={title}
+          onReset={onReset}
+        >
+          <div className="bi-filters-body space-y-3">{children}</div>
+        </FiltersSheet>
+      </>
+    );
+  }
+
   return (
     <div className="bi-filters-panel mb-6 rounded-xl border border-tremor-border bg-tremor-background p-4 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
       <button
@@ -243,7 +452,10 @@ export function FiltersReset({
     <button
       type="button"
       disabled={disabled}
-      onClick={onClick}
+      onClick={(event) => {
+        confirmFeedback();
+        onClick?.(event);
+      }}
       className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm text-tremor-content-strong disabled:opacity-40 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
       {...rest}
     >
@@ -371,6 +583,7 @@ export function FilterField({
 export function FilterCheck({
   label,
   className = "",
+  onChange,
   ...input
 }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
   return (
@@ -379,7 +592,15 @@ export function FilterCheck({
         input.disabled ? "opacity-50" : ""
       } ${className}`}
     >
-      <input type="checkbox" className="bi-filters-check-input" {...input} />
+      <input
+        type="checkbox"
+        className="bi-filters-check-input"
+        onChange={(event) => {
+          tapFeedback();
+          onChange?.(event);
+        }}
+        {...input}
+      />
       <span className="bi-filters-check-label leading-snug">{label}</span>
     </label>
   );

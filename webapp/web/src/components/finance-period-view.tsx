@@ -10,6 +10,11 @@ import {
   withRuPlanFactDeviation,
 } from "@/lib/chart-ru";
 import { FilterChipSelect } from "@/components/dashboard-filters";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
 
 type Filters = {
   project: string;
@@ -180,7 +185,30 @@ function PeriodTable({
           {title}
         </Title>
       </div>
-      <div className="overflow-x-auto">
+      <MobileCardStack compact>
+        {rows.map((row, index) => (
+          <MobileEntityCard
+            key={`m-${row[label]}-${index}`}
+            title={row[label] ?? "—"}
+            badge={formatMln(row.deviation / 1_000_000)}
+            badgeTone={row.deviation < 0 ? "bad" : "ok"}
+          >
+            <MobileMetricGrid
+              columns={3}
+              items={[
+                { label: "План", value: formatMln(row.plan / 1_000_000) },
+                { label: "Факт", value: formatMln(row.fact / 1_000_000) },
+                {
+                  label: "Откл.",
+                  value: formatMln(row.deviation / 1_000_000),
+                  highlight: row.deviation < 0 ? "bad" : "ok",
+                },
+              ]}
+            />
+          </MobileEntityCard>
+        ))}
+      </MobileCardStack>
+      <div className="hidden overflow-x-auto lg:block">
         <table className="min-w-full text-left text-tremor-default">
           <thead className="bg-tremor-background-subtle text-tremor-label uppercase text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
             <tr>

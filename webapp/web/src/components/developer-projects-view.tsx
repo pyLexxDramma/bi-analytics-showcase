@@ -10,7 +10,11 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
-import { FiltersCard, FiltersReset } from "@/components/dashboard-filters";
+import {
+  FilterChipMulti,
+  FiltersCard,
+  FiltersReset,
+} from "@/components/dashboard-filters";
 import type { ExportTable } from "@/lib/table-export";
 
 type MatrixColumn = DeveloperProjectsPayload["matrix"]["columns"][number];
@@ -192,6 +196,16 @@ function WideMatrixTable({
   );
 }
 
+/** Знак отклонения в дополнение к цвету — читается и без различения цветов. */
+function otklWithSign(raw: string | null | undefined): string {
+  const text = (raw ?? "Н/Д").trim();
+  if (!text || text === "Н/Д" || text === "—") return text;
+  const numMatch = text.replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+  const n = numMatch ? Number(numMatch[0]) : null;
+  if (n == null || !Number.isFinite(n) || n === 0) return text;
+  return `${n < 0 ? "▼" : "▲"} ${text}`;
+}
+
 /** Mobile: секции по контрольной точке — скролл только вертикальный. */
 function MobileMilestoneSections({
   columns,
@@ -210,18 +224,19 @@ function MobileMilestoneSections({
         return (
           <section
             key={col.key}
-            className="overflow-hidden rounded-lg border-[3px] border-[#94a3b8] dark:border-white"
+            className="overflow-hidden rounded-lg border-[3px] border-[#94a3b8] dark:border-slate-400"
           >
-            <div className={`${blockBg} border-b-2 border-[#94a3b8] px-3 py-2 dark:border-white`}>
+            <div className={`${blockBg} border-b-2 border-[#94a3b8] px-3 py-2 dark:border-slate-400`}>
               <div className="text-[11px] font-medium opacity-80">{phaseLabel}</div>
               <div className="text-sm font-bold">{col.label}</div>
             </div>
             <table className="w-full table-fixed border-separate border-spacing-0 text-center text-xs">
+              {/* Даты формата 28.02.2025 не должны переноситься — колонкам нужен запас */}
               <colgroup>
-                <col className="w-[34%]" />
-                <col className="w-[22%]" />
-                <col className="w-[22%]" />
-                <col className="w-[22%]" />
+                <col className="w-[28%]" />
+                <col className="w-[24%]" />
+                <col className="w-[24%]" />
+                <col className="w-[24%]" />
               </colgroup>
               <thead>
                 <tr className="text-[10px] uppercase">
@@ -243,7 +258,7 @@ function MobileMilestoneSections({
               <tbody>
                 {projects.map((row) => {
                   const cell = row.cells[col.key];
-                  const body = `${CELL} bg-white px-1 py-2 tabular-nums dark:bg-[#0c1219]`;
+                  const body = `${CELL} whitespace-nowrap bg-white px-0.5 py-2 text-[11px] tabular-nums dark:bg-[#0c1219]`;
                   return (
                     <tr key={`${col.key}-${row.project}`}>
                       <td
@@ -251,14 +266,14 @@ function MobileMilestoneSections({
                       >
                         {row.project}
                       </td>
-                      <td className={`${body} break-words ${dateClass(cell)}`}>
+                      <td className={`${body} ${dateClass(cell)}`}>
                         {cell?.plan ?? "Н/Д"}
                       </td>
-                      <td className={`${body} break-words ${dateClass(cell)}`}>
+                      <td className={`${body} ${dateClass(cell)}`}>
                         {cell?.fact ?? "Н/Д"}
                       </td>
-                      <td className={`${body} break-words ${otklClass(cell)}`}>
-                        {cell?.otkl ?? "Н/Д"}
+                      <td className={`${body} ${otklClass(cell)}`}>
+                        {otklWithSign(cell?.otkl)}
                       </td>
                     </tr>
                   );
@@ -309,12 +324,6 @@ export function DeveloperProjectsView() {
   const lifeCols = columns.filter((c) => c.phase !== "invest");
   const hasRows = (data?.matrix.projects.length ?? 0) > 0;
 
-  const toggleProject = (name: string) => {
-    setSelected((prev) =>
-      prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name],
-    );
-  };
-
   const matrixExport = () =>
     data?.matrix.projects.length
       ? buildMatrixExport(columns, data.matrix.projects)
@@ -326,37 +335,12 @@ export function DeveloperProjectsView() {
     <AppShell title="Девелоперские проекты" loading={loading}>
       <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
         <FiltersReset disabled={selected.length === 0} onClick={() => setSelected([])} />
-        <Text className="mt-1">Проект</Text>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setSelected([])}
-            className={`rounded-md border px-2.5 py-1 text-xs ${
-              selected.length === 0
-                ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200"
-                : "border-tremor-border bg-white dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-            }`}
-          >
-            Все
-          </button>
-          {(data?.filters.projects ?? []).map((name) => {
-            const on = selected.includes(name);
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => toggleProject(name)}
-                className={`rounded-md border px-2.5 py-1 text-xs ${
-                  on
-                    ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200"
-                    : "border-tremor-border bg-white text-tremor-content-strong dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-                }`}
-              >
-                {name}
-              </button>
-            );
-          })}
-        </div>
+        <FilterChipMulti
+          label="Проект"
+          values={selected}
+          options={data?.filters.projects ?? []}
+          onChange={setSelected}
+        />
       </FiltersCard>
 
       {(data?.hints?.length ?? 0) > 0 ? (

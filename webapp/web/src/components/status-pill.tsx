@@ -4,18 +4,20 @@ import type { ReactNode } from "react";
 
 export type StatusPillTone = "ok" | "warn" | "bad" | "neutral";
 
+/** Непрозрачные пары фон/текст: полупрозрачные тинты на тёмной теме теряли контраст. */
 const TONE: Record<StatusPillTone, string> = {
-  ok: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
-  warn: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300",
-  bad: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
-  neutral: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  ok: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-50",
+  warn: "bg-orange-100 text-orange-900 dark:bg-orange-900 dark:text-orange-50",
+  bad: "bg-rose-100 text-rose-900 dark:bg-rose-900 dark:text-rose-50",
+  neutral: "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-50",
 };
 
-const DOT: Record<StatusPillTone, string> = {
-  ok: "bg-emerald-600 dark:bg-emerald-400",
-  warn: "bg-orange-500 dark:bg-orange-400",
-  bad: "bg-rose-600 dark:bg-rose-400",
-  neutral: "bg-slate-400",
+/** Знак дублирует цвет: статус читается и при дальтонизме, и на ярком солнце. */
+const GLYPH: Record<StatusPillTone, string> = {
+  ok: "✓",
+  warn: "!",
+  bad: "✕",
+  neutral: "·",
 };
 
 export function StatusPill({
@@ -29,7 +31,9 @@ export function StatusPill({
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${TONE[tone]}`}
     >
-      <span className={`h-2 w-2 shrink-0 rounded-full ${DOT[tone]}`} aria-hidden />
+      <span className="shrink-0 text-[10px] leading-none" aria-hidden>
+        {GLYPH[tone]}
+      </span>
       {children}
     </span>
   );

@@ -259,7 +259,24 @@ export function ApprovedBudgetView() {
           <Title>{data?.labels.period_table_title ?? "Сводная таблица по месяцам"}</Title>
         </div>
         <FullscreenPanel disabled={!periodRows.length} className="!overflow-x-hidden">
-          <MobileCardStack>
+          <MobileCardStack
+            pinned={
+              <MobileEntityCard className="bi-card-pinned" title="ИТОГО">
+                <MobileMetricGrid
+                  items={[
+                    { label: "План", value: mlnPlain(data?.totals.plan ?? 0) },
+                    { label: "Факт", value: mlnPlain(data?.totals.fact ?? 0) },
+                    {
+                      label: "Откл.",
+                      value: mlnPlain(data?.totals.deviation ?? 0),
+                      className: deviationClass(data?.totals.deviation ?? 0),
+                    },
+                  ]}
+                />
+                <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">Значения — млн ₽</p>
+              </MobileEntityCard>
+            }
+          >
             {periodRows.map((row) => (
               <MobileEntityCard key={row.period} title={row.period}>
                 <MobileMetricGrid
@@ -271,20 +288,6 @@ export function ApprovedBudgetView() {
                 />
               </MobileEntityCard>
             ))}
-            <MobileEntityCard title="ИТОГО">
-              <MobileMetricGrid
-                items={[
-                  { label: "План", value: mlnPlain(data?.totals.plan ?? 0) },
-                  { label: "Факт", value: mlnPlain(data?.totals.fact ?? 0) },
-                  {
-                    label: "Откл.",
-                    value: mlnPlain(data?.totals.deviation ?? 0),
-                    className: deviationClass(data?.totals.deviation ?? 0),
-                  },
-                ]}
-              />
-              <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">Значения — млн ₽</p>
-            </MobileEntityCard>
           </MobileCardStack>
           <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
             <table className={TABLE}>
@@ -322,7 +325,33 @@ export function ApprovedBudgetView() {
           <Title>{data?.labels.project_table_title ?? "Таблица утверждённого бюджет план/факт по проектам"}</Title>
         </div>
         <FullscreenPanel disabled={!projectRows.length} className="!overflow-x-hidden">
-          <MobileCardStack>
+          <MobileCardStack
+            pinned={
+              <MobileEntityCard
+                className="bi-card-pinned"
+                title="ИТОГО"
+                badge={pct(data?.gauge.fact_pct ?? 0)}
+                badgeTone="neutral"
+              >
+                <MobileMetricGrid
+                  columns={2}
+                  items={[
+                    { label: "План", value: mlnPlain(data?.totals.plan ?? 0) },
+                    { label: "Факт", value: mlnPlain(data?.totals.fact ?? 0) },
+                    { label: "Остаток", value: mlnPlain(data?.totals.remainder ?? 0) },
+                    {
+                      label: "Откл.",
+                      value: mlnPlain(data?.totals.deviation ?? 0),
+                      className: deviationClass(data?.totals.deviation ?? 0),
+                    },
+                    { label: "% вып.", value: pct(data?.gauge.fact_pct ?? 0) },
+                    { label: "% контр.", value: pct(0) },
+                  ]}
+                />
+                <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">Значения — млн ₽</p>
+              </MobileEntityCard>
+            }
+          >
             {projectRows.map((row) => (
               <MobileEntityCard
                 key={row.project}
@@ -343,24 +372,6 @@ export function ApprovedBudgetView() {
                 />
               </MobileEntityCard>
             ))}
-            <MobileEntityCard title="ИТОГО" badge={pct(data?.gauge.fact_pct ?? 0)} badgeTone="neutral">
-              <MobileMetricGrid
-                columns={2}
-                items={[
-                  { label: "План", value: mlnPlain(data?.totals.plan ?? 0) },
-                  { label: "Факт", value: mlnPlain(data?.totals.fact ?? 0) },
-                  { label: "Остаток", value: mlnPlain(data?.totals.remainder ?? 0) },
-                  {
-                    label: "Откл.",
-                    value: mlnPlain(data?.totals.deviation ?? 0),
-                    className: deviationClass(data?.totals.deviation ?? 0),
-                  },
-                  { label: "% вып.", value: pct(data?.gauge.fact_pct ?? 0) },
-                  { label: "% контр.", value: pct(0) },
-                ]}
-              />
-              <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">Значения — млн ₽</p>
-            </MobileEntityCard>
           </MobileCardStack>
           <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
             <table className={TABLE}>
