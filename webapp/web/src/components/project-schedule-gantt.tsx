@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Text } from "@tremor/react";
 import type { ProjectSchedulePayload } from "@/lib/api";
 import { PLOTLY_CONFIG } from "@/lib/plotly-config";
@@ -15,6 +15,23 @@ const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
     </div>
   ),
 });
+
+function useChartTheme() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setDark(root.classList.contains("dark"));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return {
+    dark,
+    axis: dark ? "#cbd5e1" : "#334155",
+    grid: dark ? "rgba(148,163,184,0.22)" : "rgba(148,163,184,0.25)",
+  };
+}
 
 const PLAN = "#14b8a6";
 const FACT = "#fb923c";
@@ -122,6 +139,7 @@ export function ProjectScheduleGantt({
   const covenantMode = Boolean(data.gantt.covenant_mode ?? data.filters?.applied?.covenant_mode);
   const mobile = useIsMobileViewport();
   const landscape = useIsLandscape();
+  const theme = useChartTheme();
 
   /**
    * Широкий режим с датами на полосах и гориз. скроллом —
@@ -482,7 +500,7 @@ export function ProjectScheduleGantt({
       tickformat: "%d-%m-%y",
       tickangle: -35,
       showgrid: true,
-      gridcolor: "rgba(148,163,184,0.25)",
+      gridcolor: theme.grid,
       automargin: false,
       fixedrange: true,
       domain: [0, 1],
@@ -539,7 +557,7 @@ export function ProjectScheduleGantt({
           title: "",
           zeroline: false,
         },
-        font: { color: "#94a3b8", size: taskFont },
+        font: { color: theme.axis, size: taskFont },
       },
       axisLayout: {
         height: AXIS_STRIP_H,
@@ -558,6 +576,8 @@ export function ProjectScheduleGantt({
           ticks: "outside",
           ticklen: 4,
           tickangle: -30,
+          tickfont: { size: 11, color: theme.axis },
+          tickcolor: theme.axis,
           side: "bottom",
           showgrid: false,
           automargin: false,
@@ -567,7 +587,7 @@ export function ProjectScheduleGantt({
           fixedrange: true,
           range: [0, 1],
         },
-        font: { color: "#334155", size: 11 },
+        font: { color: theme.axis, size: 11 },
       },
       config: {
         ...PLOTLY_CONFIG,
@@ -599,6 +619,8 @@ export function ProjectScheduleGantt({
     labelColPct,
     data.gantt.range_start,
     data.gantt.range_end,
+    theme.axis,
+    theme.grid,
   ]);
 
   if (!built) {
