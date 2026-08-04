@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ProjectDocumentationPayload } from "@/lib/api";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG } from "@/lib/plotly-config";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -392,6 +393,8 @@ export function PdDelayGanttChart({
   fullscreen?: boolean;
 }) {
   const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
+  const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const sorted = [...rows].sort((a, b) => (b.delay_dur || 0) - (a.delay_dur || 0));
     const yLabels = sorted.map((r) => r.label);
@@ -410,6 +413,9 @@ export function PdDelayGanttChart({
     const redLen: number[] = [];
     const redCd: string[] = [];
     const annotations: Array<Record<string, unknown>> = [];
+    /** На узком экране две даты рядом нечитаемы — оставляем одну с min gap. */
+    const minLabelGapDays = compact ? 55 : 12;
+    const labelFont = compact ? 9 : 10;
 
     for (const row of sorted) {
       const y = row.label;
@@ -454,49 +460,51 @@ export function PdDelayGanttChart({
         y,
         showarrow: false,
         yanchor: "middle" as const,
-        font: { size: 10, color: labelColor },
+        font: { size: labelFont, color: labelColor },
       };
 
-      if (row.base_label && bfMs != null && !hasRed && (finMs == null || finMs <= bfMs)) {
+      const placedXs: number[] = [];
+      const farEnough = (ms: number) =>
+        placedXs.every((p) => Math.abs(ms - p) / DAY_MS >= minLabelGapDays);
+      const place = (ms: number, text: string, xanchor: "left" | "right", xshift: number) => {
+        if (!text || !farEnough(ms)) return;
+        placedXs.push(ms);
         annotations.push({
           ...annBase,
-          x: bfMs,
-          text: row.base_label,
-          xanchor: "left",
-          xshift: 6,
+          x: ms,
+          text,
+          xanchor,
+          xshift,
         });
-      } else if (row.base_label && bfMs != null && hasRed) {
-        annotations.push({
-          ...annBase,
-          x: bfMs,
-          text: row.base_label,
-          xanchor: "right",
-          xshift: -6,
-        });
-      }
+      };
 
-      if (hasGreen && row.finish_label && finMs != null && !hasRed) {
-        const gapDays =
-          bfMs != null && finMs != null ? Math.abs((bfMs - finMs) / DAY_MS) : 99;
-        if (gapDays > 5) {
-          annotations.push({
-            ...annBase,
-            x: finMs,
-            text: row.finish_label,
-            xanchor: "left",
-            xshift: 6,
-          });
+      // Mobile: одна подпись на ряд (конец факта/просрочки), без пары дат на полосе.
+      if (compact) {
+        if (hasRed && row.finish_label && delayEndMs != null) {
+          place(delayEndMs, row.finish_label, "left", 6);
+        } else if (hasGreen && row.finish_label && finMs != null) {
+          place(finMs, row.finish_label, "left", 6);
+        } else if (row.base_label && bfMs != null) {
+          place(bfMs, row.base_label, "left", 6);
         }
-      }
+      } else {
+        if (row.base_label && bfMs != null && !hasRed && (finMs == null || finMs <= bfMs)) {
+          place(bfMs, row.base_label, "left", 6);
+        } else if (row.base_label && bfMs != null && hasRed) {
+          place(bfMs, row.base_label, "right", -6);
+        }
 
-      if (hasRed && row.finish_label && delayEndMs != null) {
-        annotations.push({
-          ...annBase,
-          x: delayEndMs,
-          text: row.finish_label,
-          xanchor: "left",
-          xshift: 6,
-        });
+        if (hasGreen && row.finish_label && finMs != null && !hasRed) {
+          const gapDays =
+            bfMs != null && finMs != null ? Math.abs((bfMs - finMs) / DAY_MS) : 99;
+          if (gapDays > minLabelGapDays) {
+            place(finMs, row.finish_label, "left", 6);
+          }
+        }
+
+        if (hasRed && row.finish_label && delayEndMs != null) {
+          place(delayEndMs, row.finish_label, "left", 6);
+        }
       }
     }
 
@@ -555,13 +563,13 @@ export function PdDelayGanttChart({
     const rangeHi = rangeEnd ? toMs(rangeEnd) : xs.length ? Math.max(...xs) : null;
     let xRange: [number, number] | undefined;
     if (rangeLo != null && rangeHi != null) {
-      const pad = Math.max((rangeHi - rangeLo) * 0.08, 6 * DAY_MS);
+      const pad = Math.max((rangeHi - rangeLo) * (compact ? 0.12 : 0.08), 6 * DAY_MS);
       xRange = [rangeLo - pad, rangeHi + pad];
     }
 
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.62, 780))
-      : Math.max(280, 120 + sorted.length * 52);
+      : Math.max(compact ? 300 : 280, (compact ? 140 : 120) + sorted.length * (compact ? 48 : 52));
 
     return {
       data,
@@ -569,22 +577,40 @@ export function PdDelayGanttChart({
         height,
         barmode: "overlay" as const,
         bargap: 0.44,
-        margin: { l: 16, r: 140, t: 56, b: 56 },
+        // Mobile: легенда снизу — иначе наезжает на первую полосу
+        margin: compact
+          ? { l: 8, r: 72, t: 20, b: 118 }
+          : { l: 16, r: 140, t: 56, b: 56 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         showlegend: true,
-        legend: {
-          orientation: "h" as const,
-          y: 1.12,
-          x: 0,
-          font: { size: 12, color: theme.axis },
-        },
+        legend: compact
+          ? {
+              orientation: "h" as const,
+              y: -0.28,
+              yanchor: "top" as const,
+              x: 0,
+              xanchor: "left" as const,
+              font: { size: 10, color: theme.axis },
+              bgcolor: "rgba(0,0,0,0)",
+            }
+          : {
+              orientation: "h" as const,
+              y: 1.12,
+              x: 0,
+              font: { size: 12, color: theme.axis },
+            },
         annotations,
         xaxis: {
           type: "date" as const,
-          title: { text: "Период", font: { size: 12, color: theme.axis } },
+          title: {
+            text: "Период",
+            font: { size: compact ? 11 : 12, color: theme.axis },
+            standoff: compact ? 8 : 4,
+          },
           tickformat: "%d.%m.%Y",
-          tickfont: { size: 11, color: theme.axis },
+          tickangle: compact ? -90 : 0,
+          tickfont: { size: compact ? 9 : 11, color: theme.axis },
           gridcolor: theme.grid,
           automargin: true,
           ...(xRange ? { range: xRange } : {}),
@@ -595,7 +621,7 @@ export function PdDelayGanttChart({
           tickmode: "array" as const,
           tickvals: yLabels,
           ticktext: yLabels,
-          tickfont: { size: 11, color: theme.axis },
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
           automargin: true,
         },
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
@@ -607,7 +633,7 @@ export function PdDelayGanttChart({
       },
       config: { ...PLOTLY_CONFIG },
     };
-  }, [rows, rangeStart, rangeEnd, fullscreen, theme]);
+  }, [rows, rangeStart, rangeEnd, fullscreen, theme, compact]);
 
   if (!rows.length) {
     return (
