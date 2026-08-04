@@ -229,6 +229,7 @@ function SortHeader({
   stickyLeft,
   zIndex = 2,
   className = "",
+  borderWidth = 1,
 }: {
   label: string;
   sortKey: string;
@@ -240,13 +241,14 @@ function SortHeader({
   stickyLeft?: number | string;
   zIndex?: number;
   className?: string;
+  borderWidth?: number;
 }) {
   const active = sort?.key === sortKey;
   return (
     <th
       className={`px-2 py-2 text-center text-xs font-semibold ${className}`}
       style={{
-        border: `1px solid ${palette.border}`,
+        border: `${borderWidth}px solid ${palette.border}`,
         backgroundColor: palette.thBg,
         color: palette.thFg,
         position: "sticky",
@@ -777,7 +779,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               {data?.meta.period_label ? `, ${data.meta.period_label}` : ""}
             </Title>
           </div>
-          <div className="max-h-[min(70vh,42rem)] w-full min-w-0 overflow-auto overscroll-contain rounded-md border border-tremor-border dark:border-dark-tremor-border">
+          <div className="max-h-[min(70vh,42rem)] w-full min-w-0 overflow-auto overscroll-contain rounded-md border-2 border-slate-500 dark:border-slate-400">
             <table
               className="min-w-full text-sm"
               style={{ borderCollapse: "separate", borderSpacing: 0 }}
@@ -788,7 +790,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={2}
                       style={{
-                        border: `1px solid ${pal.border}`,
+                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
                         backgroundColor: pal.thBg,
                         color: pal.thFg,
                         position: "sticky",
@@ -802,7 +804,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={3}
                       style={{
-                        border: `1px solid ${pal.border}`,
+                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
                         backgroundColor: pal.planHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -817,7 +819,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={1}
                       style={{
-                        border: `1px solid ${pal.border}`,
+                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
                         backgroundColor: pal.devHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -832,7 +834,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={matrixMeta.week_plan_keys.length}
                       style={{
-                        border: `1px solid ${pal.border}`,
+                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
                         backgroundColor: pal.planHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -847,7 +849,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <th
                       colSpan={matrixMeta.week_skud_keys.length}
                       style={{
-                        border: `1px solid ${pal.border}`,
+                        border: `2px solid ${dark ? "#94a3b8" : "#4b5563"}`,
                         backgroundColor: pal.skudHdr,
                         color: pal.thFg,
                         textAlign: "center",
@@ -867,7 +869,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="label"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={pal}
+                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    borderWidth={2}
                     stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
                     stickyLeft={0}
                     zIndex={6}
@@ -881,7 +884,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="vid_raboty"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={pal}
+                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    borderWidth={2}
                     stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
                     stickyLeft="12rem"
                     zIndex={6}
@@ -895,7 +899,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="plan"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={pal}
+                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    borderWidth={2}
                     stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
                     zIndex={4}
                     style={{ backgroundColor: pal.planHdr }}
@@ -905,7 +910,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="skud"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={pal}
+                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    borderWidth={2}
                     stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
                     zIndex={4}
                     style={{ backgroundColor: pal.skudHdr }}
@@ -915,7 +921,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="deviation"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={pal}
+                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    borderWidth={2}
                     stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
                     zIndex={4}
                     style={{ backgroundColor: pal.devHdr }}
@@ -925,7 +932,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     sortKey="delta_pct"
                     sort={mtxSort}
                     onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
-                    palette={pal}
+                    palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                    borderWidth={2}
                     stickyTop={matrixMeta.show_week_columns ? "2.5rem" : 0}
                     zIndex={4}
                     style={{ backgroundColor: pal.devHdr }}
@@ -938,7 +946,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                           sortKey={k}
                           sort={mtxSort}
                           onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
-                          palette={pal}
+                          palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                          borderWidth={2}
                           stickyTop="2.5rem"
                           zIndex={4}
                           style={{ backgroundColor: pal.planHdr }}
@@ -953,7 +962,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                           sortKey={k}
                           sort={mtxSort}
                           onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
-                          palette={pal}
+                          palette={{ ...pal, border: dark ? "#94a3b8" : "#4b5563" }}
+                          borderWidth={2}
                           stickyTop="2.5rem"
                           zIndex={4}
                           style={{ backgroundColor: pal.skudHdr }}
