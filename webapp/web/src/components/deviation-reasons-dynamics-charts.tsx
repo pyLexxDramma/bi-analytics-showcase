@@ -8,6 +8,7 @@ import {
   PLOTLY_CONFIG,
   PLOTLY_ZEROLINE,
 } from "@/lib/plotly-config";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -51,6 +52,7 @@ export function DeviationFacetChart({
   fullscreen?: boolean;
 }) {
   const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
   const figure = useMemo(() => {
     const periods = facet.rows.map((r) => String(r.period));
     const totals = facet.rows.map((r) => Number(r.total ?? 0));
@@ -58,7 +60,9 @@ export function DeviationFacetChart({
     const yTop = hi > 0 ? Math.max(hi * 1.45, hi + 0.85, 1) : 1;
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 720))
-      : Math.max(360, 280 + Math.min(periods.length, 10) * 28);
+      : mobile
+        ? Math.max(340, 260 + Math.min(periods.length, 10) * 24)
+        : Math.max(400, 300 + Math.min(periods.length, 10) * 28);
     const nz = periods.map((_, i) => {
       let c = 0;
       for (const cat of facet.categories) {
@@ -96,7 +100,7 @@ export function DeviationFacetChart({
       mode: "text" as const,
       text: totals.map((v) => (v > 0 ? String(Math.round(v)) : "")),
       textposition: "top center" as const,
-      textfont: { size: 13, color: theme.label },
+      textfont: { size: mobile ? 12 : 13, color: theme.label },
       hoverinfo: "skip" as const,
       showlegend: false,
     } as never);
@@ -105,18 +109,22 @@ export function DeviationFacetChart({
       layout: {
         barmode: "stack" as const,
         height,
-        margin: { l: 56, r: 140, t: 72, b: 72 },
+        autosize: true,
+        // Легенда снизу в одну строку — график на всю ширину карточки
+        margin: mobile
+          ? { l: 44, r: 12, t: 52, b: 118 }
+          : { l: 56, r: 24, t: 64, b: 110 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         title: {
           text: facet.project,
           x: 0.5,
           xanchor: "center" as const,
-          font: { size: 18, color: theme.label },
+          font: { size: mobile ? 16 : 18, color: theme.label },
         },
         yaxis: {
           title: {
-            text: "Количество отклонений",
+            text: mobile ? "" : "Количество отклонений",
             font: { size: 12, color: theme.axis },
           },
           range: [0, yTop],
@@ -126,22 +134,24 @@ export function DeviationFacetChart({
         },
         xaxis: {
           title: {
-            text: periodLabel || "Период (месяц)",
+            text: mobile ? "" : periodLabel || "Период (месяц)",
             font: { size: 12, color: theme.axis },
           },
-          tickfont: { size: 11, color: theme.axis },
+          tickfont: { size: mobile ? 10 : 11, color: theme.axis },
+          tickangle: mobile && periods.length > 2 ? -35 : 0,
           automargin: true,
           ...PLOTLY_AXIS_LINE,
         },
         legend: {
-          orientation: "v" as const,
+          orientation: "h" as const,
           yanchor: "top" as const,
-          y: 1,
-          xanchor: "left" as const,
-          x: 1.02,
-          title: { text: "Причина отклонения", font: { size: 12 } },
-          font: { size: 11, color: theme.axis },
+          y: mobile ? -0.28 : -0.18,
+          xanchor: "center" as const,
+          x: 0.5,
+          font: { size: mobile ? 10 : 11, color: theme.axis },
           bgcolor: "rgba(0,0,0,0)",
+          tracegroupgap: 8,
+          itemsizing: "constant" as const,
         },
         bargap: periods.length <= 4 ? 0.45 : 0.28,
         showlegend: true,
@@ -151,9 +161,12 @@ export function DeviationFacetChart({
           activecolor: "#0f766e",
         },
       },
-      config: { ...PLOTLY_CONFIG },
+      config: {
+        ...PLOTLY_CONFIG,
+        ...(mobile && !fullscreen ? { displayModeBar: false } : {}),
+      },
     };
-  }, [facet, periodLabel, fullscreen, theme]);
+  }, [facet, periodLabel, fullscreen, theme, mobile]);
 
   return (
     <PlotlyFigure
@@ -178,6 +191,7 @@ export function DeviationStackChart({
   fullscreen?: boolean;
 }) {
   const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
   const figure = useMemo(() => {
     const periods = rows.map((r) => String(r.period));
     const totals = rows.map((r) => Number(r.total ?? 0));
@@ -185,7 +199,9 @@ export function DeviationStackChart({
     const yTop = hi > 0 ? Math.max(hi * 1.45, hi + 0.85, 1) : 1;
     const height = fullscreen
       ? Math.max(520, Math.min(window.innerHeight * 0.65, 860))
-      : Math.max(480, 360 + Math.min(periods.length, 14) * 24);
+      : mobile
+        ? Math.max(360, 280 + Math.min(periods.length, 14) * 20)
+        : Math.max(500, 360 + Math.min(periods.length, 14) * 24);
     const nz = periods.map((_, i) => {
       let c = 0;
       for (const p of projects) {
@@ -221,7 +237,7 @@ export function DeviationStackChart({
       mode: "text" as const,
       text: totals.map((v) => (v > 0 ? String(Math.round(v)) : "")),
       textposition: "top center" as const,
-      textfont: { size: 13, color: theme.label },
+      textfont: { size: mobile ? 12 : 13, color: theme.label },
       hoverinfo: "skip" as const,
       showlegend: false,
     } as never);
@@ -230,17 +246,15 @@ export function DeviationStackChart({
       layout: {
         barmode: "stack" as const,
         height,
-        margin: {
-          l: 56,
-          r: Math.min(300, Math.max(140, 100 + projects.length * 18)),
-          t: 56,
-          b: 90,
-        },
+        autosize: true,
+        margin: mobile
+          ? { l: 44, r: 12, t: 28, b: 130 }
+          : { l: 56, r: 24, t: 40, b: 120 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         yaxis: {
           title: {
-            text: "Количество отклонений",
+            text: mobile ? "" : "Количество отклонений",
             font: { size: 13, color: theme.axis },
           },
           range: [0, yTop],
@@ -249,20 +263,24 @@ export function DeviationStackChart({
           ...PLOTLY_ZEROLINE,
         },
         xaxis: {
-          title: { text: "Период", font: { size: 13, color: theme.axis } },
-          tickfont: { size: 11, color: theme.axis },
+          title: {
+            text: mobile ? "" : "Период",
+            font: { size: 13, color: theme.axis },
+          },
+          tickfont: { size: mobile ? 10 : 11, color: theme.axis },
+          tickangle: mobile ? -35 : 0,
           automargin: true,
           ...PLOTLY_AXIS_LINE,
         },
         legend: {
-          orientation: "v" as const,
+          orientation: "h" as const,
           yanchor: "top" as const,
-          y: 1,
-          xanchor: "left" as const,
-          x: 1.02,
-          title: { text: "Проект", font: { size: 12 } },
-          font: { size: 11, color: theme.axis },
+          y: mobile ? -0.32 : -0.2,
+          xanchor: "center" as const,
+          x: 0.5,
+          font: { size: mobile ? 10 : 11, color: theme.axis },
           bgcolor: "rgba(0,0,0,0)",
+          itemsizing: "constant" as const,
         },
         bargap: periods.length <= 4 ? 0.64 : 0.5,
         showlegend: true,
@@ -272,9 +290,12 @@ export function DeviationStackChart({
           activecolor: "#0f766e",
         },
       },
-      config: { ...PLOTLY_CONFIG },
+      config: {
+        ...PLOTLY_CONFIG,
+        ...(mobile && !fullscreen ? { displayModeBar: false } : {}),
+      },
     };
-  }, [rows, projects, colors, fullscreen, theme]);
+  }, [rows, projects, colors, fullscreen, theme, mobile]);
 
   if (!rows.length || !projects.length) {
     return (
