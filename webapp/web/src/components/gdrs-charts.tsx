@@ -153,7 +153,7 @@ export function GdrsGroupedBarChart({
         },
         {
           type: "bar" as const,
-          name: "Отклонение (факт − план)",
+          name: compact ? "Отклонение" : "Отклонение (факт − план)",
           x: labels,
           y: deviations,
           text: rows.map((row) => signed(row.deviation)),
@@ -173,15 +173,15 @@ export function GdrsGroupedBarChart({
         margin: {
           l: compact ? 40 : contractors ? 64 : 56,
           r: 16,
-          t: compact ? 48 : 88,
+          t: compact ? 28 : 88,
           b: contractors
             ? compact
-              ? 110
+              ? 130
               : labels.length > 8
                 ? 200
                 : 160
             : compact
-              ? 80
+              ? 108
               : light
                 ? 120
                 : 100,
@@ -189,13 +189,25 @@ export function GdrsGroupedBarChart({
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        legend: {
-          orientation: "h" as const,
-          x: 0.5,
-          xanchor: "center" as const,
-          y: compact ? 1.12 : -0.18,
-          font: { color: theme.label, size: compact ? 11 : contractors ? 16 : 13 },
-        },
+        legend: compact
+          ? {
+              orientation: "h" as const,
+              x: 0.5,
+              xanchor: "center" as const,
+              y: -0.22,
+              yanchor: "top" as const,
+              font: { color: theme.label, size: 11 },
+              bgcolor: "rgba(0,0,0,0)",
+              tracegroupgap: 8,
+              itemsizing: "constant" as const,
+            }
+          : {
+              orientation: "h" as const,
+              x: 0.5,
+              xanchor: "center" as const,
+              y: -0.18,
+              font: { color: theme.label, size: contractors ? 16 : 13 },
+            },
         xaxis: {
           tickangle: contractors || (compact && labels.length > 3) ? -45 : 0,
           tickfont: {
@@ -469,19 +481,29 @@ export function GdrsDynamicsLineChart({
         width: chartWidth,
         height,
         margin: compact
-          ? { l: 40, r: 12, t: 40, b: 72 }
+          ? { l: 40, r: 12, t: 24, b: 96 }
           : { l: 56, r: 36, t: 76, b: 110 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         hovermode: false as const,
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
-        legend: {
-          orientation: "h" as const,
-          y: compact ? 1.12 : 1.15,
-          x: 0.5,
-          xanchor: "center" as const,
-          font: { size: compact ? 11 : 12 },
-        },
+        legend: compact
+          ? {
+              orientation: "h" as const,
+              y: -0.28,
+              yanchor: "top" as const,
+              x: 0.5,
+              xanchor: "center" as const,
+              font: { size: 11 },
+              bgcolor: "rgba(0,0,0,0)",
+            }
+          : {
+              orientation: "h" as const,
+              y: 1.15,
+              x: 0.5,
+              xanchor: "center" as const,
+              font: { size: 12 },
+            },
         xaxis: {
           title: compact ? undefined : "Период",
           tickangle: -45,
