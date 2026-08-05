@@ -206,6 +206,17 @@ function otklWithSign(raw: string | null | undefined): string {
   return `${n < 0 ? "▼" : "▲"} ${text}`;
 }
 
+function MobileProjectName({ value }: { value: string }) {
+  const match = String(value).trim().match(/^(.*?)\s*(\(\d+\s*этап\))$/i);
+  if (!match) return <>{value}</>;
+  return (
+    <>
+      <span className="block">{match[1]}</span>
+      <span className="block whitespace-nowrap">{match[2]}</span>
+    </>
+  );
+}
+
 /** Mobile: секции по контрольной точке — скролл только вертикальный. */
 function MobileMilestoneSections({
   columns,
@@ -264,7 +275,7 @@ function MobileMilestoneSections({
                       <td
                         className={`${CELL} bg-[#f9fafb] px-1.5 py-2 text-left text-[11px] font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
                       >
-                        {row.project}
+                        <MobileProjectName value={row.project} />
                       </td>
                       <td className={`${body} ${dateClass(cell)}`}>
                         {cell?.plan ?? "Н/Д"}
