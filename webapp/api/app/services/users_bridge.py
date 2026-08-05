@@ -4,7 +4,11 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
-from app.config import DEMO_ADMIN_PASSWORD, USERS_DB_PATH
+from app.config import (
+    BOOTSTRAP_ADMIN_PASSWORD,
+    BOOTSTRAP_ADMIN_USERNAME,
+    USERS_DB_PATH,
+)
 from app.services.core_bridge import prepare_core_env
 
 _prepared = False
@@ -24,37 +28,39 @@ def ensure_users_db(*, seed: bool = True) -> None:
     _patch_db_path()
     import auth  # type: ignore
 
-    auth.init_db(quiet=True)
-    if seed:
-        conn = sqlite3.connect(str(USERS_DB_PATH))
+    before_user_ids: set[int] = set()
+    if USERS_DB_PATH.is_file():
         try:
-            cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM users")
-            count = int(cur.fetchone()[0])
-            if count == 0:
-                auth.create_user(
-                    "admin",
-                    DEMO_ADMIN_PASSWORD,
-                    "superadmin",
-                    "admin@example.com",
-                    "system",
-                )
-            else:
-                ok, _ = auth.authenticate("admin", DEMO_ADMIN_PASSWORD)
-                if not ok:
-                    cur.execute(
-                        "SELECT id FROM users WHERE username = ?",
-                        ("admin",),
-                    )
-                    if cur.fetchone():
-                        ph = auth.hash_password(DEMO_ADMIN_PASSWORD)
-                        cur.execute(
-                            "UPDATE users SET password_hash = ? WHERE username = ?",
-                            (ph, "admin"),
-                        )
-                        conn.commit()
-        finally:
-            conn.close()
+            with sqlite3.connect(str(USERS_DB_PATH)) as conn:
+                before_user_ids = {
+                    int(row[0]) for row in conn.execute("SELECT id FROM users").fetchall()
+                }
+        except sqlite3.Error:
+            before_user_ids = set()
+
+    auth.init_db(quiet=True)
+    with sqlite3.connect(str(USERS_DB_PATH)) as conn:
+        after_user_ids = {
+            int(row[0]) for row in conn.execute("SELECT id FROM users").fetchall()
+        }
+        generated_ids = after_user_ids - before_user_ids
+        if generated_ids:
+            placeholders = ",".join("?" for _ in generated_ids)
+            conn.execute(
+                f"DELETE FROM users WHERE id IN ({placeholders})",
+                tuple(sorted(generated_ids)),
+            )
+            conn.commit()
+        count = int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
+    if seed and count == 0 and len(BOOTSTRAP_ADMIN_PASSWORD) >= 16:
+        auth.create_user(
+            BOOTSTRAP_ADMIN_USERNAME,
+            BOOTSTRAP_ADMIN_PASSWORD,
+            "superadmin",
+            None,
+            "system",
+        )
     if not _prepared:
         _prepared = True
 

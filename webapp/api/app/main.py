@@ -7,6 +7,7 @@ from app.config import API_TITLE, API_VERSION, CORS_ORIGINS, DATA_MODE, WEB_DATA
 from app.routers import (
     admin,
     approved_budget,
+    assistant,
     auth_router,
     baseline_deviation,
     bdds,
@@ -58,6 +59,7 @@ app.include_router(auth_router.router)
 app.include_router(profile_router.router)
 app.include_router(settings_router.router)
 app.include_router(admin.router)
+app.include_router(assistant.router)
 
 
 @app.get("/api/health")

@@ -6,11 +6,30 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WEBAPP="$ROOT/webapp"
 cd "$WEBAPP"
 
-mkdir -p data/web data/db data/report_cache data/jobs
+if [[ -f .env ]]; then
+  set -a
+  source ./.env
+  set +a
+fi
+
+mkdir -p data/web data/db data/report_cache data/jobs data/assistant_output
+
+auth_secret="${WEBAPP_AUTH_SECRET:-}"
+if [[ ${#auth_secret} -lt 32 ]]; then
+  echo "WEBAPP_AUTH_SECRET must contain at least 32 characters"
+  exit 1
+fi
+if [[ -z "${SHOWCASE_VLLM_BASE_URL:-}" ]]; then
+  echo "SHOWCASE_VLLM_BASE_URL is required"
+  exit 1
+fi
+export SHOWCASE_AI_ENABLED=1
+export NEXT_PUBLIC_AI_MODE=full
 
 echo "==> docker compose build/up in $WEBAPP"
 docker compose pull edge || true
-docker compose up -d --build --remove-orphans --force-recreate
+docker compose stop opencode >/dev/null 2>&1 || true
+docker compose up -d --build --remove-orphans --force-recreate db-init api web edge
 
 echo "==> ensure CloudPub publish for :3080"
 if docker ps -a --format '{{.Names}}' | grep -qx cloudpub-webapp; then
@@ -41,26 +60,54 @@ if [[ "$ok" -ne 1 ]]; then
   echo "==> HEALTH FAILED — diagnostics"
   docker compose ps -a || true
   docker compose logs api --tail 200 || true
+  docker compose logs opencode --tail 200 || true
   docker inspect "$(docker compose ps -q api)" \
     --format 'api State={{.State.Status}} Exit={{.State.ExitCode}} OOM={{.State.OOMKilled}} Err={{.State.Error}}' \
     2>/dev/null || true
   exit 1
 fi
 
-# Данные стенда обновляются только по кнопке «FTP + перезагрузить БД», а она требует
-# admin-токен. Внутри контейнера токен не нужен, поэтому синк делаем на деплое —
-# иначе стенд остаётся на старом снимке 1С и цифры расходятся с основным дашбордом.
+echo "==> initialize users database"
+docker compose exec -T api python -c \
+  'import sqlite3; from app.config import USERS_DB_PATH; from app.services.users_bridge import ensure_users_db; ensure_users_db(seed=True); c=sqlite3.connect(str(USERS_DB_PATH)); n=c.execute("SELECT COUNT(*) FROM users").fetchone()[0]; c.close(); raise SystemExit(0 if n > 0 else "users DB is empty; set strong BI_BOOTSTRAP_ADMIN_PASSWORD for first deploy")'
+
+echo "==> initialize active data version"
 if [[ "${WEBAPP_SKIP_SYNC:-0}" == "1" ]]; then
-  echo "==> data sync skipped (WEBAPP_SKIP_SYNC=1)"
-else
-  echo "==> data sync (FTP -> web/ -> web_data.db)"
   docker compose exec -T api python -c \
-    'from app.services.ftp_ingest import run_ftp_then_db_ingest; print(run_ftp_then_db_ingest(force=False))' \
-    || {
-      echo "data sync FAILED"
-      docker compose logs api --tail 100 || true
-    }
+    'from app.services.db_ingest import db_status; s=db_status(); print(s); raise SystemExit(0 if s.get("active_version_id") is not None and not s.get("error") else "active data version is missing")'
+else
+  docker compose exec -T api python -c \
+    'from app.config import DATA_MODE; from app.services.db_ingest import db_status,run_db_ingest; from app.services.ftp_ingest import run_ftp_then_db_ingest; r=run_ftp_then_db_ingest(force=False) if DATA_MODE == "ftp" else run_db_ingest(); s=db_status(); print(r); raise SystemExit(0 if r.get("ok") is True and s.get("active_version_id") is not None and not s.get("error") else "data ingest failed or active version is missing")'
 fi
+
+echo "==> assistant readiness"
+docker compose up -d --build --force-recreate opencode
+opencode_ok=0
+for _ in $(seq 1 60); do
+  status="$(docker inspect "$(docker compose ps -q opencode)" \
+    --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+    2>/dev/null || true)"
+  if [[ "$status" == "healthy" ]]; then
+    opencode_ok=1
+    break
+  fi
+  sleep 2
+done
+if [[ "$opencode_ok" -ne 1 ]]; then
+  echo "OpenCode health FAILED"
+  docker compose logs opencode --tail 200 || true
+  exit 1
+fi
+docker compose exec -T api python -c \
+  'import asyncio,json; from app.services.assistant import health; r=asyncio.run(health()); print(json.dumps(r, ensure_ascii=False)); raise SystemExit(0 if r.get("ok") is True else "assistant readiness failed")' \
+  || {
+    docker compose logs api --tail 200 || true
+    docker compose logs opencode --tail 200 || true
+    docker compose exec -T opencode sh -lc \
+      'curl -fsS --max-time 5 "${SHOWCASE_VLLM_BASE_URL%/}/models" || true' \
+      2>/dev/null || true
+    exit 1
+  }
 
 # Прогрев только HTTP (не в процессе API) и только дефолтные фильтры:
 # первый клик по фильтру всё равно считается заново — известное ограничение.

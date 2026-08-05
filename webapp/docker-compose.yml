@@ -12,7 +12,10 @@ services:
       BI_CORE_APP_DIR: /core
       WEB_DB_PATH: ${WEB_DB_PATH:-/data/db/web_data.db}
       BI_USERS_DB: ${BI_USERS_DB:-/data/db/users.db}
-      BI_DEMO_ADMIN_PASSWORD: ${BI_DEMO_ADMIN_PASSWORD:-admin}
+      BI_BOOTSTRAP_ADMIN_USERNAME: ${BI_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BI_BOOTSTRAP_ADMIN_PASSWORD: ${BI_BOOTSTRAP_ADMIN_PASSWORD:-}
+      WEBAPP_AUTH_SECRET: ${WEBAPP_AUTH_SECRET:?WEBAPP_AUTH_SECRET is required}
+      WEBAPP_AUTH_TOKEN_TTL_SECONDS: ${WEBAPP_AUTH_TOKEN_TTL_SECONDS:-28800}
       WEBAPP_REPORT_CACHE_DIR: ${WEBAPP_REPORT_CACHE_DIR:-/data/report_cache}
       BI_FTP_HOST: ${BI_FTP_HOST:-}
       BI_FTP_USER: ${BI_FTP_USER:-}
@@ -22,6 +25,14 @@ services:
       BI_FTP_TLS: ${BI_FTP_TLS:-0}
       WEBAPP_API_WORKERS: ${WEBAPP_API_WORKERS:-1}
       WEBAPP_JOBS_DIR: ${WEBAPP_JOBS_DIR:-/data/jobs}
+      SHOWCASE_OPENCODE_URL: http://opencode:4096
+      SHOWCASE_OPENCODE_WORKSPACE: /workspace
+      SHOWCASE_ASSISTANT_DB: /data/db/assistant.db
+      SHOWCASE_ASSISTANT_OUTPUT_DIR: /data/assistant_output
+      SHOWCASE_VLLM_BASE_URL: ${SHOWCASE_VLLM_BASE_URL:-}
+      SHOWCASE_VLLM_API_KEY: ${SHOWCASE_VLLM_API_KEY:-}
+      SHOWCASE_VLLM_MODEL: ${SHOWCASE_VLLM_MODEL:-Qwen3.5-35B-A3B-GPTQ-Int4}
+      SHOWCASE_AI_ENABLED: ${SHOWCASE_AI_ENABLED:-0}
     # OOM на ГДРС уже был: лимит явный, чтобы падал контейнер, а не весь VPS
     mem_limit: ${WEBAPP_API_MEM_LIMIT:-1200m}
     volumes:
@@ -29,12 +40,50 @@ services:
       - ./data/db:/data/db
       - ./data/report_cache:/data/report_cache
       - ./data/jobs:/data/jobs
+      - ./data/assistant_output:/data/assistant_output
       - ../showcase_data:/showcase/showcase_data:ro
       - ../bi-analytics-v-5-main:/core:ro
       - ../showcase_app.py:/showcase/showcase_app.py:ro
     # internal only — edge proxies /api
     expose:
       - "8000"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  db-init:
+    build: ./api
+    command:
+      - python
+      - -c
+      - "import sqlite3; sqlite3.connect('/data/db/web_data.db').close()"
+    volumes:
+      - ./data/db:/data/db
+    restart: "no"
+
+  opencode:
+    build:
+      context: ../bi-analytics-v-5-main/opencode_web
+      args:
+        OPENCODE_VERSION: ${OPENCODE_VERSION:-1.18.13}
+    restart: unless-stopped
+    environment:
+      SHOWCASE_VLLM_BASE_URL: ${SHOWCASE_VLLM_BASE_URL:-}
+      SHOWCASE_VLLM_API_KEY: ${SHOWCASE_VLLM_API_KEY:-}
+      SHOWCASE_VLLM_MODEL: ${SHOWCASE_VLLM_MODEL:-Qwen3.5-35B-A3B-GPTQ-Int4}
+      SHOWCASE_VLLM_MODEL_ID: ${SHOWCASE_VLLM_MODEL_ID:-Qwen/Qwen3.5-35B-A3B-GPTQ-Int4}
+      SHOWCASE_VLLM_CONTEXT: ${SHOWCASE_VLLM_CONTEXT:-32768}
+      SHOWCASE_VLLM_OUTPUT: ${SHOWCASE_VLLM_OUTPUT:-8192}
+    volumes:
+      - ./data/db:/workspace/data:ro
+      - ./data/assistant_output:/workspace/analytics/output
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "4096"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
 
   web:
     build:
@@ -42,9 +91,11 @@ services:
       args:
         # same-origin via Caddy edge
         NEXT_PUBLIC_API_BASE: ""
+        NEXT_PUBLIC_AI_MODE: ${NEXT_PUBLIC_AI_MODE:-stub}
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_BASE: ""
+      NEXT_PUBLIC_AI_MODE: ${NEXT_PUBLIC_AI_MODE:-stub}
     expose:
       - "3000"
     depends_on:

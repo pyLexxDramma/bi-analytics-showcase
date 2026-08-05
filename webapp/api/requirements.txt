@@ -7,3 +7,5 @@ plotly>=5.18.0
 pytz>=2024.1
 pydantic>=2.0.0
 python-dotenv>=1.0.1
+httpx>=0.28.0
+pytest>=8.0.0

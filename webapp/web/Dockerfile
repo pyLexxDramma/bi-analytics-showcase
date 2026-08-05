@@ -9,6 +9,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG NEXT_PUBLIC_API_BASE=
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+ARG NEXT_PUBLIC_AI_MODE=stub
+ENV NEXT_PUBLIC_AI_MODE=$NEXT_PUBLIC_AI_MODE
 RUN npm run build
 
 FROM node:22-alpine AS runner

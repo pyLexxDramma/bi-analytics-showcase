@@ -21,8 +21,6 @@ import {
 
   isAuthenticated,
 
-  loginDemo,
-
   saveAuthSession,
 
 } from "@/lib/auth";
@@ -45,7 +43,7 @@ export function LoginView() {
 
   const [busy, setBusy] = useState(false);
 
-  const [demoFallback, setDemoFallback] = useState(true);
+  const [initialized, setInitialized] = useState<boolean | null>(null);
 
 
 
@@ -59,9 +57,9 @@ export function LoginView() {
 
     void fetchAuthStatus()
 
-      .then((s) => setDemoFallback(s.demo_fallback))
+      .then((s) => setInitialized(s.initialized))
 
-      .catch(() => setDemoFallback(true));
+      .catch(() => setInitialized(null));
 
   }, [router]);
 
@@ -89,25 +87,13 @@ export function LoginView() {
 
       const result = await postAuthLogin(username.trim(), password);
 
-      saveAuthSession(result.user);
+      saveAuthSession(result.user, result.token);
 
       requestMobileMenuOnNextLoad();
 
       router.replace("/developer-projects");
 
     } catch {
-
-      if (demoFallback) {
-
-        loginDemo(username);
-
-        requestMobileMenuOnNextLoad();
-
-        router.replace("/developer-projects");
-
-        return;
-
-      }
 
       setError("Неверное имя пользователя или пароль");
 
@@ -141,11 +127,9 @@ export function LoginView() {
 
           <p className="mt-2 text-center text-sm text-slate-500">
 
-            {demoFallback
-
-              ? "Строительная аналитика · демо: admin / admin"
-
-              : "Вход: admin / admin (users.db)"}
+            {initialized === false
+              ? "Система ещё не инициализирована"
+              : "Строительная аналитика showcase"}
 
           </p>
 
@@ -255,15 +239,7 @@ export function LoginView() {
 
               onClick={() =>
 
-                setHint(
-
-                  demoFallback
-
-                    ? "Демо: любой логин/пароль. С users.db: admin / admin (по умолчанию)."
-
-                    : "Сброс пароля — у администратора.",
-
-                )
+                setHint("Для восстановления доступа обратитесь к администратору.")
 
               }
 

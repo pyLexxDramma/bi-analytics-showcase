@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -105,7 +106,44 @@ USERS_DB_PATH = Path(
         str(WEBAPP_ROOT / "data" / "users.db"),
     )
 )
-DEMO_ADMIN_PASSWORD = (os.environ.get("BI_DEMO_ADMIN_PASSWORD") or "admin").strip()
+BOOTSTRAP_ADMIN_USERNAME = (
+    os.environ.get("BI_BOOTSTRAP_ADMIN_USERNAME") or "admin"
+).strip()
+BOOTSTRAP_ADMIN_PASSWORD = (
+    os.environ.get("BI_BOOTSTRAP_ADMIN_PASSWORD") or ""
+).strip()
+AUTH_SECRET_CONFIGURED = bool((os.environ.get("WEBAPP_AUTH_SECRET") or "").strip())
+AUTH_SECRET = (
+    (os.environ.get("WEBAPP_AUTH_SECRET") or "").strip()
+    or secrets.token_urlsafe(32)
+)
+AUTH_TOKEN_TTL_SECONDS = int(os.environ.get("WEBAPP_AUTH_TOKEN_TTL_SECONDS", "28800"))
+OPENCODE_BASE_URL = (
+    os.environ.get("SHOWCASE_OPENCODE_URL") or "http://127.0.0.1:4096"
+).rstrip("/")
+OPENCODE_WORKSPACE = os.environ.get("SHOWCASE_OPENCODE_WORKSPACE", "/workspace").strip()
+OPENCODE_TIMEOUT_SECONDS = float(
+    os.environ.get("SHOWCASE_OPENCODE_TIMEOUT_SECONDS", "30")
+)
+VLLM_BASE_URL = (os.environ.get("SHOWCASE_VLLM_BASE_URL") or "").rstrip("/")
+VLLM_API_KEY = (os.environ.get("SHOWCASE_VLLM_API_KEY") or "").strip()
+VLLM_MODEL = (os.environ.get("SHOWCASE_VLLM_MODEL") or "").strip()
+ASSISTANT_PENDING_TIMEOUT_SECONDS = int(
+    os.environ.get("SHOWCASE_ASSISTANT_PENDING_TIMEOUT_SECONDS", "600")
+)
+AI_ENABLED = (os.environ.get("SHOWCASE_AI_ENABLED") or "0").strip() == "1"
+ASSISTANT_DB_PATH = Path(
+    os.environ.get(
+        "SHOWCASE_ASSISTANT_DB",
+        str(WEBAPP_ROOT / "data" / "db" / "assistant.db"),
+    )
+)
+ASSISTANT_OUTPUT_DIR = Path(
+    os.environ.get(
+        "SHOWCASE_ASSISTANT_OUTPUT_DIR",
+        str(WEBAPP_ROOT / "data" / "assistant_output"),
+    )
+)
 def _detect_core_app_dir() -> Path:
     env = (os.environ.get("BI_CORE_APP_DIR") or "").strip()
     if env:

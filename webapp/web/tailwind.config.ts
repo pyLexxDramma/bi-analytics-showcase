@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import typography from "@tailwindcss/typography";
 
 const config: Config = {
   darkMode: "class",
@@ -98,7 +99,7 @@ const config: Config = {
         /^(bg|text|border|ring|stroke|fill)-(blue|emerald|rose|amber|violet|cyan|gray|indigo|slate|teal|sky|fuchsia|lime|orange|pink)-(50|100|200|300|400|500|600|700|800|900|950)$/,
     },
   ],
-  plugins: [],
+  plugins: [typography],
 };
 
 export default config;

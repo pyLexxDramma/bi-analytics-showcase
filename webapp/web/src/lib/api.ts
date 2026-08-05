@@ -13,6 +13,36 @@ function apiUrl(path: string): string {
 /** Тяжёлые отчёты на холодном кэше считаются минутами — но не бесконечно. */
 export const DEFAULT_TIMEOUT_MS = 120_000;
 
+export type AssistantSession = {
+  id: string;
+  title: string;
+  busy: boolean;
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssistantMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  images: string[];
+  created_at?: string | number | null;
+};
+
+export type AssistantQuestion = {
+  id: string;
+  text: string;
+  options: Array<{ label: string; value: string; description: string }>;
+};
+
+export type AssistantMessagesPayload = {
+  items: AssistantMessage[];
+  busy: boolean;
+  question: AssistantQuestion | null;
+  error?: string | null;
+};
+
 export class ApiError extends Error {
   readonly status: number;
   readonly url: string;
@@ -45,6 +75,7 @@ type ApiGetOptions = {
   /** «Все»/пустой список → параметр не отправляется (фильтр не применён). */
   arrayFormat?: "repeat" | "comma";
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 
 function appendParam(
@@ -83,7 +114,12 @@ function abortSignal(timeoutMs: number): AbortSignal | undefined {
 export async function apiGet<T>(
   path: string,
   params: QueryParams = {},
-  { timeoutMs = DEFAULT_TIMEOUT_MS, arrayFormat = "repeat", headers = {} }: ApiGetOptions = {},
+  {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    arrayFormat = "repeat",
+    headers = {},
+    signal,
+  }: ApiGetOptions = {},
 ): Promise<T> {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -96,7 +132,7 @@ export async function apiGet<T>(
   try {
     res = await fetch(url, {
       cache: "no-store",
-      signal: abortSignal(timeoutMs),
+      signal: signal ?? abortSignal(timeoutMs),
       headers,
     });
   } catch (err) {
@@ -1957,8 +1993,7 @@ export async function fetchHealth(): Promise<HealthPayload> {
 
 export type AuthStatusPayload = {
   users_db_exists: boolean;
-  users_db_path: string;
-  demo_fallback: boolean;
+  initialized: boolean;
 };
 
 export async function fetchAuthStatus(): Promise<AuthStatusPayload> {
@@ -1968,7 +2003,7 @@ export async function fetchAuthStatus(): Promise<AuthStatusPayload> {
 export async function postAuthLogin(
   username: string,
   password: string,
-): Promise<{ ok: boolean; user: AuthUser }> {
+): Promise<{ ok: boolean; user: AuthUser; token: string; expires_in: number }> {
   return apiPost("/api/auth/login", { username, password });
 }
 
@@ -2139,4 +2174,70 @@ export async function putReportConfig(
   values: Record<string, string | undefined>,
 ): Promise<{ ok: boolean }> {
   return apiPut("/api/settings/report-config", values, { headers: authHeaders() });
+}
+
+export async function fetchAssistantHealth(): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  return apiGet("/api/assistant/health", {}, {
+    headers: authHeaders(),
+    timeoutMs: 10_000,
+  });
+}
+
+export async function fetchAssistantSessions(): Promise<{
+  items: AssistantSession[];
+}> {
+  return apiGet("/api/assistant/sessions", {}, { headers: authHeaders() });
+}
+
+export async function createAssistantSession(): Promise<AssistantSession> {
+  return apiPost("/api/assistant/sessions", {}, { headers: authHeaders() });
+}
+
+export async function deleteAssistantSession(sessionId: string): Promise<void> {
+  await apiDelete(`/api/assistant/sessions/${sessionId}`, {}, {
+    headers: authHeaders(),
+  });
+}
+
+export async function fetchAssistantMessages(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<AssistantMessagesPayload> {
+  return apiGet(`/api/assistant/sessions/${sessionId}/messages`, {}, {
+    headers: authHeaders(),
+    timeoutMs: 35_000,
+    signal,
+  });
+}
+
+export async function sendAssistantMessage(
+  sessionId: string,
+  text: string,
+): Promise<{ ok: boolean; busy: boolean }> {
+  return apiPost(`/api/assistant/sessions/${sessionId}/messages`, { text }, {
+    headers: authHeaders(),
+    timeoutMs: 35_000,
+  });
+}
+
+export async function cancelAssistantMessage(
+  sessionId: string,
+): Promise<{ ok: boolean }> {
+  return apiPost(`/api/assistant/sessions/${sessionId}/cancel`, {}, {
+    headers: authHeaders(),
+  });
+}
+
+export async function replyAssistantQuestion(
+  sessionId: string,
+  questionId: string,
+  answer: string,
+): Promise<{ ok: boolean; busy: boolean }> {
+  return apiPost(`/api/assistant/sessions/${sessionId}/question`, {
+    question_id: questionId,
+    answer,
+  }, { headers: authHeaders() });
 }

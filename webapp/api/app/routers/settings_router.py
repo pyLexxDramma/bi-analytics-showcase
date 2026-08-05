@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import USERS_DB_PATH
+from app.services.auth_context import require_admin_user
 from app.services.users_bridge import (
     format_russian_datetime,
     import_auth,
@@ -19,17 +20,8 @@ from app.services.users_bridge import (
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
-def _require_admin(x_auth_user: str | None) -> dict:
-    username = (x_auth_user or "").strip()
-    if not username:
-        raise HTTPException(status_code=401, detail="X-Auth-User required")
-    auth = import_auth()
-    user = auth.get_user_by_username(username)
-    if not user or not user.get("is_active"):
-        raise HTTPException(status_code=401, detail="Пользователь не найден")
-    if not auth.has_admin_access(user["role"]):
-        raise HTTPException(status_code=403, detail="Доступ только для администраторов")
-    return user
+def _require_admin(authorization: str | None) -> dict:
+    return require_admin_user(authorization)
 
 
 class CreateUserBody(BaseModel):
@@ -87,8 +79,8 @@ def list_roles():
 
 
 @router.get("/users")
-def list_users(x_auth_user: str | None = Header(default=None)):
-    _require_admin(x_auth_user)
+def list_users(authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
     auth = import_auth()
     conn = sqlite3.connect(str(USERS_DB_PATH))
     cur = conn.cursor()
@@ -125,9 +117,9 @@ def list_users(x_auth_user: str | None = Header(default=None)):
 @router.post("/users")
 def create_user(
     body: CreateUserBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(x_auth_user)
+    actor = _require_admin(authorization)
     auth = import_auth()
     if body.role == "superadmin":
         conn = sqlite3.connect(str(USERS_DB_PATH))
@@ -162,9 +154,9 @@ def create_user(
 @router.post("/users/change-role")
 def change_user_role(
     body: ChangeRoleBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(x_auth_user)
+    actor = _require_admin(authorization)
     auth = import_auth()
     if body.new_role not in auth.ROLES:
         raise HTTPException(status_code=400, detail="Неизвестная роль")
@@ -221,9 +213,9 @@ def change_user_role(
 @router.delete("/users/{user_id}")
 def delete_user(
     user_id: int,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(x_auth_user)
+    actor = _require_admin(authorization)
     if actor["role"] != "superadmin":
         raise HTTPException(
             status_code=403,
@@ -237,8 +229,8 @@ def delete_user(
 
 
 @router.get("/stats")
-def system_stats(x_auth_user: str | None = Header(default=None)):
-    _require_admin(x_auth_user)
+def system_stats(authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
     auth = import_auth()
     logger = import_logger()
     conn = sqlite3.connect(str(USERS_DB_PATH))
@@ -277,14 +269,14 @@ def system_stats(x_auth_user: str | None = Header(default=None)):
 
 @router.get("/logs")
 def activity_logs(
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
     username: str | None = None,
     action: str | None = None,
     limit: int = Query(default=100, ge=10, le=1000),
     date_from: date | None = None,
     date_to: date | None = None,
 ):
-    _require_admin(x_auth_user)
+    _require_admin(authorization)
     logger = import_logger()
     created_after = None
     created_before = None
@@ -335,11 +327,11 @@ def activity_logs(
 
 @router.get("/filters")
 def list_filters(
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
     role: str | None = None,
     report_name: str | None = None,
 ):
-    _require_admin(x_auth_user)
+    _require_admin(authorization)
     auth = import_auth()
     filters_mod = import_filters()
     rows = filters_mod.get_all_default_filters(
@@ -374,9 +366,9 @@ def list_filters(
 @router.post("/filters")
 def save_filter(
     body: FilterBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(x_auth_user)
+    actor = _require_admin(authorization)
     filters_mod = import_filters()
     auth = import_auth()
     if not body.filter_key or body.role not in auth.ROLES:
@@ -403,9 +395,9 @@ def save_filter(
 @router.delete("/filters")
 def remove_filter(
     body: DeleteFilterBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(x_auth_user)
+    actor = _require_admin(authorization)
     filters_mod = import_filters()
     auth = import_auth()
     ok = filters_mod.delete_default_filter(
@@ -425,9 +417,9 @@ def remove_filter(
 @router.post("/filters/copy")
 def copy_filters(
     body: CopyFiltersBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(x_auth_user)
+    actor = _require_admin(authorization)
     if body.source_role == body.target_role:
         raise HTTPException(
             status_code=400,
@@ -453,8 +445,10 @@ def copy_filters(
 
 
 @router.get("/report-config")
-def get_report_config(x_auth_user: str | None = Header(default=None)):
-    _require_admin(x_auth_user)
+def get_report_config(
+    authorization: str | None = Header(default=None),
+):
+    _require_admin(authorization)
     settings_mod = import_settings_module()
     keys = [
         "admin_notification_email",
@@ -474,9 +468,9 @@ def get_report_config(x_auth_user: str | None = Header(default=None)):
 @router.put("/report-config")
 def put_report_config(
     body: ReportConfigBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(x_auth_user)
+    actor = _require_admin(authorization)
     settings_mod = import_settings_module()
     logger = import_logger()
     updates = body.model_dump(exclude_unset=True)

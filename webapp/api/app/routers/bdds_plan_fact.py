@@ -6,6 +6,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.services.auth_context import optional_active_user, require_finance_editor
 from app.services.bdds_plan_fact import (
     apply_bdds_plan_fact_edits,
     build_bdds_plan_fact_payload,
@@ -44,9 +45,9 @@ class BddsPlanFactEditBody(BaseModel):
     lot_recalc_period: Optional[str] = None
 
 
-def _username(x_auth_user: str | None) -> str | None:
-    name = (x_auth_user or "").strip()
-    return name or None
+def _username(authorization: str | None) -> str | None:
+    user = optional_active_user(authorization)
+    return str(user["username"]) if user else None
 
 
 @router.get("")
@@ -60,7 +61,7 @@ def bdds_plan_fact_report(
     hide_deviation: bool = Query(False),
     hide_zero: Optional[bool] = Query(None),
     lot_recalc_period: Optional[str] = Query(None),
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
     return build_bdds_plan_fact_payload(
         project=project,
@@ -71,7 +72,7 @@ def bdds_plan_fact_report(
         dev_base=dev_base,
         hide_deviation=hide_deviation,
         hide_zero=hide_zero,
-        username=_username(x_auth_user),
+        username=_username(authorization),
         lot_recalc_period=lot_recalc_period,
     )
 
@@ -80,11 +81,11 @@ def bdds_plan_fact_report(
 def bdds_plan_fact_editor(
     project: str = Query(..., min_length=1),
     show_struct: bool = Query(False),
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
     payload = build_editor_payload(
         project=project,
-        username=_username(x_auth_user),
+        username=_username(authorization),
         show_struct=show_struct,
     )
     if payload.get("error"):
@@ -95,8 +96,9 @@ def bdds_plan_fact_editor(
 @router.post("/preview")
 def bdds_plan_fact_preview(
     body: BddsPlanFactEditBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
+    user = require_finance_editor(authorization)
     return preview_bdds_plan_fact(
         project=body.project,
         edit_rows=body.rows,
@@ -108,18 +110,16 @@ def bdds_plan_fact_preview(
         hide_deviation=body.hide_deviation,
         hide_zero=body.hide_zero,
         lot_recalc_period=body.lot_recalc_period,
-        username=_username(x_auth_user),
+        username=str(user["username"]),
     )
 
 
 @router.post("/apply")
 def bdds_plan_fact_apply(
     body: BddsPlanFactEditBody,
-    x_auth_user: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    username = _username(x_auth_user)
-    if not username:
-        raise HTTPException(status_code=401, detail="Требуется вход (X-Auth-User).")
+    username = str(require_finance_editor(authorization)["username"])
     result = apply_bdds_plan_fact_edits(
         project=body.project,
         edit_rows=body.rows,

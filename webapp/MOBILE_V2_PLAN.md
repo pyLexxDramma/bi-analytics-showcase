@@ -162,10 +162,30 @@ Desktop `FilterFieldsRow` / native select остаются как есть.
 
 ---
 
+## M7. XCA AI 🔄
+
+Локально реализован `/ai-assistant`: desktop-список сессий, полноэкранный mobile-чат,
+drawer сессий, sticky composer с safe-area, Markdown/GFM, защищённые графики,
+отмена и уточнения. Backend работает через FastAPI BFF и внутренний OpenCode service,
+который читает активную `webapp/data/db/web_data.db` в read-only режиме.
+После verifier-а добавлены HMAC Bearer-auth, owner/session asset isolation,
+authoritative `/session/status`, timeout/error cleanup, совместная readiness-проверка
+OpenCode+vLLM и воспроизводимый pinned OpenCode image. Статус остаётся 🔄 до стенда.
+Local development по умолчанию использует `NEXT_PUBLIC_AI_MODE=stub` и не обращается
+к OpenCode/vLLM. Полный адаптивный чат собирается только с `full`, а API включается
+отдельным `SHOWCASE_AI_ENABLED=1` в deploy.
+
+Приёмка на стенде не выполнена. Проверить 360×800, 390×844, 768×1024 и desktop:
+сессии, отправку/отмену, длинный Markdown, график, клавиатуру, обе темы и отсутствие
+горизонтального overflow.
+
+---
+
 ## Журнал
 
 | Дата | Фаза | Итог |
 |------|------|------|
+| 05.08.2026 | M7 XCA AI | 🔄 локальная реализация; стенд и внешняя vLLM не приняты |
 | 04.08.2026 | M6 390px | ✅ все 16 экранов приняты на стенде (пользователь) |
 | 04.08.2026 | M6 #12 ГДРС (люди) | ✅ 390px стенд |
 | 04.08.2026 | M6 #11 Рабочая документация | ✅ 390px: dynamics + delay без наложений (`ca82872`) |

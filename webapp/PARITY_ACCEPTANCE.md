@@ -671,7 +671,9 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 
 - UI `/settings/profile`: метрики Пользователь/Роль, вкладки «Изменить пароль» | «Изменить email» (emerald underline).
 - API: `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/profile/password`, `POST /api/profile/email` через `users_bridge` → `auth`/`logger`.
-- `users.db`: `BI_USERS_DB` (docker: `/data/db/users.db`), seed `admin` / `BI_DEMO_ADMIN_PASSWORD` (default `admin`), email `admin@example.com`.
+- `users.db`: `BI_USERS_DB` (docker: `/data/db/users.db`). На пустой БД bootstrap
+  возможен только через `BI_BOOTSTRAP_ADMIN_PASSWORD` длиной от 16 символов;
+  публичного `admin/admin` и `/api/auth/init-demo` нет.
 - Сессия: legacy `demo`/Аналитик мигрирует в `admin` / Суперадминистратор; вход `admin` / `admin`.
 
 ### Проверить в UI
@@ -701,5 +703,27 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 3. Конфигурация: сохранение admin email и baseline task.
 4. FTP-блок внизу: статус, sync/ingest с токеном.
 5. «← Вернуться к отчетам» → `/developer-projects`.
+
+---
+
+## §19 XCA AI
+
+Статус: 🔄 локально реализовано 05.08.2026; приёмка после деплоя не выполнена.
+
+- Локально `NEXT_PUBLIC_AI_MODE=stub` по умолчанию: keyword demo-навигатор без
+  запросов к assistant API/OpenCode/vLLM. На deploy явно включаются
+  `NEXT_PUBLIC_AI_MODE=full` и `SHOWCASE_AI_ENABLED=1`.
+- `/ai-assistant` заменён на адаптивный чат с per-user сессиями, Markdown/GFM,
+  защищёнными изображениями, отменой и уточнениями.
+- FastAPI BFF assistant принимает только подписанный HMAC Bearer token, затем
+  проверяет активного пользователя и report role; `X-Auth-User` игнорируется.
+- Polling завершается только после idle `/session/status` и стабильного итогового
+  сообщения; ошибки/timeout очищают pending. Assets привязаны к owner+session.
+- OpenCode доступен только внутри Docker network; активная showcase БД смонтирована
+  read-only как `/workspace/data/web_data.db`.
+- URL, ключ и модель vLLM задаются только серверными env.
+
+Перед приёмкой: настроить `SHOWCASE_VLLM_BASE_URL`, проверить health OpenCode/BFF,
+затем пройти desktop, 360px, 390px и 768px в светлой и тёмной теме.
 
 ---
