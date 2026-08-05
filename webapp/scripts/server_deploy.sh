@@ -6,22 +6,25 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WEBAPP="$ROOT/webapp"
 cd "$WEBAPP"
 
-if [[ -f .env ]]; then
-  set -a
-  source ./.env
-  set +a
-fi
+touch .env
+set -a
+source ./.env
+set +a
 
 mkdir -p data/web data/db data/report_cache data/jobs data/assistant_output
 
 auth_secret="${WEBAPP_AUTH_SECRET:-}"
 if [[ ${#auth_secret} -lt 32 ]]; then
-  echo "WEBAPP_AUTH_SECRET must contain at least 32 characters"
-  exit 1
+  auth_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+  printf '\nWEBAPP_AUTH_SECRET=%s\n' "$auth_secret" >>.env
+  export WEBAPP_AUTH_SECRET="$auth_secret"
+  echo "Generated persistent WEBAPP_AUTH_SECRET in webapp/.env"
 fi
 if [[ -z "${SHOWCASE_VLLM_BASE_URL:-}" ]]; then
-  echo "SHOWCASE_VLLM_BASE_URL is required"
-  exit 1
+  SHOWCASE_VLLM_BASE_URL="http://10.35.15.75:8000/v1"
+  printf '\nSHOWCASE_VLLM_BASE_URL=%s\n' "$SHOWCASE_VLLM_BASE_URL" >>.env
+  export SHOWCASE_VLLM_BASE_URL
+  echo "Configured showcase vLLM endpoint in webapp/.env"
 fi
 export SHOWCASE_AI_ENABLED=1
 export NEXT_PUBLIC_AI_MODE=full
