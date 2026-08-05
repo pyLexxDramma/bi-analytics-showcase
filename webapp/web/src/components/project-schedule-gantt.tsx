@@ -125,6 +125,263 @@ function rowDateSummary(row: GanttRow, covenantMode: boolean): string {
   return `П ${ps}→${pe} · Ф ${fs}→${fe}`;
 }
 
+function clampPct(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function formatTimelineDate(ms: number): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(new Date(ms));
+}
+
+function MobileTimelineLane({
+  label,
+  color,
+  start,
+  end,
+  startLabel,
+  endLabel,
+  rangeStart,
+  rangeSpan,
+  milestone = false,
+}: {
+  label: string;
+  color: string;
+  start: string | null | undefined;
+  end: string | null | undefined;
+  startLabel: string | undefined;
+  endLabel: string | undefined;
+  rangeStart: number;
+  rangeSpan: number;
+  milestone?: boolean;
+}) {
+  const startMs = toMs(milestone ? end : start);
+  const endMs = toMs(end);
+  if (startMs == null && endMs == null) {
+    return (
+      <div className="grid grid-cols-[1.75rem_1fr] items-center gap-2">
+        <span className="text-[10px] font-bold" style={{ color }}>
+          {label}
+        </span>
+        <span className="text-[10px] text-tremor-content dark:text-dark-tremor-content">
+          Нет дат
+        </span>
+      </div>
+    );
+  }
+
+  const left = clampPct((((startMs ?? endMs ?? rangeStart) - rangeStart) / rangeSpan) * 100);
+  const right = clampPct((((endMs ?? startMs ?? rangeStart) - rangeStart) / rangeSpan) * 100);
+  const width = milestone ? 0 : Math.max(1.5, right - left);
+  const labelCenter = clampPct(Math.max(25, Math.min(75, (left + right) / 2)));
+  const dateText = milestone
+    ? `Дата ${endLabel || "—"}`
+    : `Начало ${startLabel || "—"} · Конец ${endLabel || "—"}`;
+
+  return (
+    <div className="grid grid-cols-[1.75rem_1fr] items-end gap-2">
+      <span className="mb-1 text-[10px] font-bold" style={{ color }}>
+        {label}
+      </span>
+      <div className="relative h-9 min-w-0">
+        <span
+          className="absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-tremor-background/90 px-1 py-0.5 text-[9px] font-semibold leading-none tabular-nums shadow-sm dark:bg-dark-tremor-background/90"
+          style={{ left: `${labelCenter}%`, color }}
+        >
+          {dateText}
+        </span>
+        <div className="absolute inset-x-0 bottom-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+          <span className="absolute inset-y-0 left-0 w-px bg-slate-300/70 dark:bg-slate-600/70" />
+          <span className="absolute inset-y-0 left-1/2 w-px bg-slate-300/70 dark:bg-slate-600/70" />
+          <span className="absolute inset-y-0 right-0 w-px bg-slate-300/70 dark:bg-slate-600/70" />
+          {milestone ? (
+            <span
+              className="absolute -top-1 h-4 w-4 -translate-x-1/2 rotate-45 rounded-[3px] border-2 border-white shadow-sm dark:border-slate-900"
+              style={{ left: `${right}%`, background: color }}
+            />
+          ) : (
+            <span
+              className="absolute inset-y-0 min-w-[5px] rounded-full shadow-sm"
+              style={{ left: `${left}%`, width: `${width}%`, background: color }}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileStageScale({
+  row,
+  covenantMode,
+}: {
+  row: GanttRow;
+  covenantMode: boolean;
+}) {
+  const values = [
+    toMs(row.baseline.start),
+    toMs(row.baseline.end),
+    toMs(row.current.start),
+    toMs(row.current.end),
+  ].filter((value): value is number => value != null);
+
+  if (!values.length) return null;
+  const start = Math.min(...values);
+  const end = Math.max(...values);
+  const days = Math.max(0, Math.round((end - start) / DAY_MS));
+
+  if (covenantMode || start === end) {
+    return (
+      <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+        <div className="flex items-center gap-2 text-[9px] text-tremor-content dark:text-dark-tremor-content">
+          <span className="h-2 w-2 shrink-0 rotate-45 rounded-[2px] bg-slate-400" />
+          <span>Контрольная дата этапа</span>
+          <span className="ml-auto font-semibold tabular-nums">
+            {formatTimelineDate(end)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+      <div className="mb-1 flex items-center justify-between gap-2 text-[8px] leading-none text-tremor-content dark:text-dark-tremor-content">
+        <span className="tabular-nums">
+          <span className="font-semibold">Начало этапа</span>{" "}
+          {formatTimelineDate(start)}
+        </span>
+        <span className="tabular-nums">
+          <span className="font-semibold">Конец этапа</span>{" "}
+          {formatTimelineDate(end)}
+        </span>
+      </div>
+      <div className="relative h-3">
+        <span className="absolute left-0 right-0 top-1.5 h-px bg-slate-300 dark:bg-slate-600" />
+        <span className="absolute left-0 top-1 h-2 w-2 -translate-x-0.5 rounded-full border-2 border-white bg-slate-500 dark:border-slate-900" />
+        <span className="absolute right-0 top-1 h-2 w-2 translate-x-0.5 rounded-full border-2 border-white bg-slate-500 dark:border-slate-900" />
+        <span className="absolute left-1/2 top-0 -translate-x-1/2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[8px] font-medium leading-none tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+          {days} дн.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MobileTaskTimelines({
+  rows,
+  planColor,
+  factColor,
+  labelPct,
+  covenantMode,
+  rangeStart,
+  rangeEnd,
+}: {
+  rows: GanttRow[];
+  planColor: string;
+  factColor: string;
+  labelPct: boolean;
+  covenantMode: boolean;
+  rangeStart: string | null;
+  rangeEnd: string | null;
+}) {
+  const range = useMemo(() => {
+    const dates: number[] = [];
+    for (const row of rows) {
+      for (const value of [
+        row.baseline.start,
+        row.baseline.end,
+        row.current.start,
+        row.current.end,
+      ]) {
+        const ms = toMs(value);
+        if (ms != null) dates.push(ms);
+      }
+    }
+    const apiStart = toMs(rangeStart);
+    const apiEnd = toMs(rangeEnd);
+    const start = dates.length ? Math.min(...dates) : apiStart ?? Date.now();
+    const end = dates.length ? Math.max(...dates) : apiEnd ?? start + DAY_MS;
+    return { start, end, span: Math.max(end - start, DAY_MS) };
+  }, [rows, rangeStart, rangeEnd]);
+
+  const axisDate = (ms: number) =>
+    new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    }).format(new Date(ms));
+
+  return (
+    <div className="min-w-0">
+      <Text className="mb-3 text-[11px] text-tremor-content dark:text-dark-tremor-content">
+        Каждая задача показана на общей шкале времени. Даты закреплены у цветных
+        дорожек плана и факта.
+      </Text>
+      <div className="max-h-[70vh] space-y-2 overflow-y-auto overscroll-contain pr-1">
+        {rows.map((row, index) => (
+          <article
+            key={`${row.project ?? ""}-${row.task}-${index}`}
+            className="rounded-xl border border-tremor-border bg-tremor-background p-3 shadow-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+          >
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div
+                className="min-w-0 text-xs font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                title={row.label}
+              >
+                {row.label}
+              </div>
+              {row.pct_complete != null ? (
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  {row.pct_complete}%
+                </span>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              {!labelPct ? (
+                <MobileTimelineLane
+                  label="П"
+                  color={planColor}
+                  start={row.baseline.start}
+                  end={row.baseline.end}
+                  startLabel={row.baseline.start_label}
+                  endLabel={row.baseline.end_label}
+                  rangeStart={range.start}
+                  rangeSpan={range.span}
+                  milestone={covenantMode}
+                />
+              ) : null}
+              <MobileTimelineLane
+                label="Ф"
+                color={factColor}
+                start={row.current.start}
+                end={row.current.end}
+                startLabel={row.current.start_label}
+                endLabel={row.current.end_label}
+                rangeStart={range.start}
+                rangeSpan={range.span}
+                milestone={covenantMode}
+              />
+            </div>
+            <MobileStageScale row={row} covenantMode={covenantMode} />
+          </article>
+        ))}
+      </div>
+      <div className="sticky bottom-0 z-10 mt-2 grid grid-cols-[1.75rem_1fr] gap-2 rounded-lg border border-tremor-border bg-tremor-background/95 px-3 py-2 text-[9px] tabular-nums text-tremor-content shadow-sm backdrop-blur dark:border-dark-tremor-border dark:bg-dark-tremor-background/95 dark:text-dark-tremor-content">
+        <span />
+        <div className="flex justify-between">
+          <span>{axisDate(range.start)}</span>
+          <span>{axisDate(range.start + range.span / 2)}</span>
+          <span>{axisDate(range.end)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProjectScheduleGantt({
   data,
   fullscreen = false,
@@ -627,6 +884,40 @@ export function ProjectScheduleGantt({
     return (
       <div className="py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
         Нет задач для отображения на ганте.
+      </div>
+    );
+  }
+
+  if (fitMobile) {
+    return (
+      <div className="gantt-root w-full min-w-0">
+        <div className="mb-2 flex flex-wrap gap-4 text-sm">
+          {!labelPct ? (
+            <span className="inline-flex items-center gap-2">
+              <span
+                className="inline-block h-2.5 w-6 rounded"
+                style={{ background: planColor }}
+              />
+              <Text>План</Text>
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-6 rounded"
+              style={{ background: factColor }}
+            />
+            <Text>Факт</Text>
+          </span>
+        </div>
+        <MobileTaskTimelines
+          rows={rows}
+          planColor={planColor}
+          factColor={factColor}
+          labelPct={labelPct}
+          covenantMode={covenantMode}
+          rangeStart={data.gantt.range_start}
+          rangeEnd={data.gantt.range_end}
+        />
       </div>
     );
   }

@@ -810,7 +810,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
         </div>
 
         {hints.length ? (
-          <Card className="rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+          <Card className="hidden rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 lg:block">
             <Text className="font-medium text-amber-900 dark:text-amber-200">
               О данных для план-факта месяцами — возможны пропуски/приближения:
             </Text>

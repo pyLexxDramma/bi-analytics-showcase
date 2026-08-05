@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Card, Text, Title } from "@tremor/react";
 import {
   fetchProjectSchedule,
@@ -195,6 +202,7 @@ export function ProjectScheduleView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tableSort, setTableSort] = useState<SortState>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -324,7 +332,7 @@ export function ProjectScheduleView() {
       ) : null}
 
       {data?.meta.banner ? (
-        <Card className="mb-4 rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+        <Card className="mb-4 hidden rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 lg:block">
           <Text className="text-amber-900 dark:text-amber-200">{data.meta.banner}</Text>
         </Card>
       ) : null}
@@ -336,6 +344,21 @@ export function ProjectScheduleView() {
       ) : (
         <div className="space-y-6">
           <Card className="rounded-xl">
+            <div className="mb-3 flex justify-end lg:hidden">
+              <button
+                type="button"
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm active:scale-[0.98] dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                onClick={() =>
+                  tableRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  })
+                }
+              >
+                К таблице
+                <span aria-hidden>↓</span>
+              </button>
+            </div>
             <FullscreenPanel disabled={!data?.gantt.rows.length} fill chartGestures={false}>
               {(zoomed) =>
                 data ? <ProjectScheduleGantt data={data} fullscreen={zoomed} /> : null
@@ -343,13 +366,14 @@ export function ProjectScheduleView() {
             </FullscreenPanel>
           </Card>
 
-          <Card className="overflow-hidden rounded-xl p-0">
-            <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                Таблица задач
-              </Title>
-            </div>
-            <FullscreenPanel disabled={!rows.length} className="!overflow-x-hidden">
+          <div ref={tableRef} className="scroll-mt-4">
+            <Card className="overflow-hidden rounded-xl p-0">
+              <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+                <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+                  Таблица задач
+                </Title>
+              </div>
+              <FullscreenPanel disabled={!rows.length} className="!overflow-x-hidden">
               <MobileCardStack>
                 {sortedRows.map((row, index) => {
                   const title = showLots
@@ -509,8 +533,9 @@ export function ProjectScheduleView() {
                   </table>
                 )}
               </div>
-            </FullscreenPanel>
-          </Card>
+              </FullscreenPanel>
+            </Card>
+          </div>
 
           <DownloadTableButton
             getTable={() => (data ? buildExport(data) : null)}
