@@ -123,6 +123,11 @@ export function AppSidebar({
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+  const externalAi = process.env.NEXT_PUBLIC_AI_MODE === "full";
+  const aiHref = externalAi
+    ? process.env.NEXT_PUBLIC_OPENCODE_URL
+      || "https://opencode.conall.ru/L3dvcmtzcGFjZQ/session"
+    : "/ai-assistant";
 
   const runFtpSync = async () => {
     const token = getAdminToken();
@@ -214,7 +219,9 @@ export function AppSidebar({
         <section className="mb-5">
           <SectionTitle>Меню</SectionTitle>
           <Link
-            href="/ai-assistant"
+            href={aiHref}
+            target={externalAi ? "_blank" : undefined}
+            rel={externalAi ? "noopener noreferrer" : undefined}
             {...navProps}
             className={`flex min-h-11 items-center gap-2 rounded-md border px-3 py-2 ${
               isActive("/ai-assistant")
@@ -223,7 +230,19 @@ export function AppSidebar({
             }`}
           >
             <span aria-hidden>✨</span>
-            <span>ИИ помощник</span>
+            <span className="min-w-0 flex-1">
+              <span className="block">ИИ помощник</span>
+              {externalAi ? (
+                <span className="mt-0.5 block text-[11px] font-normal leading-tight text-sky-600 dark:text-sky-400 lg:hidden">
+                  ИИ откроется в отдельном окне
+                </span>
+              ) : null}
+            </span>
+            {externalAi ? (
+              <span className="shrink-0 text-sm" aria-hidden>
+                ↗
+              </span>
+            ) : null}
           </Link>
         </section>
 
