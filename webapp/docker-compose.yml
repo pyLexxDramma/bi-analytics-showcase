@@ -92,10 +92,12 @@ services:
         # same-origin via Caddy edge
         NEXT_PUBLIC_API_BASE: ""
         NEXT_PUBLIC_AI_MODE: ${NEXT_PUBLIC_AI_MODE:-stub}
+        NEXT_PUBLIC_OPENCODE_URL: ${NEXT_PUBLIC_OPENCODE_URL:-https://opencode.conall.ru/L3dvcmtzcGFjZQ/session}
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_BASE: ""
       NEXT_PUBLIC_AI_MODE: ${NEXT_PUBLIC_AI_MODE:-stub}
+      NEXT_PUBLIC_OPENCODE_URL: ${NEXT_PUBLIC_OPENCODE_URL:-https://opencode.conall.ru/L3dvcmtzcGFjZQ/session}
     expose:
       - "3000"
     depends_on:
