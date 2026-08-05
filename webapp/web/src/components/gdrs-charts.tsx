@@ -403,13 +403,15 @@ export function GdrsDynamicsLineChart({
 }: {
   rows: Array<{ period: string; plan: number; fact: number }>;
   fullscreen?: boolean;
-  /** Mobile: без подписей на точках, горизонтальный скролл при «День». */
+  /** Mobile: компактный холст, подписи на точках, горизонтальный скролл при «День». */
   compact?: boolean;
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
     const dense = rows.length > 12;
-    const showPointText = !compact && !dense;
+    // Цифры на точках и на мобиле; при плотном «День» — каждая 2-я
+    const labelStep = compact && dense ? 2 : 1;
+    const labelFont = compact ? 9 : 10;
     const x = rows.map((row) =>
       compact ? shortPeriodLabel(row.period) : row.period,
     );
@@ -421,28 +423,27 @@ export function GdrsDynamicsLineChart({
         ? Math.max(560, rows.length * 36)
         : undefined;
     const height = compact
-      ? 300
+      ? 320
       : fullscreen
         ? Math.max(520, Math.min(window.innerHeight - 32, 760))
         : 440;
-    const mode = showPointText
-      ? ("lines+markers+text" as const)
-      : ("lines+markers" as const);
+    const pointText = (values: number[]) =>
+      values.map((value, i) =>
+        i % labelStep === 0 || i === values.length - 1
+          ? String(Math.round(value))
+          : "",
+      );
     return {
       data: [
         {
           type: "scatter" as const,
-          mode,
+          mode: "lines+markers+text" as const,
           name: "План",
           x,
           y: plan,
-          ...(showPointText
-            ? {
-                text: plan.map((value) => String(Math.round(value))),
-                textposition: "top center" as const,
-                textfont: { color: "#2563eb", size: 10 },
-              }
-            : {}),
+          text: pointText(plan),
+          textposition: "top center" as const,
+          textfont: { color: "#2563eb", size: labelFont },
           customdata: rows.map((row) => row.period),
           line: { color: "#2563eb", width: compact ? 2 : 2.5 },
           marker: {
@@ -455,17 +456,13 @@ export function GdrsDynamicsLineChart({
         },
         {
           type: "scatter" as const,
-          mode,
+          mode: "lines+markers+text" as const,
           name: "Факт",
           x,
           y: fact,
-          ...(showPointText
-            ? {
-                text: fact.map((value) => String(Math.round(value))),
-                textposition: "top center" as const,
-                textfont: { color: "#ea580c", size: 10 },
-              }
-            : {}),
+          text: pointText(fact),
+          textposition: "bottom center" as const,
+          textfont: { color: "#ea580c", size: labelFont },
           customdata: rows.map((row) => row.period),
           line: { color: "#ea580c", width: compact ? 2 : 2.5 },
           marker: {
@@ -481,7 +478,7 @@ export function GdrsDynamicsLineChart({
         width: chartWidth,
         height,
         margin: compact
-          ? { l: 40, r: 12, t: 24, b: 96 }
+          ? { l: 40, r: 16, t: 28, b: 100 }
           : { l: 56, r: 36, t: 76, b: 110 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
@@ -516,7 +513,7 @@ export function GdrsDynamicsLineChart({
         },
         yaxis: {
           title: compact ? undefined : "Среднее число в день",
-          range: [0, maximum * (compact ? 1.08 : 1.16)],
+          range: [0, maximum * (compact ? 1.14 : 1.16)],
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
