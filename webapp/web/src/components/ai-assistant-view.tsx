@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Bot, Menu, MessageSquarePlus, RefreshCw, Send, Square, Trash2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -20,7 +21,7 @@ import {
   type AssistantQuestion,
   type AssistantSession,
 } from "@/lib/api";
-import { authHeaders } from "@/lib/auth";
+import { authHeaders, isAuthenticated, logout } from "@/lib/auth";
 
 function ProtectedImage({ src }: { src: string }) {
   const [url, setUrl] = useState("");
@@ -77,6 +78,7 @@ function Message({ message }: { message: AssistantMessage }) {
 }
 
 function FullAiAssistantView() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<AssistantSession[]>([]);
   const [activeId, setActiveId] = useState("");
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
@@ -87,6 +89,7 @@ function FullAiAssistantView() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [error, setError] = useState("");
   const [online, setOnline] = useState<boolean | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const activeIdRef = useRef("");
   const messagesRequestRef = useRef<AbortController | null>(null);
@@ -155,6 +158,16 @@ function FullAiAssistantView() {
   }, []);
 
   useEffect(() => {
+    if (!isAuthenticated()) {
+      logout();
+      router.replace("/login");
+      return;
+    }
+    setAuthReady(true);
+  }, [router]);
+
+  useEffect(() => {
+    if (!authReady) return;
     let active = true;
     reconnect()
       .catch((reason) => {
@@ -168,7 +181,7 @@ function FullAiAssistantView() {
       active = false;
       messagesRequestRef.current?.abort();
     };
-  }, [reconnect]);
+  }, [authReady, reconnect]);
 
   useEffect(() => {
     if (online !== false) return;
