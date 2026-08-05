@@ -7,6 +7,7 @@ import {
   DashboardSkeleton,
   useDelayedLoading,
 } from "@/components/dashboard-loading";
+import { ScrollToTopButton } from "@/components/scroll-to-top";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 import {
@@ -180,6 +181,7 @@ export function AppShell({
             <DashboardLoadingOverlay />
           )
         ) : null}
+        <ScrollToTopButton hidden={menuOpen || showLoading} />
       </div>
     </div>
   );

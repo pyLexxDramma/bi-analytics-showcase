@@ -901,6 +901,39 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
   }
 
+  /* Кнопка «наверх» — правый нижний угол, ниже меню/листа фильтров */
+  .bi-scroll-top {
+    position: fixed;
+    z-index: 40;
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(1rem, calc(0.75rem + env(safe-area-inset-bottom)));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.94);
+    color: rgb(15 23 42);
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 4px 14px rgb(15 23 42 / 0.14);
+    backdrop-filter: blur(6px);
+  }
+
+  html.dark .bi-scroll-top {
+    border-color: rgb(51 65 85);
+    background: rgb(15 23 42 / 0.92);
+    color: rgb(226 232 240);
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.45);
+  }
+
+  .bi-scroll-top:active {
+    transform: scale(0.96);
+  }
+
   /* ===== Mobile v2: карточки вместо таблиц ===== */
 
   /* Карточка вне вьюпорта не считается браузером — первый кадр длинного стека дешевле */

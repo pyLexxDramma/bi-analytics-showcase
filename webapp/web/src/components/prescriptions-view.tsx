@@ -7,6 +7,7 @@ import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { fetchPrescriptions, type PrescriptionsPayload } from "@/lib/api";
 import {
+  ContractNoSuggest,
   FilterCheck,
   FilterChipMulti,
   FilterChecksRow,
@@ -36,84 +37,6 @@ type Filters = {
   hide_resolved: boolean;
 };
 type SortState = { key: string; asc: boolean } | null;
-
-function contractSearchKey(value: string): string {
-  return value.trim().toLocaleLowerCase("ru-RU").replace(/\u00a0/g, " ");
-}
-
-function ContractNoSuggest({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: string[];
-  onChange: (next: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const q = contractSearchKey(value);
-  const matches = useMemo(() => {
-    if (!q) return [];
-    const out: string[] = [];
-    const seen = new Set<string>();
-    for (const option of options) {
-      const key = contractSearchKey(option);
-      if (!key || seen.has(key)) continue;
-      if (!key.includes(q)) continue;
-      seen.add(key);
-      out.push(option);
-      if (out.length >= 20) break;
-    }
-    return out;
-  }, [options, q]);
-
-  useEffect(() => {
-    const onDoc = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  return (
-    <div ref={rootRef} className="relative">
-      <input
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        className={FILTER_SELECT_CLASS}
-        placeholder="Все договоры"
-        autoComplete="off"
-        role="combobox"
-        aria-expanded={open && matches.length > 0}
-        aria-autocomplete="list"
-      />
-      {open && matches.length > 0 ? (
-        <ul className="absolute z-40 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-slate-600 bg-slate-900 py-1 text-sm text-slate-100 shadow-lg dark:border-slate-500 dark:bg-slate-950">
-          {matches.map((option) => (
-            <li key={option}>
-              <button
-                type="button"
-                className="block w-full truncate px-3 py-1.5 text-left hover:bg-slate-700"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChange(option);
-                  setOpen(false);
-                }}
-              >
-                {option}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
 
 const STATUS_KEYS = [
   "Остановка работ",
@@ -389,6 +312,7 @@ export function PrescriptionsView() {
             <ContractNoSuggest
               value={filters.contract_q}
               options={contractOptions}
+              placeholder="Все договоры"
               onChange={(contract_q) =>
                 setFilters((state) => ({ ...state, contract_q }))
               }

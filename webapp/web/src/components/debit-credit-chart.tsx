@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { PLOTLY_AXIS_LINE, PLOTLY_CONFIG, PLOTLY_ZEROLINE } from "@/lib/plotly-config";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -58,8 +59,9 @@ function useChartTheme() {
   };
 }
 
+/** Только цифры — единица «млн руб» указана под графиком. */
 function valueLabel(value: number): string {
-  return Math.abs(value) >= 0.05 ? `${value.toFixed(1)} млн руб` : "";
+  return Math.abs(value) >= 0.05 ? value.toFixed(1) : "";
 }
 
 /** Как main `_dk_x_tick_labels`: wrap width 16, max 2 lines. */
@@ -123,7 +125,7 @@ export function DebitCreditChart({
       barWidth = n === 1 ? 0.14 : 0.82;
     }
 
-    const traces = seriesOrder.map((series) => {
+    const traces: Array<Record<string, unknown>> = seriesOrder.map((series) => {
       const values = rows.map((row) => row[series.key]);
       return {
         type: "bar" as const,
@@ -132,7 +134,8 @@ export function DebitCreditChart({
         name: series.name,
         marker: { color: series.color },
         width: barWidth,
-        text: values.map(valueLabel),
+        // Стек: без подписей сегментов — суммы на вершине через один столбец
+        text: stacked ? values.map(() => "") : values.map(valueLabel),
         textposition: "outside" as const,
         textangle: 0,
         cliponaxis: false,
@@ -145,6 +148,24 @@ export function DebitCreditChart({
     const stackTops = rows.map(
       (row) => row["Отклонение ≥0"] + row["КС-2"] + row.Аванс,
     );
+
+    if (stacked) {
+      traces.push({
+        type: "scatter",
+        mode: "text",
+        x: labels,
+        y: stackTops,
+        text: stackTops.map((v, i) =>
+          i % 2 === 0 && Math.abs(v) >= 0.05 ? valueLabel(v) : "",
+        ),
+        textposition: "top center",
+        textfont: { size: compact ? 10 : 12, color: theme.label },
+        hoverinfo: "skip",
+        showlegend: false,
+        cliponaxis: false,
+      });
+    }
+
     const groupPeaks = rows.flatMap((row) => [
       row.Аванс,
       row["КС-2"],
@@ -157,10 +178,12 @@ export function DebitCreditChart({
     const negMin = stacked
       ? 0
       : Math.min(0, ...rows.map((row) => row["Отклонение <0"]));
-    const yTop = peak * 1.14;
+    const yTop = peak * (stacked ? 1.2 : 1.14);
     const yBot =
       negMin < 0 ? -(Math.abs(negMin) * 1.14 + Math.max(Math.abs(negMin) * 0.12, 0.8)) : 0;
-    const dtick = peak >= 4000 ? 200 : peak >= 1000 ? 200 : peak >= 200 ? 50 : 20;
+    // На узком экране подписи Y наслаиваются — шаг в 2 раза реже
+    const baseDtick = peak >= 1000 ? 200 : peak >= 200 ? 50 : 20;
+    const dtick = compact ? baseDtick * 2 : baseDtick;
 
     const { scroll, width } = compact
       ? { scroll: n > 6, width: Math.max(560, n * (stacked ? 140 : 220)) }
@@ -182,7 +205,7 @@ export function DebitCreditChart({
         bargroupgap,
         showlegend: false,
         margin: compact
-          ? { l: 48, r: 16, t: 28, b: 100 }
+          ? { l: 48, r: 16, t: stacked ? 36 : 28, b: 100 }
           : { l: 72, r: 40, t: 48, b: 120 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
@@ -251,30 +274,31 @@ export function DebitCreditChart({
   );
 }
 
-/** Статичная легенда под графиком — как main `_render_dk_chart_html_legend`. */
+/** Статичная легенда под графиком — одна строка (гориз. скролл на узком экране). */
 export function DebitCreditChartLegend({ stacked }: { stacked: boolean }) {
+  const mobile = useIsMobileViewport();
   const items = stacked
     ? [
-        { name: "Отклонение, если больше или = 0", color: "#95A5A6" },
-        { name: "КС-2", color: "#F1C40F" },
-        { name: "Аванс", color: "#2E86AB" },
+        { name: "Отклонение, если больше или = 0", short: "Откл. ≥0", color: "#95A5A6" },
+        { name: "КС-2", short: "КС-2", color: "#F1C40F" },
+        { name: "Аванс", short: "Аванс", color: "#2E86AB" },
       ]
     : [
-        { name: "Аванс", color: "#2E86AB" },
-        { name: "КС-2", color: "#F1C40F" },
-        { name: "Отклонение, если больше или = 0", color: "#95A5A6" },
-        { name: "Отклонение, если меньше 0", color: "#F1948A" },
+        { name: "Аванс", short: "Аванс", color: "#2E86AB" },
+        { name: "КС-2", short: "КС-2", color: "#F1C40F" },
+        { name: "Отклонение, если больше или = 0", short: "Откл. ≥0", color: "#95A5A6" },
+        { name: "Отклонение, если меньше 0", short: "Откл. <0", color: "#F1948A" },
       ];
   return (
-    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 px-1 text-xs text-tremor-content-strong dark:text-dark-tremor-content-strong">
+    <div className="mt-2 flex flex-nowrap gap-x-4 overflow-x-auto overscroll-x-contain px-1 text-xs text-tremor-content-strong scrollbar-none dark:text-dark-tremor-content-strong">
       {items.map((item) => (
-        <span key={item.name} className="inline-flex items-center gap-1.5">
+        <span key={item.name} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
           <span
             className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm"
             style={{ background: item.color }}
             aria-hidden
           />
-          {item.name}
+          {mobile ? item.short : item.name}
         </span>
       ))}
     </div>

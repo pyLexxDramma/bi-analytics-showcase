@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DebitCreditChart, DebitCreditChartLegend } from "@/components/debit-credit-chart";
@@ -14,6 +14,7 @@ import {
 } from "@/components/mobile-entity-card";
 import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
 import {
+  ContractNoSuggest,
   FilterField,
   FilterChipSelect,
   FilterFieldsRow,
@@ -72,21 +73,24 @@ export function DebitCreditView() {
   const [open, setOpen] = useState(true);
   const [sortKey, setSortKey] = useState<MobileSortKey>("contractor");
   const [sortDesc, setSortDesc] = useState(false);
+  const contractOptionsRef = useRef<string[]>([]);
 
   const load = useCallback(async (next: Filters) => {
     setLoading(true);
     setError(null);
     try {
-      setData(
-        await fetchDebitCredit({
-          project: next.project !== "Все" ? next.project : undefined,
-          contractor: next.contractor !== "Все" ? next.contractor : undefined,
-          contract_q: next.contract_q || undefined,
-          date_from: next.date_from || undefined,
-          date_to: next.date_to || undefined,
-          display_view: next.display_view,
-        }),
-      );
+      const payload = await fetchDebitCredit({
+        project: next.project !== "Все" ? next.project : undefined,
+        contractor: next.contractor !== "Все" ? next.contractor : undefined,
+        contract_q: next.contract_q || undefined,
+        date_from: next.date_from || undefined,
+        date_to: next.date_to || undefined,
+        display_view: next.display_view,
+      });
+      if (payload.filters.contract_nos?.length) {
+        contractOptionsRef.current = payload.filters.contract_nos;
+      }
+      setData(payload);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setData(null);
@@ -96,8 +100,17 @@ export function DebitCreditView() {
   }, []);
 
   useEffect(() => {
-    void load(filters);
+    const delayMs = filters.contract_q ? 320 : 0;
+    const timer = window.setTimeout(() => {
+      void load(filters);
+    }, delayMs);
+    return () => window.clearTimeout(timer);
   }, [filters, load]);
+
+  const contractOptions =
+    data?.filters.contract_nos?.length
+      ? data.filters.contract_nos
+      : contractOptionsRef.current;
 
   const stacked = filters.display_view === "С группировкой";
 
@@ -157,12 +170,12 @@ export function DebitCreditView() {
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />
           <FilterChipSelect label="Подрядчик" value={filters.contractor} options={data?.filters.contractors ?? ["Все"]} onChange={(contractor) => setFilters((s) => ({ ...s, contractor }))} />
           <FilterField label="№ договора (частичный поиск)">
-            <input
-              className={FILTER_SELECT_CLASS}
-              placeholder="Частичный поиск"
+            <ContractNoSuggest
               value={filters.contract_q}
-              onChange={(e) =>
-                setFilters((s) => ({ ...s, contract_q: e.target.value }))
+              options={contractOptions}
+              placeholder="Частичный поиск"
+              onChange={(contract_q) =>
+                setFilters((s) => ({ ...s, contract_q }))
               }
             />
           </FilterField>
@@ -232,6 +245,7 @@ export function DebitCreditView() {
             <DebitCreditChartLegend stacked={stacked} />
           </div>
           <Text className="mt-3">
+            Значения на графике — млн руб.{" "}
             {stacked
               ? "Суммы по подрядчику. С группировкой (стек): отклонение ≥0 (сер.) → КС-2 (жёлт.) → Аванс (син.)."
               : "Суммы по подрядчику. Без группировки: Аванс (син.), КС-2 (жёлт.), отклонение ≥0 (сер.), отклонение <0 (красн., ниже 0)."}

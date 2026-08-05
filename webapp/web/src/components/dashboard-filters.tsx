@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { FiltersSheet } from "@/components/filters-sheet";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -50,36 +51,264 @@ function ChipList({
 /** Длинные списки (подрядчики, проекты) на телефоне без поиска непригодны. */
 const CHIP_SEARCH_AFTER = 12;
 
+function filterSearchKey(value: string): string {
+  return value.trim().toLocaleLowerCase("ru-RU").replace(/\u00a0/g, " ");
+}
+
+function matchSuggestOptions(options: string[], query: string, limit = 20): string[] {
+  const needle = filterSearchKey(query);
+  if (!needle) return [];
+  const seen = new Set<string>();
+  const starts: string[] = [];
+  const mid: string[] = [];
+  for (const option of options) {
+    const key = filterSearchKey(option);
+    if (!key || seen.has(key)) continue;
+    if (!key.includes(needle)) continue;
+    seen.add(key);
+    if (key.startsWith(needle)) starts.push(option);
+    else mid.push(option);
+  }
+  return [...starts, ...mid].slice(0, limit);
+}
+
+type SuggestRect = { top: number; left: number; width: number; maxHeight: number };
+
+/**
+ * Плашка подсказок через portal — не режется overflow у FiltersSheet.
+ * z-index выше листа (70).
+ */
+function FilterSuggestList({
+  open,
+  matches,
+  anchorRef,
+  listRef,
+  onSelect,
+}: {
+  open: boolean;
+  matches: string[];
+  anchorRef: React.RefObject<HTMLElement | null>;
+  listRef: React.RefObject<HTMLUListElement | null>;
+  onSelect: (value: string) => void;
+}) {
+  const [rect, setRect] = useState<SuggestRect | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const sync = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el || !open || !matches.length) {
+      setRect(null);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const gap = 4;
+    const spaceBelow = window.innerHeight - r.bottom - gap - 12;
+    const spaceAbove = r.top - gap - 12;
+    const placeAbove = spaceBelow < 160 && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(224, Math.max(120, placeAbove ? spaceAbove : spaceBelow));
+    setRect({
+      top: placeAbove ? r.top - gap - maxHeight : r.bottom + gap,
+      left: r.left,
+      width: r.width,
+      maxHeight,
+    });
+  }, [anchorRef, open, matches.length]);
+
+  useLayoutEffect(() => {
+    sync();
+  }, [sync, matches]);
+
+  useEffect(() => {
+    if (!open || !matches.length) return;
+    const onScroll = () => sync();
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open, matches.length, sync]);
+
+  if (!mounted || !open || !matches.length || !rect) return null;
+
+  return createPortal(
+    <ul
+      ref={listRef}
+      role="listbox"
+      className="bi-filter-suggest fixed overflow-y-auto overscroll-contain rounded-lg border border-tremor-border bg-tremor-background py-1 text-sm text-tremor-content-strong shadow-xl dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+      style={{
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        maxHeight: rect.maxHeight,
+        zIndex: 90,
+      }}
+    >
+      {matches.map((option) => (
+        <li key={option} role="option">
+          <button
+            type="button"
+            className="block min-h-11 w-full truncate px-3 py-2 text-left hover:bg-tremor-background-subtle dark:hover:bg-dark-tremor-background-subtle"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              tapFeedback();
+              onSelect(option);
+            }}
+          >
+            {option}
+          </button>
+        </li>
+      ))}
+    </ul>,
+    document.body,
+  );
+}
+
 function ChipSearch({
   value,
   onChange,
   count,
+  inputRef,
+  onFocus,
 }: {
   value: string;
   onChange: (next: string) => void;
   count: number;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  onFocus?: () => void;
 }) {
   return (
     <input
-      type="search"
+      ref={inputRef}
+      type="text"
       inputMode="search"
+      autoComplete="off"
+      autoCorrect="off"
+      spellCheck={false}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={onFocus}
+      onKeyDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
       placeholder={`Поиск · ${count}`}
       className="bi-filter-chip-search mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
     />
   );
 }
 
-function useChipFilter<T extends { label: string }>(items: T[]) {
+function useChipFilter<T extends { label: string; value?: string }>(
+  items: T[],
+  pinKey = "",
+) {
   const [query, setQuery] = useState("");
   const searchable = items.length > CHIP_SEARCH_AFTER;
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = filterSearchKey(query);
     if (!searchable || !needle) return items;
-    return items.filter((item) => item.label.toLowerCase().includes(needle));
-  }, [items, query, searchable]);
-  return { query, setQuery, searchable, visible };
+    const pinned = new Set(
+      pinKey
+        .split("\0")
+        .map(filterSearchKey)
+        .filter(Boolean),
+    );
+    const matched: T[] = [];
+    const rest: T[] = [];
+    for (const item of items) {
+      const key = filterSearchKey(item.label);
+      const isPinned =
+        pinned.has(key) ||
+        (item.value != null && pinned.has(filterSearchKey(item.value)));
+      if (isPinned) {
+        matched.push(item);
+        continue;
+      }
+      if (key.includes(needle)) rest.push(item);
+    }
+    rest.sort((a, b) => {
+      const ak = filterSearchKey(a.label);
+      const bk = filterSearchKey(b.label);
+      const aStart = ak.startsWith(needle) ? 0 : 1;
+      const bStart = bk.startsWith(needle) ? 0 : 1;
+      if (aStart !== bStart) return aStart - bStart;
+      return ak.localeCompare(bk, "ru");
+    });
+    return [...matched, ...rest];
+  }, [items, query, searchable, pinKey]);
+  return { query, setQuery, searchable, visible, needle: filterSearchKey(query) };
+}
+
+/**
+ * Частичный поиск № договора с выпадающими вариантами (как datalist в main).
+ */
+export function ContractNoSuggest({
+  value,
+  options,
+  onChange,
+  placeholder = "Частичный поиск",
+}: {
+  value: string;
+  options: string[];
+  onChange: (next: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const matches = useMemo(
+    () => matchSuggestOptions(options, value),
+    [options, value],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (event: MouseEvent | TouchEvent) => {
+      const t = event.target as Node;
+      if (inputRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={FILTER_SELECT_CLASS}
+        placeholder={placeholder}
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        role="combobox"
+        aria-expanded={open && matches.length > 0}
+        aria-autocomplete="list"
+      />
+      <FilterSuggestList
+        open={open}
+        matches={matches}
+        anchorRef={inputRef}
+        listRef={listRef}
+        onSelect={(option) => {
+          onChange(option);
+          setOpen(false);
+        }}
+      />
+    </div>
+  );
 }
 
 /** Single-select: desktop = native `<select>` (как main), mobile = chips. */
@@ -96,8 +325,42 @@ export function FilterChipSelect({
   onChange: (next: string) => void;
   disabled?: boolean;
 }) {
-  const normalized = options.map(normChipOption);
-  const { query, setQuery, searchable, visible } = useChipFilter(normalized);
+  const normalized = useMemo(() => options.map(normChipOption), [options]);
+  const pinKey = useMemo(
+    () => ["Все", "Все подрядчики", value].filter(Boolean).join("\0"),
+    [value],
+  );
+  const { query, setQuery, searchable, visible, needle } = useChipFilter(
+    normalized,
+    pinKey,
+  );
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const suggestMatches = useMemo(
+    () =>
+      matchSuggestOptions(
+        normalized.map((o) => o.label).filter((lab) => lab !== "Все" && lab !== "Все подрядчики"),
+        query,
+      ),
+    [normalized, query],
+  );
+
+  useEffect(() => {
+    if (!suggestOpen) return;
+    const onDoc = (event: MouseEvent | TouchEvent) => {
+      const t = event.target as Node;
+      if (searchRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setSuggestOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+    };
+  }, [suggestOpen]);
+
   const desktop = (
     <select
       className={`${FILTER_SELECT_CLASS}${label != null ? "" : ""}`}
@@ -112,30 +375,61 @@ export function FilterChipSelect({
       ))}
     </select>
   );
+  const plaqueOpen = suggestOpen && Boolean(needle) && suggestMatches.length > 0;
   const chips = (
     <div className={label != null ? "mt-2" : ""}>
       {searchable ? (
-        <ChipSearch value={query} onChange={setQuery} count={normalized.length} />
+        <ChipSearch
+          value={query}
+          onChange={(next) => {
+            setQuery(next);
+            setSuggestOpen(true);
+          }}
+          onFocus={() => setSuggestOpen(true)}
+          count={normalized.length}
+          inputRef={searchRef}
+        />
       ) : null}
-      <ChipList itemCount={visible.length}>
-        {visible.map(({ value: v, label: lab }) => {
-          const on = value === v;
-          return (
-            <button
-              key={v}
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                tapFeedback();
-                onChange(v);
-              }}
-              className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-            >
-              {lab}
-            </button>
-          );
-        })}
-      </ChipList>
+      <FilterSuggestList
+        open={plaqueOpen}
+        matches={suggestMatches}
+        anchorRef={searchRef}
+        listRef={listRef}
+        onSelect={(lab) => {
+          const hit = normalized.find((o) => o.label === lab);
+          onChange(hit?.value ?? lab);
+          setQuery("");
+          setSuggestOpen(false);
+        }}
+      />
+      {/* Пока открыта плашка — скрываем длинный список чипов */}
+      {!plaqueOpen ? (
+        <ChipList itemCount={visible.length}>
+          {visible.map(({ value: v, label: lab }) => {
+            const on = value === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  tapFeedback();
+                  onChange(v);
+                  setQuery("");
+                }}
+                className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+              >
+                {lab}
+              </button>
+            );
+          })}
+        </ChipList>
+      ) : null}
+      {searchable && needle && suggestMatches.length === 0 ? (
+        <p className="mt-2 text-xs text-tremor-content dark:text-dark-tremor-content">
+          Ничего не найдено
+        </p>
+      ) : null}
     </div>
   );
   const body = (
@@ -194,9 +488,18 @@ function MultiSelectDropdown({
 
   const searchable = options.length > CHIP_SEARCH_AFTER;
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = filterSearchKey(query);
     if (!searchable || !needle) return options;
-    return options.filter((name) => name.toLowerCase().includes(needle));
+    return options
+      .filter((name) => filterSearchKey(name).includes(needle))
+      .sort((a, b) => {
+        const ak = filterSearchKey(a);
+        const bk = filterSearchKey(b);
+        const aStart = ak.startsWith(needle) ? 0 : 1;
+        const bStart = bk.startsWith(needle) ? 0 : 1;
+        if (aStart !== bStart) return aStart - bStart;
+        return ak.localeCompare(bk, "ru");
+      });
   }, [options, query, searchable]);
 
   const summary =
@@ -237,9 +540,12 @@ function MultiSelectDropdown({
         >
           {searchable ? (
             <input
-              type="search"
+              type="text"
+              inputMode="search"
+              autoComplete="off"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
               placeholder={`Поиск · ${options.length}`}
               className="mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-1.5 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
             />
@@ -297,14 +603,46 @@ export function FilterChipMulti({
   allLabel?: string;
   disabled?: boolean;
 }) {
-  const opts = options.filter((o) => o && o !== allLabel);
+  const opts = useMemo(
+    () => options.filter((o) => o && o !== allLabel),
+    [options, allLabel],
+  );
+  const chipItems = useMemo(
+    () => opts.map((name) => ({ label: name, value: name })),
+    [opts],
+  );
   const allOn = values.length === 0;
+  const pinKey = useMemo(() => values.join("\0"), [values]);
   const {
     query,
     setQuery,
     searchable,
     visible: visibleOpts,
-  } = useChipFilter(opts.map((name) => ({ label: name })));
+    needle,
+  } = useChipFilter(chipItems, pinKey);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const suggestMatches = useMemo(
+    () => matchSuggestOptions(opts, query),
+    [opts, query],
+  );
+
+  useEffect(() => {
+    if (!suggestOpen) return;
+    const onDoc = (event: MouseEvent | TouchEvent) => {
+      const t = event.target as Node;
+      if (searchRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setSuggestOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+    };
+  }, [suggestOpen]);
+
   const desktop = (
     <MultiSelectDropdown
       values={values}
@@ -314,38 +652,70 @@ export function FilterChipMulti({
       disabled={disabled}
     />
   );
+  const plaqueOpen = suggestOpen && Boolean(needle) && suggestMatches.length > 0;
   const chips = (
     <div className={label != null ? "mt-2" : ""}>
       {searchable ? (
-        <ChipSearch value={query} onChange={setQuery} count={opts.length} />
+        <ChipSearch
+          value={query}
+          onChange={(next) => {
+            setQuery(next);
+            setSuggestOpen(true);
+          }}
+          onFocus={() => setSuggestOpen(true)}
+          count={opts.length}
+          inputRef={searchRef}
+        />
       ) : null}
-      <ChipList itemCount={visibleOpts.length + 1}>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange([])}
-          className={allOn ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-        >
-          {allLabel}
-        </button>
-        {visibleOpts.map(({ label: name }) => {
-          const on = values.includes(name);
-          return (
-            <button
-              key={name}
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                tapFeedback();
-                onChange(on ? values.filter((p) => p !== name) : [...values, name]);
-              }}
-              className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-            >
-              {name}
-            </button>
-          );
-        })}
-      </ChipList>
+      <FilterSuggestList
+        open={plaqueOpen}
+        matches={suggestMatches}
+        anchorRef={searchRef}
+        listRef={listRef}
+        onSelect={(name) => {
+          onChange(values.includes(name) ? values : [...values, name]);
+          setQuery("");
+          setSuggestOpen(false);
+        }}
+      />
+      {!plaqueOpen ? (
+        <ChipList itemCount={visibleOpts.length + 1}>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              tapFeedback();
+              onChange([]);
+              setQuery("");
+            }}
+            className={allOn ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+          >
+            {allLabel}
+          </button>
+          {visibleOpts.map(({ label: name }) => {
+            const on = values.includes(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  tapFeedback();
+                  onChange(on ? values.filter((p) => p !== name) : [...values, name]);
+                }}
+                className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </ChipList>
+      ) : null}
+      {searchable && needle && suggestMatches.length === 0 ? (
+        <p className="mt-2 text-xs text-tremor-content dark:text-dark-tremor-content">
+          Ничего не найдено
+        </p>
+      ) : null}
     </div>
   );
   const body = (

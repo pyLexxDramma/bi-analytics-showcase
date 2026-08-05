@@ -1,6 +1,7 @@
 """ДЗ/КЗ подрядчиков — паритет с dashboard_debit_credit из web_data.db."""
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -175,6 +176,7 @@ def _empty(message: str | None = None) -> dict[str, Any]:
         "filters": {
             "projects": ["Все"],
             "contractors": ["Все"],
+            "contract_nos": [],
             "date_min": None,
             "date_max": None,
             "applied": {},
@@ -428,6 +430,22 @@ def build_debit_credit_payload(
         {_clean(value) for value in frame.contractor if _clean(value) != "—"},
         key=str.casefold,
     )
+    _uuid_re = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        re.I,
+    )
+    contract_nos: list[str] = []
+    _seen_contracts: set[str] = set()
+    for value in frame.contract.dropna().tolist():
+        text = _clean(value, "")
+        if not text or text == "—" or _uuid_re.match(text):
+            continue
+        key = text.casefold()
+        if key in _seen_contracts:
+            continue
+        _seen_contracts.add(key)
+        contract_nos.append(text)
+    contract_nos.sort(key=str.casefold)
     view = frame.copy()
     if project and project != "Все":
         view = view[view.project.eq(project)]
@@ -543,6 +561,7 @@ def build_debit_credit_payload(
         "filters": {
             "projects": projects,
             "contractors": contractors,
+            "contract_nos": contract_nos,
             "date_min": (
                 frame.contract_date.min().date().isoformat()
                 if frame.contract_date.notna().any()
