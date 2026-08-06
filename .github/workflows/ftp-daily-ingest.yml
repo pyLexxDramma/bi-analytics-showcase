@@ -1,0 +1,47 @@
+# Ежедневная синхронизация FTP → web/ → БД на showcase VPS.
+# Клиент кладёт файлы ~07:00 МСК; main FTP daily ingest — cron 04:15 UTC (часто ~06:40 UTC).
+# Showcase — после main, с запасом на задержку GitHub Actions.
+# Secrets: те же, что для webapp.yml (WEBAPP_VPS_HOST, WEBAPP_VPS_USER,
+# WEBAPP_VPS_SSH_KEY или WEBAPP_VPS_PASSWORD, WEBAPP_VPS_PORT, WEBAPP_VPS_PATH).
+name: FTP daily ingest
+
+on:
+  schedule:
+    # 11:00 Europe/Moscow (UTC+3) = 08:00 UTC
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ftp-daily-ingest-showcase
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: FTP sync and ingest on showcase VPS
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
+          command_timeout: 45m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.WEBAPP_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-showcase}"
+            if [[ ! -d "$APP_DIR" ]]; then
+              echo "ERROR: WEBAPP_VPS_PATH not found: $APP_DIR"
+              exit 1
+            fi
+            cd "$APP_DIR"
+            if [[ -f webapp/scripts/ftp_daily_ingest.sh ]]; then
+              bash webapp/scripts/ftp_daily_ingest.sh
+            else
+              cd webapp
+              docker compose exec -T api python -c \
+                'from app.config import DATA_MODE; from app.services.db_ingest import db_status; from app.services.ftp_ingest import run_ftp_then_db_ingest; assert DATA_MODE == "ftp", f"WEBAPP_DATA_MODE={DATA_MODE!r}, expected ftp"; r=run_ftp_then_db_ingest(force=False); s=db_status(); print(r); print("db_status:", s); raise SystemExit(0 if r.get("ok") is True and s.get("active_version_id") is not None and not s.get("error") else "ftp daily ingest failed or active version missing")'
+            fi

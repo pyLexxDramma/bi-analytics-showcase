@@ -53,6 +53,7 @@ Authorization: Bearer <WEBAPP_ADMIN_TOKEN>
 - CloudPub: https://insipidly-carefree-husky.cloudpub.ru/debit-credit  
 - Каталог: `~/apps/bi-analytics-showcase`  
 - CI: `.github/workflows/webapp.yml` (`WEBAPP_VPS_*`)
+- Daily FTP→БД (стенд `ftp`): `.github/workflows/ftp-daily-ingest.yml` ≈ 11:00 МСК → `webapp/scripts/ftp_daily_ingest.sh`
 
 ```powershell
 cd webapp

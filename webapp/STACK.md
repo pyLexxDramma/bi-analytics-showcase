@@ -86,7 +86,12 @@ FastAPI (:8000)
 | **CloudPub** | публичный HTTPS-туннель на VPS |
 | **VPS (Linux)** | рантайм Docker |
 
-Секреты Actions: `WEBAPP_VPS_HOST`, `WEBAPP_VPS_PORT`, `WEBAPP_VPS_USER`, `WEBAPP_VPS_PASSWORD`, `WEBAPP_VPS_PATH`.
+Секреты Actions: `WEBAPP_VPS_HOST`, `WEBAPP_VPS_PORT`, `WEBAPP_VPS_USER`, `WEBAPP_VPS_PASSWORD` / `WEBAPP_VPS_SSH_KEY`, `WEBAPP_VPS_PATH`.
+
+Ежедневные данные (режим `ftp`): workflow `.github/workflows/ftp-daily-ingest.yml`
+(`FTP daily ingest`, cron `0 8 * * *` UTC ≈ 11:00 МСК, после client/main ingest) →
+SSH → `webapp/scripts/ftp_daily_ingest.sh` → `run_ftp_then_db_ingest` в контейнере api.
+Ручной запуск: Actions → FTP daily ingest → Run workflow.
 
 ### Что остаётся на Streamlit (пока)
 
