@@ -129,7 +129,7 @@ export function LoginView() {
 
             {initialized === false
               ? "Система ещё не инициализирована"
-              : "Строительная аналитика showcase"}
+              : "Строительная аналитика"}
 
           </p>
 
