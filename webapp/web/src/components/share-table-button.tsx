@@ -19,14 +19,49 @@ function screenTitle(): string {
   return h1 || document.title || "Строительная аналитика";
 }
 
+/** Запасной путь: положить ссылку в буфер. execCommand — для http-стенда. */
+function copyLink(url: string): boolean {
+  try {
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(url);
+      return true;
+    }
+  } catch {
+    /* ниже execCommand */
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = url;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function isAbort(cause: unknown): boolean {
+  return cause instanceof DOMException && cause.name === "AbortError";
+}
+
+function causeName(cause: unknown): string {
+  if (cause instanceof DOMException) return cause.name;
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
 /**
  * «Поделиться» через системную шторку телефона (Telegram, MAX, почта и т. д.).
  * Только мобильный вьюпорт: `lg:hidden` + проверка `navigator.share`.
  *
- * `navigator.share()` требует «свежего» жеста пользователя: любой `await` перед
- * вызовом гасит активацию и телефон отвечает `NotAllowedError`. Поэтому xlsx
- * готовится заранее, на нажатии пальца, а по клику шторка открывается синхронно —
- * с готовым xlsx либо с CSV, который собирается без промисов.
+ * Лестница попыток, потому что шторка отказывает по-разному: часть браузеров
+ * не берёт файлы, часть блокирует Web Share вне https. Сначала файл, затем
+ * ссылка, затем буфер обмена. Все вызовы `share()` синхронны по клику — любой
+ * `await` перед ними гасит пользовательский жест и даёт `NotAllowedError`.
  */
 export function ShareTableButton({
   getTable,
@@ -41,11 +76,14 @@ export function ShareTableButton({
 }) {
   const [supported, setSupported] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   const xlsxRef = useRef<File | null>(null);
 
   useEffect(() => {
     setSupported(
-      typeof navigator !== "undefined" && typeof navigator.share === "function",
+      typeof navigator !== "undefined" &&
+        (typeof navigator.share === "function" ||
+          typeof navigator.clipboard?.writeText === "function"),
     );
   }, []);
 
@@ -72,34 +110,67 @@ export function ShareTableButton({
       return;
     }
     setNote(null);
+    setDone(false);
+
     const title = screenTitle();
     const url = window.location.href;
+    const canShare = typeof navigator.share === "function";
+
+    const succeeded = () => {
+      confirmFeedback();
+      setNote(null);
+    };
+
+    const toClipboard = (reason: string) => {
+      if (copyLink(url)) {
+        confirmFeedback();
+        setDone(true);
+        setNote(null);
+        return;
+      }
+      setNote(`Не удалось поделиться (${reason})`);
+    };
+
+    const shareLink = (reason: string) => {
+      if (!canShare) {
+        toClipboard(reason);
+        return;
+      }
+      navigator
+        .share({ title, text: title, url })
+        .then(succeeded)
+        .catch((cause: unknown) => {
+          if (isAbort(cause)) return;
+          toClipboard(causeName(cause));
+        });
+    };
+
+    if (!canShare) {
+      toClipboard("нет системной шторки");
+      return;
+    }
+
     const file =
       xlsxRef.current ??
-      new File(
-        [tableToCsv(table)],
-        `${exportFileStem(fileStem)}.csv`,
-        { type: "text/csv;charset=utf-8" },
-      );
+      new File([tableToCsv(table)], `${exportFileStem(fileStem)}.csv`, {
+        type: "text/csv;charset=utf-8",
+      });
     const canFiles =
       typeof navigator.canShare === "function" &&
       navigator.canShare({ files: [file] });
-    const payload: ShareData = canFiles
-      ? { files: [file], title, text: `${title}\n${url}` }
-      : { title, text: title, url };
+
+    if (!canFiles) {
+      shareLink("файлы не поддерживаются");
+      return;
+    }
 
     navigator
-      .share(payload)
-      .then(() => confirmFeedback())
+      .share({ files: [file], title, text: `${title}\n${url}` })
+      .then(succeeded)
       .catch((cause: unknown) => {
-        if (cause instanceof DOMException) {
-          if (cause.name === "AbortError") return;
-          if (cause.name === "NotAllowedError") {
-            setNote("Телефон не открыл шторку — нажмите ещё раз");
-            return;
-          }
-        }
-        setNote(cause instanceof Error ? cause.message : String(cause));
+        if (isAbort(cause)) return;
+        // Телефон не принял файл — пробуем отдать хотя бы ссылку
+        shareLink(causeName(cause));
       });
   };
 
@@ -115,6 +186,11 @@ export function ShareTableButton({
         <span aria-hidden>⤴</span>
         {label}
       </button>
+      {done ? (
+        <span className="text-xs text-emerald-600 lg:hidden dark:text-emerald-300">
+          Ссылка скопирована — вставьте в чат
+        </span>
+      ) : null}
       {note ? (
         <span className="text-xs text-rose-600 lg:hidden dark:text-rose-300">
           {note}
