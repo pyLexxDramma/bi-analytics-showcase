@@ -180,6 +180,18 @@ export function AdminDataSyncSection() {
         <Text className="mt-2">
           Последнее изменение web/: <b>{formatMtime(status?.latest_mtime)}</b>
         </Text>
+        {status?.freshness ? (
+          <Text className="mt-2">
+            Свежесть:{" "}
+            <b className={status.freshness.stale ? "text-amber-700" : "text-emerald-700"}>
+              {status.freshness.label}
+            </b>
+            {status.freshness.active_version_created_at
+              ? ` · снимок ${status.freshness.active_version_created_at}`
+              : null}
+            {" · "}порог {status.freshness.stale_after_hours ?? 26} ч
+          </Text>
+        ) : null}
         <button
           type="button"
           className="mt-4 rounded-tremor-default border border-tremor-border px-4 py-2 text-sm hover:bg-tremor-background-muted dark:border-dark-tremor-border"

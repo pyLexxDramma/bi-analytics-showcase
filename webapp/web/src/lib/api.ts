@@ -1850,6 +1850,19 @@ export type AdminDbStatus = {
   error?: string;
 };
 
+export type DataFreshness = {
+  stale: boolean;
+  missing?: boolean;
+  label: string;
+  age_hours: number | null;
+  stale_after_hours?: number;
+  active_version_id?: number | null;
+  active_version_created_at?: string | null;
+  data_mode?: string;
+  auto_sync_eligible?: boolean;
+  checked_at?: string;
+};
+
 export type AdminDataStatus = {
   data_mode: string;
   web_dir: string;
@@ -1857,12 +1870,36 @@ export type AdminDataStatus = {
   latest_mtime: number | null;
   ftp_configured: boolean;
   db?: AdminDbStatus;
+  freshness?: DataFreshness;
 };
 
 export async function fetchAdminDataStatus(): Promise<AdminDataStatus> {
   return apiGet<AdminDataStatus>("/api/admin/data-status", {}, {
     timeoutMs: 30_000,
   });
+}
+
+export type EnsureFreshResult = {
+  ok: boolean;
+  action: string;
+  message?: string;
+  async?: boolean;
+  job_id?: string;
+  cooldown_hours_left?: number;
+  freshness?: DataFreshness;
+  status?: AdminDataStatus;
+};
+
+/** Проверить свежесть; при устаревании запустить FTP→БД (с cooldown на сервере). */
+export async function postEnsureFresh(
+  token?: string | null,
+  opts?: { force?: boolean; background?: boolean },
+): Promise<EnsureFreshResult> {
+  const q = new URLSearchParams();
+  if (opts?.force) q.set("force", "true");
+  if (opts?.background === false) q.set("background", "false");
+  const qs = q.toString() ? `?${q}` : "";
+  return postAdminAction(`/api/admin/ensure-fresh${qs}`, token) as Promise<EnsureFreshResult>;
 }
 
 export type AdminSyncResult = {

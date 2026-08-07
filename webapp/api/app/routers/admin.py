@@ -4,6 +4,7 @@ from fastapi import APIRouter, Header, HTTPException
 
 from app.config import ADMIN_SYNC_TOKEN, DATA_MODE
 from app.services.auth_context import require_active_user
+from app.services.data_freshness import attach_freshness, ensure_fresh
 from app.services.db_ingest import db_status, run_db_ingest
 from app.services.ftp_ingest import (
     clear_data_caches,
@@ -50,7 +51,19 @@ def _check_ops_access(
 
 @router.get("/data-status")
 def data_status():
-    return sync_status()
+    return attach_freshness(sync_status())
+
+
+@router.post("/ensure-fresh")
+def ensure_data_fresh(
+    force: bool = False,
+    background: bool = True,
+    authorization: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None),
+):
+    """Проверить свежесть; при устаревании запустить FTP→БД (cooldown)."""
+    _check_ops_access(authorization, x_admin_token)
+    return ensure_fresh(force=force, background=background)
 
 
 @router.get("/jobs")

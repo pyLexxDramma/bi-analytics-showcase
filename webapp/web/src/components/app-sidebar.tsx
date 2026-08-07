@@ -17,8 +17,12 @@ import {
   fetchDataVersions,
   postActivateVersion,
   postAdminSync,
+  postEnsureFresh,
+  type DataFreshness,
   type DataVersion,
 } from "@/lib/api";
+
+const ENSURE_FRESH_SESSION_KEY = "bi_showcase_ensure_fresh_v1";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -85,6 +89,7 @@ export function AppSidebar({
   const activeAccordion = accordionIdForPath(pathname);
   const [openId, setOpenId] = useState<string | null>(activeAccordion);
   const [fileCount, setFileCount] = useState<number | null>(null);
+  const [freshness, setFreshness] = useState<DataFreshness | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncNote, setSyncNote] = useState<string | null>(null);
   const [versions, setVersions] = useState<DataVersion[]>([]);
@@ -100,12 +105,6 @@ export function AppSidebar({
     if (activeAccordion) setOpenId(activeAccordion);
   }, [activeAccordion]);
 
-  useEffect(() => {
-    void fetchAdminDataStatus()
-      .then((s) => setFileCount(s.files))
-      .catch(() => setFileCount(null));
-  }, [pathname]);
-
   const loadVersions = () =>
     fetchDataVersions()
       .then((v) => {
@@ -118,8 +117,60 @@ export function AppSidebar({
       });
 
   useEffect(() => {
+    void fetchAdminDataStatus()
+      .then((s) => {
+        setFileCount(s.files);
+        setFreshness(s.freshness ?? null);
+      })
+      .catch(() => {
+        setFileCount(null);
+        setFreshness(null);
+      });
     void loadVersions();
   }, [pathname]);
+
+  // Один раз за сессию браузера: если данные устарели — тихо FTP→БД.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem(ENSURE_FRESH_SESSION_KEY)) return;
+    const session = getAuthSession();
+    if (!session) return;
+    sessionStorage.setItem(ENSURE_FRESH_SESSION_KEY, "1");
+    const token = getAdminToken();
+    void postEnsureFresh(token || null, { force: false, background: true })
+      .then(async (r) => {
+        if (r.freshness) setFreshness(r.freshness);
+        if (r.action === "fresh") return;
+        if (r.action === "started" && r.job_id) {
+          setSyncNote(r.message || "Авто-обновление данных…");
+          setSyncBusy(true);
+          try {
+            const job = await waitAdminJob(token || null, r.job_id, (s) =>
+              setSyncNote(`Авто-обновление… ${s}`),
+            );
+            if (job.status === "ok") {
+              setSyncNote("Данные обновлены автоматически");
+              const st = await fetchAdminDataStatus();
+              setFileCount(st.files);
+              setFreshness(st.freshness ?? null);
+              await loadVersions();
+              router.refresh();
+            } else {
+              setSyncNote(job.error || "Авто-обновление не удалось");
+            }
+          } finally {
+            setSyncBusy(false);
+          }
+          return;
+        }
+        if (r.message && r.action !== "none") {
+          setSyncNote(r.message);
+        }
+      })
+      .catch(() => {
+        /* тихо: индикатор свежести всё равно из data-status */
+      });
+  }, [router]);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -178,6 +229,7 @@ export function AppSidebar({
       }
       const st = await fetchAdminDataStatus();
       setFileCount(st.files);
+      setFreshness(st.freshness ?? null);
       await loadVersions();
       router.refresh();
     } catch (e) {
@@ -358,6 +410,26 @@ export function AppSidebar({
               </span>
               {fileCount != null ? ` · ${fileCount} файл.` : null}
             </p>
+            {freshness ? (
+              <p
+                className={`rounded-md px-2 py-1.5 text-[11px] leading-snug ${
+                  freshness.stale
+                    ? "bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"
+                    : "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"
+                }`}
+                title={
+                  freshness.active_version_created_at
+                    ? `Снимок: ${freshness.active_version_created_at}`
+                    : undefined
+                }
+              >
+                {freshness.stale ? "⚠ " : "✓ "}
+                Данные {freshness.label}
+                {freshness.active_version_created_at
+                  ? ` · снимок ${formatVersionStamp(freshness.active_version_created_at)}`
+                  : null}
+              </p>
+            ) : null}
             <button
               type="button"
               disabled={syncBusy}
@@ -372,8 +444,8 @@ export function AppSidebar({
               </p>
             ) : (
               <p className="text-[11px] leading-snug text-gray-500">
-                07:00 МСК — выгрузка 1С на FTP. Кнопка тянет файлы и создаёт
-                новый снимок в списке ниже.
+                07:00 МСК — выгрузка на FTP; daily Action ~11:00. При входе
+                дашборд сам проверяет свежесть и при устаревании обновляет БД.
               </p>
             )}
           </div>

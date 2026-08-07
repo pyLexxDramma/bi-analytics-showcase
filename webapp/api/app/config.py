@@ -162,3 +162,13 @@ def _detect_core_app_dir() -> Path:
 
 
 CORE_APP_DIR = _detect_core_app_dir()
+
+# Свежесть данных: старше N часов → stale; авто-синк не чаще 1 раза за cooldown.
+DATA_STALE_HOURS = float(os.environ.get("WEBAPP_DATA_STALE_HOURS", "26"))
+ENSURE_FRESH_COOLDOWN_HOURS = float(os.environ.get("WEBAPP_ENSURE_FRESH_COOLDOWN_H", "4"))
+ENSURE_FRESH_MARKER = Path(
+    os.environ.get(
+        "WEBAPP_ENSURE_FRESH_MARKER",
+        str(WEBAPP_ROOT / "data" / ".ensure_fresh_last"),
+    )
+)

@@ -64,8 +64,11 @@ app.include_router(assistant.router)
 
 @app.get("/api/health")
 def health():
+    from app.services.data_freshness import compute_freshness
+
     st = sync_status()
     db = st.get("db") or {}
+    freshness = compute_freshness()
     return {
         "ok": True,
         "version": API_VERSION,
@@ -77,6 +80,9 @@ def health():
         "web_db_path": db.get("web_db_path"),
         "web_db_exists": db.get("exists"),
         "active_version_id": db.get("active_version_id"),
+        "data_stale": freshness.get("stale"),
+        "data_age_hours": freshness.get("age_hours"),
+        "data_freshness_label": freshness.get("label"),
     }
 
 
