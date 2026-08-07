@@ -2,9 +2,14 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BI Analytics Showcase — Next",
-  description: "Пилот миграции Streamlit → Next.js + FastAPI",
+  title: "BI Analytics",
+  description: "Строительная аналитика",
+  applicationName: "BI Analytics",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "BI Analytics" },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

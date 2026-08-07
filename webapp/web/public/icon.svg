@@ -1,8 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BI Analytics">
   <rect width="512" height="512" rx="96" fill="#059669"/>
+  <!-- Контур дома: крыша + стены -->
+  <path
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="34"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    d="M140 268 L256 132 L372 268 V308 M140 268 V308"
+  />
+  <!-- Растущие столбцы -->
   <g fill="#ffffff">
-    <rect x="112" y="272" width="64" height="128" rx="12"/>
-    <rect x="224" y="192" width="64" height="208" rx="12"/>
-    <rect x="336" y="112" width="64" height="288" rx="12"/>
+    <rect x="168" y="318" width="48" height="92" rx="10"/>
+    <rect x="232" y="278" width="48" height="132" rx="10"/>
+    <rect x="296" y="228" width="48" height="182" rx="10"/>
   </g>
 </svg>
