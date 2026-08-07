@@ -140,7 +140,7 @@ export function MobileCardStack({
 
   return (
     <div
-      className={`flex flex-col gap-3 px-2 pb-2 lg:hidden ${compact ? "pt-3" : "pt-10"}`}
+      className="flex flex-col gap-3 px-2 pb-2 pt-3 lg:hidden"
     >
       {pinned}
       {visible}

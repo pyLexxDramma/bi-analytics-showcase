@@ -357,7 +357,7 @@ export function BddsPlanFactView() {
             />
           </div>
           <FullscreenPanel disabled={!periodRows.length} className="min-w-0">
-            <div className="min-w-0 p-1 pt-10">
+            <div className="min-w-0 p-1 pt-3 lg:pt-10">
               {!periodRows.length ? (
                 <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                   {loading ? "Загрузка…" : "Нет строк для таблицы по выбранным фильтрам."}

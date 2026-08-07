@@ -67,7 +67,7 @@ function ControlPointsMobileCards({
   projects: ProjectRow[];
 }) {
   return (
-    <div className="flex flex-col gap-3 px-2 pb-2 pt-10 lg:hidden">
+    <div className="flex flex-col gap-3 px-2 pb-2 pt-3 lg:hidden">
       {projects.map((project) => (
         <article
           key={project.project}

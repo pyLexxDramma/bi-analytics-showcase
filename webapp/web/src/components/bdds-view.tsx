@@ -591,7 +591,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             </Title>
           </div>
           <FullscreenPanel disabled={!periodRows.length}>
-            <div className="p-1 pt-10">
+            <div className="p-1 pt-3 lg:pt-10">
               {!periodRows.length ? (
                 <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                   {loading ? "Загрузка…" : "Нет строк для сводной таблицы по выбранным фильтрам."}
@@ -714,7 +714,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             </Title>
           </div>
           <FullscreenPanel disabled={!projectRows.length}>
-            <div className="p-1 pt-10">
+            <div className="p-1 pt-3 lg:pt-10">
               {!projectRows.length ? (
                 <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                   {loading ? "Загрузка…" : "Нет строк по выбранным фильтрам."}
