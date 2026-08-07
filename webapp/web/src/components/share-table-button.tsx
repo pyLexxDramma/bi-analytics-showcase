@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   exportFileStem,
   tableToCsv,
@@ -22,7 +22,11 @@ function screenTitle(): string {
 /**
  * «Поделиться» через системную шторку телефона (Telegram, MAX, почта и т. д.).
  * Только мобильный вьюпорт: `lg:hidden` + проверка `navigator.share`.
- * Данные те же, что в «Скачать таблицу» — файл собирается из того же `ExportTable`.
+ *
+ * `navigator.share()` требует «свежего» жеста пользователя: любой `await` перед
+ * вызовом гасит активацию и телефон отвечает `NotAllowedError`. Поэтому xlsx
+ * готовится заранее, на нажатии пальца, а по клику шторка открывается синхронно —
+ * с готовым xlsx либо с CSV, который собирается без промисов.
  */
 export function ShareTableButton({
   getTable,
@@ -36,8 +40,8 @@ export function ShareTableButton({
   disabled?: boolean;
 }) {
   const [supported, setSupported] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const xlsxRef = useRef<File | null>(null);
 
   useEffect(() => {
     setSupported(
@@ -47,57 +51,69 @@ export function ShareTableButton({
 
   if (!supported) return null;
 
-  const share = async () => {
+  const prewarmXlsx = () => {
+    const table = getTable();
+    if (!table || !table.rows.length) return;
+    const name = `${exportFileStem(fileStem)}.xlsx`;
+    tableToXlsxBlob(table)
+      .then((blob) => {
+        xlsxRef.current = new File([blob], name, { type: XLSX_MIME });
+      })
+      .catch(() => {
+        xlsxRef.current = null;
+      });
+  };
+
+  const share = () => {
     tapFeedback();
     const table = getTable();
     if (!table || !table.rows.length) {
       setNote("Нечем делиться: таблица пуста");
       return;
     }
-    setBusy(true);
     setNote(null);
     const title = screenTitle();
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    const stem = exportFileStem(fileStem);
-    try {
-      let file: File;
-      try {
-        file = new File([await tableToXlsxBlob(table)], `${stem}.xlsx`, {
-          type: XLSX_MIME,
-        });
-      } catch {
-        file = new File([tableToCsv(table)], `${stem}.csv`, {
-          type: "text/csv;charset=utf-8",
-        });
-      }
-      const canFiles =
-        typeof navigator.canShare === "function" &&
-        navigator.canShare({ files: [file] });
-      if (canFiles) {
-        await navigator.share({ files: [file], title, text: `${title}\n${url}` });
-      } else {
-        // Приложение не принимает файлы — отправляем ссылку с текущими фильтрами
-        await navigator.share({ title, text: title, url });
-      }
-      confirmFeedback();
-    } catch (cause) {
-      if (cause instanceof DOMException && cause.name === "AbortError") return;
-      setNote(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
+    const url = window.location.href;
+    const file =
+      xlsxRef.current ??
+      new File(
+        [tableToCsv(table)],
+        `${exportFileStem(fileStem)}.csv`,
+        { type: "text/csv;charset=utf-8" },
+      );
+    const canFiles =
+      typeof navigator.canShare === "function" &&
+      navigator.canShare({ files: [file] });
+    const payload: ShareData = canFiles
+      ? { files: [file], title, text: `${title}\n${url}` }
+      : { title, text: title, url };
+
+    navigator
+      .share(payload)
+      .then(() => confirmFeedback())
+      .catch((cause: unknown) => {
+        if (cause instanceof DOMException) {
+          if (cause.name === "AbortError") return;
+          if (cause.name === "NotAllowedError") {
+            setNote("Телефон не открыл шторку — нажмите ещё раз");
+            return;
+          }
+        }
+        setNote(cause instanceof Error ? cause.message : String(cause));
+      });
   };
 
   return (
     <>
       <button
         type="button"
-        onClick={() => void share()}
-        disabled={disabled || busy}
+        onPointerDown={prewarmXlsx}
+        onClick={share}
+        disabled={disabled}
         className="inline-flex items-center gap-1.5 rounded-md border border-tremor-border bg-white/90 px-2.5 py-1 text-sm shadow-sm disabled:opacity-40 lg:hidden dark:border-dark-tremor-border dark:bg-slate-900/90"
       >
         <span aria-hidden>⤴</span>
-        {busy ? "Готовим файл…" : label}
+        {label}
       </button>
       {note ? (
         <span className="text-xs text-rose-600 lg:hidden dark:text-rose-300">
