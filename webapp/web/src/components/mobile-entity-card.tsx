@@ -125,7 +125,7 @@ export function MobileCardStack({
   children: ReactNode;
   pinned?: ReactNode;
   pageSize?: number;
-  /** Стек внутри карточки: без отступа под кнопку «Развернуть». */
+  /** Раньше: отступ под кнопку fullscreen; на mobile кнопка скрыта. */
   compact?: boolean;
 }) {
   const items = Children.toArray(children);
@@ -140,7 +140,7 @@ export function MobileCardStack({
 
   return (
     <div
-      className="flex flex-col gap-3 px-2 pb-2 pt-3 lg:hidden"
+      className={`flex flex-col gap-3 px-2 pb-2 lg:hidden ${compact ? "pt-2" : "pt-3"}`}
     >
       {pinned}
       {visible}
