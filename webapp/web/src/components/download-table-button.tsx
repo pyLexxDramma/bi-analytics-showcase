@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ShareTableButton } from "@/components/share-table-button";
 import {
   downloadCsv,
   downloadXlsx,
@@ -144,7 +145,7 @@ export function DownloadTableButton({
       : null;
 
   return (
-    <div className={`relative inline-block ${className}`}>
+    <span className={`relative inline-flex flex-wrap items-center gap-2 ${className}`}>
       <button
         ref={btnRef}
         type="button"
@@ -156,7 +157,12 @@ export function DownloadTableButton({
       >
         {busy ? "Выгрузка…" : label}
       </button>
+      <ShareTableButton
+        getTable={getTable}
+        fileStem={fileStem}
+        disabled={disabled}
+      />
       {menu}
-    </div>
+    </span>
   );
 }

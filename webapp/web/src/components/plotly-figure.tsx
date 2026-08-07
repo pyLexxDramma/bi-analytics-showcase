@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ComponentProps } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import Plotly from "plotly.js-dist-min";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { useChartInteractive } from "@/lib/chart-interaction";
@@ -63,10 +63,46 @@ function withoutGestureConfig(
   } as PlotProps["config"];
 }
 
+/** Высота из layout, если задана числом — плейсхолдер не «прыгает». */
+function layoutHeight(layout: PlotProps["layout"]): number | undefined {
+  const h = (layout as { height?: unknown } | undefined)?.height;
+  return typeof h === "number" ? h : undefined;
+}
+
 export default function PlotlyFigure(props: PlotProps) {
   const mobile = useIsMobileViewport();
   const interactive = useChartInteractive();
   const lockGestures = mobile && !interactive;
+
+  // Решаем синхронно на первом рендере: на desktop график монтируется сразу,
+  // как раньше; на телефоне — только когда доскроллили (экономит первый кадр).
+  const [lazyOnMobile] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 1023px)").matches,
+  );
+  const [visible, setVisible] = useState(!lazyOnMobile);
+  const holderRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (visible) return;
+    const el = holderRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "320px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
 
   const data = useMemo(() => withoutHoverData(props.data), [props.data]);
   const layout = useMemo(
@@ -77,6 +113,17 @@ export default function PlotlyFigure(props: PlotProps) {
     () => withoutGestureConfig(props.config, lockGestures),
     [props.config, lockGestures],
   );
+
+  if (!visible) {
+    return (
+      <div
+        ref={holderRef}
+        className="bi-chart-placeholder bi-skeleton"
+        style={{ height: layoutHeight(props.layout) ?? "100%" }}
+        aria-hidden
+      />
+    );
+  }
 
   return (
     <RawPlotlyFigure {...props} data={data} layout={layout} config={config} />

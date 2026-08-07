@@ -22,6 +22,7 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips } from "@/lib/filters-summary";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -172,6 +173,24 @@ function ProjectDocumentationScreen({
 
   const selectClass = FILTER_SELECT_CLASS;
 
+  const appliedReportDate = data?.filters.applied.report_date || INITIAL.reportDate;
+  const resetFilters = () =>
+    setFilters({ ...INITIAL, reportDate: appliedReportDate });
+  const viewModeLabel = (id: string) =>
+    (data?.filters.view_modes ?? []).find((m) => m.id === id)?.label ?? id;
+  const activeFilters = buildFilterChips(
+    filters,
+    { ...INITIAL, reportDate: appliedReportDate },
+    [
+      { key: "project", name: "Проект", clear: { project: "Все", section: "Все" } },
+      { key: "period", name: "Период" },
+      { key: "section", name: "Вид раздела" },
+      { key: "viewMode", name: "Отображение", label: viewModeLabel },
+      { key: "reportDate", name: "Дата", kind: "date" },
+    ],
+    (patch) => setFilters((f) => ({ ...f, ...patch })),
+  );
+
   const kpis = data?.kpis;
   const dynamics = data?.tremor.dynamics ?? [];
   const monthly = data?.tremor.monthly ?? [];
@@ -293,15 +312,13 @@ function ProjectDocumentationScreen({
         </div>
       ) : null}
 
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
-        <FiltersReset
-          onClick={() =>
-            setFilters({
-              ...INITIAL,
-              reportDate: data?.filters.applied.report_date || INITIAL.reportDate,
-            })
-          }
-        />
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((v) => !v)}
+        activeFilters={activeFilters}
+        onReset={activeFilters.length ? resetFilters : undefined}
+      >
+        <FiltersReset onClick={resetFilters} />
         {tab === "main" ? (
           <FilterFieldsRow cols={3}>
             <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((f) => ({ ...f, project, section: "Все" }))} />

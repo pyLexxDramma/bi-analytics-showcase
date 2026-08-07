@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FiltersSheet } from "@/components/filters-sheet";
+import type { ActiveFilter } from "@/lib/filters-summary";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
@@ -749,6 +750,7 @@ export function FiltersCard({
   onToggle,
   title = "Фильтры",
   activeCount,
+  activeFilters,
   onReset,
   children,
 }: {
@@ -756,6 +758,8 @@ export function FiltersCard({
   onToggle: () => void;
   title?: string;
   activeCount?: number;
+  /** Чипы выбранных значений — рендерятся только на мобильном вьюпорте. */
+  activeFilters?: ActiveFilter[];
   onReset?: () => void;
   children: ReactNode;
 }) {
@@ -765,6 +769,8 @@ export function FiltersCard({
   const [sheetOpen, setSheetOpen] = useState(false);
 
   if (mobile) {
+    const chips = activeFilters ?? [];
+    const count = activeCount ?? chips.length;
     return (
       <>
         <button
@@ -774,17 +780,54 @@ export function FiltersCard({
             setSheetOpen(true);
           }}
           aria-expanded={sheetOpen}
-          className="bi-filters-trigger mb-4"
+          className={`bi-filters-trigger ${chips.length ? "mb-2" : "mb-4"}`}
         >
           <span className="bi-filters-trigger-icon" aria-hidden>
             ⛭
           </span>
           <span className="flex-1 text-left">{title}</span>
-          {activeCount ? (
-            <span className="bi-filters-trigger-badge">{activeCount}</span>
+          {count ? (
+            <span className="bi-filters-trigger-badge">{count}</span>
           ) : null}
           <span aria-hidden>▾</span>
         </button>
+        {chips.length ? (
+          <div className="bi-active-chips mb-4" aria-label="Выбранные фильтры">
+            {chips.map((chip) =>
+              chip.onClear ? (
+                <button
+                  key={chip.key}
+                  type="button"
+                  className="bi-active-chip"
+                  onClick={() => {
+                    tapFeedback();
+                    chip.onClear?.();
+                  }}
+                  title={`Снять фильтр: ${chip.label}`}
+                >
+                  <span className="bi-active-chip-text">{chip.label}</span>
+                  <span aria-hidden>✕</span>
+                </button>
+              ) : (
+                <span key={chip.key} className="bi-active-chip">
+                  <span className="bi-active-chip-text">{chip.label}</span>
+                </span>
+              ),
+            )}
+            {onReset && chips.length > 1 ? (
+              <button
+                type="button"
+                className="bi-active-chip bi-active-chip-reset"
+                onClick={() => {
+                  confirmFeedback();
+                  onReset();
+                }}
+              >
+                Сбросить всё
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <FiltersSheet
           open={sheetOpen}
           onClose={() => setSheetOpen(false)}

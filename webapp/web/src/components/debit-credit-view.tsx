@@ -22,6 +22,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -159,12 +161,35 @@ export function DebitCreditView() {
     };
   }, [data]);
 
+  useUrlFilterState(filters, initial, (patch) =>
+    setFilters((s) => ({ ...s, ...patch })),
+  );
+
+  const activeFilters = buildFilterChips(
+    filters,
+    initial,
+    [
+      { key: "project", name: "Проект" },
+      { key: "contractor", name: "Подрядчик" },
+      { key: "contract_q", name: "№ договора" },
+      { key: "date_from", name: "С", kind: "date" },
+      { key: "date_to", name: "По", kind: "date" },
+      { key: "display_view", name: "Вид" },
+    ],
+    (patch) => setFilters((s) => ({ ...s, ...patch })),
+  );
+
   return (
     <AppShell
       title="Дебиторская и кредиторская задолженность подрядчиков"
       subtitle="Авансы, КС-2 и договоры · млн ₽"
      loading={loading}>
-      <FiltersCard open={open} onToggle={() => setOpen((v) => !v)}>
+      <FiltersCard
+        open={open}
+        onToggle={() => setOpen((v) => !v)}
+        activeFilters={activeFilters}
+        onReset={activeFilters.length ? () => setFilters(initial) : undefined}
+      >
         <FiltersReset onClick={() => setFilters(initial)} />
         <FilterFieldsRow cols={5}>
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />

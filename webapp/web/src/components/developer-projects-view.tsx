@@ -15,7 +15,11 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { multiFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
+
+const URL_INITIAL = { projects: [] as string[] };
 
 type MatrixColumn = DeveloperProjectsPayload["matrix"]["columns"][number];
 
@@ -340,6 +344,11 @@ export function DeveloperProjectsView() {
     void load(selected);
   }, [selected, load]);
 
+  const urlState = useMemo(() => ({ projects: selected }), [selected]);
+  useUrlFilterState(urlState, URL_INITIAL, (patch) => {
+    if (patch.projects) setSelected(patch.projects);
+  });
+
   const columns = useMemo(() => {
     if (data?.matrix.columns?.length) return data.matrix.columns;
     return (data?.matrix.milestones ?? []).map((m) => ({
@@ -362,7 +371,12 @@ export function DeveloperProjectsView() {
 
   return (
     <AppShell title="Девелоперские проекты" loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((state) => !state)}
+        activeFilters={multiFilterChips("projects", "Проект", selected, setSelected)}
+        onReset={selected.length ? () => setSelected([]) : undefined}
+      >
         <FiltersReset disabled={selected.length === 0} onClick={() => setSelected([])} />
         <FilterChipMulti
           label="Проект"

@@ -16,6 +16,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -353,9 +355,43 @@ export function BaselineDeviationView() {
       ? "Причины отклонений (таблица)"
       : "Отклонение от базового плана (таблица)";
 
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((prev) => ({ ...prev, ...patch })),
+  );
+
+  const levelLabel = (id: string) =>
+    (data?.filters.levels ?? []).find((l) => l.id === id)?.label ?? id;
+  const activeFilters = buildFilterChips(
+    filters,
+    INITIAL,
+    [
+      {
+        key: "project",
+        name: "Проект",
+        clear: { project: "Все", building: "Все" },
+      },
+      { key: "block", name: "Блок", clear: { block: "Все", building: "Все" } },
+      { key: "building", name: "Строение" },
+      { key: "level", name: "Детализация", label: levelLabel },
+      { key: "reason", name: "Причина" },
+      { key: "showReasons", name: "Причины отклонений", kind: "flag" },
+      { key: "hideCompleted", name: "Завершённые скрыты", kind: "flag" },
+      { key: "onlyCovenants", name: "Только ковенанты", kind: "flag" },
+      { key: "onlyNegEnd", name: "Только отрицательные", kind: "flag" },
+      { key: "showDur", name: "Длительность", kind: "flag" },
+      { key: "labelMode", name: "Подписи" },
+    ],
+    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
+  );
+
   return (
     <AppShell title="Отклонение от базового плана" loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((v) => !v)}
+        activeFilters={activeFilters}
+        onReset={dirty ? () => setFilters(INITIAL) : undefined}
+      >
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, building: "Все" }))} />

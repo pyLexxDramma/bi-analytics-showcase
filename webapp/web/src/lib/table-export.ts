@@ -51,13 +51,8 @@ export function downloadCsv(table: ExportTable, fileStem: string): void {
   );
 }
 
-export async function downloadXlsx(
-  table: ExportTable,
-  fileStem: string,
-): Promise<void> {
-  // динамический импорт: писатель xlsx не нужен до клика по «Скачать»
-  const writeXlsxFile = (await import("write-excel-file/browser")).default;
-  const data = [
+function buildXlsxRows(table: ExportTable) {
+  return [
     ...table.header.map((row) =>
       row.map((value) => ({
         value: value === null || value === undefined ? "" : String(value),
@@ -72,7 +67,27 @@ export async function downloadXlsx(
       ),
     ),
   ];
-  const writer = writeXlsxFile(data, {
+}
+
+/** Те же данные, что уходят в файл, но как Blob — для «Поделиться». */
+export async function tableToXlsxBlob(table: ExportTable): Promise<Blob> {
+  const writeXlsxFile = (await import("write-excel-file/browser")).default;
+  const writer = writeXlsxFile(buildXlsxRows(table), {
+    sheet: table.sheetName || "Данные",
+  });
+  if (typeof writer.toBlob !== "function") {
+    throw new Error("Не удалось создать Excel-файл");
+  }
+  return writer.toBlob();
+}
+
+export async function downloadXlsx(
+  table: ExportTable,
+  fileStem: string,
+): Promise<void> {
+  // динамический импорт: писатель xlsx не нужен до клика по «Скачать»
+  const writeXlsxFile = (await import("write-excel-file/browser")).default;
+  const writer = writeXlsxFile(buildXlsxRows(table), {
     sheet: table.sheetName || "Данные",
   });
   // Browser: toFile скачивает сам; toBlob — запасной путь

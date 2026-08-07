@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import {
   Card,
@@ -23,6 +24,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips, filterChip } from "@/lib/filters-summary";
+import { tapFeedback } from "@/lib/haptics";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -163,6 +166,41 @@ const COPY: Record<
     fileStem: "gdrs_equipment",
   },
 };
+
+/**
+ * Список строк внутри мобильной карточки: первые `limit`, остальное по кнопке.
+ * Итоги и графики считаются по полному набору — режется только отображение.
+ */
+function MobileRowList<T>({
+  rows,
+  limit = 15,
+  render,
+}: {
+  rows: T[];
+  limit?: number;
+  render: (row: T, index: number) => ReactNode;
+}) {
+  const [shown, setShown] = useState(limit);
+  const visible = rows.slice(0, shown);
+  const rest = rows.length - visible.length;
+  return (
+    <div className="space-y-2">
+      {visible.map((row, index) => render(row, index))}
+      {rest > 0 ? (
+        <button
+          type="button"
+          className="bi-card-more"
+          onClick={() => {
+            tapFeedback();
+            setShown(rows.length);
+          }}
+        >
+          Показать все {rows.length}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 function fmtInt(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -582,9 +620,49 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
 
   const dev = (n: number | null | undefined) => deviationStyle(n, dark);
 
+  const defaultMonths = data?.filters.default_months ?? [];
+  const monthsChanged =
+    filters.months.length !== defaultMonths.length ||
+    filters.months.some((m) => !defaultMonths.includes(m));
+  const activeFilters = [
+    ...buildFilterChips(
+      filters,
+      {
+        plan_agg: "Среднее за месяц",
+        skud_agg: "Среднее за месяц",
+        dyn_agg: "День",
+        only_with_plan: false,
+      },
+      [
+        { key: "projects", name: "Проект" },
+        { key: "contractors", name: "Контрагент" },
+        { key: "plan_agg", name: "План" },
+        { key: "skud_agg", name: "СКУД" },
+        { key: "dyn_agg", name: "Динамика" },
+        { key: "only_with_plan", name: "Только с планом", kind: "flag" },
+      ],
+      (patch) => setFilters((s) => ({ ...s, ...patch })),
+    ),
+    ...(monthsChanged
+      ? [
+          filterChip(
+            "months",
+            "Месяц",
+            filters.months.length ? filters.months.join(", ") : "не выбран",
+            () => setFilters((s) => ({ ...s, months: defaultMonths })),
+          ),
+        ]
+      : []),
+  ];
+
   return (
     <AppShell title={copy.title} subtitle={copy.subtitle} loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((o) => !o)}
+        activeFilters={activeFilters}
+        onReset={activeFilters.length ? resetFilters : undefined}
+      >
         <FiltersReset onClick={resetFilters} />
         <FilterFieldsRow cols={5}>
           <FilterChipMulti label="Проект" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
@@ -1422,8 +1500,9 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         </Card>
         <MobileCardStack>
           <MobileEntityCard title="ГДРС по выбранным проектам">
-            <div className="space-y-2">
-              {projectRows.map((row) => (
+            <MobileRowList
+              rows={projectRows}
+              render={(row) => (
                 <MobileMetricGrid
                   key={row.project}
                   columns={4}
@@ -1434,12 +1513,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
                   ]}
                 />
-              ))}
-            </div>
+              )}
+            />
           </MobileEntityCard>
           <MobileEntityCard title={matrixTitle}>
-            <div className="space-y-2">
-              {matrixRows.map((row, index) => (
+            <MobileRowList
+              rows={matrixRows}
+              render={(row, index) => (
                 <MobileMetricGrid
                   key={`${row.kind}-${row.label}-${index}`}
                   columns={4}
@@ -1450,12 +1530,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
                   ]}
                 />
-              ))}
-            </div>
+              )}
+            />
           </MobileEntityCard>
           <MobileEntityCard title="Детализация по периодам">
-            <div className="space-y-2">
-              {dynamicsRows.map((row) => (
+            <MobileRowList
+              rows={dynamicsRows}
+              render={(row) => (
                 <MobileMetricGrid
                   key={row.period}
                   columns={4}
@@ -1466,12 +1547,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
                   ]}
                 />
-              ))}
-            </div>
+              )}
+            />
           </MobileEntityCard>
           <MobileEntityCard title={pieTitle}>
-            <div className="space-y-2">
-              {contractorRows.map((row) => (
+            <MobileRowList
+              rows={contractorRows}
+              render={(row) => (
                 <MobileMetricGrid
                   key={row.contractor}
                   columns={4}
@@ -1482,8 +1564,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
                   ]}
                 />
-              ))}
-            </div>
+              )}
+            />
           </MobileEntityCard>
         </MobileCardStack>
       </div>

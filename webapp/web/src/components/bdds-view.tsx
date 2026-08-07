@@ -25,6 +25,13 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import {
+  filterChip,
+  formatDateChip,
+  multiFilterChips,
+  type ActiveFilter,
+} from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -374,6 +381,10 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     void load(filters);
   }, [filters, load]);
 
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((state) => ({ ...state, ...patch })),
+  );
+
   const periodLabel = data?.labels.period ?? "Месяц";
   const zeroToggleEnabled = filters.group === "month" && filters.view === "monthly";
   // как в main: чекбокс включён по умолчанию, пока не выбран конкретный проект
@@ -488,9 +499,72 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     filters.hide_zero !== null ||
     filters.show_deviation;
 
+  const groupLabel =
+    (data?.filters.groups ?? []).find((g) => g.id === filters.group)?.label ??
+    filters.group;
+  const viewLabel =
+    (data?.filters.views ?? []).find((v) => v.id === filters.view)?.label ??
+    filters.view;
+
+  const activeFilters: ActiveFilter[] = [
+    ...multiFilterChips("projects", "Проект", filters.projects, (projects) =>
+      setFilters((state) => ({ ...state, projects })),
+    ),
+    ...(filters.date_from
+      ? [
+          filterChip("from", "С", formatDateChip(filters.date_from), () =>
+            setFilters((state) => ({ ...state, date_from: "" })),
+          ),
+        ]
+      : []),
+    ...(filters.date_to
+      ? [
+          filterChip("to", "По", formatDateChip(filters.date_to), () =>
+            setFilters((state) => ({ ...state, date_to: "" })),
+          ),
+        ]
+      : []),
+    ...(filters.group !== "month"
+      ? [
+          filterChip("group", "Группировка", groupLabel, () =>
+            setFilters((state) => ({ ...state, group: "month" })),
+          ),
+        ]
+      : []),
+    ...(filters.view !== "monthly"
+      ? [
+          filterChip("view", "Представление", viewLabel, () =>
+            setFilters((state) => ({ ...state, view: "monthly" })),
+          ),
+        ]
+      : []),
+    ...(filters.hide_zero !== null
+      ? [
+          filterChip(
+            "hide_zero",
+            "Нулевые месяцы",
+            filters.hide_zero ? "скрыты" : "показаны",
+            () => setFilters((state) => ({ ...state, hide_zero: null })),
+          ),
+        ]
+      : []),
+    ...(filters.show_deviation
+      ? [
+          filterChip("show_deviation", "Отклонение", "показано", () =>
+            setFilters((state) => ({ ...state, show_deviation: false })),
+          ),
+        ]
+      : []),
+  ];
+
   return (
     <AppShell title={config.title} loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((state) => !state)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((state) => !state)}
+        activeFilters={activeFilters}
+        onReset={dirty ? () => setFilters(INITIAL) : undefined}
+      >
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterChipMulti
           label="Проект"

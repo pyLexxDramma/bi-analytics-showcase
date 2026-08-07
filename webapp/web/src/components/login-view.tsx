@@ -7,7 +7,6 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ConstructionAnalyticsScene } from "@/components/construction-analytics-scene";
-import { requestMobileMenuOnNextLoad } from "@/components/app-shell";
 
 import {
 
@@ -88,8 +87,6 @@ export function LoginView() {
       const result = await postAuthLogin(username.trim(), password);
 
       saveAuthSession(result.user, result.token);
-
-      requestMobileMenuOnNextLoad();
 
       router.replace("/developer-projects");
 

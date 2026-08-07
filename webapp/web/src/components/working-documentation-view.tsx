@@ -19,6 +19,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -500,6 +502,29 @@ export function WorkingDocumentationView() {
     });
   };
 
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((f) => ({ ...f, ...patch })),
+  );
+
+  const viewModeLabel = (id: string) =>
+    (data?.filters.view_modes ?? []).find((m) => m.id === id)?.label ?? id;
+  const activeFilters = buildFilterChips(
+    filters,
+    INITIAL,
+    [
+      { key: "projects", name: "Проект" },
+      { key: "sections", name: "Раздел" },
+      { key: "statuses", name: "Статус" },
+      { key: "periodMode", name: "Период" },
+      { key: "dateFrom", name: "С", kind: "date" },
+      { key: "dateTo", name: "По", kind: "date" },
+      { key: "metricMode", name: "Метрика" },
+      { key: "showForecast", name: "Прогноз", kind: "flag" },
+      { key: "viewMode", name: "Отображение", label: viewModeLabel },
+    ],
+    (patch) => setFilters((f) => ({ ...f, ...patch })),
+  );
+
   return (
     <AppShell title="Рабочая документация" loading={loading}>
       <div className="mb-4 flex gap-4 border-b border-tremor-border dark:border-dark-tremor-border">
@@ -528,6 +553,8 @@ export function WorkingDocumentationView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         title={tab === "main" ? "План выдачи РД — фильтры" : "Фильтры"}
+        activeFilters={activeFilters}
+        onReset={activeFilters.length ? resetFilters : undefined}
       >
         <FiltersReset onClick={resetFilters} />
         <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects }))} />

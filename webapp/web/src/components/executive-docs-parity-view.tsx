@@ -29,7 +29,12 @@ import {
   ExecutiveOverdueChart,
   ExecutiveStatusChart,
 } from "@/components/executive-docs-charts";
-import { MobileEntityCard, MobileMetricGrid } from "@/components/mobile-entity-card";
+import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
+import { buildFilterChips } from "@/lib/filters-summary";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -40,6 +45,16 @@ type Filters = {
   date_to: string;
   granularity: string;
   hide_overdue_if_signed: boolean;
+};
+
+const INITIAL: Filters = {
+  project: "Все",
+  contractor: "Все",
+  doc_kind: "Все",
+  date_from: "",
+  date_to: "",
+  granularity: "month",
+  hide_overdue_if_signed: true,
 };
 
 type TabId = "sum" | "detail" | "dyn";
@@ -80,15 +95,7 @@ function fmtLate(days: number | null | undefined): string {
 }
 
 export function ExecutiveDocsParityView() {
-  const [filters, setFilters] = useState<Filters>({
-    project: "Все",
-    contractor: "Все",
-    doc_kind: "Все",
-    date_from: "",
-    date_to: "",
-    granularity: "month",
-    hide_overdue_if_signed: true,
-  });
+  const [filters, setFilters] = useState<Filters>(INITIAL);
   const [data, setData] = useState<ExecutiveDocsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,16 +145,31 @@ export function ExecutiveDocsParityView() {
     }
   }, [data?.filters.date_max, data?.filters.date_min, filters.date_from, filters.date_to]);
 
-  const reset = () =>
-    setFilters({
-      project: "Все",
-      contractor: "Все",
-      doc_kind: "Все",
-      date_from: "",
-      date_to: "",
-      granularity: "month",
-      hide_overdue_if_signed: true,
-    });
+  const reset = () => setFilters(INITIAL);
+
+  // Период по умолчанию подставляется из данных — чипы сравниваем с ним
+  const activeFilters = buildFilterChips(
+    filters,
+    {
+      ...INITIAL,
+      date_from: data?.filters.date_min ?? "",
+      date_to: data?.filters.date_max ?? "",
+    },
+    [
+      { key: "project", name: "Объект" },
+      { key: "contractor", name: "Контрагент" },
+      { key: "doc_kind", name: "Вид документа" },
+      { key: "date_from", name: "С", kind: "date" },
+      { key: "date_to", name: "По", kind: "date" },
+      { key: "granularity", name: "Период" },
+      {
+        key: "hide_overdue_if_signed",
+        name: "Просрочка у подписанных",
+        kind: "flag",
+      },
+    ],
+    (patch) => setFilters((state) => ({ ...state, ...patch })),
+  );
 
   const exportDetail = useCallback((): ExportTable | null => {
     const rows = data?.rows ?? [];
@@ -188,7 +210,12 @@ export function ExecutiveDocsParityView() {
       title="Исполнительная документация"
       subtitle="TESSA · сдача, согласование и просрочки ИД"
       loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((v) => !v)}
+        activeFilters={activeFilters}
+        onReset={activeFilters.length ? reset : undefined}
+      >
         <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={5}>
           {(
@@ -553,7 +580,7 @@ export function ExecutiveDocsParityView() {
             {!data?.rows?.length ? (
               <Text className="px-2 py-6 text-center">Нет строк</Text>
             ) : (
-              <div className="flex flex-col gap-3 px-2 pb-2">
+              <MobileCardStack compact>
                 {data.rows.map((row, index) => (
                   <MobileEntityCard
                     key={`${row.doc_number}-${index}`}
@@ -594,7 +621,7 @@ export function ExecutiveDocsParityView() {
                     />
                   </MobileEntityCard>
                 ))}
-              </div>
+              </MobileCardStack>
             )}
             <div className="mt-3 px-2">
               <DownloadTableButton getTable={exportDetail} fileStem="executive_docs" disabled={!data?.rows?.length} />

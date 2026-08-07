@@ -21,6 +21,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { BddsPlanFactEditor } from "@/components/bdds-plan-fact-editor";
 import type { ExportTable } from "@/lib/table-export";
 
@@ -207,12 +209,54 @@ export function BddsPlanFactView() {
     };
   }, [data?.status_rows]);
 
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((s) => ({ ...s, ...patch })),
+  );
+
+  const optionLabel = (
+    items: Array<{ id: string; label: string }> | undefined,
+    id: string,
+  ) => items?.find((i) => i.id === id)?.label ?? id;
+
+  const activeFilters = buildFilterChips(
+    filters,
+    INITIAL,
+    [
+      { key: "project", name: "Проект" },
+      {
+        key: "group",
+        name: "Группировка",
+        label: (v) => optionLabel(data?.filters.groups, v),
+      },
+      {
+        key: "view",
+        name: "Представление",
+        label: (v) => optionLabel(data?.filters.views, v),
+      },
+      { key: "date_from", name: "С", kind: "date" },
+      { key: "date_to", name: "По", kind: "date" },
+      {
+        key: "dev_base",
+        name: "База отклонения",
+        label: (v) => optionLabel(data?.filters.dev_bases, v),
+      },
+      { key: "hide_deviation", name: "Отклонение скрыто", kind: "flag" },
+      { key: "hide_zero", name: "Нулевые месяцы", kind: "flag" },
+    ],
+    (patch) => setFilters((s) => ({ ...s, ...patch })),
+  );
+
   return (
     <AppShell
       title="БДДС расходы (план, факт, уточненный план)"
       subtitle="Прогнозный бюджет: план, факт и БДДС прогноз по лотам MSP"
      loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((v) => !v)}
+        activeFilters={activeFilters}
+        onReset={activeFilters.length ? () => setFilters(INITIAL) : undefined}
+      >
         <FiltersReset onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />

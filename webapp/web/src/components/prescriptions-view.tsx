@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, Text, Title } from "@tremor/react";
@@ -18,6 +18,7 @@ import {
   FiltersReset,
 } from "@/components/dashboard-filters";
 import {
+  MobileCardStack,
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
@@ -26,6 +27,8 @@ import {
   PrescriptionsObjectsChart,
   PrescriptionsStatusPieChart,
 } from "@/components/prescriptions-charts";
+import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -35,6 +38,15 @@ type Filters = {
   date_from: string;
   date_to: string;
   hide_resolved: boolean;
+};
+
+const INITIAL: Filters = {
+  projects: [],
+  contractors: [],
+  contract_q: "",
+  date_from: "",
+  date_to: "",
+  hide_resolved: false,
 };
 type SortState = { key: string; asc: boolean } | null;
 
@@ -80,14 +92,7 @@ function exportCell(value: unknown): ExportCell {
 }
 
 export function PrescriptionsView() {
-  const [filters, setFilters] = useState<Filters>({
-    projects: [],
-    contractors: [],
-    contract_q: "",
-    date_from: "",
-    date_to: "",
-    hide_resolved: false,
-  });
+  const [filters, setFilters] = useState<Filters>(INITIAL);
   const [data, setData] = useState<PrescriptionsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,15 +180,25 @@ export function PrescriptionsView() {
     [data?.tremor.by_object, objectStatusKeys],
   );
 
-  const reset = () =>
-    setFilters({
-      projects: [],
-      contractors: [],
-      contract_q: "",
-      date_from: "",
-      date_to: "",
-      hide_resolved: false,
-    });
+  const reset = () => setFilters(INITIAL);
+
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((state) => ({ ...state, ...patch })),
+  );
+
+  const activeFilters = buildFilterChips(
+    filters,
+    INITIAL,
+    [
+      { key: "projects", name: "Проект" },
+      { key: "contractors", name: "Подрядчик" },
+      { key: "contract_q", name: "№ договора" },
+      { key: "date_from", name: "С", kind: "date" },
+      { key: "date_to", name: "По", kind: "date" },
+      { key: "hide_resolved", name: "Устранённые скрыты", kind: "flag" },
+    ],
+    (patch) => setFilters((state) => ({ ...state, ...patch })),
+  );
 
   const exportTable = useCallback((): ExportTable | null => {
     if (!rows.length) return null;
@@ -289,7 +304,12 @@ export function PrescriptionsView() {
       subtitle="TESSA · статусы, сроки устранения и критичность"
       loading={loading}
     >
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((value) => !value)}
+        activeFilters={activeFilters}
+        onReset={activeFilters.length ? reset : undefined}
+      >
         <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={4}>
           <FilterChipMulti
@@ -601,7 +621,7 @@ export function PrescriptionsView() {
           {!rows.length ? (
             <Text className="px-2 py-6 text-center">Нет строк по фильтрам.</Text>
           ) : (
-            <div className="flex flex-col gap-3 px-2 pb-2">
+            <MobileCardStack compact>
               {rows.map((row, index) => (
                 <MobileEntityCard
                   key={`${row.pred_number}-${index}`}
@@ -664,7 +684,7 @@ export function PrescriptionsView() {
                   ) : null}
                 </MobileEntityCard>
               ))}
-            </div>
+            </MobileCardStack>
           )}
           <div className="mt-3 px-2">
             <DownloadTableButton

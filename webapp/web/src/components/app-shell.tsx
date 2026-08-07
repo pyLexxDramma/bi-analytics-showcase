@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   DashboardLoadingOverlay,
   DashboardSkeleton,
   useDelayedLoading,
 } from "@/components/dashboard-loading";
-import { ScrollToTopButton } from "@/components/scroll-to-top";
+import { MobileTabBar } from "@/components/mobile-tab-bar";
+import { ReportsSearchSheet } from "@/components/reports-search-sheet";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
+import { findNavItem } from "@/lib/nav";
+import { pushRecentReport } from "@/lib/recent-reports";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 import {
   applyThemeClass,
@@ -16,22 +20,6 @@ import {
   writeTheme,
   type ThemeMode,
 } from "@/lib/theme";
-
-const OPEN_MENU_KEY = "bi_showcase_open_menu";
-
-function isMobileViewport(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(max-width: 1023px)").matches;
-}
-
-/** Вызвать после логина — на mobile AppShell откроет drawer. */
-export function requestMobileMenuOnNextLoad(): void {
-  try {
-    sessionStorage.setItem(OPEN_MENU_KEY, "1");
-  } catch {
-    /* ignore */
-  }
-}
 
 export function AppShell({
   title,
@@ -47,6 +35,8 @@ export function AppShell({
 }) {
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const pathname = usePathname();
   const mobile = useIsMobileViewport();
   const showLoading = useDelayedLoading(loading, mobile ? 400 : 1000);
   const showSkeleton = showLoading && mobile;
@@ -54,17 +44,6 @@ export function AppShell({
   useEffect(() => {
     applyThemeClass(readTheme());
     setDark(readTheme() === "dark");
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem(OPEN_MENU_KEY) === "1" && isMobileViewport()) {
-        sessionStorage.removeItem(OPEN_MENU_KEY);
-        setMenuOpen(true);
-      }
-    } catch {
-      /* ignore */
-    }
   }, []);
 
   useEffect(() => {
@@ -80,6 +59,12 @@ export function AppShell({
       document.body.style.overflow = prev;
     };
   }, [menuOpen]);
+
+  // «Недавние» в мобильном поиске отчётов
+  useEffect(() => {
+    const item = findNavItem(pathname);
+    if (item) pushRecentReport(item.href);
+  }, [pathname]);
 
   const setTheme = (mode: ThemeMode) => {
     confirmFeedback();
@@ -110,14 +95,28 @@ export function AppShell({
             <span className="text-sm font-bold text-[#1f2937] dark:text-dark-tremor-content-strong">
               Меню
             </span>
-            <button
-              type="button"
-              onClick={closeMenu}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-200 bg-white text-lg font-semibold text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-              aria-label="Закрыть меню"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  tapFeedback();
+                  setMenuOpen(false);
+                  setReportsOpen(true);
+                }}
+                className="inline-flex h-11 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+              >
+                <span aria-hidden>🔎</span>
+                Поиск
+              </button>
+              <button
+                type="button"
+                onClick={closeMenu}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-200 bg-white text-lg font-semibold text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+                aria-label="Закрыть меню"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             <AppSidebar
@@ -130,7 +129,7 @@ export function AppShell({
 
       <div className="relative min-h-screen min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
         <div
-          className={`bi-safe-area mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
+          className={`bi-safe-area bi-has-tabbar mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
             showLoading
               ? showSkeleton
                 ? "pointer-events-none select-none"
@@ -181,7 +180,16 @@ export function AppShell({
             <DashboardLoadingOverlay />
           )
         ) : null}
-        <ScrollToTopButton hidden={menuOpen || showLoading} />
+        <MobileTabBar
+          onOpenMenu={() => setMenuOpen(true)}
+          menuOpen={menuOpen}
+          onOpenReports={() => setReportsOpen(true)}
+        />
+        <ReportsSearchSheet
+          open={reportsOpen}
+          onClose={() => setReportsOpen(false)}
+          onNavigate={() => setMenuOpen(false)}
+        />
       </div>
     </div>
   );

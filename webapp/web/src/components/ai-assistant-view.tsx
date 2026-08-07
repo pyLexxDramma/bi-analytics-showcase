@@ -330,7 +330,7 @@ function FullAiAssistantView() {
 
   return (
     <AppShell title="XCA AI" subtitle="Бизнес-ассистент по активным данным showcase">
-      <div className="flex h-[calc(100dvh-132px)] min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-700 dark:bg-slate-950 sm:h-[min(76vh,760px)]">
+      <div className="flex h-[calc(100dvh-208px)] min-h-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-700 dark:bg-slate-950 sm:h-[min(76vh,760px)] sm:min-h-[520px]">
         <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 lg:block">
           {sessionList}
         </aside>

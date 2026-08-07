@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Text } from "@tremor/react";
 import { fetchControlPoints, type ControlPointsPayload } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
@@ -13,7 +13,11 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { filterChip } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
+
+const URL_INITIAL = { project: "Все" };
 
 const CELL = "border border-[#cbd5e1] dark:border-[#5a6f82]";
 const EDGE_L = "border-l-[3px] border-l-[#94a3b8] dark:border-l-white";
@@ -294,12 +298,26 @@ export function ControlPointsView() {
     void load(project);
   }, [load, project]);
 
+  const urlState = useMemo(() => ({ project }), [project]);
+  useUrlFilterState(urlState, URL_INITIAL, (patch) => {
+    if (patch.project) setProject(patch.project);
+  });
+
   const projects = data?.projects ?? [];
   const metaError = data?.meta.error;
 
   return (
     <AppShell title="Контрольные точки" loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((value) => !value)}
+        activeFilters={
+          project !== "Все"
+            ? [filterChip("project", "Проект", project, () => setProject("Все"))]
+            : []
+        }
+        onReset={project !== "Все" ? () => setProject("Все") : undefined}
+      >
         <FiltersReset disabled={project === "Все"} onClick={() => setProject("Все")} />
         <FilterFieldsRow cols={2}>
           <FilterChipSelect label="Проект" value={project} options={data?.filters.projects ?? ["Все"]} onChange={setProject} />

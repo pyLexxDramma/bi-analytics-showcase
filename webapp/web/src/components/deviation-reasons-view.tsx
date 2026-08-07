@@ -32,6 +32,12 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import {
+  filterChip,
+  formatDateChip,
+  type ActiveFilter,
+} from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
@@ -268,6 +274,18 @@ export function DeviationReasonsView() {
     void load();
   }, [load]);
 
+  // Даты из адреса важнее автоподстановки периода из ответа API
+  useUrlFilterState(
+    filters,
+    INITIAL,
+    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
+    {
+      onRestore: (restored) => {
+        if (restored.dateFrom || restored.dateTo) setPeriodReady(true);
+      },
+    },
+  );
+
   const dirty =
     filters.project !== INITIAL.project ||
     filters.block !== INITIAL.block ||
@@ -379,16 +397,79 @@ export function DeviationReasonsView() {
     stackRows.length > 0 ||
     (dynamics.summary_rows?.length ?? 0) > 0;
 
+  const resetFilters = () => {
+    setPeriodReady(false);
+    setFilters(INITIAL);
+  };
+
+  const periodMin = data?.filters.period.min ?? "";
+  const periodMax = data?.filters.period.max ?? "";
+  const activeFilters: ActiveFilter[] = [
+    ...(filters.project !== "Все"
+      ? [
+          filterChip("project", "Проект", filters.project, () =>
+            setFilters((prev) => ({
+              ...prev,
+              project: "Все",
+              block: "Все",
+              building: "Все",
+            })),
+          ),
+        ]
+      : []),
+    ...(filters.block !== "Все"
+      ? [
+          filterChip("block", "Блок", filters.block, () =>
+            setFilters((prev) => ({ ...prev, block: "Все", building: "Все" })),
+          ),
+        ]
+      : []),
+    ...(filters.building !== "Все"
+      ? [
+          filterChip("building", "Строение", filters.building, () =>
+            setFilters((prev) => ({ ...prev, building: "Все" })),
+          ),
+        ]
+      : []),
+    ...(filters.reason !== "Все"
+      ? [
+          filterChip("reason", "Причина", filters.reason, () =>
+            setFilters((prev) => ({ ...prev, reason: "Все" })),
+          ),
+        ]
+      : []),
+    ...(periodReady && filters.dateFrom && filters.dateFrom !== periodMin
+      ? [
+          filterChip("from", "С", formatDateChip(filters.dateFrom), () =>
+            setFilters((prev) => ({ ...prev, dateFrom: periodMin })),
+          ),
+        ]
+      : []),
+    ...(periodReady && filters.dateTo && filters.dateTo !== periodMax
+      ? [
+          filterChip("to", "По", formatDateChip(filters.dateTo), () =>
+            setFilters((prev) => ({ ...prev, dateTo: periodMax })),
+          ),
+        ]
+      : []),
+    ...(filters.top5
+      ? [
+          filterChip("top5", "ТОП 5 причин", "вкл", () =>
+            setFilters((prev) => ({ ...prev, top5: false })),
+          ),
+        ]
+      : []),
+  ];
+
   return (
     <AppShell title="Причины отклонений" loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
-        <FiltersReset
-          disabled={!dirty}
-          onClick={() => {
-            setPeriodReady(false);
-            setFilters(INITIAL);
-          }}
-        />
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((value) => !value)}
+        activeFilters={activeFilters}
+        onReset={dirty ? resetFilters : undefined}
+      >
+        <FiltersReset disabled={!dirty} onClick={resetFilters} />
         <FilterFieldsRow cols={5}>
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, block: "Все", building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />

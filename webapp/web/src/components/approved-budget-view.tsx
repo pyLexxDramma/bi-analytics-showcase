@@ -17,6 +17,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
 type SortKey = "period" | "project" | "plan" | "fact" | "remainder" | "deviation" | "completion_pct" | "contract_coverage_pct";
@@ -237,8 +239,27 @@ export function ApprovedBudgetView() {
       : null;
   const dirty = filters.projects.length > 0 || filters.fiz !== "Все" || filters.hide_zero !== null || filters.show_deviation;
   const gauge = data?.gauge ?? { plan: 0, fact: 0, deviation: 0, plan_mlrd: 0, fact_mlrd: 0, deviation_mlrd: 0, fact_pct: 0, deviation_pct: 0, axis_max_mlrd: 0 };
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((state) => ({ ...state, ...patch })),
+  );
+  const activeFilters = buildFilterChips(
+    filters,
+    INITIAL,
+    [
+      { key: "projects", name: "Проект" },
+      { key: "fiz", name: "ФИЗ" },
+      { key: "show_deviation", name: "Отклонение", kind: "flag" },
+      { key: "hide_zero", name: "Нулевые месяцы", kind: "flag" },
+    ],
+    (patch) => setFilters((state) => ({ ...state, ...patch })),
+  );
   return <AppShell title="Утверждённый бюджет план/факт" loading={loading}>
-    <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+    <FiltersCard
+      open={filtersOpen}
+      onToggle={() => setFiltersOpen((value) => !value)}
+      activeFilters={activeFilters}
+      onReset={dirty ? () => setFilters(INITIAL) : undefined}
+    >
       <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
       <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
       <FilterFieldsRow cols={2}>

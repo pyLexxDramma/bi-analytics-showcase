@@ -30,6 +30,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
@@ -233,6 +235,10 @@ export function ProjectScheduleView() {
     void load();
   }, [load]);
 
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((prev) => ({ ...prev, ...patch })),
+  );
+
   const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);
   const metaError = data?.meta?.error as string | undefined;
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
@@ -275,9 +281,39 @@ export function ProjectScheduleView() {
     });
   }, []);
 
+  const activeFilters = buildFilterChips(
+    filters,
+    INITIAL,
+    [
+      {
+        key: "project",
+        name: "Проект",
+        clear: { project: "Все", building: "Все" },
+      },
+      {
+        key: "block",
+        name: "Блок",
+        clear: { block: "Все", building: "Все" },
+      },
+      { key: "building", name: "Строение" },
+      { key: "level", name: "Уровень" },
+      { key: "showReasons", name: "Причины отклонений", kind: "flag" },
+      { key: "showLots", name: "Лоты", kind: "flag" },
+      { key: "labelPct", name: "% на графике", kind: "flag" },
+      { key: "hideCompleted", name: "Завершённые скрыты", kind: "flag" },
+      { key: "onlyDelay", name: "Только просрочка", kind: "flag" },
+    ],
+    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
+  );
+
   return (
     <AppShell title="График проекта" loading={loading}>
-      <FiltersCard open={filtersOpen} onToggle={() => setFiltersOpen((value) => !value)}>
+      <FiltersCard
+        open={filtersOpen}
+        onToggle={() => setFiltersOpen((value) => !value)}
+        activeFilters={activeFilters}
+        onReset={dirty ? () => setFilters(INITIAL) : undefined}
+      >
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
           <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, building: "Все" }))} />
