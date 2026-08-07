@@ -8,6 +8,7 @@ import {
   PLOTLY_CONFIG,
   PLOTLY_ZEROLINE,
 } from "@/lib/plotly-config";
+import { useIsMobileViewport, useIsNarrowPhone } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -70,18 +71,27 @@ export function DeviationReasonsBarChart({
   fullscreen?: boolean;
 }) {
   const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
+  const narrow = useIsNarrowPhone();
+  const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const n = rows.length;
     const ymax = Math.max(...rows.map((r) => r.count), 0);
     const yTop = Math.max(ymax * 1.55, ymax + 1.25, 1);
     const height = fullscreen
       ? Math.max(640, Math.min(window.innerHeight * 0.72, 960))
-      : Math.max(520, Math.min(720, 360 + n * 80));
+      : compact
+        ? Math.max(420, Math.min(560, 280 + n * 72))
+        : Math.max(520, Math.min(720, 360 + n * 80));
     const x = rows.map((r) => r.reason);
     const y = rows.map((r) => r.count);
     const text = rows.map((r) => r.label);
+    const wrapW = narrow ? 8 : compact ? 10 : 15;
     const ticktext =
-      n > 6 ? x : rows.map((r) => wrapLabel(r.reason_full || r.reason, 15));
+      n > 6 || compact
+        ? rows.map((r) => wrapLabel(r.reason_full || r.reason, wrapW))
+        : rows.map((r) => wrapLabel(r.reason_full || r.reason, 15));
+    const angled = compact || n > 4;
     return {
       data: [
         {
@@ -90,7 +100,10 @@ export function DeviationReasonsBarChart({
           y,
           text,
           textposition: "outside" as const,
-          textfont: { size: fullscreen ? 22 : 16, color: theme.label },
+          textfont: {
+            size: fullscreen ? 22 : compact ? 12 : 16,
+            color: theme.label,
+          },
           marker: { color: "#26c6da" },
           hovertemplate: "<b>%{x}</b><br>Количество: %{y}<extra></extra>",
           cliponaxis: false,
@@ -99,20 +112,30 @@ export function DeviationReasonsBarChart({
       ],
       layout: {
         height,
-        margin: { l: 48, r: 28, t: 88, b: n > 6 ? 160 : 120 },
+        margin: compact
+          ? { l: 40, r: 16, t: 28, b: angled ? 150 : 110 }
+          : { l: 48, r: 28, t: 88, b: n > 6 ? 160 : 120 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        title: {
-          text: "Причины отклонений (за отчетный период)",
-          x: 0.5,
-          xanchor: "center" as const,
-          font: { size: 18, color: theme.axis },
-        },
+        // На узком экране title Plotly клипится — заголовок в Card снаружи.
+        ...(compact
+          ? {}
+          : {
+              title: {
+                text: "Причины отклонений (за отчетный период)",
+                x: 0.5,
+                xanchor: "center" as const,
+                font: { size: 18, color: theme.axis },
+              },
+            }),
         yaxis: {
-          title: { text: "Количество", font: { size: 14, color: theme.axis } },
+          title: {
+            text: "Количество",
+            font: { size: compact ? 12 : 14, color: theme.axis },
+          },
           range: [0, yTop],
           automargin: true,
-          tickfont: { size: 13, color: theme.axis },
+          tickfont: { size: compact ? 11 : 13, color: theme.axis },
           gridcolor: theme.grid,
           ...PLOTLY_ZEROLINE,
           zerolinecolor: theme.dark
@@ -122,16 +145,16 @@ export function DeviationReasonsBarChart({
         },
         xaxis: {
           title: {
-            text: "Причина отклонений",
+            text: compact ? "" : "Причина отклонений",
             font: { size: 14, color: theme.axis },
             standoff: 28,
           },
           automargin: true,
-          tickangle: n > 6 ? -45 : 0,
+          tickangle: angled ? -35 : 0,
           tickmode: "array" as const,
           tickvals: x,
           ticktext,
-          tickfont: { size: 13, color: theme.axis },
+          tickfont: { size: compact ? 10 : 13, color: theme.axis },
           ...PLOTLY_AXIS_LINE,
           linecolor: theme.dark
             ? "rgba(148, 163, 184, 0.85)"
@@ -165,7 +188,7 @@ export function DeviationReasonsBarChart({
       },
       config: { ...PLOTLY_CONFIG },
     };
-  }, [rows, fullscreen, theme]);
+  }, [rows, fullscreen, theme, compact, narrow]);
 
   if (!rows.length) {
     return (
@@ -176,13 +199,20 @@ export function DeviationReasonsBarChart({
   }
 
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div className="min-w-0 overflow-x-hidden">
+      {compact ? (
+        <p className="mb-2 px-1 text-center text-sm font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong">
+          Причины отклонений (за отчетный период)
+        </p>
+      ) : null}
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+    </div>
   );
 }
 

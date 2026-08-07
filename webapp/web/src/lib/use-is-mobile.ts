@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 /** Та же граница, что у Tailwind `lg` и медиазапросов в `globals.css`. */
 export const MOBILE_MEDIA_QUERY = "(max-width: 1023px)";
+/** Узкий телефон (часто Android 360–400): доп. сжатие лейблов Plotly/таблиц. */
+export const NARROW_PHONE_MEDIA_QUERY = "(max-width: 400px)";
 export const LANDSCAPE_MEDIA_QUERY = "(orientation: landscape)";
 
 /**
@@ -24,6 +26,21 @@ export function useIsMobileViewport(): boolean {
   }, []);
 
   return mobile;
+}
+
+/** ≤400px — чужой телефон / крупный системный шрифт. */
+export function useIsNarrowPhone(): boolean {
+  const [narrow, setNarrow] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_PHONE_MEDIA_QUERY);
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  return narrow;
 }
 
 /** Альбомная ориентация — для широкого режима ганта после «Развернуть». */

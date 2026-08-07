@@ -307,6 +307,8 @@ export function RdMonthlyCumulativeChart({
   fullscreen?: boolean;
 }) {
   const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
+  const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const chronological = [...rows].sort((a, b) => a.month.localeCompare(b.month));
     const labels = chronological.map((r) => r.month_label);
@@ -320,7 +322,7 @@ export function RdMonthlyCumulativeChart({
     const xMax = Math.max(1, ...plan, ...fact);
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
-      : Math.max(320, 56 + chronological.length * 48);
+      : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
 
     const incTxt = factInc.map((v) => (v > 0 ? `+${Math.round(v)}` : ""));
     const planLonger = plan.map((p, i) => p >= fact[i]);
@@ -332,7 +334,7 @@ export function RdMonthlyCumulativeChart({
       orientation: "h" as const,
       y: yIdx,
       textposition: "outside" as const,
-      textfont: { size: 15, color: theme.label },
+      textfont: { size: compact ? 12 : 15, color: theme.label },
       cliponaxis: false,
       constraintext: "none" as const,
       hovertemplate: "<b>%{customdata}</b><br>%{fullData.name}: %{x}<extra></extra>",
@@ -363,31 +365,47 @@ export function RdMonthlyCumulativeChart({
         height,
         barmode: "overlay" as const,
         bargap: 0.28,
-        margin: { l: 16, r: 72, t: 48, b: 56 },
+        margin: compact
+          ? { l: 8, r: 56, t: 12, b: 96 }
+          : { l: 16, r: 72, t: 48, b: 56 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        legend: {
-          orientation: "h" as const,
-          y: 1.12,
-          x: 0,
-          font: { size: 12, color: theme.axis },
-        },
+        legend: compact
+          ? {
+              orientation: "h" as const,
+              y: -0.28,
+              yanchor: "top" as const,
+              x: 0,
+              xanchor: "left" as const,
+              font: { size: 11, color: theme.axis },
+              bgcolor: "rgba(0,0,0,0)",
+            }
+          : {
+              orientation: "h" as const,
+              y: 1.12,
+              x: 0,
+              font: { size: 12, color: theme.axis },
+            },
         xaxis: {
           title: {
-            text: "Количество разделов (накопительно)",
+            text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * 1.12],
-          tickfont: { size: 11, color: theme.axis },
+          range: [0, xMax * (compact ? 1.22 : 1.12)],
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
+          nticks: compact ? 5 : undefined,
         },
         yaxis: {
-          title: { text: "Месяц", font: { size: 12, color: theme.axis } },
+          title: {
+            text: compact ? "" : "Месяц",
+            font: { size: 12, color: theme.axis },
+          },
           tickmode: "array" as const,
           tickvals: yIdx,
           ticktext: labels,
-          tickfont: { size: 11, color: theme.axis },
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
           automargin: true,
         },
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
@@ -399,7 +417,7 @@ export function RdMonthlyCumulativeChart({
       },
       config: { ...PLOTLY_CONFIG },
     };
-  }, [rows, fullscreen, theme]);
+  }, [rows, fullscreen, theme, compact]);
 
   if (!rows.length) {
     return (
@@ -410,13 +428,15 @@ export function RdMonthlyCumulativeChart({
   }
 
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div className="min-w-0 overflow-x-hidden">
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+    </div>
   );
 }
 

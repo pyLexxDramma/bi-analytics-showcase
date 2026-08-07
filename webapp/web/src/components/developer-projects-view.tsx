@@ -64,6 +64,21 @@ function subLabels(
   };
 }
 
+/** Короткие заголовки для table-fixed на 360–400px (полные — в title). */
+function shortMobileSubLabel(label: string): string {
+  const s = String(label || "").trim();
+  if (!s) return "—";
+  const lower = s.toLowerCase();
+  if (lower.includes("критически просроч")) return "Проср.";
+  if (lower.includes("критическ")) return "Крит.";
+  if (lower.includes("всего")) return "Всего";
+  if (lower === "план" || lower.startsWith("план")) return "План";
+  if (lower === "факт" || lower.startsWith("факт")) return "Факт";
+  if (lower.startsWith("откл")) return "Откл.";
+  if (s.length <= 8) return s;
+  return `${s.slice(0, 7)}…`;
+}
+
 /** Выгрузка повторяет видимую матрицу: две строки шапки + строка на проект. */
 function buildMatrixExport(
   columns: MatrixColumn[],
@@ -239,7 +254,9 @@ function MobileMilestoneSections({
           >
             <div className={`${blockBg} border-b-2 border-[#94a3b8] px-3 py-2 dark:border-slate-400`}>
               <div className="text-[11px] font-medium opacity-80">{phaseLabel}</div>
-              <div className="text-sm font-bold">{col.label}</div>
+              <div className="text-sm font-bold leading-snug break-words [overflow-wrap:anywhere]">
+                {col.label}
+              </div>
             </div>
             <table className="w-full table-fixed border-separate border-spacing-0 text-center text-xs">
               {/* Даты формата 28.02.2025 не должны переноситься — колонкам нужен запас */}
@@ -250,7 +267,7 @@ function MobileMilestoneSections({
                 <col className="w-[24%]" />
               </colgroup>
               <thead>
-                <tr className="text-[10px] uppercase">
+                <tr className="text-[10px]">
                   <th
                     className={`${CELL} ${HEAD_BOTTOM} bg-[#e8f0fe] px-1.5 py-1.5 text-left font-bold text-[#111827] dark:bg-[#1a3328] dark:text-[#f0f4f8]`}
                   >
@@ -259,9 +276,10 @@ function MobileMilestoneSections({
                   {[labs.plan, labs.fact, labs.otkl].map((label) => (
                     <th
                       key={`${col.key}-h-${label}`}
-                      className={`${CELL} ${HEAD_BOTTOM} ${blockBg} px-1 py-1.5 font-semibold`}
+                      title={label}
+                      className={`${CELL} ${HEAD_BOTTOM} ${blockBg} px-0.5 py-1.5 text-[9px] font-semibold leading-tight break-words [overflow-wrap:anywhere]`}
                     >
-                      {label}
+                      {shortMobileSubLabel(label)}
                     </th>
                   ))}
                 </tr>

@@ -359,11 +359,7 @@ export function ProjectScheduleView() {
                 <span aria-hidden>↓</span>
               </button>
             </div>
-            <FullscreenPanel disabled={!data?.gantt.rows.length} fill chartGestures={false}>
-              {(zoomed) =>
-                data ? <ProjectScheduleGantt data={data} fullscreen={zoomed} /> : null
-              }
-            </FullscreenPanel>
+            {data ? <ProjectScheduleGantt data={data} /> : null}
           </Card>
 
           <div ref={tableRef} className="scroll-mt-4">

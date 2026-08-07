@@ -11,15 +11,15 @@ export function UserMetrics({
 }) {
   return (
     <Grid numItemsSm={2} className="mb-6 gap-6">
-      <Card className="rounded-xl">
+      <Card className="min-w-0 rounded-xl">
         <Text>Пользователь</Text>
-        <Metric className="mt-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
+        <Metric className="mt-2 !text-xl !leading-snug break-words [overflow-wrap:anywhere] text-tremor-content-strong dark:!text-dark-tremor-content-strong sm:!text-2xl">
           {username || "—"}
         </Metric>
       </Card>
-      <Card className="rounded-xl">
+      <Card className="min-w-0 rounded-xl">
         <Text>Роль</Text>
-        <Metric className="mt-2 text-emerald-700 dark:text-emerald-300">
+        <Metric className="mt-2 !text-xl !leading-snug break-words [overflow-wrap:anywhere] text-emerald-700 dark:text-emerald-300 sm:!text-2xl">
           {roleLabel || "—"}
         </Metric>
       </Card>
