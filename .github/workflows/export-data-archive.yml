@@ -52,33 +52,26 @@ jobs:
             fi
             echo "==> latest snapshot date: ${LATEST_DATE}"
 
-            STAGING="$OUT_DIR/staging"
-            mkdir -p "$STAGING"
-            # только файлы этой даты, пути относительно web/
-            while IFS= read -r -d '' f; then
-              rel="${f#"$WEB_DIR"/}"
-              mkdir -p "$STAGING/$(dirname "$rel")"
-              cp -a "$f" "$STAGING/$rel"
-            done < <(find "$WEB_DIR" -type f -name "*${LATEST_DATE}*" -print0)
-
-            COUNT="$(find "$STAGING" -type f | wc -l | tr -d ' ')"
+            LIST="$OUT_DIR/snapshot_files.txt"
+            find "$WEB_DIR" -type f -name "*${LATEST_DATE}*" -printf '%P\n' | sort > "$LIST"
+            COUNT="$(wc -l < "$LIST" | tr -d ' ')"
             echo "files in snapshot: ${COUNT}"
-            du -sh "$STAGING" || true
             if [[ "$COUNT" -eq 0 ]]; then
               echo "ERROR: no files matched *${LATEST_DATE}*"
               exit 1
             fi
+            head -n 40 "$LIST" || true
+            echo "... (showing up to 40 names)"
 
             NAME="showcase_ftp_snapshot_${LATEST_DATE}"
             ARCHIVE="$OUT_DIR/${NAME}.tar.gz"
-            tar -czf "$ARCHIVE" -C "$STAGING" .
+            # -T: список относительных путей; -C: корень web/
+            tar -czf "$ARCHIVE" -C "$WEB_DIR" -T "$LIST"
             ls -lh "$ARCHIVE"
-            find "$STAGING" -type f | sort | head -n 40
-            echo "... (showing up to 40 names)"
 
             cp -f "$ARCHIVE" /tmp/showcase_ftp_export.tar.gz
             basename "$ARCHIVE" > /tmp/showcase_ftp_export_name.txt
-            rm -rf "$STAGING"
+            rm -f "$LIST"
             echo "packed ${NAME}.tar.gz"
 
       - name: Download archive from VPS
