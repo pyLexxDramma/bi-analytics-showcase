@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
+import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import {
   DashboardLoadingOverlay,
   DashboardSkeleton,
@@ -163,13 +164,27 @@ export function AppShell({
                 ) : null}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setTheme(dark ? "light" : "dark")}
-              className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle sm:px-3 sm:text-tremor-default"
-            >
-              {dark ? "☀ Светлая" : "🌙 Тёмная"}
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={openCommandPalette}
+                title="Поиск по отчётам"
+                className="hidden items-center gap-2 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+              >
+                <span aria-hidden>🔎</span>
+                Поиск
+                <kbd className="rounded border border-tremor-border px-1.5 py-0.5 text-xs text-tremor-content dark:border-dark-tremor-border dark:text-dark-tremor-content">
+                  Ctrl K
+                </kbd>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme(dark ? "light" : "dark")}
+                className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle sm:px-3 sm:text-tremor-default"
+              >
+                {dark ? "☀ Светлая" : "🌙 Тёмная"}
+              </button>
+            </div>
           </header>
           <div className="min-w-0 max-w-full">{children}</div>
         </div>
@@ -190,6 +205,7 @@ export function AppShell({
           onClose={() => setReportsOpen(false)}
           onNavigate={() => setMenuOpen(false)}
         />
+        <CommandPalette />
       </div>
     </div>
   );

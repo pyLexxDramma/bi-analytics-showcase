@@ -4,42 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  REPORT_ACCORDIONS,
-  REPORT_STANDALONE,
-  REPORT_TOP_TAB,
-} from "@/lib/nav";
 import { readRecentReports } from "@/lib/recent-reports";
+import { groupReports, recentReports, searchReports } from "@/lib/reports-index";
 import { tapFeedback } from "@/lib/haptics";
-
-type FlatReport = { id: string; href: string; label: string; group: string };
-
-const FLAT_REPORTS: FlatReport[] = [
-  {
-    id: REPORT_TOP_TAB.id,
-    href: REPORT_TOP_TAB.href,
-    label: REPORT_TOP_TAB.label,
-    group: "Основное",
-  },
-  ...REPORT_ACCORDIONS.flatMap((acc) =>
-    acc.items.map((i) => ({
-      id: i.id,
-      href: i.href,
-      label: i.label,
-      group: acc.label,
-    })),
-  ),
-  ...REPORT_STANDALONE.map((i) => ({
-    id: i.id,
-    href: i.href,
-    label: i.label,
-    group: "Прочее",
-  })),
-];
-
-function norm(s: string): string {
-  return s.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
-}
 
 /**
  * Поиск по отчётам — лист снизу, только мобильный вьюпорт (`lg:hidden`).
@@ -85,33 +52,10 @@ export function ReportsSearchSheet({
     };
   }, [open, onClose]);
 
-  const matches = useMemo(() => {
-    const q = norm(query);
-    if (!q) return FLAT_REPORTS;
-    const words = q.split(" ").filter(Boolean);
-    return FLAT_REPORTS.filter((r) => {
-      const hay = `${norm(r.label)} ${norm(r.group)}`;
-      return words.every((w) => hay.includes(w));
-    });
-  }, [query]);
-
-  const grouped = useMemo(() => {
-    const out: Array<{ group: string; items: FlatReport[] }> = [];
-    for (const r of matches) {
-      const last = out[out.length - 1];
-      if (last && last.group === r.group) last.items.push(r);
-      else out.push({ group: r.group, items: [r] });
-    }
-    return out;
-  }, [matches]);
+  const grouped = useMemo(() => groupReports(searchReports(query)), [query]);
 
   const recentItems = useMemo(
-    () =>
-      query.trim()
-        ? []
-        : recents
-            .map((href) => FLAT_REPORTS.find((r) => r.href === href))
-            .filter((r): r is FlatReport => Boolean(r) && r!.href !== pathname),
+    () => (query.trim() ? [] : recentReports(recents, pathname)),
     [recents, query, pathname],
   );
 
