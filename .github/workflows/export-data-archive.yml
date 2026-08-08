@@ -69,8 +69,9 @@ jobs:
             tar -czf "$ARCHIVE" -C "$WEB_DIR" -T "$LIST"
             ls -lh "$ARCHIVE"
 
-            cp -f "$ARCHIVE" /tmp/showcase_ftp_export.tar.gz
-            basename "$ARCHIVE" > /tmp/showcase_ftp_export_name.txt
+            # относительные пути из $HOME — drone-scp плохо берёт /tmp/*
+            cp -f "$ARCHIVE" "$HOME/showcase_ftp_export.tar.gz"
+            basename "$ARCHIVE" > "$HOME/showcase_ftp_export_name.txt"
             rm -f "$LIST"
             echo "packed ${NAME}.tar.gz"
 
@@ -82,9 +83,11 @@ jobs:
           key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
           password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
           port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
-          source: "/tmp/showcase_ftp_export.tar.gz,/tmp/showcase_ftp_export_name.txt"
+          source: "showcase_ftp_export.tar.gz,showcase_ftp_export_name.txt"
           target: artifacts
           overwrite: true
+          timeout: 60s
+          command_timeout: 20m
 
       - name: Prepare artifact folder
         run: |
@@ -128,5 +131,5 @@ jobs:
             APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-showcase}"
             rm -rf "$APP_DIR"/webapp/data/exports/staging
             rm -f "$APP_DIR"/webapp/data/exports/showcase_ftp_snapshot_*.tar.gz
-            rm -f /tmp/showcase_ftp_export.tar.gz /tmp/showcase_ftp_export_name.txt
+            rm -f "$HOME"/showcase_ftp_export.tar.gz "$HOME"/showcase_ftp_export_name.txt
             echo "cleanup done"
