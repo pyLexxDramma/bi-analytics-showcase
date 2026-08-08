@@ -74,14 +74,12 @@ export default function PlotlyFigure(props: PlotProps) {
   const interactive = useChartInteractive();
   const lockGestures = mobile && !interactive;
 
-  // Решаем синхронно на первом рендере: на desktop график монтируется сразу,
-  // как раньше; на телефоне — только когда доскроллили (экономит первый кадр).
-  const [lazyOnMobile] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 1023px)").matches,
-  );
-  const [visible, setVisible] = useState(!lazyOnMobile);
+  // График монтируется, только когда до него доскроллили: на тяжёлых отчётах
+  // это заметно ускоряет первый экран. На десктопе запас больше — курсор
+  // прокручивает быстрее пальца.
+  // Компонент грузится через next/dynamic с ssr: false, поэтому стартуем
+  // с заглушки без риска расхождения разметки при гидратации.
+  const [visible, setVisible] = useState(false);
   const holderRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -98,10 +96,18 @@ export default function PlotlyFigure(props: PlotProps) {
           io.disconnect();
         }
       },
-      { rootMargin: "320px 0px" },
+      { rootMargin: mobile ? "320px 0px" : "800px 0px" },
     );
     io.observe(el);
     return () => io.disconnect();
+  }, [visible, mobile]);
+
+  // Печать не прокручивает страницу: без этого в PDF попали бы заглушки.
+  useEffect(() => {
+    if (visible) return;
+    const show = () => setVisible(true);
+    window.addEventListener("beforeprint", show);
+    return () => window.removeEventListener("beforeprint", show);
   }, [visible]);
 
   const data = useMemo(() => withoutHoverData(props.data), [props.data]);

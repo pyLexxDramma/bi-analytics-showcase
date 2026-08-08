@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import {
-  DashboardLoadingOverlay,
   DashboardSkeleton,
   useDelayedLoading,
 } from "@/components/dashboard-loading";
@@ -49,7 +48,6 @@ export function AppShell({
   const pathname = usePathname();
   const mobile = useIsMobileViewport();
   const showLoading = useDelayedLoading(loading, mobile ? 400 : 1000);
-  const showSkeleton = showLoading && mobile;
 
   useEffect(() => {
     applyThemeClass(readTheme());
@@ -162,13 +160,7 @@ export function AppShell({
         <div
           className={`bi-safe-area bi-has-tabbar mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
             wide ? "max-w-7xl lg:max-w-none" : "max-w-7xl"
-          } ${
-            showLoading
-              ? showSkeleton
-                ? "pointer-events-none select-none"
-                : "pointer-events-none select-none blur-[2px]"
-              : ""
-          }`}
+          } ${showLoading ? "pointer-events-none select-none" : ""}`}
           aria-hidden={showLoading || undefined}
         >
           <header className="mb-5 flex items-start justify-between gap-2 sm:mb-8 sm:items-center sm:gap-3">
@@ -248,13 +240,7 @@ export function AppShell({
           </header>
           <div className="min-w-0 max-w-full">{children}</div>
         </div>
-        {showLoading ? (
-          showSkeleton ? (
-            <DashboardSkeleton />
-          ) : (
-            <DashboardLoadingOverlay />
-          )
-        ) : null}
+        {showLoading ? <DashboardSkeleton wide={!mobile} /> : null}
         <MobileTabBar
           onOpenMenu={() => setMenuOpen(true)}
           menuOpen={menuOpen}
