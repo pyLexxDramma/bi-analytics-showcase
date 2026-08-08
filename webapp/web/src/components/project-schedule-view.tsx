@@ -472,14 +472,15 @@ export function ProjectScheduleView() {
                   );
                 })}
               </MobileCardStack>
-              <div className="hidden max-h-[32rem] overflow-auto p-1 pt-10 lg:block">
+              <div className="hidden p-1 pt-10 lg:block">
+                <div className="max-h-[32rem] overflow-auto">
                 {rows.length === 0 ? (
                   <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                     Нет строк по выбранным фильтрам.
                   </div>
                 ) : (
-                  <table className="min-w-full border-collapse text-left text-[13px]">
-                    <thead className="sticky top-0 z-20">
+                  <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-left text-[13px]">
+                    <thead>
                       <tr>
                         {columnLabels.map((label) => {
                           const sortKey = COL_SORT[label];
@@ -564,6 +565,7 @@ export function ProjectScheduleView() {
                     </tbody>
                   </table>
                 )}
+                </div>
               </div>
               </FullscreenPanel>
             </Card>

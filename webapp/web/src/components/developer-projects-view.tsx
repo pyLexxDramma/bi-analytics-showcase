@@ -16,6 +16,7 @@ import {
   FiltersReset,
 } from "@/components/dashboard-filters";
 import { multiFilterChips } from "@/lib/filters-summary";
+import { useStickyHead } from "@/lib/use-sticky-head";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
@@ -118,8 +119,12 @@ function WideMatrixTable({
   lifeCols: MatrixColumn[];
   projects: DeveloperProjectsPayload["matrix"]["projects"];
 }) {
+  const headRef = useStickyHead([columns, investCols, lifeCols]);
   return (
-    <table className="min-w-max border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-xs dark:border-white">
+    <table
+      ref={headRef}
+      className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 border-[3px] border-[#94a3b8] text-center text-xs dark:border-white"
+    >
       <thead>
         <tr>
           <th
@@ -431,7 +436,7 @@ export function DeveloperProjectsView() {
                     projects={data?.matrix.projects ?? []}
                   />
                 </div>
-                <div className="hidden overflow-x-auto lg:block">
+                <div className="bi-table-scroll hidden overflow-x-auto lg:block">
                   <WideMatrixTable
                     columns={columns}
                     investCols={investCols}

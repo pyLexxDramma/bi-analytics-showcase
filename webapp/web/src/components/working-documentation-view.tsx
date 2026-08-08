@@ -177,9 +177,6 @@ function SortHeader({
       style={{
         border: dark ? "1px solid #334155" : "1px solid #d1d5db",
         backgroundColor: dark ? "hsl(209,72%,6%)" : "#f3f4f6",
-        position: "sticky",
-        top: 0,
-        zIndex: 2,
       }}
     >
       <button
@@ -352,7 +349,7 @@ function DetailTable({
             </MobileCardStack>
             <div className="hidden max-h-[32rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto lg:block">
               <table
-                className="w-max min-w-full text-sm"
+                className="bi-sticky-head bi-sticky-col w-max min-w-full text-sm"
                 style={{
                   borderCollapse: "collapse",
                   width: "100%",
@@ -397,6 +394,9 @@ function DetailTable({
                             : dark
                               ? "transparent"
                               : "#fafafa");
+                        // Липкая первая колонка должна быть непрозрачной.
+                        const background =
+                          c === columns[0] && dark ? "#111827" : zebra || undefined;
                         return (
                           <td
                             key={c}
@@ -405,7 +405,7 @@ function DetailTable({
                             }`}
                             style={{
                               border: cellBorder,
-                              backgroundColor: zebra || undefined,
+                              backgroundColor: background,
                               ...(tint.style ?? {}),
                             }}
                           >

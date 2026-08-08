@@ -208,16 +208,16 @@ function PeriodTable({
           </MobileEntityCard>
         ))}
       </MobileCardStack>
-      <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full text-left text-tremor-default">
+      <div className="bi-table-scroll hidden overflow-x-auto lg:block">
+        <table className="bi-sticky-head bi-sticky-col min-w-full text-left text-tremor-default">
           <thead className="bg-tremor-background-subtle text-tremor-label uppercase text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
             <tr>
-              <th className="px-3 py-2">
+              <th className="bg-tremor-background-subtle px-3 py-2 dark:bg-dark-tremor-background-subtle">
                 {label === "period" ? "Период" : "Проект"}
               </th>
-              <th className="px-3 py-2 text-right">План</th>
-              <th className="px-3 py-2 text-right">Факт</th>
-              <th className="px-3 py-2 text-right">Отклонение</th>
+              <th className="bg-tremor-background-subtle px-3 py-2 text-right dark:bg-dark-tremor-background-subtle">План</th>
+              <th className="bg-tremor-background-subtle px-3 py-2 text-right dark:bg-dark-tremor-background-subtle">Факт</th>
+              <th className="bg-tremor-background-subtle px-3 py-2 text-right dark:bg-dark-tremor-background-subtle">Отклонение</th>
             </tr>
           </thead>
           <tbody className="bg-tremor-background dark:bg-dark-tremor-background">

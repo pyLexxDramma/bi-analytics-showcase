@@ -14,6 +14,7 @@ import {
   FiltersReset,
 } from "@/components/dashboard-filters";
 import { filterChip } from "@/lib/filters-summary";
+import { useStickyHead } from "@/lib/use-sticky-head";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
@@ -133,6 +134,7 @@ function ControlPointsDesktopTable({
   group: Group;
   projects: ProjectRow[];
 }) {
+  const headRef = useStickyHead([group.milestones]);
   const milestoneCount = Math.max(group.milestones.length, 1);
   const dense = milestoneCount >= 5;
   const projectWidthPct = dense ? 10 : 14;
@@ -146,9 +148,11 @@ function ControlPointsDesktopTable({
     : `${CELL} box-border max-w-0`;
 
   return (
-    <div className="hidden w-full min-w-0 max-w-full overflow-hidden p-1 pt-10 lg:block">
+    <div className="hidden p-1 pt-10 lg:block">
+      <div className="bi-table-scroll w-full min-w-0 max-w-full overflow-hidden">
       <table
-        className={`w-full max-w-full table-fixed border-collapse text-center leading-tight dark:border-white ${
+        ref={headRef}
+        className={`bi-sticky-head bi-sticky-col w-full max-w-full table-fixed border-collapse text-center leading-tight dark:border-white ${
           dense
             ? "border-2 border-[#94a3b8] text-[9px] xl:text-[10px]"
             : "border-[3px] border-[#94a3b8] text-[10px] xl:text-[11px]"
@@ -247,6 +251,7 @@ function ControlPointsDesktopTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -311,8 +311,8 @@ export function ExecutiveDocsParityView() {
             Соответствие KindName из TESSA группам отчёта. Колонка «Строк в
             данных» — по текущей выгрузке до фильтров.
           </Text>
-          <div className="overflow-x-auto rounded-lg border border-tremor-border dark:border-dark-tremor-border">
-            <table className="min-w-full text-left text-sm">
+          <div className="bi-table-scroll overflow-x-auto rounded-lg border border-tremor-border dark:border-dark-tremor-border">
+            <table className="bi-sticky-head bi-sticky-col min-w-full text-left text-sm">
               <thead>
                 <tr className="bg-tremor-background-subtle dark:bg-dark-tremor-background-subtle">
                   {(
@@ -322,7 +322,7 @@ export function ExecutiveDocsParityView() {
                   ).map((col) => (
                     <th
                       key={col}
-                      className="whitespace-nowrap px-3 py-2 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:text-dark-tremor-content"
+                      className="whitespace-nowrap bg-tremor-background-subtle px-3 py-2 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content"
                     >
                       {col}
                     </th>
@@ -526,8 +526,8 @@ export function ExecutiveDocsParityView() {
               {!data?.rows?.length ? (
                 <div className="px-4 py-10 text-center text-sm">Нет строк</div>
               ) : (
-                <table className="min-w-max border-separate border-spacing-0 text-left text-sm">
-                  <thead className="sticky top-0 z-10">
+                <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+                  <thead>
                     <tr>
                       {DETAIL_COLS.map(([key, label]) => (
                         <th

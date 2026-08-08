@@ -534,9 +534,10 @@ function ProjectDocumentationScreen({
                       );
                     })}
                   </MobileCardStack>
-                  <div className="hidden max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto pt-10 lg:block">
-                  <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
-                    <thead className="sticky top-0 z-10">
+                  <div className="hidden pt-10 lg:block">
+                  <div className="max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto">
+                  <table className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-sm">
+                    <thead>
                       <tr>
                         <SortHeader
                           label="№ п/п"
@@ -600,6 +601,7 @@ function ProjectDocumentationScreen({
                       })}
                     </tbody>
                   </table>
+                  </div>
                   </div>
                 </>
               )}
@@ -726,9 +728,10 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto pt-10 lg:block">
-                  <table className="w-max min-w-full border-separate border-spacing-0 text-xs">
-                    <thead className="sticky top-0 z-10">
+                  <div className="hidden pt-10 lg:block">
+                  <div className="max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto">
+                  <table className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-xs">
+                    <thead>
                       <tr>
                         {(
                           [
@@ -784,6 +787,7 @@ function ProjectDocumentationScreen({
                     </tbody>
                   </table>
                   </div>
+                  </div>
                 </>
               )}
               <div className="px-4 py-3">
@@ -829,8 +833,9 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto pt-10 lg:block">
-                <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+                  <div className="hidden pt-10 lg:block">
+                  <div className="bi-table-scroll w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto">
+                <table className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
                       {(
@@ -868,6 +873,7 @@ function ProjectDocumentationScreen({
                     ))}
                   </tbody>
                 </table>
+                  </div>
                   </div>
                 </>
               )}

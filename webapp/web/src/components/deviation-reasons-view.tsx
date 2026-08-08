@@ -89,6 +89,9 @@ const COL_SORT: Record<string, SortKey> = {
 
 const DATE_COLS = new Set(["Окончание", "Базовое окончание", "Отклонение"]);
 const DATE_BG = "bg-[rgba(156,194,229,0.28)] dark:bg-[rgba(214,234,248,0.14)]";
+// Липкая шапка не должна просвечивать: тон кладём слоем поверх непрозрачного фона TH.
+const DATE_BG_HEAD =
+  "bg-[linear-gradient(rgba(156,194,229,0.28),rgba(156,194,229,0.28))] dark:bg-[linear-gradient(rgba(214,234,248,0.14),rgba(214,234,248,0.14))]";
 
 const TH =
   "whitespace-nowrap border border-[#cbd5e1] bg-[#f3f4f6] px-2.5 py-2 text-center font-bold text-[#111827] dark:border-[#334155] dark:bg-[hsl(209,72%,6%)] dark:text-[#fafafa]";
@@ -138,7 +141,7 @@ function SortHeader({
 }) {
   const active = sort?.key === sortKey;
   return (
-    <th className={`${TH} ${tint ? DATE_BG : ""}`}>
+    <th className={`${TH} ${tint ? DATE_BG_HEAD : ""}`}>
       <button
         type="button"
         title="Сортировать по колонке"
@@ -674,8 +677,9 @@ export function DeviationReasonsView() {
                       />
                     </MobileEntityCard>
                   </MobileCardStack>
-                  <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
-                    <table className="min-w-full border-collapse text-xs">
+                  <div className="hidden p-1 pt-10 lg:block">
+                    <div className="bi-table-scroll overflow-x-auto">
+                    <table className="bi-sticky-head min-w-full border-collapse text-xs">
                       <thead>
                         <tr>
                           <SortHeader
@@ -718,6 +722,7 @@ export function DeviationReasonsView() {
                         </tr>
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </>
               )}
@@ -797,8 +802,9 @@ export function DeviationReasonsView() {
                       />
                     </MobileEntityCard>
                   </MobileCardStack>
-                  <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
-                    <table className="min-w-full border-collapse text-xs">
+                  <div className="hidden p-1 pt-10 lg:block">
+                    <div className="bi-table-scroll overflow-x-auto">
+                    <table className="bi-sticky-head min-w-full border-collapse text-xs">
                       <thead>
                         <tr>
                           <SortHeader
@@ -851,6 +857,7 @@ export function DeviationReasonsView() {
                         </tr>
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </>
               )}
@@ -938,8 +945,9 @@ export function DeviationReasonsView() {
                     </div>
                   ))}
                 </MobileCardStack>
-                <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
-                  <table className="min-w-full border-collapse text-xs">
+                <div className="hidden p-1 pt-10 lg:block">
+                  <div className="bi-table-scroll overflow-x-auto">
+                  <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-xs">
                     <thead>
                       <tr>
                         {columns.map((label) => {
@@ -1003,6 +1011,7 @@ export function DeviationReasonsView() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </>
             )}

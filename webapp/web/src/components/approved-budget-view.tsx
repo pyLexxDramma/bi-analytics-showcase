@@ -31,7 +31,8 @@ const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
 const HEAD = "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8]";
 const TABLE = "min-w-full border-collapse border-2 border-[#94a3b8] text-left text-tremor-default dark:border-[#7a9ec4]";
 const BODY = "px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong";
-const TOTAL = "border-t-[3px] border-t-[#94a3b8] bg-[#f1f5f9] font-bold dark:border-t-white dark:bg-[#16283a]";
+const TOTAL =
+  "border-t-[3px] border-t-[#94a3b8] !bg-[#f1f5f9] font-bold dark:border-t-white dark:!bg-[#16283a]";
 const projectHeaders: Record<ProjectMetric, string> = {
   plan: "План, млн руб.",
   fact: "Факт, млн руб.",
@@ -310,8 +311,9 @@ export function ApprovedBudgetView() {
               </MobileEntityCard>
             ))}
           </MobileCardStack>
-          <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
-            <table className={TABLE}>
+          <div className="hidden p-1 pt-10 lg:block">
+            <div className="bi-table-scroll overflow-x-auto">
+            <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
               <thead>
                 <tr>
                   <SortHeader label="Месяц" sortKey="period" sort={periodSort} onSort={toggleSort(setPeriodSort)} />
@@ -337,6 +339,7 @@ export function ApprovedBudgetView() {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </FullscreenPanel>
       </Card>
@@ -394,8 +397,9 @@ export function ApprovedBudgetView() {
               </MobileEntityCard>
             ))}
           </MobileCardStack>
-          <div className="hidden overflow-x-auto p-1 pt-10 lg:block">
-            <table className={TABLE}>
+          <div className="hidden p-1 pt-10 lg:block">
+            <div className="bi-table-scroll overflow-x-auto">
+            <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
               <thead>
                 <tr>
                   <SortHeader label="Проект" sortKey="project" sort={projectSort} onSort={toggleSort(setProjectSort)} />
@@ -436,6 +440,7 @@ export function ApprovedBudgetView() {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </FullscreenPanel>
       </Card>

@@ -46,6 +46,9 @@ const TH =
 const TD =
   "border border-[#cbd5e1] px-2.5 py-1.5 text-center align-middle dark:border-[#334155]";
 const DATE_BG = "bg-[rgba(156,194,229,0.28)] dark:bg-[rgba(214,234,248,0.14)]";
+// Липкая шапка не должна просвечивать: тон кладём слоем поверх непрозрачного фона TH.
+const DATE_BG_HEAD =
+  "bg-[linear-gradient(rgba(156,194,229,0.28),rgba(156,194,229,0.28))] dark:bg-[linear-gradient(rgba(214,234,248,0.14),rgba(214,234,248,0.14))]";
 const DATE_COLS = new Set([
   "Окончание",
   "Базовое окончание",
@@ -185,7 +188,7 @@ function SortHeader({
 }) {
   const active = sort?.key === sortKey;
   return (
-    <th className={`${TH} ${tint ? DATE_BG : ""}`}>
+    <th className={`${TH} ${tint ? DATE_BG_HEAD : ""}`}>
       <button
         type="button"
         title="Сортировать по колонке"
@@ -638,9 +641,10 @@ export function BaselineDeviationView() {
                     </MobileEntityCard>
                   ))}
                 </MobileCardStack>
-                <div className="hidden max-h-[28rem] overflow-auto pt-8 lg:block">
-                  <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
-                    <thead className="sticky top-0 z-20">
+                <div className="hidden pt-8 lg:block">
+                  <div className="max-h-[28rem] overflow-auto">
+                  <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
+                    <thead>
                       <tr>
                         {covenantColumns.map((label) => (
                           <th
@@ -650,7 +654,7 @@ export function BaselineDeviationView() {
                               label.includes("Отклонение") ||
                               label === "Окончание" ||
                               label === "Базовое окончание"
-                                ? DATE_BG
+                                ? DATE_BG_HEAD
                                 : ""
                             }`}
                           >
@@ -699,6 +703,7 @@ export function BaselineDeviationView() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </>
             )}
@@ -898,9 +903,10 @@ export function BaselineDeviationView() {
                     );
                   })}
                 </MobileCardStack>
-                <div className="hidden max-h-[36rem] overflow-auto pt-8 lg:block">
-                  <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
-                    <thead className="sticky top-0 z-20">
+                <div className="hidden pt-8 lg:block">
+                  <div className="max-h-[36rem] overflow-auto">
+                  <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
+                    <thead>
                       <tr>
                         {columns.map((label) => (
                           <SortHeader
@@ -947,6 +953,7 @@ export function BaselineDeviationView() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </>
             )}

@@ -89,7 +89,7 @@ export function FullscreenPanel({
       className={`relative min-w-0 max-w-full bg-tremor-background dark:bg-dark-tremor-background ${
         fill ? "bi-fs-fill" : "bi-fs-table"
       } ${
-        active ? "h-screen w-screen overflow-auto" : "overflow-x-auto"
+        active ? "bi-fs-active h-screen w-screen overflow-auto" : "overflow-x-auto"
       } ${className}`}
     >
       {!mobile ? (

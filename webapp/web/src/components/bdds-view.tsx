@@ -63,9 +63,9 @@ const HEAD_CELL =
 const TABLE =
   "min-w-full border-collapse border-2 border-[#94a3b8] text-left text-tremor-default dark:border-[#7a9ec4]";
 const BANNER =
-  "bg-[#e2e8f0] px-3 py-2 font-bold text-[#111827] dark:bg-slate-600/50 dark:text-[#f0f4f8]";
+  "!bg-[#e2e8f0] px-3 py-2 font-bold text-[#111827] dark:!bg-slate-600/50 dark:text-[#f0f4f8]";
 const TOTAL_ROW =
-  "border-t-[3px] border-t-[#94a3b8] bg-[#f1f5f9] font-bold dark:border-t-white dark:bg-[#16283a]";
+  "border-t-[3px] border-t-[#94a3b8] !bg-[#f1f5f9] font-bold dark:border-t-white dark:!bg-[#16283a]";
 const BODY_CELL =
   "px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong";
 
@@ -680,8 +680,8 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                       totalPeriodLabel={data?.labels.total_period ?? ""}
                     />
                   </div>
-                  <div className="hidden overflow-x-auto lg:block">
-                    <table className={TABLE}>
+                  <div className="bi-table-scroll hidden overflow-x-auto lg:block">
+                    <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
                       <thead>
                         <tr>
                           <SortableHeader
@@ -798,8 +798,8 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                   <div className="lg:hidden">
                     <MobileProjectBlocks rows={projectVisible} totals={totals} />
                   </div>
-                  <div className="hidden overflow-x-auto lg:block">
-                    <table className={TABLE}>
+                  <div className="bi-table-scroll hidden overflow-x-auto lg:block">
+                    <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
                       <thead>
                         <tr>
                           <SortableHeader

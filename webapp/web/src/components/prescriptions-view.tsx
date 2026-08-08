@@ -533,8 +533,8 @@ export function PrescriptionsView() {
                 Нет строк по фильтрам.
               </div>
             ) : (
-              <table className="min-w-max border-separate border-spacing-0 text-left text-sm">
-                <thead className="sticky top-0 z-10">
+              <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+                <thead>
                   <tr>
                     {tableColumns.map(([key, label]) => (
                       <th
@@ -561,10 +561,10 @@ export function PrescriptionsView() {
                       key={`${row.pred_number}-${index}`}
                       className={
                         row.row_tone === "overdue"
-                          ? "bg-rose-50/80 dark:bg-rose-950/25"
+                          ? "!bg-rose-50/80 dark:!bg-rose-950/25"
                           : row.row_tone === "resolved"
-                            ? "bg-emerald-50/60 dark:bg-emerald-950/20"
-                            : "bg-tremor-background dark:bg-dark-tremor-background"
+                            ? "!bg-emerald-50/60 dark:!bg-emerald-950/20"
+                            : "!bg-tremor-background dark:!bg-dark-tremor-background"
                       }
                     >
                       {tableColumns.map(([key]) => (

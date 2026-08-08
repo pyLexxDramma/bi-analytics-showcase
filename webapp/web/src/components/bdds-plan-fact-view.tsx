@@ -57,7 +57,7 @@ const TABLE =
 const BODY =
   "px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong";
 const TOTAL =
-  "border-t-[3px] border-t-[#94a3b8] bg-[#f1f5f9] font-bold dark:border-t-white dark:bg-[#16283a]";
+  "border-t-[3px] border-t-[#94a3b8] !bg-[#f1f5f9] font-bold dark:border-t-white dark:!bg-[#16283a]";
 const BANNER =
   "break-words rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100";
 
@@ -464,8 +464,8 @@ export function BddsPlanFactView() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="hidden overflow-x-auto lg:block">
-                    <table className={TABLE}>
+                  <div className="bi-table-scroll hidden overflow-x-auto lg:block">
+                    <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
                       <thead>
                         <tr>
                           <th className={HEAD}>{periodLabel}</th>
@@ -580,8 +580,8 @@ export function BddsPlanFactView() {
                     ))}
                   </div>
                 </div>
-                <div className="hidden overflow-x-auto lg:block">
-                <table className={TABLE}>
+                <div className="bi-table-scroll hidden overflow-x-auto lg:block">
+                <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
                   <thead>
                     <tr>
                       <th className={HEAD}>Месяц</th>

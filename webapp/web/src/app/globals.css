@@ -364,6 +364,72 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   }
 }
 
+/* ===== Desktop: липкая шапка и первая колонка таблиц ===== */
+/* Только lg+: на телефоне таблицы заменены карточками, разметку не трогаем. */
+@media (min-width: 1024px) {
+  /* Sticky прилипает к ближайшему скролл-контейнеру, поэтому таблице нужен
+     собственный вертикальный скролл — иначе шапка «липнет» к своему же верху. */
+  .bi-table-scroll {
+    max-height: min(70vh, 44rem);
+    overflow: auto;
+  }
+
+  /* В полном экране высоту не режем: прокрутка уже на хосте панели. */
+  .bi-fs-active .bi-table-scroll {
+    max-height: none;
+  }
+
+  .bi-sticky-head thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    /* фон ячейки не должен заезжать под собственную рамку */
+    background-clip: padding-box;
+  }
+
+  /* Многоуровневая шапка: ряды встают друг под друга по замеренным высотам */
+  .bi-sticky-head thead tr:nth-child(2) th {
+    top: var(--bi-head-row-h, 2.25rem);
+    z-index: 2;
+  }
+
+  .bi-sticky-head thead tr:nth-child(3) th {
+    top: var(--bi-head-row2-h, 4.5rem);
+    z-index: 2;
+  }
+
+  /* Первая колонка тянет фон строки: зебра и hover продолжают работать,
+     а под липкой ячейкой ничего не просвечивает. */
+  .bi-sticky-col {
+    background-color: #ffffff;
+  }
+
+  html.dark .bi-sticky-col {
+    background-color: #111827;
+  }
+
+  .bi-sticky-col tbody,
+  .bi-sticky-col tbody tr {
+    background-color: inherit;
+  }
+
+  .bi-sticky-col tbody td:first-child,
+  .bi-sticky-col tbody th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: inherit;
+    background-clip: padding-box;
+  }
+
+  /* Угловая ячейка — только в верхнем ряду: в нижних рядах первая ячейка
+     принадлежит уже прокручиваемым колонкам и слева липнуть не должна. */
+  .bi-sticky-head.bi-sticky-col thead tr:first-child th:first-child {
+    left: 0;
+    z-index: 4;
+  }
+}
+
 /* ===== Dashboard filters: уровни как main st.columns(N) ===== */
 .bi-filters-panel {
   box-shadow: none;

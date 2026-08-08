@@ -285,8 +285,8 @@ export function DebitCreditView() {
           </Title>
         </div>
         <div className="max-h-[36rem] overflow-auto">
-          <table className="min-w-max border-separate border-spacing-0 text-left text-sm">
-            <thead className="sticky top-0 z-10">
+          <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+            <thead>
               <tr>
                 {[
                   "Проект",
