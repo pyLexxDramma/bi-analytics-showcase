@@ -26,6 +26,29 @@ body {
   color: inherit;
 }
 
+/* Видимый фокус для навигации с клавиатуры (мышь кольцо не рисует) */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+html.dark a:focus-visible,
+html.dark button:focus-visible,
+html.dark select:focus-visible,
+html.dark input:focus-visible,
+html.dark textarea:focus-visible,
+html.dark summary:focus-visible,
+html.dark [tabindex]:focus-visible {
+  outline-color: #60a5fa;
+}
+
 /* Tremor Card/table: force readable text in both themes */
 .tremor-Card-root,
 [class*="tremor-Card"] {

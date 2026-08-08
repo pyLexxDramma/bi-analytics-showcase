@@ -11,6 +11,7 @@ import {
 } from "@/components/dashboard-loading";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { ReportsSearchSheet } from "@/components/reports-search-sheet";
+import { ShortcutsHelp, openShortcutsHelp } from "@/components/shortcuts-help";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { findNavItem } from "@/lib/nav";
 import { pushRecentReport } from "@/lib/recent-reports";
@@ -233,6 +234,15 @@ export function AppShell({
               </button>
               <button
                 type="button"
+                onClick={openShortcutsHelp}
+                title="Горячие клавиши"
+                className="hidden h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+              >
+                <span aria-hidden>?</span>
+                <span className="sr-only">Горячие клавиши</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setTheme(dark ? "light" : "dark")}
                 className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle sm:px-3 sm:text-tremor-default"
               >
@@ -254,6 +264,7 @@ export function AppShell({
           onNavigate={() => setMenuOpen(false)}
         />
         <CommandPalette />
+        <ShortcutsHelp />
       </div>
     </div>
   );

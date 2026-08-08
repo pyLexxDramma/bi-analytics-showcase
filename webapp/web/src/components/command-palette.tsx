@@ -16,6 +16,14 @@ export function openCommandPalette(): void {
 
 type Row = { report: FlatReport; recent: boolean };
 
+/** Не перехватывать одиночные клавиши, пока пользователь набирает текст. */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
 /**
  * Быстрый переход по отчётам с клавиатуры — только десктоп: на телефоне ту же
  * роль играет лист `ReportsSearchSheet`. Источник пунктов общий (`nav.ts`).
@@ -42,7 +50,14 @@ export function CommandPalette() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const combo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k";
-      if (!combo) return;
+      // «/» — привычный шорткат поиска, но только когда курсор не в поле ввода
+      const slash =
+        event.key === "/" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !isTypingTarget(event.target);
+      if (!combo && !slash) return;
       if (window.matchMedia("(max-width: 1023px)").matches) return;
       event.preventDefault();
       setOpen((state) => {
@@ -222,7 +237,9 @@ export function CommandPalette() {
 
         <div className="flex items-center justify-between border-t border-tremor-border px-4 py-2 text-xs text-tremor-content dark:border-dark-tremor-border dark:text-dark-tremor-content">
           <span>↑↓ — выбор, Enter — открыть</span>
-          <span>{HINT}</span>
+          <span>
+            {HINT} · «/» · «?» — шпаргалка
+          </span>
         </div>
       </div>
     </div>,

@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FiltersSheet } from "@/components/filters-sheet";
@@ -469,22 +477,32 @@ function MultiSelectDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const listId = useId();
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: MouseEvent | TouchEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
     document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+      setActive(0);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      (searchRef.current ?? listRef.current)?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [open]);
 
   const searchable = options.length > CHIP_SEARCH_AFTER;
@@ -518,14 +536,95 @@ function MultiSelectDropdown({
     );
   };
 
+  /** Индекс 0 — строка «Все», дальше идут `visible`. */
+  const rowCount = visible.length + 1;
+  const commitActive = () => {
+    if (active <= 0) {
+      onChange([]);
+      return;
+    }
+    const name = visible[active - 1];
+    if (name) toggle(name);
+  };
+
+  const closeToTrigger = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const onPopupKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Escape" || event.key === "Tab") {
+      event.preventDefault();
+      closeToTrigger();
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((index) => (index + 1) % rowCount);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((index) => (index - 1 + rowCount) % rowCount);
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      setActive(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      setActive(rowCount - 1);
+      return;
+    }
+    if (event.key === "Enter" || (event.key === " " && event.target !== searchRef.current)) {
+      event.preventDefault();
+      commitActive();
+    }
+  };
+
+  useEffect(() => {
+    setActive((index) => (index >= rowCount ? 0 : index));
+  }, [rowCount]);
+
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-index="${active}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
+
+  const rowClass = (index: number, selected: boolean) =>
+    `flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-tremor-default ${
+      index === active
+        ? "bg-tremor-background-subtle dark:bg-dark-tremor-background-subtle"
+        : ""
+    } ${
+      selected
+        ? "font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
+        : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
+    } hover:bg-tremor-background-subtle dark:hover:bg-dark-tremor-background-subtle`;
+
+  const allVisibleSelected =
+    visible.length > 0 && visible.every((name) => values.includes(name));
+
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" && !open) {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-controls={open ? listId : undefined}
         className={`${FILTER_SELECT_CLASS} flex items-center justify-between gap-2 text-left`}
       >
         <span className="truncate">{summary}</span>
@@ -535,44 +634,97 @@ function MultiSelectDropdown({
       </button>
       {open ? (
         <div
-          role="listbox"
-          aria-multiselectable
           className="absolute left-0 right-0 top-full z-30 mt-1 rounded-tremor-default border border-tremor-border bg-tremor-background p-2 shadow-tremor-dropdown dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+          onKeyDown={onPopupKeyDown}
         >
           {searchable ? (
             <input
+              ref={searchRef}
               type="text"
               inputMode="search"
               autoComplete="off"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setActive(0);
+              }}
               placeholder={`Поиск · ${options.length}`}
+              aria-controls={listId}
+              aria-activedescendant={`${listId}-${active}`}
               className="mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-1.5 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
             />
           ) : null}
-          <div className="max-h-64 overflow-y-auto overscroll-contain">
-            <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-tremor-default text-tremor-content-strong hover:bg-tremor-background-subtle dark:text-dark-tremor-content-strong dark:hover:bg-dark-tremor-background-subtle">
+          <div className="mb-2 flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              disabled={allVisibleSelected || visible.length === 0}
+              onClick={() =>
+                onChange([
+                  ...values,
+                  ...visible.filter((name) => !values.includes(name)),
+                ])
+              }
+              className="rounded border border-tremor-border px-2 py-1 text-tremor-content-emphasis hover:bg-tremor-background-subtle disabled:opacity-40 dark:border-dark-tremor-border dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+            >
+              Выбрать все{query ? " найденные" : ""}
+            </button>
+            <button
+              type="button"
+              disabled={values.length === 0}
+              onClick={() => onChange([])}
+              className="rounded border border-tremor-border px-2 py-1 text-tremor-content-emphasis hover:bg-tremor-background-subtle disabled:opacity-40 dark:border-dark-tremor-border dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+            >
+              Снять все
+            </button>
+          </div>
+          <div
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            aria-multiselectable
+            aria-label={allLabel}
+            tabIndex={searchable ? -1 : 0}
+            aria-activedescendant={`${listId}-${active}`}
+            className="max-h-64 overflow-y-auto overscroll-contain outline-none"
+          >
+            <label
+              id={`${listId}-0`}
+              data-index={0}
+              role="option"
+              aria-selected={values.length === 0}
+              onMouseEnter={() => setActive(0)}
+              className={rowClass(0, values.length === 0)}
+            >
               <input
                 type="checkbox"
+                tabIndex={-1}
                 checked={values.length === 0}
                 onChange={() => onChange([])}
               />
               {allLabel}
             </label>
-            {visible.map((name) => (
-              <label
-                key={name}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-tremor-default text-tremor-content-strong hover:bg-tremor-background-subtle dark:text-dark-tremor-content-strong dark:hover:bg-dark-tremor-background-subtle"
-              >
-                <input
-                  type="checkbox"
-                  checked={values.includes(name)}
-                  onChange={() => toggle(name)}
-                />
-                <span className="truncate">{name}</span>
-              </label>
-            ))}
+            {visible.map((name, index) => {
+              const selected = values.includes(name);
+              return (
+                <label
+                  key={name}
+                  id={`${listId}-${index + 1}`}
+                  data-index={index + 1}
+                  role="option"
+                  aria-selected={selected}
+                  onMouseEnter={() => setActive(index + 1)}
+                  className={rowClass(index + 1, selected)}
+                >
+                  <input
+                    type="checkbox"
+                    tabIndex={-1}
+                    checked={selected}
+                    onChange={() => toggle(name)}
+                  />
+                  <span className="truncate">{name}</span>
+                </label>
+              );
+            })}
             {visible.length === 0 ? (
               <div className="px-2 py-2 text-tremor-default text-tremor-content dark:text-dark-tremor-content">
                 Ничего не найдено
