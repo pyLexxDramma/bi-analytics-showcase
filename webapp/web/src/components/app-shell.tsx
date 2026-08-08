@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette, openCommandPalette } from "@/components/command-palette";
+import { DataFreshnessBadge } from "@/components/data-freshness-badge";
 import {
   DashboardSkeleton,
   useDelayedLoading,
@@ -186,6 +187,7 @@ export function AppShell({
                     {subtitle}
                   </p>
                 ) : null}
+                <DataFreshnessBadge />
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">

@@ -12,8 +12,8 @@ import {
 import { openCommandPalette } from "@/components/command-palette";
 import { getAuthSession, isAdminRole, logout } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
+import { loadDataStatus } from "@/lib/data-status-store";
 import {
-  fetchAdminDataStatus,
   fetchAdminJob,
   fetchDataVersions,
   postActivateVersion,
@@ -152,15 +152,10 @@ export function AppSidebar({
       });
 
   useEffect(() => {
-    void fetchAdminDataStatus()
-      .then((s) => {
-        setFileCount(s.files);
-        setFreshness(s.freshness ?? null);
-      })
-      .catch(() => {
-        setFileCount(null);
-        setFreshness(null);
-      });
+    void loadDataStatus(true).then((s) => {
+      setFileCount(s?.files ?? null);
+      setFreshness(s?.freshness ?? null);
+    });
     void loadVersions();
   }, [pathname]);
 
@@ -185,9 +180,9 @@ export function AppSidebar({
             );
             if (job.status === "ok") {
               setSyncNote("Данные обновлены автоматически");
-              const st = await fetchAdminDataStatus();
-              setFileCount(st.files);
-              setFreshness(st.freshness ?? null);
+              const st = await loadDataStatus(true);
+              setFileCount(st?.files ?? null);
+              setFreshness(st?.freshness ?? null);
               await loadVersions();
               router.refresh();
             } else {
@@ -262,9 +257,9 @@ export function AppSidebar({
             : `Ошибка: ${(r.errors || []).join("; ") || "см. админку"}`,
         );
       }
-      const st = await fetchAdminDataStatus();
-      setFileCount(st.files);
-      setFreshness(st.freshness ?? null);
+      const st = await loadDataStatus(true);
+      setFileCount(st?.files ?? null);
+      setFreshness(st?.freshness ?? null);
       await loadVersions();
       router.refresh();
     } catch (e) {
