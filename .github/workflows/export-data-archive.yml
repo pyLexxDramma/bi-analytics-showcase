@@ -1,0 +1,125 @@
+# Собрать архив web/ (слепок FTP) со стенда и выложить как artifact.
+# Скачать: Actions → Export data archive → Artifacts.
+# Secrets: те же, что для webapp.yml / FTP daily ingest.
+name: Export data archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_db:
+        description: "Также положить web_data.db в архив (тяжело, ~1.5+ ГБ)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: export-data-archive-showcase
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pack archive on VPS
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
+          command_timeout: 45m
+          envs: INCLUDE_DB
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.WEBAPP_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-showcase}"
+            WEB_DIR="$APP_DIR/webapp/data/web"
+            DB_PATH="$APP_DIR/webapp/data/db/web_data.db"
+            OUT_DIR="$APP_DIR/webapp/data/exports"
+            STAMP="$(date +%Y-%m-%d_%H%M)"
+            NAME="showcase_ftp_web_${STAMP}"
+            mkdir -p "$OUT_DIR"
+            rm -f "$OUT_DIR"/showcase_ftp_web_*.tar.gz "$OUT_DIR"/export_name.txt
+
+            if [[ ! -d "$WEB_DIR" ]]; then
+              echo "ERROR: web dir missing: $WEB_DIR"
+              exit 1
+            fi
+
+            echo "==> packing $WEB_DIR"
+            du -sh "$WEB_DIR" || true
+            FILES=$(find "$WEB_DIR" -type f | wc -l | tr -d ' ')
+            echo "files: $FILES"
+
+            TMP="$OUT_DIR/${NAME}.tar"
+            tar -cf "$TMP" -C "$WEB_DIR" .
+            if [[ "${INCLUDE_DB}" == "true" && -f "$DB_PATH" ]]; then
+              echo "==> adding web_data.db"
+              tar -rf "$TMP" -C "$(dirname "$DB_PATH")" "$(basename "$DB_PATH")"
+            fi
+            gzip -1 "$TMP"
+            ARCHIVE="${TMP}.gz"
+            ls -lh "$ARCHIVE"
+            # фиксированный путь — scp-action не умеет читать секрет WEBAPP_VPS_PATH с дефолтом
+            cp -f "$ARCHIVE" /tmp/showcase_ftp_export.tar.gz
+            basename "$ARCHIVE" > /tmp/showcase_ftp_export_name.txt
+            echo "packed as $(basename "$ARCHIVE")"
+        env:
+          INCLUDE_DB: ${{ inputs.include_db }}
+
+      - name: Download archive from VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
+          source: "/tmp/showcase_ftp_export.tar.gz,/tmp/showcase_ftp_export_name.txt"
+          target: artifacts
+          overwrite: true
+
+      - name: Prepare artifact folder
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find artifacts -type f -print
+          SRC="$(find artifacts -type f -name 'showcase_ftp_export.tar.gz' | head -n1)"
+          NAME_FILE="$(find artifacts -type f -name 'showcase_ftp_export_name.txt' | head -n1)"
+          if [[ -z "${SRC}" ]]; then
+            echo "ERROR: archive not downloaded"
+            exit 1
+          fi
+          ARCHIVE_NAME="showcase_ftp_web.tar.gz"
+          if [[ -n "${NAME_FILE}" ]]; then
+            ARCHIVE_NAME="$(tr -d '\r\n' < "${NAME_FILE}")"
+          fi
+          cp "$SRC" "dist/${ARCHIVE_NAME}"
+          ls -lh dist/
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE_NAME }}
+          path: dist/${{ env.ARCHIVE_NAME }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Cleanup on VPS
+        if: always()
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.WEBAPP_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-showcase}"
+            rm -f "$APP_DIR"/webapp/data/exports/showcase_ftp_web_*.tar.gz
+            rm -f "$APP_DIR"/webapp/data/exports/export_*.txt
+            rm -f /tmp/showcase_ftp_export.tar.gz /tmp/showcase_ftp_export_name.txt
+            echo "cleanup done"
