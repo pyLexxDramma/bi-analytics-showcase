@@ -82,7 +82,7 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
       <div className="hidden lg:block">
-        <AppSidebar />
+        <AppSidebar collapsible />
       </div>
 
       {menuOpen ? (

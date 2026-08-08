@@ -9,6 +9,7 @@ import {
   REPORT_TOP_TAB,
   accordionIdForPath,
 } from "@/lib/nav";
+import { openCommandPalette } from "@/components/command-palette";
 import { getAuthSession, isAdminRole, logout } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
 import {
@@ -23,6 +24,23 @@ import {
 } from "@/lib/api";
 
 const ENSURE_FRESH_SESSION_KEY = "bi_showcase_ensure_fresh_v1";
+const COLLAPSED_KEY = "bi_showcase_sidebar_collapsed_v1";
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSidebarCollapsed(value: boolean): void {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, value ? "1" : "0");
+  } catch {
+    /* приватный режим — состояние живёт до перезагрузки */
+  }
+}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -79,10 +97,13 @@ async function waitAdminJob(
 export function AppSidebar({
   onNavigate,
   className = "",
+  collapsible = false,
 }: {
   /** Закрыть mobile-drawer после перехода по ссылке */
   onNavigate?: () => void;
   className?: string;
+  /** Сворачивание доступно только в десктопной колонке, не в mobile-drawer. */
+  collapsible?: boolean;
 } = {}) {
   const pathname = usePathname();
   const router = useRouter();
@@ -97,6 +118,8 @@ export function AppSidebar({
   const [versionBusy, setVersionBusy] = useState(false);
   const [versionNote, setVersionNote] = useState<string | null>(null);
 
+  const [collapsed, setCollapsed] = useState(false);
+
   const navProps = onNavigate
     ? { onClick: () => onNavigate() }
     : {};
@@ -104,6 +127,18 @@ export function AppSidebar({
   useEffect(() => {
     if (activeAccordion) setOpenId(activeAccordion);
   }, [activeAccordion]);
+
+  useEffect(() => {
+    if (!collapsible) return;
+    setCollapsed(readSidebarCollapsed());
+  }, [collapsible]);
+
+  const toggleCollapsed = () => {
+    setCollapsed((state) => {
+      writeSidebarCollapsed(!state);
+      return !state;
+    });
+  };
 
   const loadVersions = () =>
     fetchDataVersions()
@@ -262,12 +297,52 @@ export function AppSidebar({
     }
   };
 
+  if (collapsible && collapsed) {
+    return (
+      <aside className="sticky top-0 flex h-screen w-12 shrink-0 flex-col items-center gap-2 border-r border-gray-200 bg-[#f8f9fb] py-4 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title="Развернуть меню"
+          aria-label="Развернуть меню"
+          aria-expanded={false}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-base text-[#1f2937] hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
+        >
+          »
+        </button>
+        <button
+          type="button"
+          onClick={openCommandPalette}
+          title="Поиск по отчётам (Ctrl+K)"
+          aria-label="Поиск по отчётам"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-base hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
+        >
+          🔎
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className={`flex w-full shrink-0 flex-col border-r border-gray-200 bg-[#f8f9fb] text-[13px] text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong lg:sticky lg:top-0 lg:h-screen lg:w-[280px] lg:self-start ${className}`}
     >
-      {/* прокрутка меню включается только под курсором — колесо над дашбордом не двигает сайдбар */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 lg:overflow-y-hidden lg:hover:overflow-y-auto">
+      {/* overscroll-contain: докрутив меню до конца, колесо не начинает листать дашборд */}
+      <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+        {collapsible ? (
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title="Свернуть меню"
+              aria-label="Свернуть меню"
+              aria-expanded
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-base text-[#1f2937] hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
+            >
+              «
+            </button>
+          </div>
+        ) : null}
         <section className="mb-5">
           <SectionTitle>Меню</SectionTitle>
           <Link
