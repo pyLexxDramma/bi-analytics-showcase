@@ -430,6 +430,16 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   }
 }
 
+/* ===== Desktop: плотность строк ===== */
+/* По умолчанию вид не меняется — компактный режим включает пользователь. */
+@media (min-width: 1024px) {
+  .bi-density-compact table th,
+  .bi-density-compact table td {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+}
+
 /* ===== Dashboard filters: уровни как main st.columns(N) ===== */
 .bi-filters-panel {
   box-shadow: none;

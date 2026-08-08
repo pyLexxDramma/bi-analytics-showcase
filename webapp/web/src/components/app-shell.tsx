@@ -21,6 +21,13 @@ import {
   writeTheme,
   type ThemeMode,
 } from "@/lib/theme";
+import {
+  readDensity,
+  readWideCanvas,
+  writeDensity,
+  writeWideCanvas,
+  type Density,
+} from "@/lib/view-prefs";
 
 export function AppShell({
   title,
@@ -37,6 +44,8 @@ export function AppShell({
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [wide, setWide] = useState(false);
+  const [density, setDensity] = useState<Density>("comfortable");
   const pathname = usePathname();
   const mobile = useIsMobileViewport();
   const showLoading = useDelayedLoading(loading, mobile ? 400 : 1000);
@@ -45,6 +54,8 @@ export function AppShell({
   useEffect(() => {
     applyThemeClass(readTheme());
     setDark(readTheme() === "dark");
+    setWide(readWideCanvas());
+    setDensity(readDensity());
   }, []);
 
   useEffect(() => {
@@ -79,8 +90,27 @@ export function AppShell({
     setMenuOpen(false);
   };
 
+  const toggleWide = () => {
+    setWide((state) => {
+      writeWideCanvas(!state);
+      return !state;
+    });
+  };
+
+  const toggleDensity = () => {
+    setDensity((state) => {
+      const next: Density = state === "compact" ? "comfortable" : "compact";
+      writeDensity(next);
+      return next;
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex">
+    <div
+      className={`min-h-screen bg-tremor-background-muted text-tremor-content-strong dark:bg-dark-tremor-background-muted dark:text-dark-tremor-content-strong lg:flex ${
+        density === "compact" ? "bi-density-compact" : ""
+      }`}
+    >
       <div className="hidden lg:block">
         <AppSidebar collapsible />
       </div>
@@ -130,7 +160,9 @@ export function AppShell({
 
       <div className="relative min-h-screen min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
         <div
-          className={`bi-safe-area bi-has-tabbar mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
+          className={`bi-safe-area bi-has-tabbar mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
+            wide ? "max-w-7xl lg:max-w-none" : "max-w-7xl"
+          } ${
             showLoading
               ? showSkeleton
                 ? "pointer-events-none select-none"
@@ -165,6 +197,34 @@ export function AppShell({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleWide}
+                title={
+                  wide
+                    ? "Вернуть ограниченную ширину"
+                    : "Растянуть отчёт во всю ширину экрана"
+                }
+                aria-pressed={wide}
+                className="hidden h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+              >
+                <span aria-hidden>{wide ? "><" : "<>"}</span>
+                <span className="sr-only">Ширина полотна</span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleDensity}
+                title={
+                  density === "compact"
+                    ? "Обычная высота строк"
+                    : "Компактные строки — больше данных на экран"
+                }
+                aria-pressed={density === "compact"}
+                className="hidden h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+              >
+                <span aria-hidden>{density === "compact" ? "☰" : "≡"}</span>
+                <span className="sr-only">Плотность строк</span>
+              </button>
               <button
                 type="button"
                 onClick={openCommandPalette}
