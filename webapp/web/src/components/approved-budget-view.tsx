@@ -280,7 +280,7 @@ export function ApprovedBudgetView() {
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <Title>{data?.labels.period_table_title ?? "Сводная таблица по месяцам"}</Title>
         </div>
-        <FullscreenPanel disabled={!periodRows.length} className="!overflow-x-hidden">
+        <FullscreenPanel disabled={!periodRows.length} scroll={false}>
           <MobileCardStack
             pinned={
               <MobileEntityCard className="bi-card-pinned" title="ИТОГО">
@@ -311,7 +311,7 @@ export function ApprovedBudgetView() {
               </MobileEntityCard>
             ))}
           </MobileCardStack>
-          <div className="hidden p-1 pt-10 lg:block">
+          <div className="hidden p-1 lg:block">
             <div className="bi-table-scroll overflow-x-auto">
             <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
               <thead>
@@ -348,7 +348,7 @@ export function ApprovedBudgetView() {
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <Title>{data?.labels.project_table_title ?? "Таблица утверждённого бюджет план/факт по проектам"}</Title>
         </div>
-        <FullscreenPanel disabled={!projectRows.length} className="!overflow-x-hidden">
+        <FullscreenPanel disabled={!projectRows.length} scroll={false}>
           <MobileCardStack
             pinned={
               <MobileEntityCard
@@ -397,7 +397,7 @@ export function ApprovedBudgetView() {
               </MobileEntityCard>
             ))}
           </MobileCardStack>
-          <div className="hidden p-1 pt-10 lg:block">
+          <div className="hidden p-1 lg:block">
             <div className="bi-table-scroll overflow-x-auto">
             <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
               <thead>

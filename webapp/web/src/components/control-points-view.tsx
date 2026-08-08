@@ -148,7 +148,7 @@ function ControlPointsDesktopTable({
     : `${CELL} box-border max-w-0`;
 
   return (
-    <div className="hidden p-1 pt-10 lg:block">
+    <div className="hidden p-1 lg:block">
       <div className="bi-table-scroll w-full min-w-0 max-w-full overflow-hidden">
       <table
         ref={headRef}
@@ -271,7 +271,7 @@ function ControlPointsGroup({
           {titles}
         </Text>
       </div>
-      <FullscreenPanel disabled={!projects.length} className="!overflow-x-hidden">
+      <FullscreenPanel disabled={!projects.length} scroll={false}>
         <ControlPointsMobileCards group={group} projects={projects} />
         <ControlPointsDesktopTable group={group} projects={projects} />
       </FullscreenPanel>

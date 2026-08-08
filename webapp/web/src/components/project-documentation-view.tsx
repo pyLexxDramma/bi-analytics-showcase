@@ -534,7 +534,7 @@ function ProjectDocumentationScreen({
                       );
                     })}
                   </MobileCardStack>
-                  <div className="hidden pt-10 lg:block">
+                  <div className="hidden lg:block">
                   <div className="max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto">
                   <table className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-sm">
                     <thead>
@@ -728,7 +728,7 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden pt-10 lg:block">
+                  <div className="hidden lg:block">
                   <div className="max-h-[28rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto">
                   <table className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-xs">
                     <thead>
@@ -833,7 +833,7 @@ function ProjectDocumentationScreen({
                       </MobileEntityCard>
                     ))}
                   </MobileCardStack>
-                  <div className="hidden pt-10 lg:block">
+                  <div className="hidden lg:block">
                   <div className="bi-table-scroll w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto">
                 <table className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-sm">
                   <thead>

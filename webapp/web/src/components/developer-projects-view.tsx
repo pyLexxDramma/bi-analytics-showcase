@@ -421,7 +421,7 @@ export function DeveloperProjectsView() {
           </Title>
         </div>
         <FullscreenPanel disabled={!hasRows}>
-          <div className="p-1 pt-3 lg:pt-10">
+          <div className="p-1 pt-3 lg:pt-1">
             {!hasRows ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                 {loading

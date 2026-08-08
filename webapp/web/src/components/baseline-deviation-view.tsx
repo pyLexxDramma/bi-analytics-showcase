@@ -641,7 +641,7 @@ export function BaselineDeviationView() {
                     </MobileEntityCard>
                   ))}
                 </MobileCardStack>
-                <div className="hidden pt-8 lg:block">
+                <div className="hidden lg:block">
                   <div className="max-h-[28rem] overflow-auto">
                   <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
                     <thead>
@@ -755,7 +755,7 @@ export function BaselineDeviationView() {
             <>
           <FullscreenPanel
             disabled={rows.length === 0}
-            className="!overflow-x-hidden"
+            scroll={false}
           >
             {rows.length === 0 ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
@@ -903,7 +903,7 @@ export function BaselineDeviationView() {
                     );
                   })}
                 </MobileCardStack>
-                <div className="hidden pt-8 lg:block">
+                <div className="hidden lg:block">
                   <div className="max-h-[36rem] overflow-auto">
                   <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
                     <thead>

@@ -405,7 +405,7 @@ export function ProjectScheduleView() {
                   Таблица задач
                 </Title>
               </div>
-              <FullscreenPanel disabled={!rows.length} className="!overflow-x-hidden">
+              <FullscreenPanel disabled={!rows.length} scroll={false}>
               <MobileCardStack>
                 {sortedRows.map((row, index) => {
                   const title = showLots
@@ -472,7 +472,7 @@ export function ProjectScheduleView() {
                   );
                 })}
               </MobileCardStack>
-              <div className="hidden p-1 pt-10 lg:block">
+              <div className="hidden p-1 lg:block">
                 <div className="max-h-[32rem] overflow-auto">
                 {rows.length === 0 ? (
                   <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">

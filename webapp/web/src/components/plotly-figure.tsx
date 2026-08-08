@@ -89,6 +89,14 @@ export default function PlotlyFigure(props: PlotProps) {
       setVisible(true);
       return;
     }
+    // Заглушка нулевой высоты (layout без числового height) в IntersectionObserver
+    // никогда не «пересекается» — график остался бы пустым листом навсегда.
+    const margin = mobile ? 320 : 800;
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight + margin && rect.bottom > -margin) {
+      setVisible(true);
+      return;
+    }
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
@@ -96,7 +104,7 @@ export default function PlotlyFigure(props: PlotProps) {
           io.disconnect();
         }
       },
-      { rootMargin: mobile ? "320px 0px" : "800px 0px" },
+      { rootMargin: `${margin}px 0px` },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -125,13 +133,28 @@ export default function PlotlyFigure(props: PlotProps) {
       <div
         ref={holderRef}
         className="bi-chart-placeholder bi-skeleton"
-        style={{ height: layoutHeight(props.layout) ?? "100%" }}
+        style={{ height: layoutHeight(props.layout) ?? "100%", minHeight: 120 }}
         aria-hidden
       />
     );
   }
 
+  // `height: 100%` в контейнере без заданной высоты Plotly вместе с
+  // useResizeHandler иногда схлопывает в 0 — график остаётся пустым листом.
+  // Числовая высота из layout делает контейнер определённым.
+  const heightPx = layoutHeight(props.layout);
+  const style =
+    heightPx && (props.style?.height == null || props.style.height === "100%")
+      ? { ...props.style, height: heightPx }
+      : props.style;
+
   return (
-    <RawPlotlyFigure {...props} data={data} layout={layout} config={config} />
+    <RawPlotlyFigure
+      {...props}
+      data={data}
+      layout={layout}
+      config={config}
+      style={style}
+    />
   );
 }

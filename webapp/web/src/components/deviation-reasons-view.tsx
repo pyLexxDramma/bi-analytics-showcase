@@ -635,7 +635,7 @@ export function DeviationReasonsView() {
             </div>
             <FullscreenPanel
               disabled={!sortedPmRows.length}
-              className="!overflow-x-hidden"
+              scroll={false}
             >
               {sortedPmRows.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
@@ -677,7 +677,7 @@ export function DeviationReasonsView() {
                       />
                     </MobileEntityCard>
                   </MobileCardStack>
-                  <div className="hidden p-1 pt-10 lg:block">
+                  <div className="hidden p-1 lg:block">
                     <div className="bi-table-scroll overflow-x-auto">
                     <table className="bi-sticky-head min-w-full border-collapse text-xs">
                       <thead>
@@ -757,7 +757,7 @@ export function DeviationReasonsView() {
             </div>
             <FullscreenPanel
               disabled={!sortedSumRows.length}
-              className="!overflow-x-hidden"
+              scroll={false}
             >
               {sortedSumRows.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
@@ -802,7 +802,7 @@ export function DeviationReasonsView() {
                       />
                     </MobileEntityCard>
                   </MobileCardStack>
-                  <div className="hidden p-1 pt-10 lg:block">
+                  <div className="hidden p-1 lg:block">
                     <div className="bi-table-scroll overflow-x-auto">
                     <table className="bi-sticky-head min-w-full border-collapse text-xs">
                       <thead>
@@ -885,7 +885,7 @@ export function DeviationReasonsView() {
           </div>
           <FullscreenPanel
             disabled={!sortedRows.length}
-            className="!overflow-x-hidden"
+            scroll={false}
           >
             {loading && !data ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
@@ -945,7 +945,7 @@ export function DeviationReasonsView() {
                     </div>
                   ))}
                 </MobileCardStack>
-                <div className="hidden p-1 pt-10 lg:block">
+                <div className="hidden p-1 lg:block">
                   <div className="bi-table-scroll overflow-x-auto">
                   <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-xs">
                     <thead>
