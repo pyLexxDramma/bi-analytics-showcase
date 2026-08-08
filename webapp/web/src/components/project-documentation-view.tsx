@@ -23,6 +23,7 @@ import {
   FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -172,6 +173,18 @@ function ProjectDocumentationScreen({
   }, [load]);
 
   const selectClass = FILTER_SELECT_CLASS;
+
+  // Дата из адреса приоритетнее подстановки из ответа API
+  useUrlFilterState(
+    filters,
+    INITIAL,
+    (patch) => setFilters((f) => ({ ...f, ...patch })),
+    {
+      onRestore: (restored) => {
+        if (restored.reportDate) setDateReady(true);
+      },
+    },
+  );
 
   const appliedReportDate = data?.filters.applied.report_date || INITIAL.reportDate;
   const resetFilters = () =>

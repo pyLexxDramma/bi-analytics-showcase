@@ -25,6 +25,7 @@ import {
   FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips, filterChip } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { tapFeedback } from "@/lib/haptics";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
@@ -59,6 +60,17 @@ type Filters = {
   dyn_agg: string;
   only_with_plan: boolean;
   ready: boolean;
+};
+
+/** Ключи, которые живут в адресе; `ready` — служебный флаг загрузки. */
+const URL_INITIAL = {
+  projects: [] as string[],
+  contractors: [] as string[],
+  months: [] as string[],
+  plan_agg: "Среднее за месяц",
+  skud_agg: "Среднее за месяц",
+  dyn_agg: "День",
+  only_with_plan: false,
 };
 
 const BORDER_L = "#d1d5db";
@@ -624,6 +636,24 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const monthsChanged =
     filters.months.length !== defaultMonths.length ||
     filters.months.some((m) => !defaultMonths.includes(m));
+
+  // Месяцы по умолчанию приходят из API — в адрес пишем только изменённый набор
+  const urlState = useMemo(
+    () => ({
+      projects: filters.projects,
+      contractors: filters.contractors,
+      months: monthsChanged ? filters.months : [],
+      plan_agg: filters.plan_agg,
+      skud_agg: filters.skud_agg,
+      dyn_agg: filters.dyn_agg,
+      only_with_plan: filters.only_with_plan,
+    }),
+    [filters, monthsChanged],
+  );
+  useUrlFilterState(urlState, URL_INITIAL, (patch) =>
+    setFilters((s) => ({ ...s, ...patch })),
+  );
+
   const activeFilters = [
     ...buildFilterChips(
       filters,

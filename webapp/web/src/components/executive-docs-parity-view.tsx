@@ -35,6 +35,7 @@ import {
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
 import { buildFilterChips } from "@/lib/filters-summary";
+import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -144,6 +145,12 @@ export function ExecutiveDocsParityView() {
       }));
     }
   }, [data?.filters.date_max, data?.filters.date_min, filters.date_from, filters.date_to]);
+
+  // Даты из адреса важнее автоподстановки периода: эффект выше заполняет их,
+  // только пока обе пустые
+  useUrlFilterState(filters, INITIAL, (patch) =>
+    setFilters((state) => ({ ...state, ...patch })),
+  );
 
   const reset = () => setFilters(INITIAL);
 
