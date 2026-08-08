@@ -14,6 +14,7 @@ import { getAuthSession, isAdminRole, logout } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
 import { loadDataStatus } from "@/lib/data-status-store";
 import {
+  downloadSnapshotExport,
   fetchAdminJob,
   fetchDataVersions,
   postActivateVersion,
@@ -113,6 +114,7 @@ export function AppSidebar({
   const [freshness, setFreshness] = useState<DataFreshness | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
   const [versions, setVersions] = useState<DataVersion[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<number | null>(null);
   const [versionBusy, setVersionBusy] = useState(false);
@@ -266,6 +268,39 @@ export function AppSidebar({
       setSyncNote(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncBusy(false);
+    }
+  };
+
+  const downloadFreshSnapshot = async () => {
+    const token = getAdminToken();
+    const session = getAuthSession();
+    const canFtp =
+      Boolean(token) ||
+      (session &&
+        (isAdminRole(session.role) ||
+          session.role.toLowerCase() === "analyst"));
+    if (!canFtp) {
+      setSyncNote("Скачивание слепка: войдите как admin/analyst");
+      router.push("/login");
+      return;
+    }
+    setSnapshotBusy(true);
+    setSyncNote("Готовим архив свежего слепка…");
+    try {
+      const { filename, blob } = await downloadSnapshotExport(token || null);
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      setSyncNote(`Скачан ${filename}`);
+    } catch (e) {
+      setSyncNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSnapshotBusy(false);
     }
   };
 
@@ -508,6 +543,14 @@ export function AppSidebar({
             >
               {syncBusy ? "Синхронизация…" : "FTP + перезагрузить БД"}
             </button>
+            <button
+              type="button"
+              disabled={snapshotBusy || syncBusy}
+              onClick={() => void downloadFreshSnapshot()}
+              className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-2 py-2 font-medium text-[#1f2937] disabled:opacity-60 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+            >
+              {snapshotBusy ? "Готовим архив…" : "Скачать свежий слепок FTP"}
+            </button>
             {syncNote ? (
               <p className="text-[11px] leading-snug text-gray-600 dark:text-dark-tremor-content">
                 {syncNote}
@@ -515,7 +558,8 @@ export function AppSidebar({
             ) : (
               <p className="text-[11px] leading-snug text-gray-500">
                 07:00 МСК — выгрузка на FTP; daily Action ~11:00. При входе
-                дашборд сам проверяет свежесть и при устаревании обновляет БД.
+                дашборд сам проверяет свежесть. Кнопка «Скачать слепок» — файлы
+                самой новой даты (всегда актуальные после синка).
               </p>
             )}
           </div>

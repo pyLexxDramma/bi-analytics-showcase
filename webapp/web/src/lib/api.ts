@@ -2015,6 +2015,47 @@ export async function fetchAdminJob(
   return body as AdminJob;
 }
 
+export type SnapshotExportInfo = {
+  ok: boolean;
+  snapshot_date?: string | null;
+  files_count?: number;
+  archive_ready?: boolean;
+  archive_name?: string | null;
+  archive_size_bytes?: number | null;
+  archive_built_at?: string | null;
+  archive_snapshot_date?: string | null;
+  error?: string;
+};
+
+/** Свежий слепок FTP (файлы самой новой даты) — скачать tar.gz. */
+export async function downloadSnapshotExport(
+  token?: string | null,
+  opts?: { rebuild?: boolean },
+): Promise<{ filename: string; blob: Blob }> {
+  const q = opts?.rebuild ? "?rebuild=true" : "";
+  const url = apiUrl(`/api/admin/snapshot-export/download${q}`);
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: await adminHeaders(token),
+    signal: abortSignal(180_000),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail =
+      typeof body?.detail === "string"
+        ? body.detail
+        : `API ${res.status}: ${url}`;
+    throw new ApiError(detail, { status: res.status, url });
+  }
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
+  const filename = match
+    ? decodeURIComponent(match[1]!.replace(/"/g, ""))
+    : "showcase_ftp_snapshot.tar.gz";
+  const blob = await res.blob();
+  return { filename, blob };
+}
+
 export type HealthPayload = {
   ok: boolean;
   version?: string;

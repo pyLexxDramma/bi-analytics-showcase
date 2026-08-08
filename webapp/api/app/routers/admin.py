@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import FileResponse
 
 from app.config import ADMIN_SYNC_TOKEN, DATA_MODE
 from app.services.auth_context import require_active_user
@@ -14,6 +15,11 @@ from app.services.ftp_ingest import (
 )
 from app.services.jobs import get_job, list_jobs, start_job
 from app.services.report_cache import cache_clear
+from app.services.snapshot_export import (
+    build_latest_snapshot_archive,
+    latest_archive_path,
+    snapshot_info,
+)
 from app.services.users_bridge import import_auth
 from app.services.versions import activate_version
 
@@ -177,3 +183,68 @@ def clear_caches(
     n = cache_clear()
     clear_data_caches()
     return {"ok": True, "report_cache_files_removed": n}
+
+
+@router.get("/snapshot-export")
+def get_snapshot_export_info(
+    authorization: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None),
+):
+    """Метаданные свежего слепка (дата, число файлов, готов ли архив)."""
+    _check_ops_access(authorization, x_admin_token, need_ftp=True)
+    return snapshot_info()
+
+
+@router.post("/snapshot-export")
+def rebuild_snapshot_export(
+    force: bool = True,
+    authorization: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None),
+):
+    """Пересобрать tar.gz свежей даты из web/."""
+    _check_ops_access(authorization, x_admin_token, need_ftp=True)
+    result = build_latest_snapshot_archive(force=force)
+    if not result.get("ok"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("error") or "Не удалось собрать слепок",
+        )
+    return result
+
+
+@router.get("/snapshot-export/download")
+def download_snapshot_export(
+    rebuild: bool = False,
+    authorization: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None),
+):
+    """
+    Скачать свежий слепок FTP (файлы самой новой даты).
+    Доступен всегда под логином admin/analyst — архив обновляется после FTP-синка.
+    """
+    _check_ops_access(authorization, x_admin_token, need_ftp=True)
+    info = snapshot_info()
+    need_rebuild = (
+        rebuild
+        or not info.get("archive_ready")
+        or info.get("archive_snapshot_date") != info.get("snapshot_date")
+    )
+    if need_rebuild:
+        built = build_latest_snapshot_archive(force=True)
+        if not built.get("ok"):
+            raise HTTPException(
+                status_code=400,
+                detail=built.get("error") or "Не удалось собрать слепок",
+            )
+        filename = str(built.get("archive_name") or "showcase_ftp_snapshot.tar.gz")
+    else:
+        filename = str(info.get("archive_name") or "showcase_ftp_snapshot.tar.gz")
+
+    path = latest_archive_path()
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="Архив слепка не найден")
+    return FileResponse(
+        path,
+        media_type="application/gzip",
+        filename=filename,
+    )

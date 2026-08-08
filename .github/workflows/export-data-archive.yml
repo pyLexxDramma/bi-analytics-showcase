@@ -3,6 +3,9 @@
 name: Export data archive
 
 on:
+  # После FTP daily ingest (08:00 UTC) — запас на длительный синк
+  schedule:
+    - cron: "30 8 * * *"
   workflow_dispatch:
 
 concurrency:

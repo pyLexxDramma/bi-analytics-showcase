@@ -129,11 +129,21 @@ def run_ftp_then_db_ingest(*, force: bool = False) -> dict[str, Any]:
     ingest = run_db_ingest()
     clear_data_caches()
     ok = bool(ingest.get("ok"))
+    snapshot: dict[str, Any] | None = None
+    if ok:
+        # Свежий tar.gz для кнопки «Скачать слепок» — сбой архива не валит ingest
+        try:
+            from app.services.snapshot_export import build_latest_snapshot_archive
+
+            snapshot = build_latest_snapshot_archive(force=True)
+        except Exception as exc:  # noqa: BLE001
+            snapshot = {"ok": False, "error": str(exc)}
     return {
         "ok": ok,
         "stage": "ingest" if ok else ("ingest" if ftp.get("ok", True) else "ftp"),
         "ftp": ftp if DATA_MODE == "ftp" else {"ok": True, "skipped": True, "reason": "not ftp mode"},
         "ingest": ingest,
+        "snapshot_export": snapshot,
         "status": sync_status(),
         "errors": list(ingest.get("errors") or []),
     }
