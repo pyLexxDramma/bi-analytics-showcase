@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { CopyLinkButton } from "@/components/copy-link-button";
 import { ShareTableButton } from "@/components/share-table-button";
 import {
   downloadCsv,
@@ -162,6 +163,7 @@ export function DownloadTableButton({
         fileStem={fileStem}
         disabled={disabled}
       />
+      <CopyLinkButton />
       {menu}
     </span>
   );

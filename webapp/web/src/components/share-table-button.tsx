@@ -8,6 +8,7 @@ import {
   type ExportTable,
 } from "@/lib/table-export";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
+import { copyTextSync } from "@/lib/clipboard";
 
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -17,32 +18,6 @@ function screenTitle(): string {
   if (typeof document === "undefined") return "Строительная аналитика";
   const h1 = document.querySelector("h1")?.textContent?.trim();
   return h1 || document.title || "Строительная аналитика";
-}
-
-/** Запасной путь: положить ссылку в буфер. execCommand — для http-стенда. */
-function copyLink(url: string): boolean {
-  try {
-    if (navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(url);
-      return true;
-    }
-  } catch {
-    /* ниже execCommand */
-  }
-  try {
-    const area = document.createElement("textarea");
-    area.value = url;
-    area.setAttribute("readonly", "");
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.select();
-    const ok = document.execCommand("copy");
-    area.remove();
-    return ok;
-  } catch {
-    return false;
-  }
 }
 
 function isAbort(cause: unknown): boolean {
@@ -122,7 +97,7 @@ export function ShareTableButton({
     };
 
     const toClipboard = (reason: string) => {
-      if (copyLink(url)) {
+      if (copyTextSync(url)) {
         confirmFeedback();
         setDone(true);
         setNote(null);
