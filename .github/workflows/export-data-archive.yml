@@ -75,36 +75,36 @@ jobs:
             rm -f "$LIST"
             echo "packed ${NAME}.tar.gz"
 
-      - name: Download archive from VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.WEBAPP_VPS_HOST }}
-          username: ${{ secrets.WEBAPP_VPS_USER }}
-          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
-          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
-          port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
-          source: "showcase_ftp_export.tar.gz,showcase_ftp_export_name.txt"
-          target: artifacts
-          overwrite: true
-          timeout: 60s
-          command_timeout: 20m
-
-      - name: Prepare artifact folder
+      - name: Download archive via SSH
+        env:
+          SSH_HOST: ${{ secrets.WEBAPP_VPS_HOST }}
+          SSH_USER: ${{ secrets.WEBAPP_VPS_USER }}
+          SSH_KEY: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          SSH_PASSWORD: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          SSH_PORT: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
         run: |
           set -euo pipefail
-          mkdir -p dist
-          SRC="$(find artifacts -type f -name 'showcase_ftp_export.tar.gz' | head -n1)"
-          NAME_FILE="$(find artifacts -type f -name 'showcase_ftp_export_name.txt' | head -n1)"
-          if [[ -z "${SRC}" ]]; then
-            echo "ERROR: archive not downloaded"
-            find artifacts -type f | head -n 50 || true
-            exit 1
+          mkdir -p dist ~/.ssh
+          chmod 700 ~/.ssh
+          OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${SSH_PORT}")
+          if [[ -n "${SSH_KEY}" ]]; then
+            printf '%s\n' "$SSH_KEY" > ~/.ssh/id_export
+            chmod 600 ~/.ssh/id_export
+            OPTS+=(-i ~/.ssh/id_export)
+            scp "${OPTS[@]}" "${SSH_USER}@${SSH_HOST}:showcase_ftp_export_name.txt" dist/name.txt
+            scp "${OPTS[@]}" "${SSH_USER}@${SSH_HOST}:showcase_ftp_export.tar.gz" dist/archive.tar.gz
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq sshpass
+            export SSHPASS="$SSH_PASSWORD"
+            sshpass -e scp "${OPTS[@]}" -o PreferredAuthentications=password -o PubkeyAuthentication=no \
+              "${SSH_USER}@${SSH_HOST}:showcase_ftp_export_name.txt" dist/name.txt
+            sshpass -e scp "${OPTS[@]}" -o PreferredAuthentications=password -o PubkeyAuthentication=no \
+              "${SSH_USER}@${SSH_HOST}:showcase_ftp_export.tar.gz" dist/archive.tar.gz
           fi
-          ARCHIVE_NAME="showcase_ftp_snapshot.tar.gz"
-          if [[ -n "${NAME_FILE}" ]]; then
-            ARCHIVE_NAME="$(tr -d '\r\n' < "${NAME_FILE}")"
-          fi
-          cp "$SRC" "dist/${ARCHIVE_NAME}"
+          ARCHIVE_NAME="$(tr -d '\r\n' < dist/name.txt)"
+          mv dist/archive.tar.gz "dist/${ARCHIVE_NAME}"
+          rm -f dist/name.txt
           ls -lh dist/
           echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
 
