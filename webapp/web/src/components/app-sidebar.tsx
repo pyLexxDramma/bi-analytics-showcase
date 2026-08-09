@@ -547,7 +547,7 @@ export function AppSidebar({
               type="button"
               disabled={snapshotBusy || syncBusy}
               onClick={() => void downloadFreshSnapshot()}
-              className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-2 py-2 font-medium text-[#1f2937] disabled:opacity-60 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+              className="hidden min-h-11 w-full rounded-md border border-gray-300 bg-white px-2 py-2 font-medium text-[#1f2937] disabled:opacity-60 lg:block dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
             >
               {snapshotBusy ? "Готовим архив…" : "Скачать свежий слепок FTP"}
             </button>
@@ -558,8 +558,12 @@ export function AppSidebar({
             ) : (
               <p className="text-[11px] leading-snug text-gray-500">
                 07:00 МСК — выгрузка на FTP; daily Action ~11:00. При входе
-                дашборд сам проверяет свежесть. Кнопка «Скачать слепок» — файлы
-                самой новой даты (всегда актуальные после синка).
+                дашборд сам проверяет свежесть
+                <span className="hidden lg:inline">
+                  . Кнопка «Скачать слепок» — файлы самой новой даты (всегда
+                  актуальные после синка)
+                </span>
+                .
               </p>
             )}
           </div>
