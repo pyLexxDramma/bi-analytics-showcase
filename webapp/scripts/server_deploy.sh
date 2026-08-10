@@ -29,6 +29,31 @@ fi
 export SHOWCASE_AI_ENABLED=1
 export NEXT_PUBLIC_AI_MODE=full
 
+# XCA Ask AI — из CI secrets / окружения; не коммитить значения
+_upsert_env() {
+  local key="$1" val="$2"
+  [[ -n "$val" ]] || return 0
+  if grep -qE "^${key}=" .env 2>/dev/null; then
+    # portable-ish: rewrite file without printing secret
+    local tmp
+    tmp="$(mktemp)"
+    awk -v k="$key" -v v="$val" 'BEGIN{FS=OFS="="} $1==k{$0=k"="v} {print}' .env >"$tmp"
+    mv "$tmp" .env
+  else
+    printf '\n%s=%s\n' "$key" "$val" >>.env
+  fi
+  export "$key=$val"
+  echo "Configured $key in webapp/.env"
+}
+_upsert_env XCA_ASK_SECRET "${XCA_ASK_SECRET:-}"
+_upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
+
+# перечитать .env после возможной записи
+set -a
+# shellcheck disable=SC1091
+source ./.env
+set +a
+
 echo "==> docker compose build/up in $WEBAPP"
 docker compose pull edge || true
 docker compose stop opencode >/dev/null 2>&1 || true

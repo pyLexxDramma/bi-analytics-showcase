@@ -87,6 +87,7 @@ jobs:
           port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
           command_timeout: 30m
           script_stop: true
+          envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.WEBAPP_VPS_PATH }}"
@@ -99,5 +100,10 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
+            export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
+            export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
             bash webapp/scripts/server_deploy.sh
             echo "Deployed $(git rev-parse --short HEAD) edge :3080"
+        env:
+          XCA_ASK_SECRET: ${{ secrets.XCA_ASK_SECRET }}
+          XCA_ASK_BASE_URL: ${{ secrets.XCA_ASK_BASE_URL }}
