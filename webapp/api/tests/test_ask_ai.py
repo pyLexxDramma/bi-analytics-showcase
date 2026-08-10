@@ -64,6 +64,10 @@ class _Auth:
 def ask_client(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(auth_context, "import_auth", lambda: _Auth())
     monkeypatch.setattr(ask_ai_service, "import_auth", lambda: _Auth())
+    monkeypatch.setattr(
+        "app.routers.ask_ai.import_auth",
+        lambda: _Auth(),
+    )
     monkeypatch.setattr(ask_ai_service, "XCA_ASK_BASE_URL", "https://xca.example")
     monkeypatch.setattr(ask_ai_service, "XCA_ASK_SECRET", "test-secret")
     return TestClient(app)

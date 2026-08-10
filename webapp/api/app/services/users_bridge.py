@@ -76,6 +76,20 @@ def import_filters() -> Any:
     ensure_users_db()
     import filters  # type: ignore
 
+    # На холодном импорте dashboards может быть недоступен → AVAILABLE_REPORTS=[].
+    # Подтягиваем список отчётов лениво после prepare_core_env.
+    if not getattr(filters, "AVAILABLE_REPORTS", None):
+        try:
+            from dashboards import get_all_report_names  # type: ignore
+
+            filters.AVAILABLE_REPORTS = list(get_all_report_names() or [])
+        except Exception:
+            try:
+                from app.services.ask_ai_reports import SCREENS
+
+                filters.AVAILABLE_REPORTS = [str(m["title"]) for m in SCREENS.values()]
+            except Exception:
+                filters.AVAILABLE_REPORTS = []
     return filters
 
 

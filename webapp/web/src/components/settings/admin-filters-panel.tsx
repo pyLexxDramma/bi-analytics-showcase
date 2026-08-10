@@ -183,6 +183,9 @@ export function AdminFiltersPanel() {
                     setForm({ ...form, report_name: e.target.value })
                   }
                 >
+                  {!reports.length ? (
+                    <option value="">Нет списка отчётов — обновите страницу</option>
+                  ) : null}
                   {reports.map((r) => (
                     <option key={r} value={r}>
                       {r}
@@ -198,7 +201,12 @@ export function AdminFiltersPanel() {
                   onChange={(e) =>
                     setForm({ ...form, filter_key: e.target.value })
                   }
+                  placeholder="например: project, year, contractor"
                 />
+                <span className="mt-1 block text-xs text-tremor-content dark:text-dark-tremor-content">
+                  Не генерируется сам — укажите ключ фильтра дашборда (как в
+                  Streamlit: project, year, org и т.п.).
+                </span>
               </label>
               <label className="text-sm">
                 Тип фильтра *

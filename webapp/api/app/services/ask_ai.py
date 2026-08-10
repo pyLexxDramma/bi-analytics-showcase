@@ -158,7 +158,7 @@ def role_can_open_screen(auth: Any, role: str, nav_id: str) -> bool:
     names = list(screen.get("auth_names") or [])
     if not names:
         return bool(auth.has_report_access(r)) if hasattr(auth, "has_report_access") else True
-    return any(auth.user_can_open_report(r, name) for name in names)
+    return all(auth.user_can_open_report(r, name) for name in names)
 
 
 def build_roles_catalog() -> dict[str, Any]:
