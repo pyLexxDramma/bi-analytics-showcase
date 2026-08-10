@@ -7,6 +7,7 @@ from app.config import API_TITLE, API_VERSION, CORS_ORIGINS, DATA_MODE, WEB_DATA
 from app.routers import (
     admin,
     approved_budget,
+    ask_ai,
     assistant,
     auth_router,
     baseline_deviation,
@@ -60,6 +61,8 @@ app.include_router(profile_router.router)
 app.include_router(settings_router.router)
 app.include_router(admin.router)
 app.include_router(assistant.router)
+app.include_router(ask_ai.router)
+app.include_router(ask_ai.legacy_router)
 
 
 @app.get("/api/health")

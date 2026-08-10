@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel, Field
+
+from app.services.ask_ai import (
+    AskAiConfigError,
+    build_ask_url,
+    build_roles_catalog,
+    role_can_open_screen,
+)
+from app.services.ask_ai_reports import NAV_BY_REPORT, get_screen, resolve_report
+from app.services.auth_context import require_admin_user, require_report_user
+from app.services.users_bridge import import_auth
+
+router = APIRouter(prefix="/api/ask-ai", tags=["ask-ai"])
+
+
+class AskAiLinkBody(BaseModel):
+    nav_id: str | None = Field(default=None, max_length=64)
+    report: str | None = Field(default=None, max_length=128)
+    q: str | None = Field(default=None, max_length=200)
+    ctx: str | None = Field(default=None, max_length=800)
+    project: str | None = Field(default=None, max_length=200)
+    period: str | None = Field(default=None, max_length=64)
+    filters: dict[str, Any] | str | None = None
+    src: str | None = Field(default=None, max_length=200)
+
+
+def _assert_user_may_ask(user: dict, nav_id: str | None, report: str | None) -> str:
+    """RBAC: ссылку подписываем только на экраны, доступные роли пользователя."""
+    report_id, _screen = resolve_report(nav_id, report)
+    nav = (nav_id or "").strip() or NAV_BY_REPORT.get(report_id)
+    if not nav or not get_screen(nav):
+        raise HTTPException(
+            status_code=400,
+            detail="Неизвестный экран / report для Ask AI",
+        )
+    auth = import_auth()
+    if not role_can_open_screen(auth, str(user.get("role") or ""), nav):
+        raise HTTPException(
+            status_code=403,
+            detail="У вашей роли нет доступа к этому отчёту для ИИ",
+        )
+    return nav
+
+
+@router.post("/link")
+@router.post("/link/", include_in_schema=False)
+def create_ask_ai_link(
+    body: AskAiLinkBody,
+    authorization: str | None = Header(default=None),
+):
+    user = require_report_user(authorization)
+    if not (body.nav_id or body.report):
+        raise HTTPException(status_code=400, detail="Нужен nav_id или report")
+    nav = _assert_user_may_ask(user, body.nav_id, body.report)
+    try:
+        result = build_ask_url(
+            user=user,
+            nav_id=nav,
+            report=body.report,
+            q=body.q,
+            ctx=body.ctx,
+            project=body.project,
+            period=body.period,
+            filters=body.filters,
+            src=body.src,
+        )
+    except AskAiConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, **result}
+
+
+# Алиас как в гайде DASHBOARD_ASK_AI_INTEGRATION.md
+legacy_router = APIRouter(tags=["ask-ai"])
+
+
+@legacy_router.post("/api/ask-ai-link")
+def create_ask_ai_link_legacy(
+    body: AskAiLinkBody,
+    authorization: str | None = Header(default=None),
+):
+    return create_ask_ai_link(body, authorization)
+
+
+@router.get("/roles-catalog")
+def roles_catalog(authorization: str | None = Header(default=None)):
+    """Справочник ролей для XCA (§8). Доступен админам; для интеграции можно открыть позже."""
+    require_admin_user(authorization)
+    return build_roles_catalog()
+
+
+@router.get("/screens")
+def list_screens(authorization: str | None = Header(default=None)):
+    require_report_user(authorization)
+    catalog = build_roles_catalog()
+    return {"screens": catalog["screens"]}

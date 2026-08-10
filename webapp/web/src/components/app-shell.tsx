@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { AskAiButton, AskAiTitleChip } from "@/components/ask-ai-button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
@@ -180,9 +181,12 @@ export function AppShell({
                 ☰
               </button>
               <div className="min-w-0 flex-1">
-                <h1 className="break-words text-lg font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
-                  {title}
-                </h1>
+                <div className="flex min-w-0 items-start gap-2">
+                  <h1 className="min-w-0 flex-1 break-words text-lg font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
+                    {title}
+                  </h1>
+                  <AskAiTitleChip />
+                </div>
                 {subtitle ? (
                   <p className="mt-1 break-words text-sm text-tremor-content dark:text-dark-tremor-content sm:text-tremor-default">
                     {subtitle}
@@ -192,6 +196,7 @@ export function AppShell({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <AskAiButton />
               <button
                 type="button"
                 onClick={toggleWide}

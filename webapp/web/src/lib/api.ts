@@ -2254,6 +2254,36 @@ export async function putReportConfig(
   return apiPut("/api/settings/report-config", values, { headers: authHeaders() });
 }
 
+export type AskAiLinkRequest = {
+  nav_id?: string;
+  report?: string;
+  q?: string;
+  ctx?: string;
+  project?: string;
+  period?: string;
+  filters?: Record<string, string> | string;
+  src?: string;
+};
+
+export type AskAiLinkResponse = {
+  ok: boolean;
+  url: string;
+  report: string;
+  nav_id?: string | null;
+  ts: number;
+  expires_in: number;
+};
+
+/** Подписанная ссылка XCA Ask AI (генерируется на API в момент клика). */
+export async function postAskAiLink(
+  body: AskAiLinkRequest,
+): Promise<AskAiLinkResponse> {
+  return apiPost("/api/ask-ai/link", body, {
+    headers: authHeaders(),
+    timeoutMs: 15_000,
+  });
+}
+
 export async function fetchAssistantHealth(): Promise<{
   ok: boolean;
   error?: string;

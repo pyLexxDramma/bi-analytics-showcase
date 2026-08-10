@@ -172,3 +172,7 @@ ENSURE_FRESH_MARKER = Path(
         str(WEBAPP_ROOT / "data" / ".ensure_fresh_last"),
     )
 )
+
+# XCA Ask AI: подписанная ссылка /ask (см. DASHBOARD_ASK_AI_INTEGRATION.md)
+XCA_ASK_BASE_URL = (os.environ.get("XCA_ASK_BASE_URL") or "").strip().rstrip("/")
+XCA_ASK_SECRET = (os.environ.get("XCA_ASK_SECRET") or "").strip()
