@@ -33,6 +33,8 @@ services:
       SHOWCASE_VLLM_API_KEY: ${SHOWCASE_VLLM_API_KEY:-}
       SHOWCASE_VLLM_MODEL: ${SHOWCASE_VLLM_MODEL:-Qwen3.5-35B-A3B-GPTQ-Int4}
       SHOWCASE_AI_ENABLED: ${SHOWCASE_AI_ENABLED:-0}
+      XCA_ASK_BASE_URL: ${XCA_ASK_BASE_URL:-}
+      XCA_ASK_SECRET: ${XCA_ASK_SECRET:-}
     # OOM на ГДРС уже был: лимит явный, чтобы падал контейнер, а не весь VPS
     mem_limit: ${WEBAPP_API_MEM_LIMIT:-1200m}
     volumes:
