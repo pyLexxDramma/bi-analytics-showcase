@@ -81,6 +81,25 @@ def test_sign_params_stable():
     assert "=" not in a
 
 
+def test_sign_params_xca_vector():
+    """Канонизация из ASK_AI_XCA_REQUEST.md §1.3."""
+    params = {
+        "ctx": "Отчёт «БДДС (расходы)». БДДС расходы по периодам.",
+        "period": "2026-08",
+        "project": "Ленинский",
+        "q": "Объясни дашборд «БДДС (расходы)»",
+        "report": "screen_bdds",
+        "role": "financier",
+        "src": "finance/bdds",
+        "ts": "1786000000",
+        "uid": "u_1042",
+        "v": "1",
+    }
+    assert (
+        sign_params(params, b"test-secret")
+        == "Vzku4zNdQ0pAfCq0PfjIdHRGtQkwV9g17SGJvHE3wKo"
+    )
+
 def test_ask_ai_link_requires_auth(ask_client: TestClient):
     res = ask_client.post("/api/ask-ai/link", json={"nav_id": "bdds"})
     assert res.status_code == 401

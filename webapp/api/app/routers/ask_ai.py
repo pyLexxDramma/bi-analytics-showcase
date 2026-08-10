@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.config import ADMIN_SYNC_TOKEN
 from app.services.ask_ai import (
     AskAiConfigError,
     build_ask_url,
@@ -46,6 +47,16 @@ def _assert_user_may_ask(user: dict, nav_id: str | None, report: str | None) -> 
         )
     return nav
 
+
+def _require_roles_catalog_access(
+    authorization: str | None,
+    x_admin_token: str | None,
+) -> None:
+    """Admin JWT или X-Admin-Token (для машинного доступа XCA)."""
+    token = (x_admin_token or "").strip()
+    if ADMIN_SYNC_TOKEN and token and token == ADMIN_SYNC_TOKEN:
+        return
+    require_admin_user(authorization)
 
 @router.post("/link")
 @router.post("/link/", include_in_schema=False)
@@ -89,9 +100,12 @@ def create_ask_ai_link_legacy(
 
 
 @router.get("/roles-catalog")
-def roles_catalog(authorization: str | None = Header(default=None)):
-    """Справочник ролей для XCA (§8). Доступен админам; для интеграции можно открыть позже."""
-    require_admin_user(authorization)
+def roles_catalog(
+    authorization: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+):
+    """Справочник ролей для XCA. Ключ списка экранов в каждой роли — `reports` (screen_*)."""
+    _require_roles_catalog_access(authorization, x_admin_token)
     return build_roles_catalog()
 
 

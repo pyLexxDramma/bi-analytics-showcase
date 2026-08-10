@@ -107,8 +107,8 @@ export const ASK_AI_SCREENS: Record<string, AskAiScreen> = {
   },
 };
 
-/** Ключи query, которые считаем фильтрами экрана (остальное — служебное). */
-const FILTER_QUERY_KEYS = new Set([
+/** Служебные / уже вынесенные в project|period — не дублируем в filters. */
+const RESERVED_QUERY_KEYS = new Set([
   "project",
   "projects",
   "period",
@@ -117,16 +117,18 @@ const FILTER_QUERY_KEYS = new Set([
   "to",
   "date_from",
   "date_to",
-  "block",
-  "contractor",
-  "contractors",
-  "org",
-  "organization",
-  "lot",
-  "status",
-  "year",
 ]);
 
+const ALL_PROJECT_VALUES = new Set(["все", "all", "*", ""]);
+
+function isAllProject(value: string): boolean {
+  return ALL_PROJECT_VALUES.has(value.trim().toLowerCase());
+}
+
+/**
+ * Срез фильтров из query (в момент клика — из window.location.search).
+ * См. ASK_AI_XCA_REQUEST.md §1.1.
+ */
 export function collectAskAiFiltersFromSearch(
   search: string,
 ): {
@@ -138,32 +140,28 @@ export function collectAskAiFiltersFromSearch(
     search.startsWith("?") ? search.slice(1) : search,
   );
   const filters: Record<string, string> = {};
-  let project: string | undefined;
-  let period: string | undefined;
+
+  const projectRaw =
+    (params.get("project") || params.get("projects") || "").trim();
+  const project =
+    projectRaw && !isAllProject(projectRaw.split("|")[0] || "")
+      ? projectRaw.split("|")[0]
+      : undefined;
+
+  const periodDirect = (params.get("period") || params.get("month") || "").trim();
+  const from = (params.get("date_from") || params.get("from") || "").trim();
+  const to = (params.get("date_to") || params.get("to") || "").trim();
+  let period: string | undefined = periodDirect || undefined;
+  if (!period && (from || to)) {
+    period = `${from}..${to}`;
+  }
 
   params.forEach((value, key) => {
     const k = key.trim();
     const v = value.trim();
     if (!k || !v) return;
-    if (k === "project" || k === "projects") {
-      project = v.split("|")[0] || v;
-      return;
-    }
-    if (k === "period" || k === "month") {
-      period = v;
-      return;
-    }
-    if (k === "from" && params.get("to")) {
-      period = `${v}..${params.get("to")}`;
-      return;
-    }
-    if (k === "date_from" && params.get("date_to")) {
-      period = `${v}..${params.get("date_to")}`;
-      return;
-    }
-    if (FILTER_QUERY_KEYS.has(k) && k !== "to" && k !== "date_to") {
-      filters[k] = v;
-    }
+    if (RESERVED_QUERY_KEYS.has(k)) return;
+    filters[k] = v;
   });
 
   return {

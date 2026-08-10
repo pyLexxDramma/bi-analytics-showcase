@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { postAskAiLink } from "@/lib/api";
 import { isAuthenticated } from "@/lib/auth";
 import {
@@ -17,7 +17,6 @@ type AskAiVariant = "desktop" | "chip";
 
 function AskAiControl({ variant }: { variant: AskAiVariant }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,10 +35,8 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
     const popup = window.open("about:blank", "_blank");
     setBusy(true);
     try {
-      const search = searchParams?.toString()
-        ? `?${searchParams.toString()}`
-        : "";
-      const slice = collectAskAiFiltersFromSearch(search);
+      // В момент клика — фактический адрес страницы (не React searchParams).
+      const slice = collectAskAiFiltersFromSearch(window.location.search || "");
       const { url } = await postAskAiLink({
         nav_id: nav.id,
         report: screen.report,
@@ -111,20 +108,12 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
   );
 }
 
-function AskAiSuspended({ variant }: { variant: AskAiVariant }) {
-  return (
-    <Suspense fallback={null}>
-      <AskAiControl variant={variant} />
-    </Suspense>
-  );
-}
-
 /** Desktop: полная кнопка в правой части шапки. */
 export function AskAiButton() {
-  return <AskAiSuspended variant="desktop" />;
+  return <AskAiControl variant="desktop" />;
 }
 
 /** Mobile: chip рядом с заголовком вкладки. */
 export function AskAiTitleChip() {
-  return <AskAiSuspended variant="chip" />;
+  return <AskAiControl variant="chip" />;
 }
