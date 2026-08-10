@@ -7,9 +7,22 @@ WEBAPP="$ROOT/webapp"
 cd "$WEBAPP"
 
 touch .env
+
+# CI secrets (appleboy envs) — сохранить до source .env (там могут быть пустые ключи)
+_CI_XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
+_CI_XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
+
 set -a
+# shellcheck disable=SC1091
 source ./.env
 set +a
+
+if [[ -n "${_CI_XCA_ASK_SECRET}" ]]; then
+  export XCA_ASK_SECRET="${_CI_XCA_ASK_SECRET}"
+fi
+if [[ -n "${_CI_XCA_ASK_BASE_URL}" ]]; then
+  export XCA_ASK_BASE_URL="${_CI_XCA_ASK_BASE_URL}"
+fi
 
 mkdir -p data/web data/db data/report_cache data/jobs data/assistant_output
 
@@ -33,30 +46,27 @@ export NEXT_PUBLIC_AI_MODE=full
 _upsert_env() {
   local key="$1" val="$2"
   [[ -n "$val" ]] || return 0
+  local tmp
+  tmp="$(mktemp)"
   if grep -qE "^${key}=" .env 2>/dev/null; then
-    # portable-ish: rewrite file without printing secret
-    local tmp
-    tmp="$(mktemp)"
-    awk -v k="$key" -v v="$val" 'BEGIN{FS=OFS="="} $1==k{$0=k"="v} {print}' .env >"$tmp"
-    mv "$tmp" .env
+    grep -vE "^${key}=" .env >"$tmp" || true
   else
-    printf '\n%s=%s\n' "$key" "$val" >>.env
+    cp .env "$tmp"
   fi
-  export "$key=$val"
-  echo "Configured $key in webapp/.env"
+  # Без кавычек: docker compose .env parser; алфавит base64url безопасен
+  printf '%s=%s\n' "$key" "$val" >>"$tmp"
+  mv "$tmp" .env
+  export "${key}=${val}"
+  echo "Configured ${key} in webapp/.env (len=${#val})"
 }
 _upsert_env XCA_ASK_SECRET "${XCA_ASK_SECRET:-}"
 _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 
-# перечитать .env после возможной записи
-set -a
-# shellcheck disable=SC1091
-source ./.env
-set +a
-
-echo "==> docker compose build/up in $WEBAPP"
+echo "==> docker compose build/up in $WEBAPP (XCA secret_len=${#XCA_ASK_SECRET} base_len=${#XCA_ASK_BASE_URL})"
 docker compose pull edge || true
 docker compose stop opencode >/dev/null 2>&1 || true
+export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
+export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
 docker compose up -d --build --remove-orphans --force-recreate db-init api web edge
 
 echo "==> ensure CloudPub publish for :3080"
@@ -94,6 +104,10 @@ if [[ "$ok" -ne 1 ]]; then
     2>/dev/null || true
   exit 1
 fi
+
+echo "==> verify XCA Ask AI env inside api container"
+docker compose exec -T api python -c \
+  'import os; s=(os.environ.get("XCA_ASK_SECRET") or "").strip(); b=(os.environ.get("XCA_ASK_BASE_URL") or "").strip(); print("xca_secret_len", len(s), "xca_base_len", len(b)); raise SystemExit(0 if s else "XCA_ASK_SECRET missing inside api container")'
 
 echo "==> initialize users database"
 docker compose exec -T api python -c \
