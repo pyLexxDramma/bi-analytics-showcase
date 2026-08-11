@@ -298,107 +298,109 @@ export function DebitCreditView() {
             Таблица по подрядчику и договору
           </Title>
         </div>
-        <div className="max-h-[36rem] overflow-auto">
-          <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
-            <thead>
-              <tr>
-                {[
-                  "Проект",
-                  "Подрядчик",
-                  "Договор",
-                  "Договор стоимость",
-                  "Всего выполненных обязательств по платежам",
-                  "Аванс",
-                  "Допущения по авансированию %",
-                  "Выполнено (КС-2)",
-                  "Остаток",
-                  "Аванс − КС-2",
-                ].map((label) => (
-                  <th
-                    key={label}
-                    className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
+        <FullscreenPanel disabled={!data?.rows?.length} scroll={false}>
+          <div className="bi-table-scroll">
+            <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+              <thead>
+                <tr>
+                  {[
+                    "Проект",
+                    "Подрядчик",
+                    "Договор",
+                    "Договор стоимость",
+                    "Всего выполненных обязательств по платежам",
+                    "Аванс",
+                    "Допущения по авансированию %",
+                    "Выполнено (КС-2)",
+                    "Остаток",
+                    "Аванс − КС-2",
+                  ].map((label) => (
+                    <th
+                      key={label}
+                      className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.rows ?? []).map((row, index) => (
+                  <tr
+                    key={`${row.contract}-${index}`}
+                    className="border-t border-tremor-border dark:border-dark-tremor-border"
                   >
-                    {label}
-                  </th>
+                    <td className="whitespace-nowrap px-3 py-2">{row.project}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{row.contractor}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{row.contract}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      {mln(row.contract_sum)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      {mln(row.fulfilled)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      {mln(row.advance)}
+                    </td>
+                    <td
+                      className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
+                    >
+                      {toneDot(row.advance_tone)}{" "}
+                      {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      {mln(row.ks2)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      {mln(row.balance)}
+                    </td>
+                    <td
+                      className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
+                    >
+                      {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.rows ?? []).map((row, index) => (
-                <tr
-                  key={`${row.contract}-${index}`}
-                  className="border-t border-tremor-border dark:border-dark-tremor-border"
-                >
-                  <td className="whitespace-nowrap px-3 py-2">{row.project}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{row.contractor}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{row.contract}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                    {mln(row.contract_sum)}
+              </tbody>
+              <tfoot className="sticky bottom-0 z-10 bg-tremor-background font-semibold dark:bg-dark-tremor-background">
+                <tr>
+                  <td className="border-t border-tremor-border px-3 py-3 dark:border-dark-tremor-border" colSpan={3}>
+                    ИТОГО
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                    {mln(row.fulfilled)}
+                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                    {mln(data?.totals.contract_sum)}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                    {mln(row.advance)}
+                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                    {mln(data?.totals.fulfilled)}
+                  </td>
+                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                    {mln(data?.totals.advance)}
                   </td>
                   <td
-                    className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
+                    className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
                   >
-                    {toneDot(row.advance_tone)}{" "}
-                    {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                    {toneDot(data?.totals.advance_tone)}{" "}
+                    {data?.totals.advance_pct == null
+                      ? "—"
+                      : `${data.totals.advance_pct}%`}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                    {mln(row.ks2)}
+                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                    {mln(data?.totals.ks2)}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                    {mln(row.balance)}
+                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                    {mln(data?.totals.balance)}
                   </td>
                   <td
-                    className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
+                    className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
                   >
-                    {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
+                    {toneDot(data?.totals.advance_tone)}{" "}
+                    {mln(data?.totals.advance_ks2)}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot className="sticky bottom-0 z-10 bg-tremor-background font-semibold dark:bg-dark-tremor-background">
-              <tr>
-                <td className="border-t border-tremor-border px-3 py-3 dark:border-dark-tremor-border" colSpan={3}>
-                  ИТОГО
-                </td>
-                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
-                  {mln(data?.totals.contract_sum)}
-                </td>
-                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
-                  {mln(data?.totals.fulfilled)}
-                </td>
-                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
-                  {mln(data?.totals.advance)}
-                </td>
-                <td
-                  className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
-                >
-                  {toneDot(data?.totals.advance_tone)}{" "}
-                  {data?.totals.advance_pct == null
-                    ? "—"
-                    : `${data.totals.advance_pct}%`}
-                </td>
-                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
-                  {mln(data?.totals.ks2)}
-                </td>
-                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
-                  {mln(data?.totals.balance)}
-                </td>
-                <td
-                  className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
-                >
-                  {toneDot(data?.totals.advance_tone)}{" "}
-                  {mln(data?.totals.advance_ks2)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+              </tfoot>
+            </table>
+          </div>
+        </FullscreenPanel>
         <div className="space-y-2 border-t border-tremor-border p-4 text-sm dark:border-dark-tremor-border">
           <Text>
             Цветовые индикаторы (Аванс − КС-2): 🟢 ≤ 0 или ≤ 30% стоимости

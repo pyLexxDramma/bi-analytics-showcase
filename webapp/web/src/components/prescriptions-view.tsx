@@ -527,84 +527,86 @@ export function PrescriptionsView() {
               Детальная таблица по предписаниям
             </Title>
           </div>
-          <div className="max-h-[36rem] overflow-auto">
-            {!rows.length ? (
-              <div className="px-4 py-10 text-center text-sm text-tremor-content">
-                Нет строк по фильтрам.
-              </div>
-            ) : (
-              <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
-                <thead>
-                  <tr>
-                    {tableColumns.map(([key, label]) => (
-                      <th
-                        key={key}
-                        className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(key)}
-                          className="inline-flex items-center gap-1"
-                        >
-                          {label}
-                          <span aria-hidden>
-                            {sort?.key === key ? (sort.asc ? "↑" : "↓") : "⇅"}
-                          </span>
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, index) => (
-                    <tr
-                      key={`${row.pred_number}-${index}`}
-                      className={
-                        row.row_tone === "overdue"
-                          ? "!bg-rose-50/80 dark:!bg-rose-950/25"
-                          : row.row_tone === "resolved"
-                            ? "!bg-emerald-50/60 dark:!bg-emerald-950/20"
-                            : "!bg-tremor-background dark:!bg-dark-tremor-background"
-                      }
-                    >
-                      {tableColumns.map(([key]) => (
-                        <td
+          <FullscreenPanel disabled={!rows.length} scroll={false}>
+            <div className="bi-table-scroll">
+              {!rows.length ? (
+                <div className="px-4 py-10 text-center text-sm text-tremor-content">
+                  Нет строк по фильтрам.
+                </div>
+              ) : (
+                <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+                  <thead>
+                    <tr>
+                      {tableColumns.map(([key, label]) => (
+                        <th
                           key={key}
-                          className={`max-w-72 whitespace-nowrap border-b border-tremor-border px-3 py-2 align-middle dark:border-dark-tremor-border ${
-                            key === "overdue_days" && row.overdue_days > 0
-                              ? "font-semibold text-rose-600 dark:text-rose-400"
-                              : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
-                          }`}
+                          className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content"
                         >
-                          {key === "status" ? (
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                                row.status_chip === "overdue"
-                                  ? "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200"
-                                  : row.status_chip === "ok"
-                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-200"
-                                    : "bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-200"
-                              }`}
-                            >
-                              {row.status}
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(key)}
+                            className="inline-flex items-center gap-1"
+                          >
+                            {label}
+                            <span aria-hidden>
+                              {sort?.key === key ? (sort.asc ? "↑" : "↓") : "⇅"}
                             </span>
-                          ) : key === "critical" || key === "stop_work" ? (
-                            row[key] ? (
-                              "Да"
-                            ) : (
-                              "—"
-                            )
-                          ) : (
-                            String(row[key as keyof typeof row] ?? "—")
-                          )}
-                        </td>
+                          </button>
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, index) => (
+                      <tr
+                        key={`${row.pred_number}-${index}`}
+                        className={
+                          row.row_tone === "overdue"
+                            ? "!bg-rose-50/80 dark:!bg-rose-950/25"
+                            : row.row_tone === "resolved"
+                              ? "!bg-emerald-50/60 dark:!bg-emerald-950/20"
+                              : "!bg-tremor-background dark:!bg-dark-tremor-background"
+                        }
+                      >
+                        {tableColumns.map(([key]) => (
+                          <td
+                            key={key}
+                            className={`max-w-72 whitespace-nowrap border-b border-tremor-border px-3 py-2 align-middle dark:border-dark-tremor-border ${
+                              key === "overdue_days" && row.overdue_days > 0
+                                ? "font-semibold text-rose-600 dark:text-rose-400"
+                                : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                            }`}
+                          >
+                            {key === "status" ? (
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                  row.status_chip === "overdue"
+                                    ? "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200"
+                                    : row.status_chip === "ok"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-200"
+                                      : "bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-200"
+                                }`}
+                              >
+                                {row.status}
+                              </span>
+                            ) : key === "critical" || key === "stop_work" ? (
+                              row[key] ? (
+                                "Да"
+                              ) : (
+                                "—"
+                              )
+                            ) : (
+                              String(row[key as keyof typeof row] ?? "—")
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </FullscreenPanel>
           <div className="border-t border-tremor-border p-4 dark:border-dark-tremor-border">
             <DownloadTableButton
               getTable={exportTable}

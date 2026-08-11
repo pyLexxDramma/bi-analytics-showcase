@@ -591,122 +591,124 @@ export function BaselineDeviationView() {
                 {loading ? "загрузка…" : `Записей: ${covenantRows.length}`}
               </Text>
             </div>
-            {covenantRows.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                Нет строк для таблицы ковенантов.
-              </div>
-            ) : (
-              <>
-                <MobileCardStack>
-                  {covenantRows.map((row, index) => (
-                    <MobileEntityCard
-                      key={`cov-m-${row.project ?? ""}-${row.task_id ?? row.task}-${index}`}
-                      title={
-                        row.project ? `${row.project}: ${row.task}` : row.task
-                      }
-                      badge={row.dev_end_days ?? row.dev_end ?? undefined}
-                      badgeTone={
-                        row.dev_end_days == null
-                          ? "neutral"
-                          : row.dev_end_days < 0
-                            ? "bad"
-                            : "ok"
-                      }
-                    >
-                      <MobileMetricGrid
-                        columns={2}
-                        items={[
-                          ...(row.project
-                            ? [{ label: "Проект", value: row.project }]
-                            : []),
-                          { label: "ID", value: row.task_id ?? "—" },
-                          {
-                            label: "Базовое оконч.",
-                            value: row.base_end ?? "—",
-                            highlight: "date" as const,
-                          },
-                          {
-                            label: "Окончание",
-                            value: row.plan_end ?? "—",
-                            highlight: "date" as const,
-                          },
-                          {
-                            label: "Откл. оконч.",
-                            value: row.dev_end_days ?? row.dev_end ?? "—",
-                            className: deviationClass(row.dev_end_days),
-                            highlight: highlightFromDays(row.dev_end_days),
-                          },
-                        ]}
-                      />
-                    </MobileEntityCard>
-                  ))}
-                </MobileCardStack>
-                <div className="hidden lg:block">
-                  <div className="max-h-[28rem] overflow-auto">
-                  <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
-                    <thead>
-                      <tr>
-                        {covenantColumns.map((label) => (
-                          <th
-                            key={label}
-                            className={`${TH} ${
-                              label.includes("окончание") ||
-                              label.includes("Отклонение") ||
-                              label === "Окончание" ||
-                              label === "Базовое окончание"
-                                ? DATE_BG_HEAD
-                                : ""
-                            }`}
-                          >
-                            {label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {covenantRows.map((row, index) => (
-                        <tr
-                          key={`cov-${row.project ?? ""}-${row.task_id ?? row.task}-${index}`}
-                        >
-                          {covenantColumns.map((col) => {
-                            const tint =
-                              col === "Базовое окончание" ||
-                              col === "Окончание" ||
-                              col === "Отклонение окончания (дней)";
-                            const isDev = col === "Отклонение окончания (дней)";
-                            const value =
-                              col === "Проект"
-                                ? (row.project ?? "")
-                                : col === "Задача"
-                                  ? row.task
-                                  : col === "ID задачи"
-                                    ? (row.task_id ?? "")
-                                    : col === "Базовое окончание"
-                                      ? (row.base_end ?? "")
-                                      : col === "Окончание"
-                                        ? (row.plan_end ?? "")
-                                        : (row.dev_end_days ??
-                                          row.dev_end ??
-                                          "");
-                            return (
-                              <td
-                                key={col}
-                                className={`${TD} ${tint ? DATE_BG : ""} ${
-                                  isDev ? deviationClass(row.dev_end_days) : ""
-                                } tabular-nums`}
-                              >
-                                {value === "" || value == null ? "" : value}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
+            <FullscreenPanel disabled={!covenantRows.length} scroll={false}>
+              {covenantRows.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                  Нет строк для таблицы ковенантов.
                 </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <MobileCardStack>
+                    {covenantRows.map((row, index) => (
+                      <MobileEntityCard
+                        key={`cov-m-${row.project ?? ""}-${row.task_id ?? row.task}-${index}`}
+                        title={
+                          row.project ? `${row.project}: ${row.task}` : row.task
+                        }
+                        badge={row.dev_end_days ?? row.dev_end ?? undefined}
+                        badgeTone={
+                          row.dev_end_days == null
+                            ? "neutral"
+                            : row.dev_end_days < 0
+                              ? "bad"
+                              : "ok"
+                        }
+                      >
+                        <MobileMetricGrid
+                          columns={2}
+                          items={[
+                            ...(row.project
+                              ? [{ label: "Проект", value: row.project }]
+                              : []),
+                            { label: "ID", value: row.task_id ?? "—" },
+                            {
+                              label: "Базовое оконч.",
+                              value: row.base_end ?? "—",
+                              highlight: "date" as const,
+                            },
+                            {
+                              label: "Окончание",
+                              value: row.plan_end ?? "—",
+                              highlight: "date" as const,
+                            },
+                            {
+                              label: "Откл. оконч.",
+                              value: row.dev_end_days ?? row.dev_end ?? "—",
+                              className: deviationClass(row.dev_end_days),
+                              highlight: highlightFromDays(row.dev_end_days),
+                            },
+                          ]}
+                        />
+                      </MobileEntityCard>
+                    ))}
+                  </MobileCardStack>
+                  <div className="hidden lg:block">
+                    <div className="bi-table-scroll">
+                    <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
+                      <thead>
+                        <tr>
+                          {covenantColumns.map((label) => (
+                            <th
+                              key={label}
+                              className={`${TH} ${
+                                label.includes("окончание") ||
+                                label.includes("Отклонение") ||
+                                label === "Окончание" ||
+                                label === "Базовое окончание"
+                                  ? DATE_BG_HEAD
+                                  : ""
+                              }`}
+                            >
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {covenantRows.map((row, index) => (
+                          <tr
+                            key={`cov-${row.project ?? ""}-${row.task_id ?? row.task}-${index}`}
+                          >
+                            {covenantColumns.map((col) => {
+                              const tint =
+                                col === "Базовое окончание" ||
+                                col === "Окончание" ||
+                                col === "Отклонение окончания (дней)";
+                              const isDev = col === "Отклонение окончания (дней)";
+                              const value =
+                                col === "Проект"
+                                  ? (row.project ?? "")
+                                  : col === "Задача"
+                                    ? row.task
+                                    : col === "ID задачи"
+                                      ? (row.task_id ?? "")
+                                      : col === "Базовое окончание"
+                                        ? (row.base_end ?? "")
+                                        : col === "Окончание"
+                                          ? (row.plan_end ?? "")
+                                          : (row.dev_end_days ??
+                                            row.dev_end ??
+                                            "");
+                              return (
+                                <td
+                                  key={col}
+                                  className={`${TD} ${tint ? DATE_BG : ""} ${
+                                    isDev ? deviationClass(row.dev_end_days) : ""
+                                  } tabular-nums`}
+                                >
+                                  {value === "" || value == null ? "" : value}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    </div>
+                  </div>
+                </>
+              )}
+            </FullscreenPanel>
             <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <DownloadTableButton
                 getTable={() => covenantExport}

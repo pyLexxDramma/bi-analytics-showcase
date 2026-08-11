@@ -578,103 +578,105 @@ export function BddsPlanFactView() {
               disabled={!(data?.status_rows.length ?? 0)}
             />
           </div>
-          <div className="min-w-0 p-1">
-            {!(data?.status_rows.length ?? 0) ? (
-              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                {loading ? "Загрузка…" : "Нет данных для статуса."}
-              </div>
-            ) : (
-              <>
-                <div className="lg:hidden">
-                  <div className="flex flex-col gap-3 px-2 pb-2">
-                    <p className="px-1 text-[10px] text-tremor-content dark:text-dark-tremor-content">
-                      Значения — млн ₽
-                    </p>
-                    {(data?.status_rows ?? []).map((row, index) => (
-                      <div
-                        key={`${row.month}-${row.project}-${index}`}
-                        className="min-w-0 rounded-xl border-[3px] border-[#94a3b8] p-3 text-xs dark:border-white"
-                      >
-                        <div className="mb-1 break-words font-semibold">
-                          {row.month} · {row.project}
+          <FullscreenPanel disabled={!(data?.status_rows.length ?? 0)} className="min-w-0">
+            <div className="min-w-0 p-1">
+              {!(data?.status_rows.length ?? 0) ? (
+                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+                  {loading ? "Загрузка…" : "Нет данных для статуса."}
+                </div>
+              ) : (
+                <>
+                  <div className="lg:hidden">
+                    <div className="flex flex-col gap-3 px-2 pb-2">
+                      <p className="px-1 text-[10px] text-tremor-content dark:text-dark-tremor-content">
+                        Значения — млн ₽
+                      </p>
+                      {(data?.status_rows ?? []).map((row, index) => (
+                        <div
+                          key={`${row.month}-${row.project}-${index}`}
+                          className="min-w-0 rounded-xl border-[3px] border-[#94a3b8] p-3 text-xs dark:border-white"
+                        >
+                          <div className="mb-1 break-words font-semibold">
+                            {row.month} · {row.project}
+                          </div>
+                          <dl className="grid grid-cols-2 gap-1">
+                            <dt>БДДС (план), млн</dt>
+                            <dd className="text-center tabular-nums">{row.plan_mln.toFixed(2)}</dd>
+                            <dt>БДДС (факт), млн</dt>
+                            <dd className="text-center tabular-nums">{row.fact_mln.toFixed(2)}</dd>
+                            <dt>БДДС (прогноз), млн</dt>
+                            <dd className="text-center tabular-nums">
+                              {row.forecast_mln.toFixed(2)}
+                            </dd>
+                            <dt>Отклонение по сумме, млн</dt>
+                            <dd
+                              className={`text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
+                            >
+                              {statusSignedMln(row.deviation_mln, 2)}
+                            </dd>
+                            <dt className="col-span-2 mt-1">Статус</dt>
+                            <dd className="col-span-2 break-words font-semibold">
+                              <span
+                                className={`mr-1.5 text-[1.12em] font-bold ${statusBulletClass(row.deviation_mln)}`}
+                              >
+                                ●
+                              </span>
+                              {row.status}
+                            </dd>
+                          </dl>
                         </div>
-                        <dl className="grid grid-cols-2 gap-1">
-                          <dt>БДДС (план), млн</dt>
-                          <dd className="text-center tabular-nums">{row.plan_mln.toFixed(2)}</dd>
-                          <dt>БДДС (факт), млн</dt>
-                          <dd className="text-center tabular-nums">{row.fact_mln.toFixed(2)}</dd>
-                          <dt>БДДС (прогноз), млн</dt>
-                          <dd className="text-center tabular-nums">
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bi-table-scroll hidden overflow-x-auto lg:block">
+                  <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
+                    <thead>
+                      <tr>
+                        <th className={`${HEAD} text-center`}>Месяц</th>
+                        <th className={`${HEAD} text-center`}>Проект</th>
+                        <th className={`${HEAD} text-center`}>БДДС (план), млн</th>
+                        <th className={`${HEAD} text-center`}>БДДС (факт), млн</th>
+                        <th className={`${HEAD} text-center`}>БДДС (прогноз), млн</th>
+                        <th className={`${HEAD} text-center`}>Отклонение по сумме, млн</th>
+                        <th className={`${HEAD} text-center`}>Статус</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data?.status_rows ?? []).map((row, index) => (
+                        <tr key={`${row.month}-${row.project}-${index}`}>
+                          <td className={`${CELL} ${BODY} text-center`}>{row.month}</td>
+                          <td className={`${CELL} ${BODY}`}>{row.project}</td>
+                          <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                            {row.plan_mln.toFixed(2)}
+                          </td>
+                          <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                            {row.fact_mln.toFixed(2)}
+                          </td>
+                          <td className={`${CELL} ${BODY} text-center tabular-nums`}>
                             {row.forecast_mln.toFixed(2)}
-                          </dd>
-                          <dt>Отклонение по сумме, млн</dt>
-                          <dd
-                            className={`text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
+                          </td>
+                          <td
+                            className={`${CELL} ${BODY} text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
                           >
                             {statusSignedMln(row.deviation_mln, 2)}
-                          </dd>
-                          <dt className="col-span-2 mt-1">Статус</dt>
-                          <dd className="col-span-2 break-words font-semibold">
+                          </td>
+                          <td className={`${CELL} ${BODY} font-semibold`}>
                             <span
                               className={`mr-1.5 text-[1.12em] font-bold ${statusBulletClass(row.deviation_mln)}`}
                             >
                               ●
                             </span>
                             {row.status}
-                          </dd>
-                        </dl>
-                      </div>
-                    ))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                   </div>
-                </div>
-                <div className="bi-table-scroll hidden overflow-x-auto lg:block">
-                <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
-                  <thead>
-                    <tr>
-                      <th className={`${HEAD} text-center`}>Месяц</th>
-                      <th className={`${HEAD} text-center`}>Проект</th>
-                      <th className={`${HEAD} text-center`}>БДДС (план), млн</th>
-                      <th className={`${HEAD} text-center`}>БДДС (факт), млн</th>
-                      <th className={`${HEAD} text-center`}>БДДС (прогноз), млн</th>
-                      <th className={`${HEAD} text-center`}>Отклонение по сумме, млн</th>
-                      <th className={`${HEAD} text-center`}>Статус</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(data?.status_rows ?? []).map((row, index) => (
-                      <tr key={`${row.month}-${row.project}-${index}`}>
-                        <td className={`${CELL} ${BODY} text-center`}>{row.month}</td>
-                        <td className={`${CELL} ${BODY}`}>{row.project}</td>
-                        <td className={`${CELL} ${BODY} text-center tabular-nums`}>
-                          {row.plan_mln.toFixed(2)}
-                        </td>
-                        <td className={`${CELL} ${BODY} text-center tabular-nums`}>
-                          {row.fact_mln.toFixed(2)}
-                        </td>
-                        <td className={`${CELL} ${BODY} text-center tabular-nums`}>
-                          {row.forecast_mln.toFixed(2)}
-                        </td>
-                        <td
-                          className={`${CELL} ${BODY} text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
-                        >
-                          {statusSignedMln(row.deviation_mln, 2)}
-                        </td>
-                        <td className={`${CELL} ${BODY} font-semibold`}>
-                          <span
-                            className={`mr-1.5 text-[1.12em] font-bold ${statusBulletClass(row.deviation_mln)}`}
-                          >
-                            ●
-                          </span>
-                          {row.status}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                </div>
-              </>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          </FullscreenPanel>
         </Card>
       </div>
     </AppShell>

@@ -763,129 +763,133 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               ГДРС по выбранным проектам
             </Title>
           </div>
-          <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <SortHeader
-                  label="Проект"
-                  sortKey="project"
-                  sort={projSort}
-                  onSort={(k) => setProjSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                />
-                <SortHeader
-                  label="План"
-                  sortKey="plan"
-                  sort={projSort}
-                  onSort={(k) => setProjSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.planHdr }}
-                />
-                <SortHeader
-                  label="Факт"
-                  sortKey="fact"
-                  sort={projSort}
-                  onSort={(k) => setProjSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.skudHdr }}
-                />
-                <SortHeader
-                  label="Отклонение"
-                  sortKey="deviation"
-                  sort={projSort}
-                  onSort={(k) => setProjSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-                <SortHeader
-                  label="Отклонение %"
-                  sortKey="delta_pct"
-                  sort={projSort}
-                  onSort={(k) => setProjSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-              </tr>
-            </thead>
-            <tbody>
-              {projectRows.map((r) => (
-                <tr key={r.project}>
-                  <td style={td({ textAlign: "left" })}>{r.project}</td>
-                  <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
-                    {fmtInt(r.plan)}
-                  </td>
-                  <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
-                    {fmtInt(r.fact)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      ...dev(r.deviation),
-                    })}
-                  >
-                    {fmtSigned(r.deviation)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      ...dev(r.delta_pct),
-                    })}
-                  >
-                    {fmtPct(r.delta_pct)}
-                  </td>
-                </tr>
-              ))}
-              {data?.kpis && projectRows.length ? (
-                <tr>
-                  <td
-                    style={td({
-                      textAlign: "left",
-                      fontWeight: 700,
-                      backgroundColor: pal.grandBg,
-                    })}
-                  >
-                    Итого
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      backgroundColor: pal.planBold,
-                    })}
-                  >
-                    {fmtInt(data.kpis.plan)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      backgroundColor: pal.skudBold,
-                    })}
-                  >
-                    {fmtInt(data.kpis.fact)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      ...dev(data.kpis.deviation),
-                    })}
-                  >
-                    {fmtSigned(data.kpis.deviation)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      ...dev(data.kpis.delta_pct),
-                    })}
-                  >
-                    {fmtPct(data.kpis.delta_pct)}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+          <FullscreenPanel disabled={!projectRows.length} scroll={false}>
+            <div className="bi-table-scroll overflow-auto">
+              <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <SortHeader
+                      label="Проект"
+                      sortKey="project"
+                      sort={projSort}
+                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                    />
+                    <SortHeader
+                      label="План"
+                      sortKey="plan"
+                      sort={projSort}
+                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.planHdr }}
+                    />
+                    <SortHeader
+                      label="Факт"
+                      sortKey="fact"
+                      sort={projSort}
+                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.skudHdr }}
+                    />
+                    <SortHeader
+                      label="Отклонение"
+                      sortKey="deviation"
+                      sort={projSort}
+                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.devHdr }}
+                    />
+                    <SortHeader
+                      label="Отклонение %"
+                      sortKey="delta_pct"
+                      sort={projSort}
+                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.devHdr }}
+                    />
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectRows.map((r) => (
+                    <tr key={r.project}>
+                      <td style={td({ textAlign: "left" })}>{r.project}</td>
+                      <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                        {fmtInt(r.plan)}
+                      </td>
+                      <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                        {fmtInt(r.fact)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          ...dev(r.deviation),
+                        })}
+                      >
+                        {fmtSigned(r.deviation)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          ...dev(r.delta_pct),
+                        })}
+                      >
+                        {fmtPct(r.delta_pct)}
+                      </td>
+                    </tr>
+                  ))}
+                  {data?.kpis && projectRows.length ? (
+                    <tr>
+                      <td
+                        style={td({
+                          textAlign: "left",
+                          fontWeight: 700,
+                          backgroundColor: pal.grandBg,
+                        })}
+                      >
+                        Итого
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          backgroundColor: pal.planBold,
+                        })}
+                      >
+                        {fmtInt(data.kpis.plan)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          backgroundColor: pal.skudBold,
+                        })}
+                      >
+                        {fmtInt(data.kpis.fact)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          ...dev(data.kpis.deviation),
+                        })}
+                      >
+                        {fmtSigned(data.kpis.deviation)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          ...dev(data.kpis.delta_pct),
+                        })}
+                      >
+                        {fmtPct(data.kpis.delta_pct)}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </FullscreenPanel>
           <div className="mt-3">
             <DownloadTableButton
               getTable={exportProjectTable}
@@ -916,11 +920,12 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               {data?.meta.period_label ? `, ${data.meta.period_label}` : ""}
             </Title>
           </div>
-          <div className="max-h-[min(70vh,42rem)] w-full min-w-0 overflow-auto overscroll-contain rounded-md border-2 border-slate-500 dark:border-slate-400">
-            <table
-              className="min-w-full text-sm"
-              style={{ borderCollapse: "separate", borderSpacing: 0 }}
-            >
+          <FullscreenPanel disabled={!matrixRows.length} scroll={false}>
+            <div className="bi-table-scroll w-full min-w-0 overflow-auto overscroll-contain rounded-md border-2 border-slate-500 dark:border-slate-400">
+              <table
+                className="min-w-full text-sm"
+                style={{ borderCollapse: "separate", borderSpacing: 0 }}
+              >
               <thead>
                 {showMatrixWeeks ? (
                   <tr ref={matrixGroupHdrRef}>
@@ -1247,7 +1252,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </FullscreenPanel>
           <div className="mt-3">
             <DownloadTableButton
               getTable={exportMatrixTable}
@@ -1315,80 +1321,84 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong mb-3">
             Детализация по периодам
           </Title>
-          <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <SortHeader
-                  label="Период"
-                  sortKey="period"
-                  sort={dynSort}
-                  onSort={(k) => setDynSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                />
-                <SortHeader
-                  label="План"
-                  sortKey="plan"
-                  sort={dynSort}
-                  onSort={(k) => setDynSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.planHdr }}
-                />
-                <SortHeader
-                  label="Факт"
-                  sortKey="fact"
-                  sort={dynSort}
-                  onSort={(k) => setDynSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.skudHdr }}
-                />
-                <SortHeader
-                  label="Отклонение"
-                  sortKey="deviation"
-                  sort={dynSort}
-                  onSort={(k) => setDynSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-                <SortHeader
-                  label="Отклонение %"
-                  sortKey="delta_pct"
-                  sort={dynSort}
-                  onSort={(k) => setDynSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-              </tr>
-            </thead>
-            <tbody>
-              {dynamicsRows.map((r) => (
-                <tr key={r.period}>
-                  <td style={td({ textAlign: "left" })}>{r.period}</td>
-                  <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
-                    {fmtInt(r.plan)}
-                  </td>
-                  <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
-                    {fmtInt(r.fact)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      ...dev(r.deviation),
-                    })}
-                  >
-                    {fmtSigned(r.deviation)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      ...dev(r.delta_pct),
-                    })}
-                  >
-                    {fmtPct(r.delta_pct)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <FullscreenPanel disabled={!dynamicsRows.length} scroll={false}>
+            <div className="bi-table-scroll overflow-auto">
+              <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <SortHeader
+                      label="Период"
+                      sortKey="period"
+                      sort={dynSort}
+                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                    />
+                    <SortHeader
+                      label="План"
+                      sortKey="plan"
+                      sort={dynSort}
+                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.planHdr }}
+                    />
+                    <SortHeader
+                      label="Факт"
+                      sortKey="fact"
+                      sort={dynSort}
+                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.skudHdr }}
+                    />
+                    <SortHeader
+                      label="Отклонение"
+                      sortKey="deviation"
+                      sort={dynSort}
+                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.devHdr }}
+                    />
+                    <SortHeader
+                      label="Отклонение %"
+                      sortKey="delta_pct"
+                      sort={dynSort}
+                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.devHdr }}
+                    />
+                  </tr>
+                </thead>
+                <tbody>
+                  {dynamicsRows.map((r) => (
+                    <tr key={r.period}>
+                      <td style={td({ textAlign: "left" })}>{r.period}</td>
+                      <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                        {fmtInt(r.plan)}
+                      </td>
+                      <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                        {fmtInt(r.fact)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          ...dev(r.deviation),
+                        })}
+                      >
+                        {fmtSigned(r.deviation)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          ...dev(r.delta_pct),
+                        })}
+                      >
+                        {fmtPct(r.delta_pct)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </FullscreenPanel>
           <div className="mt-3">
             <DownloadTableButton
               getTable={exportDynamicsTable}
@@ -1402,124 +1412,128 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong mb-3">
             {pieTitle}
           </Title>
-          <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <SortHeader
-                  label="Контрагент"
-                  sortKey="contractor"
-                  sort={ctrSort}
-                  onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                />
-                <SortHeader
-                  label="План"
-                  sortKey="plan"
-                  sort={ctrSort}
-                  onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.planHdr }}
-                />
-                <SortHeader
-                  label="Факт"
-                  sortKey="fact"
-                  sort={ctrSort}
-                  onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.skudHdr }}
-                />
-                <SortHeader
-                  label="Отклонение"
-                  sortKey="deviation"
-                  sort={ctrSort}
-                  onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-                <SortHeader
-                  label="Доля %"
-                  sortKey="share_pct"
-                  sort={ctrSort}
-                  onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
-                  palette={pal}
-                  style={{ backgroundColor: pal.devHdr }}
-                />
-              </tr>
-            </thead>
-            <tbody>
-              {contractorRows.map((r) => (
-                <tr key={r.contractor}>
-                  <td style={td({ textAlign: "left" })}>{r.contractor}</td>
-                  <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
-                    {fmtInt(r.plan)}
-                  </td>
-                  <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
-                    {fmtInt(r.fact)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      ...dev(r.deviation),
-                    })}
-                  >
-                    {fmtSigned(r.deviation)}
-                  </td>
-                  <td style={td({ textAlign: "right" })}>
-                    {fmtPct(r.share_pct)}
-                  </td>
-                </tr>
-              ))}
-              {contractorTotal && contractorRows.length ? (
-                <tr>
-                  <td
-                    style={td({
-                      textAlign: "left",
-                      fontWeight: 700,
-                      backgroundColor: pal.grandBg,
-                    })}
-                  >
-                    Итого
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      backgroundColor: pal.planBold,
-                    })}
-                  >
-                    {fmtInt(contractorTotal.plan)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      backgroundColor: pal.skudBold,
-                    })}
-                  >
-                    {fmtInt(contractorTotal.fact)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      ...dev(contractorTotal.deviation),
-                    })}
-                  >
-                    {fmtSigned(contractorTotal.deviation)}
-                  </td>
-                  <td
-                    style={td({
-                      textAlign: "right",
-                      fontWeight: 700,
-                      backgroundColor: pal.grandBg,
-                    })}
-                  >
-                    {fmtPct(contractorTotal.share_pct)}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+          <FullscreenPanel disabled={!contractorRows.length} scroll={false}>
+            <div className="bi-table-scroll overflow-auto">
+              <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <SortHeader
+                      label="Контрагент"
+                      sortKey="contractor"
+                      sort={ctrSort}
+                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                    />
+                    <SortHeader
+                      label="План"
+                      sortKey="plan"
+                      sort={ctrSort}
+                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.planHdr }}
+                    />
+                    <SortHeader
+                      label="Факт"
+                      sortKey="fact"
+                      sort={ctrSort}
+                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.skudHdr }}
+                    />
+                    <SortHeader
+                      label="Отклонение"
+                      sortKey="deviation"
+                      sort={ctrSort}
+                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.devHdr }}
+                    />
+                    <SortHeader
+                      label="Доля %"
+                      sortKey="share_pct"
+                      sort={ctrSort}
+                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      palette={pal}
+                      style={{ backgroundColor: pal.devHdr }}
+                    />
+                  </tr>
+                </thead>
+                <tbody>
+                  {contractorRows.map((r) => (
+                    <tr key={r.contractor}>
+                      <td style={td({ textAlign: "left" })}>{r.contractor}</td>
+                      <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                        {fmtInt(r.plan)}
+                      </td>
+                      <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                        {fmtInt(r.fact)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          ...dev(r.deviation),
+                        })}
+                      >
+                        {fmtSigned(r.deviation)}
+                      </td>
+                      <td style={td({ textAlign: "right" })}>
+                        {fmtPct(r.share_pct)}
+                      </td>
+                    </tr>
+                  ))}
+                  {contractorTotal && contractorRows.length ? (
+                    <tr>
+                      <td
+                        style={td({
+                          textAlign: "left",
+                          fontWeight: 700,
+                          backgroundColor: pal.grandBg,
+                        })}
+                      >
+                        Итого
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          backgroundColor: pal.planBold,
+                        })}
+                      >
+                        {fmtInt(contractorTotal.plan)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          backgroundColor: pal.skudBold,
+                        })}
+                      >
+                        {fmtInt(contractorTotal.fact)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          ...dev(contractorTotal.deviation),
+                        })}
+                      >
+                        {fmtSigned(contractorTotal.deviation)}
+                      </td>
+                      <td
+                        style={td({
+                          textAlign: "right",
+                          fontWeight: 700,
+                          backgroundColor: pal.grandBg,
+                        })}
+                      >
+                        {fmtPct(contractorTotal.share_pct)}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </FullscreenPanel>
           <div className="mt-3">
             <DownloadTableButton
               getTable={exportContractorTable}

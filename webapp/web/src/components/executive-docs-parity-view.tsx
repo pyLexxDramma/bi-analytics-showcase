@@ -522,56 +522,58 @@ export function ExecutiveDocsParityView() {
             <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <Title>Детальный отчёт по сдаче и согласованию ИД</Title>
             </div>
-            <div className="max-h-[36rem] overflow-auto">
-              {!data?.rows?.length ? (
-                <div className="px-4 py-10 text-center text-sm">Нет строк</div>
-              ) : (
-                <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
-                  <thead>
-                    <tr>
-                      {DETAIL_COLS.map(([key, label]) => (
-                        <th
-                          key={key}
-                          className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
-                        >
-                          {label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(data?.rows ?? []).map((row, index) => (
-                      <tr
-                        key={`${row.doc_number}-${index}`}
-                        className="border-t border-tremor-border dark:border-dark-tremor-border"
-                      >
-                        {DETAIL_COLS.map(([key]) => (
-                          <td
+            <FullscreenPanel disabled={!data?.rows?.length} scroll={false}>
+              <div className="bi-table-scroll">
+                {!data?.rows?.length ? (
+                  <div className="px-4 py-10 text-center text-sm">Нет строк</div>
+                ) : (
+                  <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+                    <thead>
+                      <tr>
+                        {DETAIL_COLS.map(([key, label]) => (
+                          <th
                             key={key}
-                            className="whitespace-nowrap px-3 py-2 align-middle"
+                            className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
                           >
-                            {key === "status_display" ? (
-                              <span
-                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${chipClass(row.status_chip)}`}
-                              >
-                                {row.status_display ?? row.status}
-                              </span>
-                            ) : key === "submit_late_days" ||
-                              key === "agree_late_days" ? (
-                              fmtLate(
-                                row[key as keyof typeof row] as number | null,
-                              )
-                            ) : (
-                              String(row[key as keyof typeof row] ?? "—")
-                            )}
-                          </td>
+                            {label}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                    </thead>
+                    <tbody>
+                      {(data?.rows ?? []).map((row, index) => (
+                        <tr
+                          key={`${row.doc_number}-${index}`}
+                          className="border-t border-tremor-border dark:border-dark-tremor-border"
+                        >
+                          {DETAIL_COLS.map(([key]) => (
+                            <td
+                              key={key}
+                              className="whitespace-nowrap px-3 py-2 align-middle"
+                            >
+                              {key === "status_display" ? (
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${chipClass(row.status_chip)}`}
+                                >
+                                  {row.status_display ?? row.status}
+                                </span>
+                              ) : key === "submit_late_days" ||
+                                key === "agree_late_days" ? (
+                                fmtLate(
+                                  row[key as keyof typeof row] as number | null,
+                                )
+                              ) : (
+                                String(row[key as keyof typeof row] ?? "—")
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </FullscreenPanel>
             <div className="border-t border-tremor-border p-4 dark:border-dark-tremor-border">
               <DownloadTableButton
                 getTable={exportDetail}
