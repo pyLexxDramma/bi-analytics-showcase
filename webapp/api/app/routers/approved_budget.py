@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.approved_budget import build_approved_budget_payload
 
-router = APIRouter(prefix="/api/approved-budget", tags=["approved-budget"])
+router = APIRouter(prefix="/api/approved-budget", tags=["approved-budget"], dependencies=[Depends(require_report_access("approved-budget"))])
 
 
 @router.get("")

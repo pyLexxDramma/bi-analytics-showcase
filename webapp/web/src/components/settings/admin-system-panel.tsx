@@ -16,10 +16,12 @@ import {
   postSettingsUser,
   putReportConfig,
   type SettingsLogRow,
+  type SettingsRole,
   type SettingsUser,
 } from "@/lib/api";
 import { getAuthSession } from "@/lib/auth";
 import type { ExportTable } from "@/lib/table-export";
+import { AdminRolesPanel } from "@/components/settings/admin-roles-panel";
 
 export function AdminSystemPanel() {
   const [subTab, setSubTab] = useState("users");
@@ -33,7 +35,7 @@ export function AdminSystemPanel() {
     usernames: [],
     actions: [],
   });
-  const [roles, setRoles] = useState<Array<{ code: string; label: string }>>([]);
+  const [roles, setRoles] = useState<SettingsRole[]>([]);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [configDesc, setConfigDesc] = useState<Record<string, string>>({});
 
@@ -525,33 +527,7 @@ export function AdminSystemPanel() {
         </Card>
       ) : null}
 
-      {subTab === "roles" ? (
-        <Card className="rounded-xl">
-          <Title className="!text-base">Права доступа</Title>
-          <InfoBanner>
-            Разрезка прав по отдельным проектам отключена. Доступ определяется
-            только ролью пользователя.
-          </InfoBanner>
-          <div className="overflow-x-auto">
-            <table className={SETTINGS_TABLE}>
-              <thead>
-                <tr>
-                  <th>Код роли</th>
-                  <th>Роль</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roles.map((r) => (
-                  <tr key={r.code}>
-                    <td>{r.code}</td>
-                    <td>{r.label}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ) : null}
+      {subTab === "roles" ? <AdminRolesPanel /> : null}
 
       {subTab === "config" ? (
         <div className="space-y-6">

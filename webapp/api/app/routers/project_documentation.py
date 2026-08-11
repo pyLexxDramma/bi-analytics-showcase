@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.project_documentation import build_project_documentation_payload
 
-router = APIRouter(prefix="/api/project-documentation", tags=["project-documentation"])
+router = APIRouter(prefix="/api/project-documentation", tags=["project-documentation"], dependencies=[Depends(require_report_access("project-documentation"))])
 
 
 @router.get("")

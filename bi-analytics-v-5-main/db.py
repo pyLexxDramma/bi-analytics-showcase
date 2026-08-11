@@ -161,6 +161,28 @@ def init_all_tables(st_callback=None):
         "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions (expires_at)"
     )
 
+    # Кастомные роли и матрица доступа к дашбордам (nav.id / report_id)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS roles (
+            code TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            is_system INTEGER NOT NULL DEFAULT 0,
+            can_admin INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS role_reports (
+            role_code TEXT NOT NULL,
+            report_id TEXT NOT NULL,
+            PRIMARY KEY (role_code, report_id),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_role_reports_role ON role_reports (role_code)"
+    )
+
     conn.commit()
 
     # Дефолтный суперадминистратор (учитываем только активных — как в create_user).

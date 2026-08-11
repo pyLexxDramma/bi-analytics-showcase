@@ -155,6 +155,8 @@ def role_can_open_screen(auth: Any, role: str, nav_id: str) -> bool:
     r = str(role or "").strip().lower()
     if r in ("superadmin", "admin"):
         return True
+    if hasattr(auth, "role_can_open_report"):
+        return bool(auth.role_can_open_report(r, nav_id))
     names = list(screen.get("auth_names") or [])
     if not names:
         return bool(auth.has_report_access(r)) if hasattr(auth, "has_report_access") else True
@@ -164,17 +166,28 @@ def role_can_open_screen(auth: Any, role: str, nav_id: str) -> bool:
 def build_roles_catalog() -> dict[str, Any]:
     auth = import_auth()
     roles_out: list[dict[str, Any]] = []
-    role_codes = list(getattr(auth, "ROLES", {}).keys()) or [
-        "superadmin",
-        "admin",
-        "analyst",
-        "rp",
-        "financier",
-        "gip",
-        "manager",
-    ]
-    for code in role_codes:
-        title = auth.get_user_role_display(code) if hasattr(auth, "get_user_role_display") else code
+    role_rows = []
+    if hasattr(auth, "list_roles"):
+        try:
+            role_rows = list(auth.list_roles())
+        except Exception:
+            role_rows = []
+    if role_rows:
+        iterable = [(r["code"], r.get("label") or r["code"]) for r in role_rows]
+    else:
+        iterable = [
+            (code, auth.get_user_role_display(code) if hasattr(auth, "get_user_role_display") else code)
+            for code in (list(getattr(auth, "ROLES", {}).keys()) or [
+                "superadmin",
+                "admin",
+                "analyst",
+                "rp",
+                "financier",
+                "gip",
+                "manager",
+            ])
+        ]
+    for code, title in iterable:
         reports: list[str] = []
         for nav_id, meta in SCREENS.items():
             if role_can_open_screen(auth, code, nav_id):

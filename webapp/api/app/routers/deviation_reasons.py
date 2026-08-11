@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.deviation_reasons import build_deviation_reasons_payload
 
-router = APIRouter(prefix="/api/deviation-reasons", tags=["deviation-reasons"])
+router = APIRouter(prefix="/api/deviation-reasons", tags=["deviation-reasons"], dependencies=[Depends(require_report_access("deviation-reasons"))])
 
 
 @router.get("")

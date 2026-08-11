@@ -56,6 +56,21 @@ class _Auth:
         return True
 
     @staticmethod
+    def role_can_open_report(role: str, report_id: str) -> bool:
+        if role == "superadmin":
+            return True
+        if role == "manager" and report_id == "bdds":
+            return False
+        return True
+
+    @staticmethod
+    def list_roles():
+        return [
+            {"code": code, "label": label, "reports": [], "is_system": True}
+            for code, label in _Auth.ROLES.items()
+        ]
+
+    @staticmethod
     def get_user_role_display(role: str) -> str:
         return _Auth.ROLES.get(role, role)
 

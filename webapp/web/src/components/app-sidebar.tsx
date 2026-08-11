@@ -10,7 +10,7 @@ import {
   accordionIdForPath,
 } from "@/lib/nav";
 import { openCommandPalette } from "@/components/command-palette";
-import { getAuthSession, isAdminRole, logout } from "@/lib/auth";
+import { getAuthSession, isAdminRole, logout, canAccessReport } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
 import { loadDataStatus } from "@/lib/data-status-store";
 import {
@@ -206,6 +206,17 @@ export function AppSidebar({
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+  const session = getAuthSession();
+  const visibleTop = canAccessReport(REPORT_TOP_TAB.id, session)
+    ? REPORT_TOP_TAB
+    : null;
+  const visibleAccordions = REPORT_ACCORDIONS.map((acc) => ({
+    ...acc,
+    items: acc.items.filter((i) => canAccessReport(i.id, session)),
+  })).filter((acc) => acc.items.length > 0);
+  const visibleStandalone = REPORT_STANDALONE.filter((i) =>
+    canAccessReport(i.id, session),
+  );
   const externalAi = process.env.NEXT_PUBLIC_AI_MODE === "full";
   const aiHref = externalAi
     ? process.env.NEXT_PUBLIC_OPENCODE_URL
@@ -406,19 +417,21 @@ export function AppSidebar({
         <section className="mb-5">
           <SectionTitle>Отчёты</SectionTitle>
           <div className="flex flex-col gap-1.5">
-            <Link
-              href={REPORT_TOP_TAB.href}
-              {...navProps}
-              className={`rounded-md px-3 py-2.5 font-medium transition ${
-                isActive(REPORT_TOP_TAB.href)
-                  ? "border border-emerald-300 bg-[#e8f5e9] text-emerald-900"
-                  : "border border-transparent bg-white hover:bg-gray-100 dark:bg-dark-tremor-background-subtle"
-              }`}
-            >
-              {REPORT_TOP_TAB.label}
-            </Link>
+            {visibleTop ? (
+              <Link
+                href={visibleTop.href}
+                {...navProps}
+                className={`rounded-md px-3 py-2.5 font-medium transition ${
+                  isActive(visibleTop.href)
+                    ? "border border-emerald-300 bg-[#e8f5e9] text-emerald-900"
+                    : "border border-transparent bg-white hover:bg-gray-100 dark:bg-dark-tremor-background-subtle"
+                }`}
+              >
+                {visibleTop.label}
+              </Link>
+            ) : null}
 
-            {REPORT_ACCORDIONS.map((acc) => {
+            {visibleAccordions.map((acc) => {
               const open = openId === acc.id;
               const childActive = acc.items.some((i) => isActive(i.href));
               return (
@@ -460,7 +473,7 @@ export function AppSidebar({
               );
             })}
 
-            {REPORT_STANDALONE.map((item) => (
+            {visibleStandalone.map((item) => (
               <Link
                 key={item.id}
                 href={item.href}

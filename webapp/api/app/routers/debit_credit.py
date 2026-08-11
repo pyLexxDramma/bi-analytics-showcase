@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.debit_credit import build_debit_credit_payload
 
-router = APIRouter(prefix="/api/debit-credit", tags=["debit-credit"])
+router = APIRouter(prefix="/api/debit-credit", tags=["debit-credit"], dependencies=[Depends(require_report_access("debit-credit"))])
 
 
 @router.get("")

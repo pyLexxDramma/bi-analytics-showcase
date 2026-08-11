@@ -31,7 +31,7 @@ import {
   type Density,
 } from "@/lib/view-prefs";
 import { fetchAuthMe } from "@/lib/api";
-import { isAuthenticated, logout } from "@/lib/auth";
+import { canAccessReport, isAuthenticated, logout, saveAuthSession } from "@/lib/auth";
 
 export function AppShell({
   title,
@@ -50,6 +50,7 @@ export function AppShell({
   const [reportsOpen, setReportsOpen] = useState(false);
   const [wide, setWide] = useState(false);
   const [density, setDensity] = useState<Density>("comfortable");
+  const [accessDenied, setAccessDenied] = useState(false);
   const pathname = usePathname();
   const mobile = useIsMobileViewport();
   const showLoading = useDelayedLoading(loading, mobile ? 400 : 1000);
@@ -65,15 +66,35 @@ export function AppShell({
   useEffect(() => {
     if (!isAuthenticated()) return;
     let cancelled = false;
-    void fetchAuthMe().catch(() => {
-      if (cancelled) return;
-      logout();
-      window.location.assign("/login?reason=session");
-    });
+    void fetchAuthMe()
+      .then((data) => {
+        if (cancelled) return;
+        saveAuthSession(data.user);
+        const nav = findNavItem(pathname);
+        if (nav && !canAccessReport(nav.id, data.user)) {
+          setAccessDenied(true);
+        } else {
+          setAccessDenied(false);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        logout();
+        window.location.assign("/login?reason=session");
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pathname]);
+
+  useEffect(() => {
+    const nav = findNavItem(pathname);
+    if (!nav) {
+      setAccessDenied(false);
+      return;
+    }
+    setAccessDenied(!canAccessReport(nav.id));
+  }, [pathname]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -271,7 +292,21 @@ export function AppShell({
               </button>
             </div>
           </header>
-          <div className="min-w-0 max-w-full">{children}</div>
+          <div className="min-w-0 max-w-full">
+            {accessDenied ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-8 dark:border-amber-800 dark:bg-amber-950/40">
+                <h2 className="text-lg font-semibold text-amber-950 dark:text-amber-100">
+                  Нет доступа
+                </h2>
+                <p className="mt-2 text-sm text-amber-900/80 dark:text-amber-200/80">
+                  У вашей роли нет прав на этот дашборд. Выберите другой отчёт в
+                  меню или обратитесь к администратору.
+                </p>
+              </div>
+            ) : (
+              children
+            )}
+          </div>
         </div>
         {showLoading ? <DashboardSkeleton wide={!mobile} /> : null}
         <MobileTabBar

@@ -61,6 +61,12 @@ def ensure_users_db(*, seed: bool = True) -> None:
             None,
             "system",
         )
+    try:
+        from app.services.ask_ai_reports import SCREENS
+
+        auth.ensure_roles_seeded(SCREENS)
+    except Exception:
+        auth.ensure_roles_seeded(None)
     if not _prepared:
         _prepared = True
 
@@ -141,9 +147,22 @@ def format_russian_datetime(dt_str: str | None) -> str:
 
 
 def user_payload(user: dict, auth_mod: Any) -> dict:
+    role = user.get("role") or ""
+    allowed = []
+    try:
+        allowed = list(auth_mod.list_allowed_report_ids(role))
+    except Exception:
+        allowed = []
+    can_admin = False
+    try:
+        can_admin = bool(auth_mod.has_admin_access(role))
+    except Exception:
+        can_admin = str(role).lower() in ("admin", "superadmin")
     return {
         "username": user["username"],
-        "role": user["role"],
-        "role_label": auth_mod.get_user_role_display(user["role"]),
+        "role": role,
+        "role_label": auth_mod.get_user_role_display(role),
         "email": user.get("email"),
+        "allowed_reports": allowed,
+        "can_admin": can_admin,
     }

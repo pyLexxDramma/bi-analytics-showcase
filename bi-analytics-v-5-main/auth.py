@@ -99,8 +99,22 @@ def _normalize_role(role: str | None) -> str:
     return str(role or "").strip().lower()
 
 
-def user_can_open_report(role: str, report_name: str) -> bool:
-    """Проверка доступа к одному отчёту по роли."""
+# Каталог экранов webapp (nav.id) — заполняется ensure_roles_seeded / set_nav_catalog.
+_NAV_CATALOG: List[Dict] = []
+
+
+def set_nav_catalog(items: List[Dict] | None) -> None:
+    """items: [{id, title, path?, auth_names?}, ...]"""
+    global _NAV_CATALOG
+    _NAV_CATALOG = list(items or [])
+
+
+def get_nav_catalog() -> List[Dict]:
+    return list(_NAV_CATALOG)
+
+
+def _user_can_open_report_legacy(role: str, report_name: str) -> bool:
+    """Старые allow/deny списки (сид и fallback без строк в roles)."""
     r = _normalize_role(role)
     if r in ("superadmin", "admin"):
         return True
@@ -110,6 +124,126 @@ def user_can_open_report(role: str, report_name: str) -> bool:
     if allowed_only is not None and r not in allowed_only:
         return False
     return True
+
+
+def _role_row(role: str) -> Optional[Tuple]:
+    """(code, label, is_system, can_admin) или None."""
+    r = _normalize_role(role)
+    if not r:
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT code, label, is_system, can_admin FROM roles WHERE code = ?",
+            (r,),
+        )
+        row = cur.fetchone()
+        conn.close()
+        return row
+    except sqlite3.Error:
+        return None
+
+
+def _role_report_ids_from_db(role: str) -> Optional[List[str]]:
+    """Список report_id из role_reports; None если роли нет в таблице roles."""
+    r = _normalize_role(role)
+    row = _role_row(r)
+    if row is None:
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT report_id FROM role_reports WHERE role_code = ? ORDER BY report_id",
+            (r,),
+        )
+        ids = [str(x[0]) for x in cur.fetchall()]
+        conn.close()
+        return ids
+    except sqlite3.Error:
+        return []
+
+
+def _auth_names_for_report_id(report_id: str) -> List[str]:
+    rid = str(report_id or "").strip()
+    for item in _NAV_CATALOG:
+        if str(item.get("id") or "") == rid:
+            names = item.get("auth_names") or []
+            return [str(n) for n in names]
+    return []
+
+
+def _report_id_matches_name(report_id: str, report_name: str) -> bool:
+    if report_id == report_name:
+        return True
+    return report_name in _auth_names_for_report_id(report_id)
+
+
+def role_can_open_report(role: str, report_id: str) -> bool:
+    """Доступ к экрану по nav.id (матрица roles/role_reports)."""
+    r = _normalize_role(role)
+    rid = str(report_id or "").strip()
+    if not rid:
+        return False
+    if r in ("superadmin", "admin"):
+        return True
+    db_ids = _role_report_ids_from_db(r)
+    if db_ids is not None:
+        return rid in db_ids
+    # Fallback: legacy по auth_names экрана
+    names = _auth_names_for_report_id(rid)
+    if names:
+        return all(_user_can_open_report_legacy(r, n) for n in names)
+    return _user_can_open_report_legacy(r, rid)
+
+
+def user_can_open_report(role: str, report_name: str) -> bool:
+    """Проверка доступа к одному отчёту по роли (nav.id или имя Streamlit)."""
+    r = _normalize_role(role)
+    name = str(report_name or "").strip()
+    if not name:
+        return False
+    if r in ("superadmin", "admin"):
+        return True
+    db_ids = _role_report_ids_from_db(r)
+    if db_ids is not None:
+        if name in db_ids:
+            return True
+        return any(_report_id_matches_name(rid, name) for rid in db_ids)
+    return _user_can_open_report_legacy(r, name)
+
+
+def list_allowed_report_ids(role: str) -> List[str]:
+    """nav.id, доступные роли (для /auth/me и UI)."""
+    r = _normalize_role(role)
+    catalog_ids = [str(i.get("id")) for i in _NAV_CATALOG if i.get("id")]
+    if r in ("superadmin", "admin"):
+        return catalog_ids or _all_known_report_ids()
+    db_ids = _role_report_ids_from_db(r)
+    if db_ids is not None:
+        if catalog_ids:
+            allowed = set(db_ids)
+            return [i for i in catalog_ids if i in allowed]
+        return list(db_ids)
+    if catalog_ids:
+        return [i for i in catalog_ids if role_can_open_report(r, i)]
+    return []
+
+
+def _all_known_report_ids() -> List[str]:
+    ids = [str(i.get("id")) for i in _NAV_CATALOG if i.get("id")]
+    if ids:
+        return ids
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT report_id FROM role_reports ORDER BY report_id")
+        out = [str(r[0]) for r in cur.fetchall()]
+        conn.close()
+        return out
+    except sqlite3.Error:
+        return []
 
 
 def filter_reports_for_role(role: str, report_names: List[str]) -> List[str]:
@@ -125,6 +259,263 @@ def filter_reports_for_role(role: str, report_names: List[str]) -> List[str]:
     except ImportError:
         pass
     return out
+
+
+def ensure_roles_seeded(nav_screens: Optional[Dict[str, Dict]] = None) -> None:
+    """Создать системные роли и role_reports из ROLES + legacy allowlists."""
+    if nav_screens:
+        catalog = []
+        for nav_id, meta in nav_screens.items():
+            catalog.append(
+                {
+                    "id": nav_id,
+                    "title": str(meta.get("title") or nav_id),
+                    "path": str(meta.get("src") or ""),
+                    "auth_names": list(meta.get("auth_names") or []),
+                }
+            )
+        set_nav_catalog(catalog)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS roles (
+            code TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            is_system INTEGER NOT NULL DEFAULT 0,
+            can_admin INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS role_reports (
+            role_code TEXT NOT NULL,
+            report_id TEXT NOT NULL,
+            PRIMARY KEY (role_code, report_id),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.commit()
+
+    nav_ids = [str(i.get("id")) for i in _NAV_CATALOG if i.get("id")]
+    for code, label in ROLES.items():
+        r = _normalize_role(code)
+        can_admin = 1 if r in ADMIN_ROLES else 0
+        cur.execute("SELECT code FROM roles WHERE code = ?", (r,))
+        if cur.fetchone() is None:
+            cur.execute(
+                """
+                INSERT INTO roles (code, label, is_system, can_admin)
+                VALUES (?, ?, 1, ?)
+                """,
+                (r, label, can_admin),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE roles
+                SET label = ?, is_system = 1, can_admin = ?
+                WHERE code = ? AND is_system = 1
+                """,
+                (label, can_admin, r),
+            )
+
+        cur.execute(
+            "SELECT COUNT(*) FROM role_reports WHERE role_code = ?",
+            (r,),
+        )
+        if int(cur.fetchone()[0]) > 0:
+            continue
+
+        if r in ("superadmin", "admin"):
+            for nav_id in nav_ids:
+                cur.execute(
+                    "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
+                    (r, nav_id),
+                )
+            continue
+
+        for item in _NAV_CATALOG:
+            nav_id = str(item.get("id") or "")
+            if not nav_id:
+                continue
+            names = list(item.get("auth_names") or []) or [nav_id]
+            if all(_user_can_open_report_legacy(r, n) for n in names):
+                cur.execute(
+                    "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
+                    (r, nav_id),
+                )
+    conn.commit()
+    conn.close()
+
+
+def list_roles() -> List[Dict]:
+    """Все роли из БД (+ сид ROLES если таблица ещё пуста)."""
+    ensure_roles_seeded()
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT code, label, is_system, can_admin, created_at
+        FROM roles
+        ORDER BY is_system DESC, code
+        """
+    )
+    rows = cur.fetchall()
+    out: List[Dict] = []
+    for code, label, is_system, can_admin, created_at in rows:
+        cur.execute(
+            "SELECT report_id FROM role_reports WHERE role_code = ? ORDER BY report_id",
+            (code,),
+        )
+        reports = [str(r[0]) for r in cur.fetchall()]
+        out.append(
+            {
+                "code": code,
+                "label": label,
+                "is_system": bool(is_system),
+                "can_admin": bool(can_admin),
+                "reports": reports,
+                "created_at": created_at,
+            }
+        )
+    conn.close()
+    return out
+
+
+def role_codes() -> List[str]:
+    return [r["code"] for r in list_roles()]
+
+
+def role_exists(code: str) -> bool:
+    return _normalize_role(code) in {_normalize_role(c) for c in role_codes()}
+
+
+def create_role(
+    code: str,
+    label: str,
+    reports: Optional[List[str]] = None,
+    *,
+    can_admin: bool = False,
+) -> bool:
+    """Создать кастомную роль. False если код занят / невалиден."""
+    r = _normalize_role(code)
+    lab = str(label or "").strip()
+    if not r or not lab:
+        return False
+    if not all(c.isalnum() or c in "_-" for c in r):
+        return False
+    if r in ROLES or _role_row(r) is not None:
+        return False
+    ensure_roles_seeded()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO roles (code, label, is_system, can_admin)
+            VALUES (?, ?, 0, ?)
+            """,
+            (r, lab, 1 if can_admin else 0),
+        )
+        catalog = set(_all_known_report_ids())
+        for rid in reports or []:
+            rid_s = str(rid).strip()
+            if not rid_s:
+                continue
+            if catalog and rid_s not in catalog:
+                continue
+            cur.execute(
+                "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
+                (r, rid_s),
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def update_role(
+    code: str,
+    *,
+    label: Optional[str] = None,
+    reports: Optional[List[str]] = None,
+    can_admin: Optional[bool] = None,
+) -> Tuple[bool, str]:
+    """Обновить роль. Возвращает (ok, error_message)."""
+    r = _normalize_role(code)
+    row = _role_row(r)
+    if row is None:
+        return False, "Роль не найдена"
+    _code, _label, is_system, _can_admin = row
+    ensure_roles_seeded()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        if label is not None:
+            lab = str(label).strip()
+            if not lab:
+                conn.close()
+                return False, "Пустое название роли"
+            cur.execute("UPDATE roles SET label = ? WHERE code = ?", (lab, r))
+        if can_admin is not None and not is_system:
+            cur.execute(
+                "UPDATE roles SET can_admin = ? WHERE code = ?",
+                (1 if can_admin else 0, r),
+            )
+        if reports is not None:
+            if r in ("superadmin", "admin"):
+                conn.close()
+                return False, "Нельзя менять список отчётов у admin/superadmin"
+            catalog = set(_all_known_report_ids())
+            cur.execute("DELETE FROM role_reports WHERE role_code = ?", (r,))
+            for rid in reports:
+                rid_s = str(rid).strip()
+                if not rid_s:
+                    continue
+                if catalog and rid_s not in catalog:
+                    continue
+                cur.execute(
+                    "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
+                    (r, rid_s),
+                )
+        conn.commit()
+        conn.close()
+        return True, ""
+    except sqlite3.Error as exc:
+        return False, str(exc)
+
+
+def delete_role(code: str) -> Tuple[bool, str]:
+    """Удалить кастомную роль (без пользователей)."""
+    r = _normalize_role(code)
+    row = _role_row(r)
+    if row is None:
+        return False, "Роль не найдена"
+    if row[2]:
+        return False, "Системную роль нельзя удалить"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM users WHERE role = ? AND is_active = 1",
+            (r,),
+        )
+        if int(cur.fetchone()[0]) > 0:
+            conn.close()
+            return False, "Есть пользователи с этой ролью"
+        cur.execute("DELETE FROM role_reports WHERE role_code = ?", (r,))
+        cur.execute("DELETE FROM roles WHERE code = ?", (r,))
+        conn.commit()
+        conn.close()
+        return True, ""
+    except sqlite3.Error as exc:
+        return False, str(exc)
 
 
 def _sidebar_report_label(report_name: str) -> str:
@@ -477,17 +868,35 @@ def user_can_edit_forecast_budget(role: str | None) -> bool:
 
 def has_admin_access(user_role: str) -> bool:
     """Проверка доступа к административной панели"""
-    return _normalize_role(user_role) in ("superadmin", "admin")
+    r = _normalize_role(user_role)
+    if r in ("superadmin", "admin"):
+        return True
+    row = _role_row(r)
+    if row is not None and row[3]:
+        return True
+    return False
 
 
 def has_report_access(user_role: str) -> bool:
     """Проверка доступа к отчетам"""
-    return _normalize_role(user_role) in REPORT_ROLES
+    r = _normalize_role(user_role)
+    if r in REPORT_ROLES:
+        return True
+    row = _role_row(r)
+    if row is None:
+        return False
+    # Кастомная роль: доступ к отчётам, если есть хотя бы один report_id
+    ids = _role_report_ids_from_db(r)
+    return bool(ids)
 
 
 def get_user_role_display(role: str) -> str:
     """Получение отображаемого названия роли"""
-    return ROLES.get(role, role)
+    r = _normalize_role(role)
+    row = _role_row(r)
+    if row is not None:
+        return str(row[1])
+    return ROLES.get(r, role)
 
 
 # ── Persistent sessions через query-param ?sid=<token> ──────────────────────

@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.executive_docs_db import build_executive_docs_payload
 
-router = APIRouter(prefix="/api/executive-docs", tags=["executive-docs"])
+router = APIRouter(prefix="/api/executive-docs", tags=["executive-docs"], dependencies=[Depends(require_report_access("executive-docs"))])
 
 
 @router.get("")

@@ -1,4 +1,5 @@
 import { REPORT_ACCORDIONS, REPORT_STANDALONE, REPORT_TOP_TAB } from "@/lib/nav";
+import { canAccessReport } from "@/lib/auth";
 
 export type FlatReport = {
   id: string;
@@ -31,6 +32,10 @@ export const FLAT_REPORTS: FlatReport[] = [
   })),
 ];
 
+function visibleReports(reports: FlatReport[]): FlatReport[] {
+  return reports.filter((report) => canAccessReport(report.id));
+}
+
 /** «ё» и лишние пробелы не должны мешать поиску. */
 export function normalizeQuery(value: string): string {
   return value.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
@@ -38,9 +43,10 @@ export function normalizeQuery(value: string): string {
 
 export function searchReports(query: string): FlatReport[] {
   const q = normalizeQuery(query);
-  if (!q) return FLAT_REPORTS;
+  const pool = visibleReports(FLAT_REPORTS);
+  if (!q) return pool;
   const words = q.split(" ").filter(Boolean);
-  return FLAT_REPORTS.filter((report) => {
+  return pool.filter((report) => {
     const hay = `${normalizeQuery(report.label)} ${normalizeQuery(report.group)}`;
     return words.every((word) => hay.includes(word));
   });
@@ -66,6 +72,8 @@ export function recentReports(
     .map((href) => FLAT_REPORTS.find((report) => report.href === href))
     .filter(
       (report): report is FlatReport =>
-        Boolean(report) && report!.href !== exceptHref,
+        Boolean(report) &&
+        report!.href !== exceptHref &&
+        canAccessReport(report!.id),
     );
 }

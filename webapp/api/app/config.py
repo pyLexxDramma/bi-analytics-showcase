@@ -148,9 +148,11 @@ def _detect_core_app_dir() -> Path:
     env = (os.environ.get("BI_CORE_APP_DIR") or "").strip()
     if env:
         return Path(env)
+    # Prefer showcase-vendored core so webapp ACL/roles changes apply without
+    # depending on the sibling main checkout layout.
     candidates = [
-        SHOWCASE_ROOT.parent / "bi-analytics-v-5-main" / "bi-analytics-v-5-main",
         SHOWCASE_ROOT / "bi-analytics-v-5-main",
+        SHOWCASE_ROOT.parent / "bi-analytics-v-5-main" / "bi-analytics-v-5-main",
     ]
     for c in candidates:
         if (c / "web_loader.py").is_file() and (c / "web_db_read.py").is_file():
@@ -158,7 +160,7 @@ def _detect_core_app_dir() -> Path:
     for c in candidates:
         if (c / "web_loader.py").is_file():
             return c
-    return candidates[-1]
+    return candidates[0]
 
 
 CORE_APP_DIR = _detect_core_app_dir()

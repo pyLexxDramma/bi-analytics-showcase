@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.prescriptions import build_prescriptions_payload
 
-router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
+router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"], dependencies=[Depends(require_report_access("prescriptions"))])
 
 
 @router.get("")

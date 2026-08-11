@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Header
 
 from app.services.auth_tokens import AuthTokenError, bearer_token, verify_token
 from app.services.users_bridge import import_auth
@@ -52,3 +52,17 @@ def require_finance_editor(authorization: str | None) -> dict:
     if not auth.user_can_edit_finance_tables(user.get("role")):
         raise HTTPException(status_code=403, detail="Нет прав на редактирование БДДС")
     return user
+
+
+def require_report_access(report_id: str):
+    """Dependency factory: 401 без сессии, 403 если роль не видит report_id (nav.id)."""
+
+    def _dep(authorization: str | None = Header(default=None)) -> dict:
+        user = require_active_user(authorization)
+        auth = import_auth()
+        role = user.get("role") or ""
+        if not auth.role_can_open_report(role, report_id):
+            raise HTTPException(status_code=403, detail="Нет доступа к этому отчёту")
+        return user
+
+    return _dep

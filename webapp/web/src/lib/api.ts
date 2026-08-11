@@ -159,7 +159,7 @@ export async function apiGet<T>(
     res = await fetch(url, {
       cache: "no-store",
       signal: mergeSignals(timeoutMs, signal),
-      headers,
+      headers: { ...authHeaders(), ...headers },
     });
   } catch (err) {
     if (signal?.aborted) {
@@ -217,6 +217,7 @@ export async function apiPost<T>(
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
         ...headers,
       },
       body: JSON.stringify(body),
@@ -255,6 +256,7 @@ export async function apiPut<T>(
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
         ...headers,
       },
       body: JSON.stringify(body),
@@ -293,6 +295,7 @@ export async function apiDelete<T>(
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
         ...headers,
       },
       body: JSON.stringify(body),
@@ -316,6 +319,45 @@ export async function apiDelete<T>(
     });
   }
   if (res.status === 204) return {} as T;
+  return (await res.json()) as T;
+}
+
+export async function apiPatch<T>(
+  path: string,
+  body: unknown = {},
+  { timeoutMs = DEFAULT_TIMEOUT_MS, headers = {} }: ApiPostOptions = {},
+): Promise<T> {
+  const url = apiUrl(path.startsWith("/") ? path : `/${path}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+        ...headers,
+      },
+      body: JSON.stringify(body),
+      signal: abortSignal(timeoutMs),
+    });
+  } catch (err) {
+    throw new ApiError(
+      `Нет связи с API (${path}): ${err instanceof Error ? err.message : String(err)}`,
+      { url },
+    );
+  }
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
+      .catch(() => "");
+    redirectIfAuthExpired(res.status, detail);
+    throw new ApiError(detail || `API ${res.status}: ${url}`, {
+      status: res.status,
+      url,
+    });
+  }
   return (await res.json()) as T;
 }
 
@@ -2229,10 +2271,53 @@ export async function fetchSettingsLogs(params: {
   return apiGet("/api/settings/logs", params, { headers: authHeaders() });
 }
 
+export type SettingsRole = {
+  code: string;
+  label: string;
+  is_system?: boolean;
+  can_admin?: boolean;
+  reports?: string[];
+  created_at?: string | null;
+};
+
 export async function fetchSettingsRoles(): Promise<{
-  items: Array<{ code: string; label: string }>;
+  items: SettingsRole[];
 }> {
   return apiGet("/api/settings/roles", {}, { headers: authHeaders() });
+}
+
+export async function fetchReportCatalog(): Promise<{
+  items: Array<{ id: string; title: string; path: string }>;
+}> {
+  return apiGet("/api/settings/report-catalog", {}, { headers: authHeaders() });
+}
+
+export async function postSettingsRole(body: {
+  code: string;
+  label: string;
+  reports?: string[];
+  can_admin?: boolean;
+}): Promise<{ ok: boolean; item: SettingsRole }> {
+  return apiPost("/api/settings/roles", body, { headers: authHeaders() });
+}
+
+export async function patchSettingsRole(
+  code: string,
+  body: {
+    label?: string;
+    reports?: string[];
+    can_admin?: boolean;
+  },
+): Promise<{ ok: boolean; item: SettingsRole }> {
+  return apiPatch(`/api/settings/roles/${encodeURIComponent(code)}`, body, {
+    headers: authHeaders(),
+  });
+}
+
+export async function deleteSettingsRole(code: string): Promise<{ ok: boolean }> {
+  return apiDelete(`/api/settings/roles/${encodeURIComponent(code)}`, {}, {
+    headers: authHeaders(),
+  });
 }
 
 export type DefaultFilterRow = {

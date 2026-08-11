@@ -67,15 +67,105 @@ class ReportConfigBody(BaseModel):
     developer_projects_matrix_json: str | None = None
 
 
-@router.get("/roles")
-def list_roles():
+class CreateRoleBody(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=200)
+    reports: list[str] = Field(default_factory=list)
+    can_admin: bool = False
+
+
+class UpdateRoleBody(BaseModel):
+    label: str | None = None
+    reports: list[str] | None = None
+    can_admin: bool | None = None
+
+
+@router.get("/report-catalog")
+def report_catalog(authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
     auth = import_auth()
-    return {
-        "items": [
-            {"code": code, "label": title}
-            for code, title in auth.ROLES.items()
-        ]
-    }
+    items = []
+    for row in auth.get_nav_catalog():
+        items.append(
+            {
+                "id": row.get("id"),
+                "title": row.get("title") or row.get("id"),
+                "path": row.get("path") or "",
+            }
+        )
+    if not items:
+        try:
+            from app.services.ask_ai_reports import SCREENS
+
+            for nav_id, meta in SCREENS.items():
+                items.append(
+                    {
+                        "id": nav_id,
+                        "title": str(meta.get("title") or nav_id),
+                        "path": str(meta.get("src") or ""),
+                    }
+                )
+        except Exception:
+            pass
+    return {"items": items}
+
+
+@router.get("/roles")
+def list_roles(authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
+    auth = import_auth()
+    return {"items": auth.list_roles()}
+
+
+@router.post("/roles")
+def create_role(
+    body: CreateRoleBody,
+    authorization: str | None = Header(default=None),
+):
+    _require_admin(authorization)
+    auth = import_auth()
+    ok = auth.create_role(
+        body.code.strip(),
+        body.label.strip(),
+        body.reports,
+        can_admin=body.can_admin,
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=400,
+            detail="Не удалось создать роль (код занят или некорректен).",
+        )
+    return {"ok": True, "item": next(r for r in auth.list_roles() if r["code"] == body.code.strip().lower())}
+
+
+@router.patch("/roles/{code}")
+def update_role(
+    code: str,
+    body: UpdateRoleBody,
+    authorization: str | None = Header(default=None),
+):
+    _require_admin(authorization)
+    auth = import_auth()
+    ok, err = auth.update_role(
+        code,
+        label=body.label,
+        reports=body.reports,
+        can_admin=body.can_admin,
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=err or "Ошибка обновления роли")
+    item = next((r for r in auth.list_roles() if r["code"] == code.strip().lower()), None)
+    return {"ok": True, "item": item}
+
+
+@router.delete("/roles/{code}")
+def delete_role(code: str, authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
+    auth = import_auth()
+    ok, err = auth.delete_role(code)
+    if not ok:
+        raise HTTPException(status_code=400, detail=err or "Ошибка удаления роли")
+    return {"ok": True}
 
 
 @router.get("/users")
@@ -134,7 +224,7 @@ def create_user(
                 detail="В системе уже есть суперадминистратор. Допускается только один.",
             )
         conn.close()
-    if body.role not in auth.ROLES:
+    if not auth.role_exists(body.role):
         raise HTTPException(status_code=400, detail="Неизвестная роль")
     ok = auth.create_user(
         body.username.strip(),
@@ -158,7 +248,7 @@ def change_user_role(
 ):
     actor = _require_admin(authorization)
     auth = import_auth()
-    if body.new_role not in auth.ROLES:
+    if not auth.role_exists(body.new_role):
         raise HTTPException(status_code=400, detail="Неизвестная роль")
     conn = sqlite3.connect(str(USERS_DB_PATH))
     cur = conn.cursor()
@@ -359,7 +449,7 @@ def list_filters(
         "items": items,
         "reports": filters_mod.AVAILABLE_REPORTS,
         "filter_types": filters_mod.FILTER_TYPES,
-        "roles": auth.ROLES,
+        "roles": {r["code"]: r["label"] for r in auth.list_roles()},
     }
 
 
@@ -371,7 +461,7 @@ def save_filter(
     actor = _require_admin(authorization)
     filters_mod = import_filters()
     auth = import_auth()
-    if not body.filter_key or body.role not in auth.ROLES:
+    if not body.filter_key or not auth.role_exists(body.role):
         raise HTTPException(status_code=400, detail="Заполните обязательные поля")
     ok = filters_mod.set_default_filter(
         body.role,

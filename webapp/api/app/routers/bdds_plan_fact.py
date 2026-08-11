@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Depends
+from app.services.auth_context import require_report_access
 from pydantic import BaseModel, Field
 
 from app.services.auth_context import optional_active_user, require_finance_editor
@@ -14,7 +15,7 @@ from app.services.bdds_plan_fact import (
     preview_bdds_plan_fact,
 )
 
-router = APIRouter(prefix="/api/bdds-plan-fact", tags=["bdds-plan-fact"])
+router = APIRouter(prefix="/api/bdds-plan-fact", tags=["bdds-plan-fact"], dependencies=[Depends(require_report_access("bdds-plan-fact"))])
 
 
 class BddsPlanFactEditRow(BaseModel):

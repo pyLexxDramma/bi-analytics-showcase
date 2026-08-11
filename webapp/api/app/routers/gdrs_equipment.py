@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.gdrs import build_gdrs_payload
 
-router = APIRouter(prefix="/api/gdrs-equipment", tags=["gdrs-equipment"])
+router = APIRouter(prefix="/api/gdrs-equipment", tags=["gdrs-equipment"], dependencies=[Depends(require_report_access("gdrs-equipment"))])
 
 
 @router.get("")

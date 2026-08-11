@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { postAskAiLink } from "@/lib/api";
-import { isAuthenticated } from "@/lib/auth";
+import { canAccessReport, isAuthenticated } from "@/lib/auth";
 import {
   ASK_AI_SCREENS,
   collectAskAiFiltersFromSearch,
@@ -24,6 +24,7 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
   const nav = findNavItem(pathname);
   const screen = nav ? ASK_AI_SCREENS[nav.id] : undefined;
   if (!screen || !nav) return null;
+  if (!canAccessReport(nav.id)) return null;
 
   const onClick = async () => {
     tapFeedback();

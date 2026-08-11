@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.baseline_deviation import build_baseline_deviation_payload
 
-router = APIRouter(prefix="/api/baseline-deviation", tags=["baseline-deviation"])
+router = APIRouter(prefix="/api/baseline-deviation", tags=["baseline-deviation"], dependencies=[Depends(require_report_access("baseline-deviation"))])
 
 
 @router.get("")

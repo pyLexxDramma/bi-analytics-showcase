@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.project_schedule import build_project_schedule_payload
 
-router = APIRouter(prefix="/api/project-schedule", tags=["project-schedule"])
+router = APIRouter(prefix="/api/project-schedule", tags=["project-schedule"], dependencies=[Depends(require_report_access("project-schedule"))])
 
 
 @router.get("")

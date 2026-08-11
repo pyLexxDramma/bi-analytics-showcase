@@ -12,7 +12,7 @@ import { UserMetrics } from "@/components/settings/user-metrics";
 import { fetchAuthMe } from "@/lib/api";
 import {
   getAuthSession,
-  isAdminRole,
+  hasAdminAccess,
   saveAuthSession,
   type AuthUser,
 } from "@/lib/auth";
@@ -25,17 +25,17 @@ export function AdminView() {
   useEffect(() => {
     const local = getAuthSession();
     setUser(local);
-    if (local && !isAdminRole(local.role)) {
+    if (local && !hasAdminAccess(local)) {
       setAccessDenied(true);
     }
     void fetchAuthMe()
       .then((r) => {
         setUser(r.user);
         saveAuthSession(r.user);
-        setAccessDenied(!isAdminRole(r.user.role));
+        setAccessDenied(!hasAdminAccess(r.user));
       })
       .catch(() => {
-        if (local && !isAdminRole(local.role)) setAccessDenied(true);
+        if (local && !hasAdminAccess(local)) setAccessDenied(true);
       });
   }, []);
 

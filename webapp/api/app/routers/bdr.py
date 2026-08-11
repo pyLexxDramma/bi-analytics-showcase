@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from app.services.auth_context import require_report_access
 
 from app.services.bdr import build_bdr_payload
 
-router = APIRouter(prefix="/api/bdr", tags=["bdr"])
+router = APIRouter(prefix="/api/bdr", tags=["bdr"], dependencies=[Depends(require_report_access("bdr"))])
 
 
 @router.get("")
