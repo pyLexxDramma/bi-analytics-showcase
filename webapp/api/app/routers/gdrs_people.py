@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Depends
 from app.services.auth_context import require_report_access
+from app.services.project_scope import clamp_project_pipe, clamp_projects_list
 
 from app.services.gdrs import build_gdrs_payload
 
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/api/gdrs-people", tags=["gdrs-people"], dependencies
 
 @router.get("")
 def gdrs_people_report(
+    user: dict = Depends(require_report_access("gdrs-people")),
     projects: Optional[str] = Query(None, description="Проекты через запятую"),
     contractors: Optional[str] = Query(None, description="Контрагенты через запятую"),
     months: Optional[str] = Query(None, description="Месяцы через запятую, напр. Июль 2026"),
@@ -20,6 +22,9 @@ def gdrs_people_report(
     dyn_agg: Optional[str] = Query("День", description="Группировка динамики: День|Неделя|Месяц"),
     only_with_plan: bool = Query(False, description="Только с планом"),
 ):
+    project = clamp_project_pipe(user, project)
+    if project == "__none__":
+        project = "__no_access__"
     return build_gdrs_payload(
         resource_kind="people",
         projects=projects,

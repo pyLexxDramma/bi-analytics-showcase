@@ -182,8 +182,10 @@ export function PrescriptionsView() {
 
   const reset = () => setFilters(INITIAL);
 
-  useUrlFilterState(filters, INITIAL, (patch) =>
-    setFilters((state) => ({ ...state, ...patch })),
+  useUrlFilterState(
+    filters, INITIAL,
+    (patch) => setFilters((state) => ({ ...state, ...patch })),
+    { navId: "prescriptions" },
   );
 
   const activeFilters = buildFilterChips(

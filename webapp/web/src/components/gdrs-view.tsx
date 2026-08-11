@@ -650,8 +650,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     }),
     [filters, monthsChanged],
   );
-  useUrlFilterState(urlState, URL_INITIAL, (patch) =>
-    setFilters((s) => ({ ...s, ...patch })),
+  useUrlFilterState(
+    urlState,
+    URL_INITIAL,
+    (patch) => setFilters((s) => ({ ...s, ...patch })),
+    {
+      navId: resourceKind === "people" ? "gdrs-people" : "gdrs-equipment",
+    },
   );
 
   const activeFilters = [

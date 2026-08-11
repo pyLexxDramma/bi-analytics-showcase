@@ -357,6 +357,7 @@ def list_roles() -> List[Dict]:
     """Все роли из БД (+ сид ROLES если таблица ещё пуста)."""
     ensure_roles_seeded()
     conn = sqlite3.connect(DB_PATH)
+    _ensure_role_projects_table(conn)
     cur = conn.cursor()
     cur.execute(
         """
@@ -373,6 +374,14 @@ def list_roles() -> List[Dict]:
             (code,),
         )
         reports = [str(r[0]) for r in cur.fetchall()]
+        cur.execute(
+            "SELECT project_name FROM role_projects WHERE role_code = ? ORDER BY project_name",
+            (code,),
+        )
+        try:
+            projects = [str(r[0]) for r in cur.fetchall()]
+        except sqlite3.Error:
+            projects = []
         out.append(
             {
                 "code": code,
@@ -380,6 +389,7 @@ def list_roles() -> List[Dict]:
                 "is_system": bool(is_system),
                 "can_admin": bool(can_admin),
                 "reports": reports,
+                "projects": projects,
                 "created_at": created_at,
             }
         )
@@ -401,6 +411,7 @@ def create_role(
     reports: Optional[List[str]] = None,
     *,
     can_admin: bool = False,
+    projects: Optional[List[str]] = None,
 ) -> bool:
     """Создать кастомную роль. False если код занят / невалиден."""
     r = _normalize_role(code)
@@ -414,6 +425,7 @@ def create_role(
     ensure_roles_seeded()
     try:
         conn = sqlite3.connect(DB_PATH)
+        _ensure_role_projects_table(conn)
         cur = conn.cursor()
         cur.execute(
             """
@@ -433,6 +445,14 @@ def create_role(
                 "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
                 (r, rid_s),
             )
+        for name in projects or []:
+            pname = str(name or "").strip()
+            if not pname:
+                continue
+            cur.execute(
+                "INSERT OR IGNORE INTO role_projects (role_code, project_name) VALUES (?, ?)",
+                (r, pname),
+            )
         conn.commit()
         conn.close()
         return True
@@ -446,6 +466,7 @@ def update_role(
     label: Optional[str] = None,
     reports: Optional[List[str]] = None,
     can_admin: Optional[bool] = None,
+    projects: Optional[List[str]] = None,
 ) -> Tuple[bool, str]:
     """Обновить роль. Возвращает (ok, error_message)."""
     r = _normalize_role(code)
@@ -456,6 +477,7 @@ def update_role(
     ensure_roles_seeded()
     try:
         conn = sqlite3.connect(DB_PATH)
+        _ensure_role_projects_table(conn)
         cur = conn.cursor()
         if label is not None:
             lab = str(label).strip()
@@ -483,6 +505,21 @@ def update_role(
                 cur.execute(
                     "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
                     (r, rid_s),
+                )
+        if projects is not None:
+            if r in ("superadmin", "admin"):
+                conn.close()
+                return False, "У admin/superadmin проекты не ограничиваются"
+            cur.execute("DELETE FROM role_projects WHERE role_code = ?", (r,))
+            seen = set()
+            for name in projects:
+                pname = str(name or "").strip()
+                if not pname or pname in seen:
+                    continue
+                seen.add(pname)
+                cur.execute(
+                    "INSERT OR IGNORE INTO role_projects (role_code, project_name) VALUES (?, ?)",
+                    (r, pname),
                 )
         conn.commit()
         conn.close()
@@ -897,6 +934,178 @@ def get_user_role_display(role: str) -> str:
     if row is not None:
         return str(row[1])
     return ROLES.get(r, role)
+
+
+def _ensure_role_projects_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS role_projects (
+            role_code TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            PRIMARY KEY (role_code, project_name),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def get_role_projects(role: str) -> Optional[List[str]]:
+    """Проекты роли. None = без ограничений (все)."""
+    r = _normalize_role(role)
+    if not r or r in ("superadmin", "admin"):
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_role_projects_table(conn)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT project_name FROM role_projects WHERE role_code = ? ORDER BY project_name",
+            (r,),
+        )
+        rows = [str(x[0]) for x in cur.fetchall() if x and x[0]]
+        conn.close()
+        return rows if rows else None
+    except sqlite3.Error:
+        return None
+
+
+def set_role_projects(role: str, projects: List[str]) -> Tuple[bool, str]:
+    """Задать список проектов роли. Пустой список = снять ограничение."""
+    r = _normalize_role(role)
+    if not r:
+        return False, "Роль не найдена"
+    if r in ("superadmin", "admin"):
+        return False, "У admin/superadmin проекты не ограничиваются"
+    if _role_row(r) is None:
+        return False, "Роль не найдена"
+    cleaned = []
+    seen = set()
+    for p in projects or []:
+        name = str(p or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        cleaned.append(name)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_role_projects_table(conn)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM role_projects WHERE role_code = ?", (r,))
+        for name in cleaned:
+            cur.execute(
+                "INSERT OR IGNORE INTO role_projects (role_code, project_name) VALUES (?, ?)",
+                (r, name),
+            )
+        conn.commit()
+        conn.close()
+        return True, ""
+    except sqlite3.Error as exc:
+        return False, str(exc)
+
+
+def get_user_projects(user_id: int) -> Optional[List[str]]:
+    """Проекты пользователя. None = без ограничений на уровне user."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT project_name FROM project_permissions
+            WHERE user_id = ?
+            ORDER BY project_name
+            """,
+            (uid,),
+        )
+        rows = [str(x[0]) for x in cur.fetchall() if x and x[0]]
+        conn.close()
+        return rows if rows else None
+    except sqlite3.Error:
+        return None
+
+
+def set_user_projects(
+    user_id: int,
+    projects: List[str],
+    granted_by: Optional[str] = None,
+) -> Tuple[bool, str]:
+    """Пустой список = снять user-ограничение (все проекты роли/все)."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False, "Некорректный user_id"
+    cleaned = []
+    seen = set()
+    for p in projects or []:
+        name = str(p or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        cleaned.append(name)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM project_permissions WHERE user_id = ?", (uid,))
+        for name in cleaned:
+            cur.execute(
+                """
+                INSERT INTO project_permissions (user_id, project_name, granted_by)
+                VALUES (?, ?, ?)
+                """,
+                (uid, name, granted_by),
+            )
+        conn.commit()
+        conn.close()
+        return True, ""
+    except sqlite3.Error as exc:
+        return False, str(exc)
+
+
+def resolve_allowed_projects(
+    role: str,
+    user_id: Optional[int] = None,
+) -> Optional[List[str]]:
+    """
+    Итоговый scope проектов.
+    None = все проекты. Иначе — явный список (может быть пустым после пересечения).
+    admin/superadmin → None.
+    """
+    r = _normalize_role(role)
+    if r in ("superadmin", "admin"):
+        return None
+    role_ps = get_role_projects(r)
+    user_ps = get_user_projects(user_id) if user_id is not None else None
+    if role_ps is None and user_ps is None:
+        return None
+    if role_ps is None:
+        return list(user_ps or [])
+    if user_ps is None:
+        return list(role_ps)
+    allow = set(role_ps)
+    return [p for p in user_ps if p in allow]
+
+
+def clamp_projects_for_user(
+    role: str,
+    user_id: Optional[int],
+    requested: Optional[List[str]] = None,
+) -> List[str]:
+    """
+    Список проектов для передачи в build_*_payload.
+    unrestricted + пустой request → [] (в сервисах = «все»).
+    restricted + пустой request → полный allowed.
+    """
+    allowed = resolve_allowed_projects(role, user_id)
+    req = [str(p).strip() for p in (requested or []) if p and str(p).strip() and str(p).strip() != "Все"]
+    if allowed is None:
+        return req
+    if not req:
+        return list(allowed)
+    allow_set = set(allowed)
+    return [p for p in req if p in allow_set]
 
 
 # ── Persistent sessions через query-param ?sid=<token> ──────────────────────

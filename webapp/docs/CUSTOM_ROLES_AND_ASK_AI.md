@@ -1,7 +1,7 @@
 # Кастомные роли, ACL дашбордов и Ask AI (showcase webapp)
 
 Документ для разработки ИИ-помощника и смежных фич.  
-Репозиторий: `bi-analytics-showcase` · коммит фичи: `5e2d155` · дата: 2026-08-11.
+Репозиторий: `bi-analytics-showcase` · v1 ACL: `5e2d155` · фаза 2 (фильтры/проекты): см. последний push · дата: 2026-08-11.
 
 Связанные материалы:
 
@@ -12,7 +12,7 @@
 
 ---
 
-## 1. Что сделано (v1)
+## 1. Что сделано (v1 + фаза 2)
 
 | Возможность | Статус |
 |-------------|--------|
@@ -24,11 +24,14 @@
 | `403` на dashboard API без права на экран | ✅ |
 | Ask AI: кнопка скрыта + `/link` 403 без права | ✅ |
 | `GET /api/ask-ai/roles-catalog` строится из БД-матрицы | ✅ |
-| Дефолтные фильтры роли при открытии дашборда | ❌ фаза 2 |
-| Разрезка по проектам (`project_permissions`) | ❌ фаза 2 |
+| Дефолтные фильтры роли при открытии дашборда | ✅ фаза 2 |
+| Разрезка по проектам (роль + пользователь) | ✅ фаза 2 |
+| Ask AI catalog / link учитывает проекты роли/юзера | ✅ фаза 2 |
 | Полный паритет Streamlit main с табличной матрицей | ❌ позже |
+| In-app assistant tools ACL | ❌ позже |
 
-**Принцип для ИИ:** доступ к Ask AI по экрану = доступ к самому дашборду. Отдельной роли «можно спрашивать ИИ» нет.
+**Принцип для ИИ:** доступ к Ask AI по экрану = доступ к самому дашборду. Отдельной роли «можно спрашивать ИИ» нет.  
+Дополнительно: параметр `project` в ссылке и `projects` в catalog режутся scope’ом роли∩пользователя.
 
 ---
 
@@ -42,9 +45,13 @@
 | Выбор core-директории | `webapp/api/app/config.py` → сначала `SHOWCASE_ROOT/bi-analytics-v-5-main` |
 | CRUD ролей / каталог экранов | `webapp/api/app/routers/settings_router.py` |
 | Guard дашборд-API | `webapp/api/app/services/auth_context.py` → `require_report_access(nav_id)` |
+| Clamp проектов | `webapp/api/app/services/project_scope.py` + роутеры отчётов |
+| Default filters (read) | `webapp/api/app/services/default_filters_web.py`, `GET /api/auth/default-filters` |
 | Ask AI link + catalog | `webapp/api/app/routers/ask_ai.py`, `…/services/ask_ai.py` |
-| UI ролей | `webapp/web/src/components/settings/admin-roles-panel.tsx` |
-| Сессия / `allowed_reports` | `webapp/web/src/lib/auth.ts` |
+| UI ролей (+ проекты роли) | `webapp/web/src/components/settings/admin-roles-panel.tsx` |
+| UI проектов пользователя | `webapp/web/src/components/settings/admin-system-panel.tsx` |
+| Сессия / `allowed_reports` / `allowed_projects` | `webapp/web/src/lib/auth.ts` |
+| URL-фильтры + дефолты роли | `webapp/web/src/lib/use-url-filter-state.ts` (`navId`) |
 | Меню | `webapp/web/src/components/app-sidebar.tsx` |
 | Кнопка ИИ | `webapp/web/src/components/ask-ai-button.tsx` |
 | Заглушка URL | `webapp/web/src/components/app-shell.tsx` |
@@ -71,8 +78,27 @@ role_reports(
   PRIMARY KEY (role_code, report_id)
 )
 
+role_projects(
+  role_code TEXT,
+  project_name TEXT,     -- пусто в таблице для роли = все проекты
+  PRIMARY KEY (role_code, project_name)
+)
+
+project_permissions(
+  user_id INTEGER,
+  project_name TEXT,     -- пусто для юзера = без user-ограничения
+  … UNIQUE(user_id, project_name)
+)
+
+default_filters(         -- дефолты UI при открытии экрана
+  role, report_name, filter_key, filter_value, filter_type, …
+)
+
 users.role               -- строковый код; логический FK на roles.code
 ```
+
+**Итоговый scope проектов:** `admin/superadmin` → все; иначе пересечение  
+`role_projects` ∩ `project_permissions` (если на уровне нет строк — уровень не ограничивает).
 
 ### Идентификаторы экранов (`report_id` / `nav.id`)
 
@@ -135,11 +161,12 @@ has_report_access(role)                 # REPORT_ROLES или custom с ≥1 rep
   "role_label": "Только РД",
   "email": null,
   "allowed_reports": ["working-documentation"],
+  "allowed_projects": ["Проект А", "Проект Б"],
   "can_admin": false
 }
 ```
 
-Клиент кладёт `allowed_reports` / `can_admin` в `localStorage` (`auth.ts`).
+`allowed_projects: null` = все проекты. Клиент кладёт `allowed_reports` / `allowed_projects` / `can_admin` в `localStorage` (`auth.ts`).
 
 ### Админка ролей (только admin JWT)
 
@@ -171,14 +198,17 @@ dependencies=[Depends(require_report_access("bdds"))]  # пример
 1. Войти как **admin** / **superadmin** (или custom с `can_admin=1`).
 2. **Настройки → Административная панель** (`/settings/admin`).
 3. Вкладка **«Система» → «Права доступа»**.
-4. Создать роль (код латиницей: `a-z0-9_-`) → отметить дашборды → Сохранить.
-5. **«Пользователи»** — назначить роль из dropdown (включая кастомные).
+4. Создать роль (код латиницей: `a-z0-9_-`) → отметить дашборды **и при необходимости проекты роли** → Сохранить.
+5. **«Пользователи»** — назначить роль; при необходимости ограничить **проекты пользователя**.
+6. Дефолт-фильтры роли — в той же админке (таблица `default_filters`, ключи как в URL вьюхи).
 
 Пользователь с урезанной ролью:
 
 - в сайдбаре / поиске / Cmd+K видит только разрешённые пункты;
 - прямой URL запрещённого экрана → блок «Нет доступа» (данные API всё равно 403);
-- кнопка **«Спросить ИИ»** не рендерится, если `nav.id ∉ allowed_reports`.
+- кнопка **«Спросить ИИ»** не рендерится, если `nav.id ∉ allowed_reports`;
+- списки проектов в фильтрах / API / Ask AI — только в scope роли∩пользователя;
+- при первом открытии экрана без query — подставляются default_filters роли.
 
 ---
 
@@ -221,7 +251,7 @@ dependencies=[Depends(require_report_access("bdds"))]  # пример
       "code": "rd_only",
       "title": "Только РД",
       "reports": ["screen_working_documentation"],
-      "projects": ["*"]
+      "projects": ["Проект А", "Проект Б"]
     }
   ],
   "screens": [
@@ -235,9 +265,12 @@ dependencies=[Depends(require_report_access("bdds"))]  # пример
 - В `roles[].reports` — **XCA ids** (`screen_*`), не `nav.id`.
 - Список ролей берётся из `auth.list_roles()` (системные **и** кастомные).
 - Набор `reports` считается через `role_can_open_screen` → фактически из `role_reports`.
-- `projects: ["*"]` пока всегда: project ACL в Ask AI **не включён** (фаза 2).
+- `projects`: из `role_projects`; если для роли строк нет → `["*"]`. На `/link` дополнительно clamp по user `project_permissions` (один проект подставляется сам, чужой → 403).
 
 `GET /api/ask-ai/screens` — только список экранов (нужен обычный report-user JWT).
+
+`GET /api/auth/me` также отдаёт `allowed_projects: string[] | null` (`null` = все) и `allowed_reports`.  
+`GET /api/auth/default-filters?nav_id=` — дефолты роли для экрана (с учётом project ACL).
 
 ### 7.3. Реестр `SCREENS` — единая точка правды для ИИ-экранов
 
@@ -273,11 +306,11 @@ SCREENS = {
 
 При доработке ИИ-агента рекомендуется:
 
-1. Читать `role` / `allowed_reports` из сессии пользователя (тот же `users.db` / `/auth/me`).
-2. Перед вызовом аналитических скриптов / proxy на dashboard API — `auth.role_can_open_report(role, nav_id)`.
+1. Читать `role` / `allowed_reports` / `allowed_projects` из сессии (`/auth/me`).
+2. Перед вызовом аналитических скриптов / proxy на dashboard API — `auth.role_can_open_report(role, nav_id)` и `auth.resolve_allowed_projects` / clamp списка проектов.
 3. В промпт/каталог доступных «tools/screens» отдавать только пересечение с матрицей (как `roles-catalog`, но per-user).
-4. Не подставлять в контекст данные экранов вне матрицы (даже если скрипт физически может прочитать БД).
-5. Не дублировать allowlists в коде агента — только `auth.py` / `role_reports`.
+4. Не подставлять в контекст данные экранов/проектов вне матрицы (даже если скрипт физически может прочитать БД).
+5. Не дублировать allowlists в коде агента — только `auth.py` / таблицы.
 
 Цифры по-прежнему только через БД (`web_data.db` + analytics-скрипты), не через сырой `web/` — см. правила data architecture.
 
@@ -300,23 +333,33 @@ SCREENS = {
 
 ```text
 POST /api/auth/login {username, password} → token
-GET  /api/auth/me     → allowed_reports
-GET  /api/bdds        Authorization: Bearer … → 403
-GET  /api/working-documentation → 200
+GET  /api/auth/me     → allowed_reports, allowed_projects
+GET  /api/auth/default-filters?nav_id=working-documentation → filters{}
+GET  /api/bdds        Authorization: Bearer … → 403 (если экран не в роли)
+GET  /api/working-documentation → 200 (проекты уже clamped)
 POST /api/ask-ai/link { "nav_id": "bdds", "q": "…" } → 403
 POST /api/ask-ai/link { "nav_id": "working-documentation", "q": "…" } → 200 или 503 (нет XCA secret)
+GET  /api/ask-ai/roles-catalog → roles[].projects не всегда ["*"]
 ```
 
-Тесты: `webapp/api/tests/test_ask_ai.py`.
+Тесты: `webapp/api/tests/test_ask_ai.py` (+ полный `pytest tests`).
 
 ---
 
-## 9. Фаза 2 (не сделано — бэклог для ИИ/продукта)
+## 9. Фаза 2 — сделано
 
-1. **Default filters** — таблица `default_filters` уже есть + UI в админке, но при открытии дашборда в webapp **не применяется**. Нужно: при mount экрана читать фильтры роли и подставлять в URL/state.
-2. **Project scope** — `project_permissions` + в `roles-catalog` поле `projects` не `["*"]`; Ask AI и dashboard API фильтруют данные.
-3. **In-app assistant ACL** — те же `role_can_open_report` на tools/catalog.
-4. **Streamlit main** — читать ту же матрицу, убрать дубли allowlists (сейчас webapp уже primary для showcase).
+| Возможность | Статус |
+|-------------|--------|
+| Default filters при открытии дашборда | ✅ `GET /api/auth/default-filters?nav_id=` + `useUrlFilterState({ navId })` |
+| Проекты роли (`role_projects`) | ✅ админка «Права доступа», Ask AI catalog |
+| Проекты пользователя (`project_permissions`) | ✅ админка «Пользователи» |
+| Clamp проектов в dashboard API | ✅ `project_scope.py` |
+| Ask AI `/link` учитывает scope | ✅ |
+
+**Default filters:** URL важнее дефолтов. Ключи = `INITIAL` вьюхи (`projects`, `date_from`, …).  
+`report_name` в админке фильтров — title / `auth_names` экрана.
+
+**Ещё позже:** паритет Streamlit main; in-app assistant tools ACL.
 
 ---
 
@@ -324,23 +367,24 @@ POST /api/ask-ai/link { "nav_id": "working-documentation", "q": "…" } → 200 
 
 | Симптом | Причина |
 |---------|---------|
-| Правки в `auth.py` «не видны» API | API смотрел не в тот core; сейчас приоритет `showcase/bi-analytics-v-5-main`. Проверь `CORE_APP_DIR` / `BI_CORE_APP_DIR`. |
-| Новый экран есть в меню, но ни у кого в матрице | Сид не переписывает существующие `role_reports`. Добавь чекбоксом или скриптом. |
-| Ask AI 403 при доступе к UI | Расхождение client `ASK_AI_SCREENS` и server `SCREENS`, или устаревший `allowed_reports` в localStorage → перелогин / `fetchAuthMe`. |
+| Правки в `auth.py` «не видны» API | API смотрел не в тот core; приоритет `showcase/bi-analytics-v-5-main`. `CORE_APP_DIR` / `BI_CORE_APP_DIR`. |
+| Новый экран есть в меню, но ни у кого в матрице | Сид не переписывает существующие `role_reports`. Чекбокс или скрипт. |
+| Ask AI 403 при доступе к UI | Расхождение `ASK_AI_SCREENS` / `SCREENS`, или устаревший `allowed_reports` → перелогин. |
+| Ask AI 403 на project | Юзер/роль без этого проекта в scope. |
 | `/link` 503 | Нет `XCA_ASK_SECRET` / `XCA_ASK_BASE_URL`. |
-| Dashboard 401 у всех | Запросы без Bearer; нужны `authHeaders()` (уже default в api.ts). |
+| Dashboard 401 у всех | Запросы без Bearer (`authHeaders()` уже default в api.ts). |
 | Не удаляется роль | Есть пользователи с этим `role` или роль системная. |
+| Дефолт-фильтр не применяется | Ключ не совпал с `INITIAL`, или уже есть query в URL. |
 
 ---
 
 ## 11. Чеклист для следующего шага по ИИ
 
-- [ ] Зафиксировать с XCA: кастомные `role.code` из каталога подхватываются у них автоматически (poll `roles-catalog`).
-- [ ] Per-user catalog endpoint (опционально): `GET /api/ask-ai/my-screens` → только `allowed_reports` текущего юзера.
-- [ ] Assistant tools: wrap через `role_can_open_report`.
-- [ ] При ответе агента логировать `role` + `nav_id`/`report` (аудит).
-- [ ] Фаза 2: default filters + projects в Ask AI ctx/`projects`.
+- [ ] Зафиксировать с XCA: кастомные `role.code` и не-`*` `projects` из `roles-catalog` подхватываются (poll).
+- [ ] Per-user catalog (опционально): `GET /api/ask-ai/my-screens` → `allowed_reports` + `allowed_projects`.
+- [ ] Assistant tools: wrap через `role_can_open_report` + project clamp.
+- [ ] При ответе агента логировать `role` + `nav_id`/`report` + `project` (аудит).
 
 ---
 
-*Источник истины по матрице доступа — таблицы `roles` / `role_reports` в `users.db`, функции в `auth.py`. UI и Ask AI — потребители этой матрицы.*
+*Источник истины: `roles` / `role_reports` / `role_projects` / `project_permissions` / `default_filters` в `users.db`, функции в `auth.py`. UI и Ask AI — потребители.*

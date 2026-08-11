@@ -179,8 +179,16 @@ def init_all_tables(st_callback=None):
             FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS role_projects (
+            role_code TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            PRIMARY KEY (role_code, project_name),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+    """)
     cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_role_reports_role ON role_reports (role_code)"
+        "CREATE INDEX IF NOT EXISTS idx_role_projects_role ON role_projects (role_code)"
     )
 
     conn.commit()

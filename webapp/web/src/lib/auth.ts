@@ -13,6 +13,8 @@ export type AuthUser = {
   role_label: string;
   email?: string | null;
   allowed_reports?: string[];
+  /** null/undefined = все проекты; иначе явный список */
+  allowed_projects?: string[] | null;
   can_admin?: boolean;
 };
 

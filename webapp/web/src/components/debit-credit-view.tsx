@@ -175,8 +175,10 @@ export function DebitCreditView() {
     };
   }, [data]);
 
-  useUrlFilterState(filters, initial, (patch) =>
-    setFilters((s) => ({ ...s, ...patch })),
+  useUrlFilterState(
+    filters, initial,
+    (patch) => setFilters((s) => ({ ...s, ...patch })),
+    { navId: "debit-credit" },
   );
 
   const activeFilters = buildFilterChips(

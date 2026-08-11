@@ -2175,6 +2175,16 @@ export async function fetchAuthMe(): Promise<{ ok: boolean; user: AuthUser }> {
   return apiGet("/api/auth/me", {}, { headers: authHeaders(), timeoutMs: 15_000 });
 }
 
+export async function fetchMyDefaultFilters(
+  navId: string,
+): Promise<{ ok: boolean; nav_id: string; filters: Record<string, unknown> }> {
+  return apiGet(
+    "/api/auth/default-filters",
+    { nav_id: navId },
+    { headers: authHeaders(), timeoutMs: 15_000 },
+  );
+}
+
 export async function postProfilePassword(
   oldPassword: string,
   newPassword: string,
@@ -2277,6 +2287,7 @@ export type SettingsRole = {
   is_system?: boolean;
   can_admin?: boolean;
   reports?: string[];
+  projects?: string[];
   created_at?: string | null;
 };
 
@@ -2306,12 +2317,32 @@ export async function patchSettingsRole(
   body: {
     label?: string;
     reports?: string[];
+    projects?: string[];
     can_admin?: boolean;
   },
 ): Promise<{ ok: boolean; item: SettingsRole }> {
   return apiPatch(`/api/settings/roles/${encodeURIComponent(code)}`, body, {
     headers: authHeaders(),
   });
+}
+
+export async function fetchUserProjects(userId: number): Promise<{
+  user_id: number;
+  projects: string[];
+  unrestricted: boolean;
+}> {
+  return apiGet(`/api/settings/users/${userId}/projects`, {}, { headers: authHeaders() });
+}
+
+export async function putUserProjects(
+  userId: number,
+  projects: string[],
+): Promise<{ ok: boolean; projects: string[]; unrestricted: boolean }> {
+  return apiPut(
+    `/api/settings/users/${userId}/projects`,
+    { projects },
+    { headers: authHeaders() },
+  );
 }
 
 export async function deleteSettingsRole(code: string): Promise<{ ok: boolean }> {

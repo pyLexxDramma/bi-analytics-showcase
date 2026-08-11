@@ -304,7 +304,7 @@ export function ControlPointsView() {
   const urlState = useMemo(() => ({ project }), [project]);
   useUrlFilterState(urlState, URL_INITIAL, (patch) => {
     if (patch.project) setProject(patch.project);
-  });
+  }, { navId: "control-points" });
 
   const projects = data?.projects ?? [];
   const groups = data?.groups ?? [];

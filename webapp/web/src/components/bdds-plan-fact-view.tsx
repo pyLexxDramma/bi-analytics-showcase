@@ -239,8 +239,10 @@ export function BddsPlanFactView() {
     };
   }, [data?.status_rows]);
 
-  useUrlFilterState(filters, INITIAL, (patch) =>
-    setFilters((s) => ({ ...s, ...patch })),
+  useUrlFilterState(
+    filters, INITIAL,
+    (patch) => setFilters((s) => ({ ...s, ...patch })),
+    { navId: "bdds-plan-fact" },
   );
 
   const optionLabel = (

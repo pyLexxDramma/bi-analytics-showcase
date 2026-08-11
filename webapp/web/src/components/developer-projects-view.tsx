@@ -352,7 +352,7 @@ export function DeveloperProjectsView() {
   const urlState = useMemo(() => ({ projects: selected }), [selected]);
   useUrlFilterState(urlState, URL_INITIAL, (patch) => {
     if (patch.projects) setSelected(patch.projects);
-  });
+  }, { navId: "developer-projects" });
 
   const columns = useMemo(() => {
     if (data?.matrix.columns?.length) return data.matrix.columns;

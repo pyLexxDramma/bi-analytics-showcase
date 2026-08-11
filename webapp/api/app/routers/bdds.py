@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Depends
 from app.services.auth_context import require_report_access
+from app.services.project_scope import clamp_project_pipe, clamp_projects_list
 
 from app.services.bdds import build_bdds_payload
 
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/bdds", tags=["bdds"], dependencies=[Depends(requ
 
 @router.get("")
 def bdds_report(
+    user: dict = Depends(require_report_access("bdds")),
     project: Optional[str] = Query(None, description="Устарело: один проект. Предпочтительно projects="),
     projects: Optional[list[str]] = Query(None, description="Multiselect проектов; пусто = все"),
     date_from: Optional[date] = Query(None, description="Диапазон по «Конец план»"),
@@ -30,6 +32,7 @@ def bdds_report(
         selected.extend([p for p in projects if p and str(p).strip()])
     elif project and str(project).strip() and str(project).strip() != "Все":
         selected.append(str(project).strip())
+    selected = clamp_projects_list(user, selected)
     return build_bdds_payload(
         projects=selected,
         date_from=date_from,

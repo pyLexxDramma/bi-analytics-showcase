@@ -286,6 +286,7 @@ export function DeviationReasonsView() {
       onRestore: (restored) => {
         if (restored.dateFrom || restored.dateTo) setPeriodReady(true);
       },
+      navId: "deviation-reasons",
     },
   );
 

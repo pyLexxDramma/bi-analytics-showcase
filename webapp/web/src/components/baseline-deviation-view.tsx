@@ -358,8 +358,10 @@ export function BaselineDeviationView() {
       ? "Причины отклонений (таблица)"
       : "Отклонение от базового плана (таблица)";
 
-  useUrlFilterState(filters, INITIAL, (patch) =>
-    setFilters((prev) => ({ ...prev, ...patch })),
+  useUrlFilterState(
+    filters, INITIAL,
+    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
+    { navId: "baseline-deviation" },
   );
 
   const levelLabel = (id: string) =>

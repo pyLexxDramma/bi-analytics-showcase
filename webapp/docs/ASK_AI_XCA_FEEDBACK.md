@@ -21,7 +21,8 @@
 Пока `projects: ["*"]` (project ACL на дашборде выключен).
 
 Роли: системные `superadmin`, `admin`, `analyst`, `rp`, `financier`, `gip`, `manager` **и кастомные** из админки (матрица в `users.db`).  
-Полное описание ACL + что учитывать при разработке ИИ: [`CUSTOM_ROLES_AND_ASK_AI.md`](./CUSTOM_ROLES_AND_ASK_AI.md).
+Проекты в catalog — из `role_projects` (или `["*"]`, если не заданы).  
+Полное описание ACL + фаза 2 (фильтры/проекты) для разработки ИИ: [`CUSTOM_ROLES_AND_ASK_AI.md`](./CUSTOM_ROLES_AND_ASK_AI.md).
 
 ---
 

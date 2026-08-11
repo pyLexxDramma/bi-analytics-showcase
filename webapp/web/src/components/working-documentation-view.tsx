@@ -502,8 +502,10 @@ export function WorkingDocumentationView() {
     });
   };
 
-  useUrlFilterState(filters, INITIAL, (patch) =>
-    setFilters((f) => ({ ...f, ...patch })),
+  useUrlFilterState(
+    filters, INITIAL,
+    (patch) => setFilters((f) => ({ ...f, ...patch })),
+    { navId: "working-documentation" },
   );
 
   const viewModeLabel = (id: string) =>

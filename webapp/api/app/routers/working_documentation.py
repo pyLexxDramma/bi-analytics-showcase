@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Depends
 from app.services.auth_context import require_report_access
+from app.services.project_scope import clamp_project_pipe, clamp_projects_list
 
 from app.services.documentation import build_working_documentation_payload
 
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/api/working-documentation", tags=["working-documenta
 
 @router.get("")
 def working_documentation_report(
+    user: dict = Depends(require_report_access("working-documentation")),
     project: Optional[str] = Query(None, description="Проекты через | или Все"),
     section: Optional[str] = Query(None, description="Разделы (шифр+имя) через |"),
     status: Optional[str] = Query(None, description="Статусы через |"),
@@ -29,6 +31,9 @@ def working_documentation_report(
     view_mode: Optional[str] = Query("project", description="project|section"),
     tab: Optional[str] = Query("main", description="main|delay"),
 ):
+    project = clamp_project_pipe(user, project)
+    if project == "__none__":
+        project = "__no_access__"
     return build_working_documentation_payload(
         project=project,
         section=section,

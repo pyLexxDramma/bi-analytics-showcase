@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { fetchMyDefaultFilters } from "@/lib/api";
 
 /**
  * Состояние фильтров в query-параметрах: возврат на экран, перезагрузка и
@@ -8,6 +9,9 @@ import { useEffect, useRef } from "react";
  *
  * Значения не пересчитываются: в URL пишется ровно то, что уже в состоянии,
  * а при чтении берутся только ключи, объявленные в `initial`.
+ *
+ * Опционально `navId`: после URL подтягиваются default_filters роли
+ * только для ключей, которых ещё нет в адресе.
  */
 
 const ARRAY_SEP = "|";
@@ -41,6 +45,35 @@ function decodeValue(raw: string, base: unknown): unknown {
   return raw;
 }
 
+function coerceDefault(value: unknown, base: unknown): unknown {
+  if (Array.isArray(base)) {
+    if (Array.isArray(value)) {
+      return value.filter((v): v is string => typeof v === "string");
+    }
+    if (typeof value === "string" && value.trim()) {
+      return value.includes(ARRAY_SEP)
+        ? value.split(ARRAY_SEP).filter(Boolean)
+        : [value.trim()];
+    }
+    return base;
+  }
+  if (typeof base === "boolean") {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const s = value.trim().toLowerCase();
+      if (["1", "true", "yes", "да"].includes(s)) return true;
+      if (["0", "false", "no", "нет"].includes(s)) return false;
+    }
+    return base;
+  }
+  if (typeof base === "number") {
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? n : base;
+  }
+  if (value == null) return base;
+  return String(value);
+}
+
 /** Что можно восстановить из текущего адреса (без побочных эффектов). */
 export function readFiltersFromUrl(initial: FilterValues): FilterValues {
   if (typeof window === "undefined") return {};
@@ -63,10 +96,13 @@ export function useUrlFilterState<T extends FilterValues>(
     skip?: Array<keyof T & string>;
     /** Вызывается один раз, если что-то восстановлено из адреса. */
     onRestore?: (restored: Partial<T>) => void;
+    /** nav.id экрана — подтянуть default_filters роли, если ключа нет в URL. */
+    navId?: string;
   } = {},
 ): void {
-  const { skip, onRestore } = options;
+  const { skip, onRestore, navId } = options;
   const restoredRef = useRef(false);
+  const defaultsDoneRef = useRef(false);
   const initialRef = useRef(initial);
   const applyRef = useRef(apply);
   const onRestoreRef = useRef(onRestore);
@@ -84,6 +120,39 @@ export function useUrlFilterState<T extends FilterValues>(
     applyRef.current(restored);
     onRestoreRef.current?.(restored);
   }, []);
+
+  useEffect(() => {
+    if (!navId || defaultsDoneRef.current) return;
+    defaultsDoneRef.current = true;
+    let cancelled = false;
+    void fetchMyDefaultFilters(navId)
+      .then((data) => {
+        if (cancelled) return;
+        const fromUrl = readFiltersFromUrl(initialRef.current);
+        const patch: Partial<T> = {};
+        const incoming = data.filters || {};
+        for (const key of Object.keys(initialRef.current)) {
+          if (key in fromUrl) continue;
+          if (!(key in incoming)) continue;
+          const coerced = coerceDefault(
+            incoming[key],
+            initialRef.current[key],
+          );
+          if (coerced === initialRef.current[key]) continue;
+          (patch as FilterValues)[key] = coerced;
+        }
+        if (Object.keys(patch).length) {
+          applyRef.current(patch);
+          onRestoreRef.current?.(patch);
+        }
+      })
+      .catch(() => {
+        /* нет сессии / нет дефолтов — ок */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [navId]);
 
   useEffect(() => {
     if (!restoredRef.current) return;
@@ -108,7 +177,6 @@ export function useUrlFilterState<T extends FilterValues>(
     const query = params.toString();
     const next = `${window.location.pathname}${query ? `?${query}` : ""}`;
     if (next === `${window.location.pathname}${window.location.search}`) return;
-    // history.replaceState вместо router.replace: без ре-рендера и повторных запросов
     window.history.replaceState(window.history.state, "", next);
   }, [filters]);
 }

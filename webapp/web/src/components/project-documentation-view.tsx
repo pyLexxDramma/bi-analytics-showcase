@@ -183,6 +183,7 @@ function ProjectDocumentationScreen({
       onRestore: (restored) => {
         if (restored.reportDate) setDateReady(true);
       },
+      navId: "project-documentation",
     },
   );
 

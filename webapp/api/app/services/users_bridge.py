@@ -163,11 +163,17 @@ def user_payload(user: dict, auth_mod: Any) -> dict:
         can_admin = bool(auth_mod.has_admin_access(role))
     except Exception:
         can_admin = str(role).lower() in ("admin", "superadmin")
+    allowed_projects = None
+    try:
+        allowed_projects = auth_mod.resolve_allowed_projects(role, user.get("id"))
+    except Exception:
+        allowed_projects = None
     return {
         "username": user["username"],
         "role": role,
         "role_label": auth_mod.get_user_role_display(role),
         "email": user.get("email"),
         "allowed_reports": allowed,
+        "allowed_projects": allowed_projects,
         "can_admin": can_admin,
     }

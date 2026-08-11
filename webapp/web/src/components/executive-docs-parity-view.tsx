@@ -148,8 +148,10 @@ export function ExecutiveDocsParityView() {
 
   // Даты из адреса важнее автоподстановки периода: эффект выше заполняет их,
   // только пока обе пустые
-  useUrlFilterState(filters, INITIAL, (patch) =>
-    setFilters((state) => ({ ...state, ...patch })),
+  useUrlFilterState(
+    filters, INITIAL,
+    (patch) => setFilters((state) => ({ ...state, ...patch })),
+    { navId: "executive-docs" },
   );
 
   const reset = () => setFilters(INITIAL);

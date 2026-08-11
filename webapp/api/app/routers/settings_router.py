@@ -71,13 +71,19 @@ class CreateRoleBody(BaseModel):
     code: str = Field(min_length=1, max_length=64)
     label: str = Field(min_length=1, max_length=200)
     reports: list[str] = Field(default_factory=list)
+    projects: list[str] = Field(default_factory=list)
     can_admin: bool = False
 
 
 class UpdateRoleBody(BaseModel):
     label: str | None = None
     reports: list[str] | None = None
+    projects: list[str] | None = None
     can_admin: bool | None = None
+
+
+class UserProjectsBody(BaseModel):
+    projects: list[str] = Field(default_factory=list)
 
 
 @router.get("/report-catalog")
@@ -129,6 +135,7 @@ def create_role(
         body.label.strip(),
         body.reports,
         can_admin=body.can_admin,
+        projects=body.projects,
     )
     if not ok:
         raise HTTPException(
@@ -150,6 +157,7 @@ def update_role(
         code,
         label=body.label,
         reports=body.reports,
+        projects=body.projects,
         can_admin=body.can_admin,
     )
     if not ok:
@@ -166,6 +174,38 @@ def delete_role(code: str, authorization: str | None = Header(default=None)):
     if not ok:
         raise HTTPException(status_code=400, detail=err or "Ошибка удаления роли")
     return {"ok": True}
+
+
+@router.get("/users/{user_id}/projects")
+def get_user_projects(user_id: int, authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
+    auth = import_auth()
+    projects = auth.get_user_projects(user_id)
+    return {
+        "user_id": user_id,
+        "projects": projects or [],
+        "unrestricted": projects is None,
+    }
+
+
+@router.put("/users/{user_id}/projects")
+def put_user_projects(
+    user_id: int,
+    body: UserProjectsBody,
+    authorization: str | None = Header(default=None),
+):
+    actor = _require_admin(authorization)
+    auth = import_auth()
+    ok, err = auth.set_user_projects(user_id, body.projects, actor.get("username"))
+    if not ok:
+        raise HTTPException(status_code=400, detail=err or "Ошибка сохранения проектов")
+    projects = auth.get_user_projects(user_id)
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "projects": projects or [],
+        "unrestricted": projects is None,
+    }
 
 
 @router.get("/users")

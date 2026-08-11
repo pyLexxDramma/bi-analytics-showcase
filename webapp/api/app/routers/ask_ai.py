@@ -68,6 +68,20 @@ def create_ask_ai_link(
     if not (body.nav_id or body.report):
         raise HTTPException(status_code=400, detail="Нужен nav_id или report")
     nav = _assert_user_may_ask(user, body.nav_id, body.report)
+    from app.services.project_scope import clamp_project_pipe, allowed_projects_for_user
+
+    project = body.project
+    allowed = allowed_projects_for_user(user)
+    if allowed is not None:
+        if project:
+            project = clamp_project_pipe(user, project)
+            if project == "__none__":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Нет доступа к выбранному проекту для ИИ",
+                )
+        elif len(allowed) == 1:
+            project = allowed[0]
     try:
         result = build_ask_url(
             user=user,
@@ -75,7 +89,7 @@ def create_ask_ai_link(
             report=body.report,
             q=body.q,
             ctx=body.ctx,
-            project=body.project,
+            project=project,
             period=body.period,
             filters=body.filters,
             src=body.src,

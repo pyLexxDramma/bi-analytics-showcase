@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Depends
 from app.services.auth_context import require_report_access
+from app.services.project_scope import clamp_project_pipe, clamp_projects_list
 
 from app.services.baseline_deviation import build_baseline_deviation_payload
 
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/api/baseline-deviation", tags=["baseline-deviation"]
 
 @router.get("")
 def baseline_deviation_report(
+    user: dict = Depends(require_report_access("baseline-deviation")),
     project: Optional[str] = Query(None, description="Фильтр проекта"),
     block: Optional[str] = Query(None, description="Функциональный блок"),
     building: Optional[str] = Query(None, description="Строение"),
@@ -33,6 +35,9 @@ def baseline_deviation_report(
         description="Подписи: name | lot",
     ),
 ):
+    project = clamp_project_pipe(user, project)
+    if project == "__none__":
+        project = "__no_access__"
     return build_baseline_deviation_payload(
         project=project,
         block=block,

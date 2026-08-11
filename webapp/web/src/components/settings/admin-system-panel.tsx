@@ -12,9 +12,11 @@ import {
   fetchSettingsRoles,
   fetchSettingsStats,
   fetchSettingsUsers,
+  fetchUserProjects,
   postSettingsChangeRole,
   postSettingsUser,
   putReportConfig,
+  putUserProjects,
   type SettingsLogRow,
   type SettingsRole,
   type SettingsUser,
@@ -54,6 +56,8 @@ export function AdminSystemPanel() {
     email: "",
   });
   const [roleChange, setRoleChange] = useState({ user_id: 0, new_role: "analyst" });
+  const [userProjectsText, setUserProjectsText] = useState("");
+  const [userProjectsUnrestricted, setUserProjectsUnrestricted] = useState(true);
   const [deleteId, setDeleteId] = useState<number | "">("");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
@@ -74,6 +78,22 @@ export function AdminSystemPanel() {
       setRoleChange({ user_id: data.items[0].id, new_role: data.items[0].role });
     }
   }, [roleChange.user_id]);
+
+  const loadUserProjects = useCallback(async (userId: number) => {
+    if (!userId) return;
+    try {
+      const data = await fetchUserProjects(userId);
+      setUserProjectsUnrestricted(data.unrestricted);
+      setUserProjectsText((data.projects || []).join("\n"));
+    } catch {
+      setUserProjectsText("");
+      setUserProjectsUnrestricted(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (roleChange.user_id) void loadUserProjects(roleChange.user_id);
+  }, [roleChange.user_id, loadUserProjects]);
 
   const loadStats = useCallback(async () => {
     setStats(await fetchSettingsStats());
@@ -321,6 +341,63 @@ export function AdminSystemPanel() {
                   }
                 >
                   Изменить роль
+                </button>
+              </>
+            ) : (
+              <Text className="mt-3">Нет активных пользователей</Text>
+            )}
+          </Card>
+
+          <Card className="rounded-xl">
+            <Title className="!text-base">Проекты пользователя</Title>
+            <Text className="mt-2 text-sm text-gray-600 dark:text-dark-tremor-content">
+              Дополнительное ограничение поверх проектов роли. Пусто = без
+              user-ограничения
+              {userProjectsUnrestricted ? " (сейчас без ограничений)." : "."}
+            </Text>
+            {activeUsers.length ? (
+              <>
+                <select
+                  className="mt-4 w-full max-w-md rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  value={roleChange.user_id}
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    const u = activeUsers.find((x) => x.id === id);
+                    setRoleChange({
+                      user_id: id,
+                      new_role: u?.role || roleChange.new_role,
+                    });
+                  }}
+                >
+                  {activeUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.username} ({u.role_label})
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  className="mt-3 min-h-[6rem] w-full max-w-lg rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  value={userProjectsText}
+                  onChange={(e) => setUserProjectsText(e.target.value)}
+                  placeholder={"Проект А\nПроект Б"}
+                />
+                <button
+                  type="button"
+                  disabled={busy || !roleChange.user_id}
+                  className="mt-4 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  onClick={() =>
+                    void run(async () => {
+                      const projects = userProjectsText
+                        .split(/\r?\n/)
+                        .map((s) => s.trim())
+                        .filter(Boolean);
+                      await putUserProjects(roleChange.user_id, projects);
+                      setMsg("Проекты пользователя сохранены.");
+                      await loadUserProjects(roleChange.user_id);
+                    })
+                  }
+                >
+                  Сохранить проекты
                 </button>
               </>
             ) : (

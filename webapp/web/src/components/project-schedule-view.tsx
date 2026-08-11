@@ -235,8 +235,10 @@ export function ProjectScheduleView() {
     void load();
   }, [load]);
 
-  useUrlFilterState(filters, INITIAL, (patch) =>
-    setFilters((prev) => ({ ...prev, ...patch })),
+  useUrlFilterState(
+    filters, INITIAL,
+    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
+    { navId: "project-schedule" },
   );
 
   const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);

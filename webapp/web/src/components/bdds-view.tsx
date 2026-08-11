@@ -410,8 +410,10 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     void load(filters);
   }, [filters, load]);
 
-  useUrlFilterState(filters, INITIAL, (patch) =>
-    setFilters((state) => ({ ...state, ...patch })),
+  useUrlFilterState(
+    filters, INITIAL,
+    (patch) => setFilters((state) => ({ ...state, ...patch })),
+    { navId: "bdds" },
   );
 
   const periodLabel = data?.labels.period ?? "Месяц";

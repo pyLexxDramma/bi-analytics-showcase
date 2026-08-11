@@ -20,6 +20,7 @@ export function AdminRolesPanel() {
   const [selected, setSelected] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [reports, setReports] = useState<string[]>([]);
+  const [projectsText, setProjectsText] = useState("");
   const [newCode, setNewCode] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -50,10 +51,12 @@ export function AdminRolesPanel() {
     if (!current) return;
     setLabel(current.label);
     setReports([...(current.reports || [])]);
+    setProjectsText((current.projects || []).join("\n"));
   }, [current]);
 
   const lockedReports =
     current?.code === "admin" || current?.code === "superadmin";
+  const lockedProjects = lockedReports;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -202,6 +205,25 @@ export function AdminRolesPanel() {
             </div>
           </div>
 
+          <div className="mt-4">
+            <Text className="font-medium">Проекты (пусто = все)</Text>
+            {lockedProjects ? (
+              <InfoBanner>У admin/superadmin проекты не ограничиваются.</InfoBanner>
+            ) : (
+              <InfoBanner>
+                По одному названию проекта на строку. Ограничение роли действует
+                на данные API и Ask AI catalog.
+              </InfoBanner>
+            )}
+            <textarea
+              className="mt-2 min-h-[6rem] w-full max-w-lg rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              disabled={lockedProjects || busy}
+              value={projectsText}
+              onChange={(e) => setProjectsText(e.target.value)}
+              placeholder={"Проект А\nПроект Б"}
+            />
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
@@ -209,9 +231,14 @@ export function AdminRolesPanel() {
               className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               onClick={() =>
                 void run(async () => {
+                  const projects = projectsText
+                    .split(/\r?\n/)
+                    .map((s) => s.trim())
+                    .filter(Boolean);
                   await patchSettingsRole(current.code, {
                     label: label.trim(),
                     reports: lockedReports ? undefined : reports,
+                    projects: lockedProjects ? undefined : projects,
                   });
                   await load();
                   setMsg("Сохранено.");

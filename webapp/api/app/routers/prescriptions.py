@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Depends
 from app.services.auth_context import require_report_access
+from app.services.project_scope import clamp_project_pipe, clamp_projects_list
 
 from app.services.prescriptions import build_prescriptions_payload
 
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"], dependen
 
 @router.get("")
 def prescriptions_report(
+    user: dict = Depends(require_report_access("prescriptions")),
     projects: Optional[str] = Query(None, description="Проекты через запятую"),
     contractors: Optional[str] = Query(None, description="Подрядчики через запятую"),
     contract_q: Optional[str] = Query(None, description="Частичный поиск № договора"),
@@ -21,6 +23,14 @@ def prescriptions_report(
     hide_resolved: bool = Query(False, description="Скрыть снятые (KrStateID=13)"),
 ):
     """Предписания по подрядчикам (TESSA id + task)."""
+    req = [x.strip() for x in (projects or '').split(',') if x.strip()]
+    scoped = clamp_projects_list(user, req)
+    if req and not scoped:
+        projects = '__no_access__'
+    elif not req and scoped:
+        projects = ','.join(scoped)
+    elif scoped:
+        projects = ','.join(scoped)
     return build_prescriptions_payload(
         projects=projects,
         contractors=contractors,

@@ -197,7 +197,15 @@ def build_roles_catalog() -> dict[str, Any]:
                 "code": code,
                 "title": title,
                 "reports": reports,
-                "projects": ["*"],
+                "projects": (
+                    (
+                        list(auth.get_role_projects(code))
+                        if auth.get_role_projects(code) is not None
+                        else ["*"]
+                    )
+                    if hasattr(auth, "get_role_projects")
+                    else ["*"]
+                ),
             }
         )
     return {

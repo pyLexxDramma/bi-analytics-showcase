@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Depends
 from app.services.auth_context import require_report_access
+from app.services.project_scope import clamp_project_pipe, clamp_projects_list
 from pydantic import BaseModel, Field
 
 from app.services.auth_context import optional_active_user, require_finance_editor
@@ -53,6 +54,7 @@ def _username(authorization: str | None) -> str | None:
 
 @router.get("")
 def bdds_plan_fact_report(
+    user: dict = Depends(require_report_access("bdds-plan-fact")),
     project: Optional[str] = Query(None),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
@@ -64,6 +66,12 @@ def bdds_plan_fact_report(
     lot_recalc_period: Optional[str] = Query(None),
     authorization: str | None = Header(default=None),
 ):
+    if project and str(project).strip() and str(project).strip() != "Все":
+        scoped = clamp_projects_list(user, [str(project).strip()])
+        project = scoped[0] if scoped else "__no_access__"
+    else:
+        scoped = clamp_projects_list(user, [])
+        project = "|".join(scoped) if scoped else project
     return build_bdds_plan_fact_payload(
         project=project,
         date_from=date_from,
