@@ -1379,6 +1379,10 @@ export type ProjectDocumentationPayload = {
       month_label: string;
       plan: number;
       fact: number;
+      done?: number;
+      overdue?: number;
+      rest?: number;
+      fact_inc?: number;
     }>;
   };
   rows: Array<{
