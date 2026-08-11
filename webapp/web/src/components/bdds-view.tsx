@@ -431,6 +431,17 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     [data],
   );
 
+  const projectChartRows = useMemo(
+    () =>
+      (data?.tremor.by_project ?? []).map((row) => ({
+        period: row.project,
+        plan: row.plan,
+        fact: row.fact,
+        deviation: row.deviation,
+      })),
+    [data],
+  );
+
   /**
    * Без сортировки — блоки с баннерами проектов, как в [main].
    * При сортировке блоки разворачиваются в плоский список (иначе баннеры
@@ -810,6 +821,30 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             disabled={!periodRows.length}
           />
         </div>
+
+        <Card className="rounded-xl">
+          <FullscreenPanel disabled={!projectChartRows.length} fill>
+            {(zoomed) => (
+              <FinanceBarChart
+                rows={projectChartRows}
+                planName={config.planSeries}
+                factName={config.factSeries}
+                showDeviation={filters.show_deviation}
+                categoryKey="project"
+                xAxisTitle={
+                  data?.labels.project_table_title?.replace(/^Таблица\s+/i, "") ||
+                  `${config.sheetName} по проектам`
+                }
+                fullscreen={zoomed}
+                emptyText={
+                  loading
+                    ? "Загрузка…"
+                    : "Нет данных для графика по проектам. Измените фильтры."
+                }
+              />
+            )}
+          </FullscreenPanel>
+        </Card>
 
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
