@@ -33,6 +33,10 @@ class _Auth:
         return True
 
     @staticmethod
+    def role_can_open_report(role: str, report_id: str) -> bool:
+        return True
+
+    @staticmethod
     def user_can_edit_finance_tables(role: str) -> bool:
         return role == "superadmin"
 

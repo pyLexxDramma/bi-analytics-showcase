@@ -61,12 +61,17 @@ def ensure_users_db(*, seed: bool = True) -> None:
             None,
             "system",
         )
-    try:
-        from app.services.ask_ai_reports import SCREENS
+    seed_roles = getattr(auth, "ensure_roles_seeded", None)
+    if callable(seed_roles):
+        try:
+            from app.services.ask_ai_reports import SCREENS
 
-        auth.ensure_roles_seeded(SCREENS)
-    except Exception:
-        auth.ensure_roles_seeded(None)
+            seed_roles(SCREENS)
+        except Exception:
+            try:
+                seed_roles(None)
+            except Exception:
+                pass
     if not _prepared:
         _prepared = True
 

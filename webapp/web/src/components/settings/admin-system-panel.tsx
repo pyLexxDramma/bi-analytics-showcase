@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Grid, Metric, Text, Title } from "@tremor/react";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { EmeraldTabs } from "@/components/settings/emerald-tabs";
-import { InfoBanner, SETTINGS_TABLE } from "@/components/settings/form-bits";
+import { SETTINGS_TABLE } from "@/components/settings/form-bits";
 import {
   deleteSettingsUser,
   fetchReportConfig,

@@ -20,7 +20,8 @@
 Справочник ролей (формат §8 гайда): `GET /api/ask-ai/roles-catalog` (admin Bearer).  
 Пока `projects: ["*"]` (project ACL на дашборде выключен).
 
-Роли: `superadmin`, `admin`, `analyst`, `rp`, `financier`, `gip`, `manager`.
+Роли: системные `superadmin`, `admin`, `analyst`, `rp`, `financier`, `gip`, `manager` **и кастомные** из админки (матрица в `users.db`).  
+Полное описание ACL + что учитывать при разработке ИИ: [`CUSTOM_ROLES_AND_ASK_AI.md`](./CUSTOM_ROLES_AND_ASK_AI.md).
 
 ---
 
