@@ -20,6 +20,7 @@ const RD_PLAN = "#2E86AB";
 const RD_FACT = "#F39C12";
 const RD_MONTH_PLAN = "#F39C12";
 const RD_MONTH_FACT = "#27AE60";
+const RD_MONTH_OVERDUE = "#C0392B";
 
 const RD_PIE_COLORS: Record<string, string> = {
   "Выдано в производство работ": "#27AE60",
@@ -298,7 +299,7 @@ export function RdDynamicsLineChart({
   );
 }
 
-/** Горизонтальные overlay-бары «Динамика по месяцам» как main / PD. */
+/** Накопительный стек «Динамика по месяцам»: выполнено / просрочено / остаток плана. */
 export function RdMonthlyCumulativeChart({
   rows,
   fullscreen = false,
@@ -312,29 +313,39 @@ export function RdMonthlyCumulativeChart({
   const figure = useMemo(() => {
     const chronological = [...rows].sort((a, b) => a.month.localeCompare(b.month));
     const labels = chronological.map((r) => r.month_label);
-    const plan = chronological.map((r) => r.plan);
-    const fact = chronological.map((r) => r.fact);
+    const plan = chronological.map((r) => Number(r.plan) || 0);
+    const overdue = chronological.map((r) => Math.max(0, Number(r.overdue) || 0));
+    const done = chronological.map((r, i) => {
+      if (r.done != null) return Math.max(0, Number(r.done) || 0);
+      const fact = Math.max(0, Number(r.fact) || 0);
+      return Math.max(0, fact - overdue[i]);
+    });
+    const rest = chronological.map((r, i) => {
+      if (r.rest != null) return Math.max(0, Number(r.rest) || 0);
+      return Math.max(0, plan[i] - done[i] - overdue[i]);
+    });
     const factInc = chronological.map((r, i) => {
-      if (r.fact_inc != null && Number.isFinite(r.fact_inc)) return r.fact_inc;
-      return i === 0 ? r.fact : Math.max(0, r.fact - chronological[i - 1].fact);
+      if (r.fact_inc != null) return Math.max(0, Number(r.fact_inc) || 0);
+      if (i === 0) return done[i] + overdue[i];
+      const prev = done[i - 1] + overdue[i - 1];
+      return Math.max(0, done[i] + overdue[i] - prev);
     });
     const yIdx = chronological.map((_, i) => i);
-    const xMax = Math.max(1, ...plan, ...fact);
+    const xMax = Math.max(1, ...plan, ...done.map((d, i) => d + overdue[i] + rest[i]));
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
       : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
 
     const incTxt = factInc.map((v) => (v > 0 ? `+${Math.round(v)}` : ""));
-    const planLonger = plan.map((p, i) => p >= fact[i]);
-    const planText = incTxt.map((t, i) => (planLonger[i] ? t : ""));
-    const factText = incTxt.map((t, i) => (planLonger[i] ? "" : t));
+    const tipText = chronological.map((_, i) => {
+      const total = done[i] + overdue[i] + rest[i];
+      return total > 0 ? incTxt[i] : "";
+    });
 
     const barBase = {
       type: "bar" as const,
       orientation: "h" as const,
       y: yIdx,
-      textposition: "outside" as const,
-      textfont: { size: compact ? 12 : 15, color: theme.label },
       cliponaxis: false,
       constraintext: "none" as const,
       hovertemplate: "<b>%{customdata}</b><br>%{fullData.name}: %{x}<extra></extra>",
@@ -344,26 +355,41 @@ export function RdMonthlyCumulativeChart({
       data: [
         {
           ...barBase,
-          name: CHART_RU.plan,
-          x: plan,
-          text: planText,
-          texttemplate: "%{text}",
-          marker: { color: RD_MONTH_PLAN, opacity: 0.92 },
+          name: "Выполнено",
+          x: done,
+          marker: { color: RD_MONTH_FACT, opacity: 0.95 },
           customdata: labels,
+          text: tipText.map((t, i) => (rest[i] <= 0 && overdue[i] <= 0 ? t : "")),
+          textposition: "outside" as const,
+          texttemplate: "%{text}",
+          textfont: { size: compact ? 12 : 15, color: theme.label },
         },
         {
           ...barBase,
-          name: CHART_RU.fact,
-          x: fact,
-          text: factText,
-          texttemplate: "%{text}",
-          marker: { color: RD_MONTH_FACT, opacity: 0.95 },
+          name: CHART_RU.overdue,
+          x: overdue,
+          marker: { color: RD_MONTH_OVERDUE, opacity: 0.95 },
           customdata: labels,
+          text: tipText.map((t, i) => (rest[i] <= 0 && overdue[i] > 0 ? t : "")),
+          textposition: "outside" as const,
+          texttemplate: "%{text}",
+          textfont: { size: compact ? 12 : 15, color: theme.label },
+        },
+        {
+          ...barBase,
+          name: "План (остаток)",
+          x: rest,
+          marker: { color: RD_MONTH_PLAN, opacity: 0.92 },
+          customdata: labels,
+          text: tipText.map((t, i) => (rest[i] > 0 ? t : "")),
+          textposition: "outside" as const,
+          texttemplate: "%{text}",
+          textfont: { size: compact ? 12 : 15, color: theme.label },
         },
       ],
       layout: {
         height,
-        barmode: "overlay" as const,
+        barmode: "stack" as const,
         bargap: 0.28,
         margin: compact
           ? { l: 8, r: 56, t: 12, b: 96 }

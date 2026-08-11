@@ -468,6 +468,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
+            "v4-monthly-asof",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -701,29 +702,73 @@ def build_working_documentation_payload(
                 except Exception:
                     pass
             month_df["_plan_end_dt"] = month_df["_plan_dt"]
-            monthly = mod._rd_monthly_sections_aggregate(month_df)
+            # Срез «на конец месяца»: зелёный = выдано вовремя к этой дате;
+            # красный = срок уже прошёл и не вовремя; жёлтый = срок ещё не наступил.
+            # Иначе при оценке «на сегодня» ранние месяцы почти без жёлтого и
+            # не стыкуются с линией план/факт.
+            _today = pd.Timestamp.today().normalize()
+            _plan_end = pd.to_datetime(month_df["_plan_end_dt"], errors="coerce")
+            if "_tessa_production_dt" in month_df.columns:
+                _fact_dt = pd.to_datetime(month_df["_tessa_production_dt"], errors="coerce")
+            elif "_fact_dt" in month_df.columns:
+                _fact_dt = pd.to_datetime(month_df["_fact_dt"], errors="coerce")
+            else:
+                _fact_dt = pd.Series(pd.NaT, index=month_df.index)
+            _plan_n = _plan_end.dt.normalize()
+            _fact_n = _fact_dt.dt.normalize()
+            _w = _plan_n.notna()
+            _plan_w = _plan_n[_w]
+            _fact_w = _fact_n[_w]
+            _weights = pd.to_numeric(month_df.loc[_w, "_rd_plan_n"], errors="coerce").fillna(1.0)
+            total_plan = float(_weights.sum())
             use_pct = str(metric).strip().startswith("%")
-            if not monthly.empty:
-                if not use_pct:
-                    monthly = mod._rd_monthly_to_cumulative(monthly)
-                for _, r in monthly.iterrows():
-                    plan_v = float(r.get("plan", 0) or 0)
-                    fact_v = float(r.get("done", 0) or 0)
-                    inc = float(r.get("fact_inc", 0) or 0) if "fact_inc" in monthly.columns else 0.0
-                    if use_pct and plan_v > 0:
-                        # already non-cumulative plan/done per month — convert share
-                        pass
-                    monthly_rows.append(
+            periods = sorted({p for p in _plan_w.dt.to_period("M").tolist() if p is not pd.NaT})
+            cur_m = pd.Period(_today, freq="M")
+            periods = [p for p in periods if p <= cur_m]
+            rows_m: list[dict[str, Any]] = []
+            prev_resolved = 0.0
+            for p in periods:
+                as_of = min(pd.Timestamp(p.end_time).normalize(), _today)
+                due = _plan_w <= as_of
+                on_time = (
+                    _fact_w.notna()
+                    & (_fact_w <= _plan_w)
+                    & (_fact_w <= as_of)
+                )
+                done_v = float(_weights[on_time].sum())
+                overdue_v = float(_weights[due & ~on_time].sum())
+                rest_v = max(0.0, total_plan - done_v - overdue_v)
+                plan_v = total_plan
+                resolved = done_v + overdue_v
+                fact_inc = max(0.0, resolved - prev_resolved)
+                prev_resolved = resolved
+                if use_pct and plan_v > 0:
+                    rows_m.append(
                         {
-                            "month": str(r["_month"]),
-                            "month_label": _month_label(r["_month"]),
+                            "month": str(p),
+                            "month_label": _month_label(p),
                             "plan": plan_v,
-                            "fact": fact_v,
-                            "fact_inc": inc,
+                            "done": round(done_v / plan_v * 100, 1),
+                            "overdue": round(overdue_v / plan_v * 100, 1),
+                            "rest": round(rest_v / plan_v * 100, 1),
+                            "fact": round(resolved / plan_v * 100, 1),
+                            "fact_inc": round(fact_inc / plan_v * 100, 1),
                         }
                     )
-                if not use_pct:
-                    monthly_rows = list(reversed(monthly_rows))
+                else:
+                    rows_m.append(
+                        {
+                            "month": str(p),
+                            "month_label": _month_label(p),
+                            "plan": plan_v,
+                            "done": done_v,
+                            "overdue": overdue_v,
+                            "rest": rest_v,
+                            "fact": resolved,
+                            "fact_inc": fact_inc,
+                        }
+                    )
+            monthly_rows = list(reversed(rows_m))
         except Exception:
             monthly_rows = []
 
