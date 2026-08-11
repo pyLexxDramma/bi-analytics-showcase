@@ -269,6 +269,8 @@ def _build_dynamics(plan_df: pd.DataFrame, mod: ModuleType) -> list[dict[str, An
     df = plan_df.copy()
     if "_tessa_production_dt" in df.columns:
         df["_fact_dyn_dt"] = pd.to_datetime(df["_tessa_production_dt"], errors="coerce")
+    elif "_fact_dt" in df.columns:
+        df["_fact_dyn_dt"] = pd.to_datetime(df["_fact_dt"], errors="coerce")
     else:
         df["_fact_dyn_dt"] = pd.NaT
     parts: list[pd.DataFrame] = []
@@ -351,13 +353,66 @@ def _build_dynamics(plan_df: pd.DataFrame, mod: ModuleType) -> list[dict[str, An
     return out
 
 
+def _align_dynamics_fact_to_kpi(
+    dynamics: list[dict[str, Any]],
+    *,
+    fact_kpi: float,
+    today: date | None = None,
+) -> list[dict[str, Any]]:
+    """Кривая «Факт» на графике = KPI «Факт на текущую дату» (статусы TESSA).
+
+    Иначе даты выдачи в plan_df завышают накопленный факт относительно pie/KPI.
+    """
+    if not dynamics:
+        return dynamics
+    today = today or date.today()
+    target = max(0.0, float(fact_kpi or 0.0))
+    curve_today = 0.0
+    for row in dynamics:
+        try:
+            d = date.fromisoformat(str(row["period"])[:10])
+        except ValueError:
+            continue
+        if d <= today:
+            curve_today = float(row.get("fact") or 0.0)
+    if target <= 0 or curve_today <= 0:
+        return dynamics
+    scale = target / curve_today
+    out: list[dict[str, Any]] = []
+    for row in dynamics:
+        r = dict(row)
+        try:
+            d = date.fromisoformat(str(row["period"])[:10])
+        except ValueError:
+            out.append(r)
+            continue
+        fact_v = float(row.get("fact") or 0.0) * scale
+        if d <= today:
+            fact_v = min(fact_v, target)
+        else:
+            # После «сегодня» кривая не уезжает выше KPI.
+            fact_v = target
+        r["fact"] = round(fact_v, 1)
+        out.append(r)
+    # Точка «на сегодня» ровно равна KPI.
+    for i in range(len(out) - 1, -1, -1):
+        try:
+            d = date.fromisoformat(str(out[i]["period"])[:10])
+        except ValueError:
+            continue
+        if d <= today:
+            out[i]["fact"] = float(round(target))
+            break
+    return out
+
+
 def _exec_kpis(
     mod: ModuleType,
     plan_df: pd.DataFrame,
     dynamics: list[dict[str, Any]],
     selected_projects: list[str] | None,
     total_sections: int,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     today = date.today()
     pt = float(total_sections)
     pd_fb = 0.0
@@ -373,7 +428,7 @@ def _exec_kpis(
     except Exception:
         rd_summ = None
     try:
-        pd_fb, fd_fb, dev_fb = mod._rd_kpi_plan_fact_deviation_today(
+        pd_fb, fd_fb, _dev_plan_minus_fact = mod._rd_kpi_plan_fact_deviation_today(
             today=today,
             csv_df=plan_df,
             plan_curve=pd_fb,
@@ -381,7 +436,7 @@ def _exec_kpis(
             rd_summ=rd_summ,
         )
     except Exception:
-        dev_fb = float(pd_fb - fd_fb)
+        pass
     try:
         tz = mod._count_rd_pie_tz(selected_projects)
         fd_tessa = float(
@@ -390,9 +445,12 @@ def _exec_kpis(
         )
         if fd_tessa > 0:
             fd_fb = fd_tessa
-            dev_fb = float(pd_fb - fd_fb)
     except Exception:
         pass
+
+    # Как у пользователя и на ПД: факт − план; отставание — отрицательное.
+    dev_fb = float(fd_fb - pd_fb)
+    dynamics = _align_dynamics_fact_to_kpi(dynamics, fact_kpi=fd_fb, today=today)
 
     planned_weekly = fact_weekly = nec_weekly = None
     if rd_summ:
@@ -420,13 +478,15 @@ def _exec_kpis(
                 fact_weekly = fw
         if nec_weekly is None and float(dev_fb) != 0:
             ref = mod._rd_nec_weekly_ref_date(rd_summ, today)
+            # Нужна производительность по величине отставания (план − факт).
+            lag = float(pd_fb - fd_fb)
             if ref is not None:
                 dd = (ref - today).days
-                nec_weekly = float(dev_fb) / float(dd) * 7.0 if dd > 0 else float(dev_fb) / 7.0
+                nec_weekly = float(lag) / float(dd) * 7.0 if dd > 0 else float(lag) / 7.0
             else:
-                nec_weekly = float(dev_fb) / 7.0
+                nec_weekly = float(lag) / 7.0
 
-    return {
+    kpis = {
         "plan_total": int(round(pt)),
         "plan_to_date": int(round(float(pd_fb))),
         "fact_to_date": int(round(float(fd_fb))),
@@ -435,6 +495,7 @@ def _exec_kpis(
         "fact_weekly": float(fact_weekly) if fact_weekly is not None else None,
         "nec_weekly": float(nec_weekly) if nec_weekly is not None else None,
     }
+    return kpis, dynamics
 
 
 def build_working_documentation_payload(
@@ -468,7 +529,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v4-monthly-asof",
+            "v5-fact-kpi-align",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -773,7 +834,9 @@ def build_working_documentation_payload(
             monthly_rows = []
 
         dynamics = _build_dynamics(plan_df, mod)
-        exec_kpis = _exec_kpis(mod, plan_df, dynamics, applied_projects, total_sections)
+        exec_kpis, dynamics = _exec_kpis(
+            mod, plan_df, dynamics, applied_projects, total_sections
+        )
 
         detail_show = mod._rd_detail_prepare_for_display(
             detail_tbl.copy() if not detail_tbl.empty else pd.DataFrame(),

@@ -696,7 +696,7 @@ export function WorkingDocumentationView() {
                     <Text>Отклонение на текущую дату</Text>
                     <Metric
                       className={`text-2xl ${
-                        (kpis?.deviation_to_date ?? 0) > 0
+                        (kpis?.deviation_to_date ?? 0) < 0
                           ? "font-semibold text-[hsl(348,100%,45%)] dark:text-[#ff5454]"
                           : "font-semibold text-[#15803d] dark:text-[#46d68a]"
                       }`}
