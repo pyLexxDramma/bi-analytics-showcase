@@ -342,7 +342,7 @@ export function DebitCreditView() {
                     {mln(row.advance)}
                   </td>
                   <td
-                    className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${toneCellClass(row.advance_tone)}`}
+                    className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
                   >
                     {toneDot(row.advance_tone)}{" "}
                     {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
@@ -354,7 +354,7 @@ export function DebitCreditView() {
                     {mln(row.balance)}
                   </td>
                   <td
-                    className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${toneCellClass(row.advance_tone)}`}
+                    className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
                   >
                     {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
                   </td>
@@ -376,7 +376,7 @@ export function DebitCreditView() {
                   {mln(data?.totals.advance)}
                 </td>
                 <td
-                  className={`border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
+                  className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
                 >
                   {toneDot(data?.totals.advance_tone)}{" "}
                   {data?.totals.advance_pct == null
@@ -390,7 +390,7 @@ export function DebitCreditView() {
                   {mln(data?.totals.balance)}
                 </td>
                 <td
-                  className={`border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
+                  className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
                 >
                   {toneDot(data?.totals.advance_tone)}{" "}
                   {mln(data?.totals.advance_ks2)}
