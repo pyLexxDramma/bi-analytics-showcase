@@ -26,7 +26,7 @@ type SortState = { key: SortKey; asc: boolean } | null;
 type Filters = { projects: string[]; fiz: string; hide_zero: boolean | null; show_deviation: boolean };
 type ProjectMetric = "plan" | "fact" | "remainder" | "deviation" | "completion_pct" | "contract_coverage_pct";
 
-const INITIAL: Filters = { projects: [], fiz: "Все", hide_zero: null, show_deviation: false };
+const INITIAL: Filters = { projects: [], fiz: "Все", hide_zero: null, show_deviation: true };
 const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
 const HEAD = "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8]";
 const TABLE = "min-w-full border-collapse border-2 border-[#94a3b8] text-left text-tremor-default dark:border-[#7a9ec4]";
@@ -68,6 +68,29 @@ function mlnPlain(value: number, opts?: { signed?: boolean }) {
 }
 function pct(value: number | null | undefined) {
   return `${Number(value ?? 0).toFixed(1)}%`;
+}
+
+/** Доля KPI: «N.N% от плана» / «±N.N% от плана» — как `_render_appr_pf_summary_kpi` в main. */
+function pctOfPlan(value: number | null | undefined, opts?: { signed?: boolean }) {
+  const n = Number(value ?? 0);
+  const abs = Math.abs(n).toFixed(1);
+  if (opts?.signed) {
+    if (n > 0) return `+${abs}% от плана`;
+    if (n < 0) return `−${abs}% от плана`;
+    return `${abs}% от плана`;
+  }
+  return `${abs}% от плана`;
+}
+
+function kpiShareClass(value: number, mode: "fact_vs_plan" | "deviation") {
+  if (mode === "fact_vs_plan") {
+    return value >= 100
+      ? "text-emerald-700 dark:text-emerald-300"
+      : "text-rose-700 dark:text-rose-300";
+  }
+  return value >= 0
+    ? "text-emerald-700 dark:text-emerald-300"
+    : "text-rose-700 dark:text-rose-300";
 }
 
 /**
@@ -326,8 +349,39 @@ export function ApprovedBudgetView() {
     </FiltersCard>
     {error || data?.meta.error ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || data?.meta.error}</Text></Card> : null}
     <div className="space-y-6">
-      <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className="grid gap-4 sm:grid-cols-3">{[["План", gauge.plan_mlrd, gauge.plan / 1e6, "100%", ""], ["Факт", gauge.fact_mlrd, gauge.fact / 1e6, pct(gauge.fact_pct), "text-emerald-700 dark:text-emerald-300"], ["Отклонение", gauge.deviation_mlrd, gauge.deviation / 1e6, pct(gauge.deviation_pct), "text-rose-700 dark:text-rose-300"]].map(([label, bln, value, percent, color]) => <div key={String(label)} className={String(color)}><Text>{label}</Text><div className="mt-1 text-xl font-bold tabular-nums">{Number(bln).toFixed(2)} млрд</div><Text>{Number(value).toFixed(1)} млн. руб.</Text><Text>{percent}</Text></div>)}</div></div></Card>
-      <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} />}</FullscreenPanel></Card>
+      <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <Text className="text-rose-700 dark:text-rose-300">План</Text>
+          <div className="mt-1 text-xl font-bold tabular-nums">{Number(gauge.plan_mlrd).toFixed(2)} млрд</div>
+          <Text>{(gauge.plan / 1e6).toFixed(1)} млн. руб.</Text>
+          <Text>100%</Text>
+        </div>
+        <div>
+          <Text className="text-emerald-700 dark:text-emerald-300">Факт</Text>
+          <div className="mt-1 text-xl font-bold tabular-nums">{Number(gauge.fact_mlrd).toFixed(2)} млрд</div>
+          <Text>{(gauge.fact / 1e6).toFixed(1)} млн. руб.</Text>
+          <Text className={kpiShareClass(gauge.fact_pct, "fact_vs_plan")}>{pctOfPlan(gauge.fact_pct)}</Text>
+        </div>
+        <div>
+          <Text className={kpiShareClass(gauge.deviation, "deviation")}>Отклонение</Text>
+          <div className={`mt-1 text-xl font-bold tabular-nums ${kpiShareClass(gauge.deviation, "deviation")}`}>
+            {gauge.deviation_mlrd >= 0
+              ? `+${Number(gauge.deviation_mlrd).toFixed(2)}`
+              : `−${Math.abs(Number(gauge.deviation_mlrd)).toFixed(2)}`}{" "}
+            млрд
+          </div>
+          <Text className={kpiShareClass(gauge.deviation, "deviation")}>
+            {(gauge.deviation / 1e6) >= 0
+              ? `+${(gauge.deviation / 1e6).toFixed(1)}`
+              : `−${Math.abs(gauge.deviation / 1e6).toFixed(1)}`}{" "}
+            млн. руб.
+          </Text>
+          <Text className={kpiShareClass(gauge.deviation_pct, "deviation")}>
+            {pctOfPlan(gauge.deviation_pct, { signed: true })}
+          </Text>
+        </div>
+      </div></div></Card>
+      <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} colors={{ plan: "#2E86AB", fact: "#A23B72" }} />}</FullscreenPanel></Card>
       <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <Title>

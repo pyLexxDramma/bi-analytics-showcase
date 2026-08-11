@@ -5,7 +5,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   LabelList,
   Legend,
   ResponsiveContainer,
@@ -25,11 +24,14 @@ export type FinanceBarPoint = {
 const DEFAULT_PLAN = "#3b82f6";
 const DEFAULT_FACT = "#f43f5e";
 const DEFAULT_FORECAST = "#f59e0b";
-const DEFAULT_DEV = "#f59e0b";
 
 const FORECAST_PLAN = "#2E86AB";
 const FORECAST_FACT = "#A23B72";
 const FORECAST_SERIES = "#F18F01";
+
+const DEV_NEG_NAME = "Отклонение (факт < план)";
+const DEV_POS_NAME = "Отклонение (факт > план)";
+const DEV_THR = 0.01;
 
 function useIsNarrow(): boolean {
   const [narrow, setNarrow] = useState(() => {
@@ -82,10 +84,15 @@ function formatBarLabel(
   return { line1: num, line2: "млн. руб." };
 }
 
-function deviationBarColor(value: number, forecastMode: boolean): string {
-  if (!forecastMode) return DEFAULT_DEV;
-  if (Math.abs(value) < 0.005) return "rgba(148,163,184,0.75)";
-  return value > 0 ? "#22c55e" : "#ef4444";
+const DEV_BAR_RED = "#e74c3c";
+const DEV_BAR_GREEN = "#27ae60";
+const DEV_LABEL_RED = "hsl(348,100%,63%)";
+const DEV_LABEL_GREEN = "hsl(148,100%,63%)";
+
+/** Как main: <0 красный (ниже оси), >0 зелёный (выше оси). */
+function deviationLabelColor(value: number, dark: boolean): string {
+  if (Math.abs(value) < 0.005) return dark ? "#e2e8f0" : "#111827";
+  return value > 0 ? DEV_LABEL_GREEN : DEV_LABEL_RED;
 }
 
 export function FinanceBarChart({
@@ -129,8 +136,15 @@ export function FinanceBarChart({
   /** Desktop / fullscreen — «млн. руб.» под цифрой; mobile — только число. */
   const showUnitOnBars = !compact;
   const forecastMode = showForecast;
+  const hasNegDev =
+    showDeviation && rows.some((r) => Number(r.deviation) < -DEV_THR);
+  const hasPosDev =
+    showDeviation && rows.some((r) => Number(r.deviation) > DEV_THR);
   const seriesCount =
-    (showForecast ? 1 : 0) + 2 + (showDeviation ? 1 : 0);
+    (showForecast ? 1 : 0) +
+    2 +
+    (hasNegDev ? 1 : 0) +
+    (hasPosDev ? 1 : 0);
   const slotPx = compact
     ? showForecast
       ? 40
@@ -159,13 +173,24 @@ export function FinanceBarChart({
 
   const chartData = useMemo(
     () =>
-      rows.map((row) => ({
-        category: row.period,
-        [planName]: row.plan,
-        [factName]: row.fact,
-        ...(showForecast ? { [forecastName]: row.forecast ?? 0 } : {}),
-        ...(showDeviation ? { [deviationLabel]: row.deviation } : {}),
-      })),
+      rows.map((row) => {
+        const dev = Number(row.deviation) || 0;
+        return {
+          category: row.period,
+          [planName]: row.plan,
+          [factName]: row.fact,
+          ...(showForecast ? { [forecastName]: row.forecast ?? 0 } : {}),
+          ...(showDeviation
+            ? {
+                [DEV_NEG_NAME]:
+                  dev < -DEV_THR ? dev : null,
+                [DEV_POS_NAME]:
+                  dev > DEV_THR ? dev : null,
+                [deviationLabel]: dev,
+              }
+            : {}),
+        };
+      }),
     [
       rows,
       planName,
@@ -198,26 +223,46 @@ export function FinanceBarChart({
 
   const renderValueLabel = (
     props: Record<string, unknown>,
-    opts?: { signed?: boolean },
+    opts?: { signed?: boolean; colorBySign?: boolean },
   ) => {
     const parts = formatBarLabel(props.value, !showUnitOnBars, opts?.signed);
     if (!parts) return null;
     const x = Number(props.x) + Number(props.width) / 2;
-    const lineGap = Math.round(labelFont * 1.2);
-    const gapAboveBar = compact ? 6 : 10;
-    const yUnit = Number(props.y) - gapAboveBar;
-    const yNum = showUnitOnBars && parts.line2 ? yUnit - lineGap : yUnit;
+    const rawY = Number(props.y);
+    const rawH = Number(props.height);
+    const value = Number(props.value);
+    const lineGap = Math.round(labelFont * 1.25);
+    const gap = opts?.colorBySign ? (compact ? 10 : 14) : compact ? 6 : 10;
+    // height у Recharts для отрицательных иногда < 0 — берём края прямоугольника.
+    const h = Number.isFinite(rawH) ? rawH : 0;
+    const rectTop = Math.min(rawY, rawY + h);
+    const rectBottom = Math.max(rawY, rawY + h);
+    const below = Number.isFinite(value) && value < 0;
+    const yNum = below ? rectBottom + gap : rectTop - gap - (parts.line2 ? lineGap : 0);
+    const yUnit = below ? yNum + lineGap : rectTop - gap;
     if (!Number.isFinite(x) || !Number.isFinite(yNum)) return null;
-    const fill = dark ? "#e2e8f0" : "#111827";
+    const fill = opts?.colorBySign
+      ? deviationLabelColor(value, dark)
+      : dark
+        ? "#e2e8f0"
+        : "#111827";
+    const stroke = dark ? "rgba(15,23,42,0.85)" : "rgba(255,255,255,0.92)";
+    const textProps = {
+      x,
+      fill,
+      stroke,
+      strokeWidth: 3,
+      paintOrder: "stroke" as const,
+      fontSize: labelFont,
+      textAnchor: "middle" as const,
+      style: { fontWeight: opts?.colorBySign ? 700 : 600 },
+    };
     if (!showUnitOnBars || !parts.line2) {
       return (
         <text
-          x={x}
+          {...textProps}
           y={yNum}
-          fill={fill}
-          fontSize={labelFont}
-          textAnchor="middle"
-          dominantBaseline="auto"
+          dominantBaseline={below ? "hanging" : "auto"}
         >
           {parts.line1}
         </text>
@@ -226,22 +271,17 @@ export function FinanceBarChart({
     return (
       <g>
         <text
-          x={x}
+          {...textProps}
           y={yNum}
-          fill={fill}
-          fontSize={labelFont}
-          textAnchor="middle"
-          dominantBaseline="auto"
+          dominantBaseline={below ? "hanging" : "auto"}
         >
           {parts.line1}
         </text>
         <text
-          x={x}
+          {...textProps}
           y={yUnit}
-          fill={fill}
           fontSize={Math.max(8, labelFont - 1)}
-          textAnchor="middle"
-          dominantBaseline="auto"
+          dominantBaseline={below ? "hanging" : "auto"}
         >
           {parts.line2}
         </text>
@@ -273,10 +313,12 @@ export function FinanceBarChart({
               top: compact ? 28 : 72,
               right: 12,
               left: 8,
-              bottom: angled ? 64 : 28,
+              bottom:
+                (angled ? 64 : 28) +
+                (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
             }}
             barCategoryGap={compact ? "12%" : "18%"}
-            barGap={2}
+            barGap={showDeviation ? 6 : 2}
           >
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis
@@ -285,7 +327,8 @@ export function FinanceBarChart({
               interval={0}
               angle={angled ? -35 : 0}
               textAnchor={angled ? "end" : "middle"}
-              height={angled ? 80 : 40}
+              height={angled ? (hasNegDev ? 96 : 80) : hasNegDev ? 56 : 40}
+              dy={hasNegDev ? 8 : 0}
             />
             <YAxis
               width={compact ? 48 : 72}
@@ -307,11 +350,13 @@ export function FinanceBarChart({
               tickFormatter={(v) =>
                 Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 })
               }
-              domain={
+                  domain={
                 showDeviation
                   ? [
                       (dataMin: number) =>
-                        dataMin < 0 ? Math.floor(dataMin * 1.15) : 0,
+                        dataMin < 0
+                          ? Math.floor(dataMin * (showUnitOnBars ? 1.28 : 1.18))
+                          : 0,
                       (dataMax: number) => Math.ceil(dataMax * 1.32),
                     ]
                   : [0, (dataMax: number) => Math.ceil(dataMax * 1.32)]
@@ -353,26 +398,42 @@ export function FinanceBarChart({
                 />
               </Bar>
             ) : null}
-            {showDeviation ? (
+            {hasNegDev ? (
               <Bar
-                dataKey={deviationLabel}
+                dataKey={DEV_NEG_NAME}
+                name={DEV_NEG_NAME}
+                fill={DEV_BAR_RED}
+                radius={[3, 3, 3, 3]}
+                isAnimationActive={false}
+              >
+                <LabelList
+                  dataKey={DEV_NEG_NAME}
+                  content={
+                    ((props: Record<string, unknown>) =>
+                      renderValueLabel(props, {
+                        signed: true,
+                        colorBySign: true,
+                      })) as never
+                  }
+                />
+              </Bar>
+            ) : null}
+            {hasPosDev ? (
+              <Bar
+                dataKey={DEV_POS_NAME}
+                name={DEV_POS_NAME}
+                fill={DEV_BAR_GREEN}
                 radius={[3, 3, 0, 0]}
                 isAnimationActive={false}
               >
-                {chartData.map((entry, index) => (
-                  <Cell
-                    key={`dev-${index}`}
-                    fill={deviationBarColor(
-                      Number(entry[deviationLabel as keyof typeof entry] ?? 0),
-                      forecastMode,
-                    )}
-                  />
-                ))}
                 <LabelList
-                  dataKey={deviationLabel}
+                  dataKey={DEV_POS_NAME}
                   content={
                     ((props: Record<string, unknown>) =>
-                      renderValueLabel(props, { signed: true })) as never
+                      renderValueLabel(props, {
+                        signed: true,
+                        colorBySign: true,
+                      })) as never
                   }
                 />
               </Bar>
@@ -383,7 +444,7 @@ export function FinanceBarChart({
       <p className="mt-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
         {compact
           ? "Подписи на столбцах — млн ₽ (кратко). Прокрутите график вправо при длинном периоде."
-          : "Подписи на столбцах — число и «млн. руб.» (как в main)."}
+          : "Подписи на столбцах — число и «млн. руб.»."}
       </p>
     </div>
   );
