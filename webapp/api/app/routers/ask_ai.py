@@ -128,3 +128,39 @@ def list_screens(authorization: str | None = Header(default=None)):
     require_report_user(authorization)
     catalog = build_roles_catalog()
     return {"screens": catalog["screens"]}
+
+
+@router.get("/my-screens")
+def my_screens(authorization: str | None = Header(default=None)):
+    """
+    Полный scope текущего пользователя для ИИ:
+    allowed_reports (screen_*) + allowed_projects (null = все).
+    """
+    from datetime import datetime, timezone
+
+    from app.services.ask_ai_reports import SCREENS
+    from app.services.project_scope import allowed_projects_for_user
+
+    user = require_report_user(authorization)
+    auth = import_auth()
+    role = str(user.get("role") or "")
+    nav_ids: list[str] = []
+    reports: list[str] = []
+    for nav_id, meta in SCREENS.items():
+        if role_can_open_screen(auth, role, nav_id):
+            nav_ids.append(nav_id)
+            reports.append(str(meta["report"]))
+    uid = (
+        f"u_{user.get('id')}"
+        if user.get("id") is not None
+        else f"u_{user.get('username')}"
+    )
+    return {
+        "ok": True,
+        "uid": uid,
+        "role": role,
+        "allowed_nav_ids": nav_ids,
+        "allowed_reports": reports,
+        "allowed_projects": allowed_projects_for_user(user),
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }

@@ -17,12 +17,11 @@
 
 **Доступ к ИИ = доступ к отчёту.** В ссылке всегда подписанные `uid` + `role`. Проверку роли по справочнику делаете **вы**, до обращения к модели.
 
-Справочник ролей (формат §8 гайда): `GET /api/ask-ai/roles-catalog` (admin Bearer).  
-Пока `projects: ["*"]` (project ACL на дашборде выключен).
+Справочник ролей: `GET /api/ask-ai/roles-catalog` (admin Bearer **или** `X-Admin-Token`).  
+Per-user scope: `GET /api/ask-ai/my-screens` (user Bearer) → `allowed_reports` (`screen_*`) + `allowed_projects`.
 
-Роли: системные `superadmin`, `admin`, `analyst`, `rp`, `financier`, `gip`, `manager` **и кастомные** из админки (матрица в `users.db`).  
-Проекты в catalog — из `role_projects` (или `["*"]`, если не заданы).  
-Полное описание ACL + фаза 2 (фильтры/проекты) для разработки ИИ: [`CUSTOM_ROLES_AND_ASK_AI.md`](./CUSTOM_ROLES_AND_ASK_AI.md).
+Роли: системные + кастомные из админки. Проекты в catalog — из `role_projects` (или `["*"]`).  
+Полный контракт ACL / data-API / ответы на 6 пунктов: [`CUSTOM_ROLES_AND_ASK_AI.md`](./CUSTOM_ROLES_AND_ASK_AI.md) §12.
 
 ---
 

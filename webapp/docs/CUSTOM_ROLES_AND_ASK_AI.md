@@ -27,6 +27,7 @@
 | Дефолтные фильтры роли при открытии дашборда | ✅ фаза 2 |
 | Разрезка по проектам (роль + пользователь) | ✅ фаза 2 |
 | Ask AI catalog / link учитывает проекты роли/юзера | ✅ фаза 2 |
+| `GET /api/ask-ai/my-screens` (полный scope user) | ✅ |
 | Полный паритет Streamlit main с табличной матрицей | ❌ позже |
 | In-app assistant tools ACL | ❌ позже |
 
@@ -381,9 +382,106 @@ GET  /api/ask-ai/roles-catalog → roles[].projects не всегда ["*"]
 ## 11. Чеклист для следующего шага по ИИ
 
 - [ ] Зафиксировать с XCA: кастомные `role.code` и не-`*` `projects` из `roles-catalog` подхватываются (poll).
-- [ ] Per-user catalog (опционально): `GET /api/ask-ai/my-screens` → `allowed_reports` + `allowed_projects`.
+- [x] Per-user catalog: `GET /api/ask-ai/my-screens` → `allowed_reports` (`screen_*`) + `allowed_projects`.
 - [ ] Assistant tools: wrap через `role_can_open_report` + project clamp.
 - [ ] При ответе агента логировать `role` + `nav_id`/`report` + `project` (аудит).
+- [ ] Единый справочник написания проектов (1С ↔ UI ↔ XCA).
+- [ ] Вебхук «матрица/данные обновились» (пока poll `roles-catalog` + `GET /api/admin/data-status`).
+
+---
+
+## 12. Ответы коллеге по ИИ (API дашборда + роли)
+
+Стенд: `https://insipidly-carefree-husky.cloudpub.ru`  
+Секрет машинного доступа: `WEBAPP_ADMIN_TOKEN` → заголовок `X-Admin-Token` (тот же, что FTP sync).
+
+### 12.1. Токен к `GET /api/ask-ai/roles-catalog`
+
+**Уже готово.** Доступ:
+
+```http
+GET /api/ask-ai/roles-catalog
+Authorization: Bearer <admin JWT>
+# или
+X-Admin-Token: <WEBAPP_ADMIN_TOKEN>
+```
+
+Ответ: `roles[].code`, `roles[].reports` (**`screen_*`**), `roles[].projects` (`["*"]` или явный список из `role_projects`), плюс `screens[]`.  
+Матрица живая из `users.db` — **не хардкодить** у себя; poll после админских правок.
+
+### 12.2. Вызов data-API от имени пользователя
+
+Все dashboard GET режутся JWT пользователя:
+
+```http
+POST /api/auth/login  {"username","password"} → { token, user }
+GET  /api/<report>    Authorization: Bearer <token>
+```
+
+| `screen_*` | HTTP (пример) |
+|------------|----------------|
+| `screen_bdds` | `GET /api/bdds?...` |
+| `screen_bdr` | `GET /api/bdr?...` |
+| `screen_working_documentation` | `GET /api/working-documentation?...` |
+| … | префикс `/api/<kebab-nav>` как в `src` / роутерах |
+
+Правила:
+
+- Без Bearer → **401**; экран вне роли → **403**; проект вне scope → clamp / пустой результат / 403 на Ask.
+- Токен = HMAC session (`WEBAPP_AUTH_TOKEN_TTL_SECONDS`, по умолчанию **8 ч**). В payload только `sub=username`; **роль читается из БД на каждый запрос** → смена роли в админке действует на data-API сразу.
+- **Impersonation / service-token «как user X» пока нет.** Варианты для XCA:
+  1. (рекомендуем сейчас) белый список команд из `roles-catalog` / `my-screens` + **свои** витрины/DWH;
+  2. если нужны именно цифры дашборда — нужен **user Bearer** (логин пользователя или будущий short-lived data-token в `/link`); отдельный machine→user proxy не делали.
+
+### 12.3. Полный scope пользователя — `GET /api/ask-ai/my-screens`
+
+**Сделано.** User Bearer (любой report-user):
+
+```json
+{
+  "ok": true,
+  "uid": "u_1042",
+  "role": "rd_only",
+  "allowed_nav_ids": ["working-documentation"],
+  "allowed_reports": ["screen_working_documentation"],
+  "allowed_projects": ["Есипово-5"],
+  "updated_at": "2026-08-11T…"
+}
+```
+
+- `allowed_projects: null` = все проекты (admin или без ограничений).
+- Дублирует смысл `/api/auth/me`, но `allowed_reports` сразу в **`screen_*`** (для белого списка команд).
+- `/link` по-прежнему кладёт в URL **один** `project` (текущий фильтр экрана, уже clamped). Полный набор берите из `my-screens`, не из query.
+
+Эквивалент UI-сессии: `GET /api/auth/me` → `allowed_reports` (**nav.id**) + `allowed_projects`.
+
+### 12.4. Фильтры экрана в ссылке (`project`, `period`, `filters`)
+
+**Уже передаём** с кнопки «Спросить ИИ»: в момент клика читается `window.location.search` → `POST /api/ask-ai/link`.
+
+| Параметр | Когда есть |
+|----------|------------|
+| `project` | выбран конкретный проект (не «Все»); иначе может подставиться единственный из ACL |
+| `period` | `YYYY-MM` или `YYYY-MM-DD..YYYY-MM-DD` из date_from/date_to |
+| `filters` | прочий JSON (block, …), ≤400 символов |
+
+На стороне XCA: **если параметра нет — не считать «весь портфель за всё время» для пользователя с ACL**; взять `allowed_projects` из `my-screens` и разумный дефолт периода (или спросить). Пустой `project` у admin без фильтра = действительно широкий scope, как на экране.
+
+### 12.5. Единое написание проектов
+
+Сейчас источник имени в `project` = **строка фильтра UI** (= имя в данных дашборда / БД), без нормализации `Дмитровский` ↔ `Дмитровский-1`.  
+Сопоставление алиасов — зона XCA **или** будущий общий справочник на дашборде.  
+Для ACL: сравнение **exact string** с `role_projects` / `project_permissions`. Промах имени = отказ или «чужой» проект — согласны, это риск; пока админ должен выбирать те же строки, что в фильтрах.
+
+### 12.6. Регламент прав во времени + свежесть данных
+
+| Событие | Поведение |
+|---------|-----------|
+| Смена роли / матрицы / проектов в админке | **Data-API и `/link` / `my-screens`:** на следующем запросе (роль из БД). **UI меню / localStorage:** до `fetchAuthMe` или перелогина может быть устаревшим. |
+| JWT пользователя | TTL **8 ч** (`WEBAPP_AUTH_TOKEN_TTL_SECONDS`); после expiry — 401, новый login. |
+| Ссылка Ask `/ask?…&ts&sig` | TTL **~10 мин** (`expires_in: 600`). Отзыв «тикета» раньше — только отказом на вашей стороне по `roles-catalog`/`my-screens` (мы ссылку не инвалидируем централизованно). |
+| Обновление матрицы ролей для XCA | Пока **poll** `roles-catalog` (нет вебхука). Рекомендация: раз в N минут + после админских правок вручную. |
+| Свежая выгрузка данных | `GET /api/admin/data-status` (публичный freshness) / `POST /api/admin/ensure-fresh` (Bearer или `X-Admin-Token`). Вебхука «данные залиты» пока нет — poll или свой cron. |
 
 ---
 

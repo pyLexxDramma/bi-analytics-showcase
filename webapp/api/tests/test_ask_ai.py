@@ -210,3 +210,25 @@ def test_ask_ai_link_allowed_for_role_with_screen(ask_client: TestClient):
     )
     assert res.status_code == 200
     assert res.json()["report"] == "screen_gdrs_people"
+
+
+def test_my_screens_for_user(ask_client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "app.services.project_scope.allowed_projects_for_user",
+        lambda _user: ["Есипово-5"],
+    )
+    token = create_token("mgr")
+    res = ask_client.get(
+        "/api/ask-ai/my-screens",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert data["ok"] is True
+    assert data["role"] == "manager"
+    assert data["uid"] == "u_2"
+    assert "screen_bdds" not in data["allowed_reports"]
+    assert "screen_gdrs_people" in data["allowed_reports"]
+    assert "bdds" not in data["allowed_nav_ids"]
+    assert "gdrs-people" in data["allowed_nav_ids"]
+    assert data["allowed_projects"] == ["Есипово-5"]
