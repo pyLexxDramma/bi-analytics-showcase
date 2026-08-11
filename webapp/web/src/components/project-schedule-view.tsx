@@ -249,7 +249,7 @@ export function ProjectScheduleView() {
   );
 
   const columnLabels = useMemo(() => {
-    if (data?.columns?.length) return data.columns;
+    // Не доверяем data.columns целиком: API раньше отдавал ИД/Ур даже в режиме лотов.
     return [
       "Проект",
       ...(showLots ? ["Лот"] : ["ИД", "Ур", "Название задачи"]),
@@ -262,7 +262,7 @@ export function ProjectScheduleView() {
       "Отклонение окончания",
       ...(showReasons ? ["Причины отклонений", "Заметки"] : []),
     ];
-  }, [data?.columns, showLots, showReasons]);
+  }, [showLots, showReasons]);
 
   const sortedRows = useMemo(() => {
     const indexed = rows.map((row, index) => ({ ...row, _index: index }));

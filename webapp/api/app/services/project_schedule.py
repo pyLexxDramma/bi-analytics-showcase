@@ -546,7 +546,7 @@ def build_project_schedule_payload(
     label_pct: bool = False,
 ) -> dict[str, Any]:
     cache_key = (
-        f"v4|p={project or 'Все'}|l={level}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v5|p={project or 'Все'}|l={level}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|hc={int(hide_completed)}|od={int(only_delay)}|sr={int(show_reasons)}"
         f"|sl={int(show_lots)}|lp={int(label_pct)}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -930,9 +930,7 @@ def build_project_schedule_payload(
 
         columns = [
             "Проект",
-            "ИД",
-            "Ур",
-            "Название задачи" if not show_lots else "Лот",
+            *(["Лот"] if show_lots else ["ИД", "Ур", "Название задачи"]),
             "% завершения",
             "Начало",
             "Базовое начало",

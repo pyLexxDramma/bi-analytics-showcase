@@ -947,7 +947,7 @@ export function DeviationReasonsView() {
                 </MobileCardStack>
                 <div className="hidden p-1 lg:block">
                   <div className="bi-table-scroll overflow-x-auto">
-                  <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-xs">
+                  <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-xs">
                     <thead>
                       <tr>
                         {columns.map((label) => {

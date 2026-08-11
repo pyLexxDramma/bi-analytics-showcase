@@ -421,8 +421,8 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     z-index: 2;
   }
 
-  /* Первая колонка тянет фон строки: зебра и hover продолжают работать,
-     а под липкой ячейкой ничего не просвечивает. */
+  /* Первая колонка: непрозрачный фон (не inherit от tr с /60 — иначе текст
+     второй колонки просвечивает сквозь sticky). */
   .bi-sticky-col {
     background-color: #ffffff;
   }
@@ -431,25 +431,55 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     background-color: #111827;
   }
 
-  .bi-sticky-col tbody,
-  .bi-sticky-col tbody tr {
-    background-color: inherit;
-  }
-
   .bi-sticky-col tbody td:first-child,
   .bi-sticky-col tbody th:first-child {
     position: sticky;
     left: 0;
-    z-index: 1;
-    background-color: inherit;
+    z-index: 2;
+    background-color: #ffffff;
     background-clip: padding-box;
+    box-shadow: 6px 0 8px -6px rgba(15, 23, 42, 0.28);
+  }
+
+  .bi-sticky-col tbody tr:nth-child(odd) > td:first-child,
+  .bi-sticky-col tbody tr:nth-child(odd) > th:first-child {
+    background-color: #f8fafc;
+  }
+
+  .bi-sticky-col tbody tr:hover > td:first-child,
+  .bi-sticky-col tbody tr:hover > th:first-child {
+    background-color: #f1f5f9;
+  }
+
+  html.dark .bi-sticky-col tbody td:first-child,
+  html.dark .bi-sticky-col tbody th:first-child {
+    background-color: #111827;
+    box-shadow: 6px 0 8px -6px rgba(0, 0, 0, 0.55);
+  }
+
+  html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:first-child,
+  html.dark .bi-sticky-col tbody tr:nth-child(odd) > th:first-child {
+    background-color: #0f172a;
+  }
+
+  html.dark .bi-sticky-col tbody tr:hover > td:first-child,
+  html.dark .bi-sticky-col tbody tr:hover > th:first-child {
+    background-color: #1e293b;
   }
 
   /* Угловая ячейка — только в верхнем ряду: в нижних рядах первая ячейка
      принадлежит уже прокручиваемым колонкам и слева липнуть не должна. */
   .bi-sticky-head.bi-sticky-col thead tr:first-child th:first-child {
     left: 0;
-    z-index: 4;
+    z-index: 5;
+    background-color: #f3f4f6;
+    background-clip: padding-box;
+    box-shadow: 6px 0 8px -6px rgba(15, 23, 42, 0.28);
+  }
+
+  html.dark .bi-sticky-head.bi-sticky-col thead tr:first-child th:first-child {
+    background-color: hsl(209, 72%, 6%);
+    box-shadow: 6px 0 8px -6px rgba(0, 0, 0, 0.55);
   }
 }
 

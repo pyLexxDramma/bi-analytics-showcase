@@ -179,7 +179,9 @@ function MobileTimelineLane({
   const labelCenter = clampPct(Math.max(25, Math.min(75, (left + right) / 2)));
   const dateText = milestone
     ? `Дата ${endLabel || "—"}`
-    : `Начало ${startLabel || "—"} · Конец ${endLabel || "—"}`;
+    : !startLabel && endLabel
+      ? endLabel
+      : `Начало ${startLabel || "—"} · Конец ${endLabel || "—"}`;
 
   return (
     <div className="grid grid-cols-[1.75rem_1fr] items-end gap-2">
@@ -359,8 +361,15 @@ function MobileTaskTimelines({
                 color={factColor}
                 start={row.current.start}
                 end={row.current.end}
-                startLabel={row.current.start_label}
-                endLabel={row.current.end_label}
+                startLabel={labelPct ? "" : row.current.start_label}
+                endLabel={
+                  labelPct
+                    ? row.pct_complete != null &&
+                      Number.isFinite(Number(row.pct_complete))
+                      ? `${Math.round(Number(row.pct_complete))}%`
+                      : "н/д"
+                    : row.current.end_label
+                }
                 rangeStart={range.start}
                 rangeSpan={range.span}
                 milestone={covenantMode}
@@ -651,7 +660,20 @@ export function ProjectScheduleGantt({
           const startYShift = expandedWide ? -0.08 : 0;
           const endYShift = expandedWide ? 0.08 : 0;
 
-          if (!labelPct) {
+          if (labelPct) {
+            // Как main: только «Факт» + % справа, без дат на концах бара.
+            const pctTxt =
+              row.pct_complete != null && Number.isFinite(Number(row.pct_complete))
+                ? `${Math.round(Number(row.pct_complete))}%`
+                : "н/д";
+            pushEdge(
+              "fact|pct",
+              fe,
+              fy + endYShift,
+              pctTxt,
+              expandedWide ? "bottom center" : "middle right",
+            );
+          } else {
             pushEdge(
               "plan|start",
               ps,
@@ -666,33 +688,24 @@ export function ProjectScheduleGantt({
               row.baseline.end_label || "",
               endPos,
             );
-          }
-          if (!sameDay(row.current.start, row.baseline.start) || labelPct) {
-            pushEdge(
-              "fact|start",
-              fs,
-              fy + startYShift,
-              row.current.start_label || "",
-              startPos,
-            );
-          }
-          if (!sameDay(row.current.end, row.baseline.end) || labelPct) {
-            pushEdge(
-              "fact|end",
-              fe,
-              fy + endYShift,
-              row.current.end_label || "",
-              endPos,
-            );
-          }
-          if (labelPct && row.pct_complete != null && fe != null) {
-            pushEdge(
-              "fact|pct",
-              fe,
-              fy + endYShift,
-              `${row.pct_complete}%`,
-              expandedWide ? "bottom center" : "middle right",
-            );
+            if (!sameDay(row.current.start, row.baseline.start)) {
+              pushEdge(
+                "fact|start",
+                fs,
+                fy + startYShift,
+                row.current.start_label || "",
+                startPos,
+              );
+            }
+            if (!sameDay(row.current.end, row.baseline.end)) {
+              pushEdge(
+                "fact|end",
+                fe,
+                fy + endYShift,
+                row.current.end_label || "",
+                endPos,
+              );
+            }
           }
         });
 
