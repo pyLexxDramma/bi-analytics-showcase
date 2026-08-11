@@ -58,6 +58,20 @@ function toneDot(tone: string | undefined): string {
   return "🟢";
 }
 
+/** Заливка ячеек «Допущения %» / «Аванс − КС-2» — как main `_dc_advance_semaphore_bg`. */
+function toneCellClass(tone: string | undefined): string {
+  if (tone === "green") {
+    return "bg-[rgba(34,197,94,0.28)] font-semibold dark:bg-[rgba(70,214,138,0.35)]";
+  }
+  if (tone === "yellow") {
+    return "bg-[rgba(234,179,8,0.35)] font-semibold dark:bg-[rgba(241,196,15,0.32)]";
+  }
+  if (tone === "red") {
+    return "bg-[rgba(248,113,113,0.35)] font-semibold dark:bg-[rgba(255,84,84,0.32)]";
+  }
+  return "";
+}
+
 type MobileSortKey = "contractor" | "contract_sum" | "advance_pct" | "advance_ks2";
 
 const MOBILE_SORT_OPTIONS: Array<{ value: MobileSortKey; label: string }> = [
@@ -327,7 +341,9 @@ export function DebitCreditView() {
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                     {mln(row.advance)}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                  <td
+                    className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${toneCellClass(row.advance_tone)}`}
+                  >
                     {toneDot(row.advance_tone)}{" "}
                     {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
                   </td>
@@ -337,8 +353,10 @@ export function DebitCreditView() {
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                     {mln(row.balance)}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                    {mln(row.advance_ks2)}
+                  <td
+                    className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${toneCellClass(row.advance_tone)}`}
+                  >
+                    {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
                   </td>
                 </tr>
               ))}
@@ -357,7 +375,9 @@ export function DebitCreditView() {
                 <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
                   {mln(data?.totals.advance)}
                 </td>
-                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                <td
+                  className={`border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
+                >
                   {toneDot(data?.totals.advance_tone)}{" "}
                   {data?.totals.advance_pct == null
                     ? "—"
@@ -369,7 +389,10 @@ export function DebitCreditView() {
                 <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
                   {mln(data?.totals.balance)}
                 </td>
-                <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                <td
+                  className={`border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
+                >
+                  {toneDot(data?.totals.advance_tone)}{" "}
                   {mln(data?.totals.advance_ks2)}
                 </td>
               </tr>
@@ -378,8 +401,9 @@ export function DebitCreditView() {
         </div>
         <div className="space-y-2 border-t border-tremor-border p-4 text-sm dark:border-dark-tremor-border">
           <Text>
-            Цветовые индикаторы (Аванс − КС-2): 🟢 delta ≤ 0 или ≤ 30% стоимости
-            договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%.
+            Цветовые индикаторы (Аванс − КС-2): 🟢 ≤ 0 или ≤ 30% стоимости
+            договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%. Колонки «Допущения по
+            авансированию %» и «Аванс − КС-2» заливаются по тем же порогам.
           </Text>
           <DownloadTableButton
             getTable={exportTable}
@@ -490,7 +514,7 @@ export function DebitCreditView() {
         )}
         <div className="space-y-2 px-2 pb-3 text-sm">
           <Text>
-            Цветовые индикаторы (Аванс − КС-2): 🟢 delta ≤ 0 или ≤ 30% стоимости договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%.
+            Цветовые индикаторы (Аванс − КС-2): 🟢 ≤ 0 или ≤ 30% стоимости договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%. Колонки «Допущения по авансированию %» и «Аванс − КС-2» заливаются по тем же порогам.
           </Text>
           <DownloadTableButton
             getTable={exportTable}
