@@ -26,23 +26,7 @@ fi
 
 mkdir -p data/web data/db data/report_cache data/jobs data/assistant_output
 
-auth_secret="${WEBAPP_AUTH_SECRET:-}"
-if [[ ${#auth_secret} -lt 32 ]]; then
-  auth_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
-  printf '\nWEBAPP_AUTH_SECRET=%s\n' "$auth_secret" >>.env
-  export WEBAPP_AUTH_SECRET="$auth_secret"
-  echo "Generated persistent WEBAPP_AUTH_SECRET in webapp/.env"
-fi
-if [[ -z "${SHOWCASE_VLLM_BASE_URL:-}" ]]; then
-  SHOWCASE_VLLM_BASE_URL="http://10.35.15.75:8000/v1"
-  printf '\nSHOWCASE_VLLM_BASE_URL=%s\n' "$SHOWCASE_VLLM_BASE_URL" >>.env
-  export SHOWCASE_VLLM_BASE_URL
-  echo "Configured showcase vLLM endpoint in webapp/.env"
-fi
-export SHOWCASE_AI_ENABLED=1
-export NEXT_PUBLIC_AI_MODE=full
-
-# XCA Ask AI — из CI secrets / окружения; не коммитить значения
+# Upsert ключа в .env (одна запись, без дублей append).
 _upsert_env() {
   local key="$1" val="$2"
   [[ -n "$val" ]] || return 0
@@ -59,6 +43,34 @@ _upsert_env() {
   export "${key}=${val}"
   echo "Configured ${key} in webapp/.env (len=${#val})"
 }
+
+auth_secret="${WEBAPP_AUTH_SECRET:-}"
+# Если в shell пусто/коротко — берём последнее значение из .env (без дублей при append).
+if [[ ${#auth_secret} -lt 32 ]]; then
+  auth_secret="$(
+    grep -E '^WEBAPP_AUTH_SECRET=' .env 2>/dev/null \
+      | tail -n 1 \
+      | sed 's/^WEBAPP_AUTH_SECRET=//' \
+      | tr -d '\r' \
+      || true
+  )"
+fi
+if [[ ${#auth_secret} -lt 32 ]]; then
+  auth_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+  echo "Generated new WEBAPP_AUTH_SECRET (len=${#auth_secret})"
+fi
+_upsert_env WEBAPP_AUTH_SECRET "$auth_secret"
+export WEBAPP_AUTH_SECRET="$auth_secret"
+if [[ -z "${SHOWCASE_VLLM_BASE_URL:-}" ]]; then
+  SHOWCASE_VLLM_BASE_URL="http://10.35.15.75:8000/v1"
+  printf '\nSHOWCASE_VLLM_BASE_URL=%s\n' "$SHOWCASE_VLLM_BASE_URL" >>.env
+  export SHOWCASE_VLLM_BASE_URL
+  echo "Configured showcase vLLM endpoint in webapp/.env"
+fi
+export SHOWCASE_AI_ENABLED=1
+export NEXT_PUBLIC_AI_MODE=full
+
+# XCA Ask AI — из CI secrets / окружения; не коммитить значения
 _upsert_env XCA_ASK_SECRET "${XCA_ASK_SECRET:-}"
 _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 

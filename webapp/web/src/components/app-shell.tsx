@@ -30,6 +30,8 @@ import {
   writeWideCanvas,
   type Density,
 } from "@/lib/view-prefs";
+import { fetchAuthMe } from "@/lib/api";
+import { isAuthenticated, logout } from "@/lib/auth";
 
 export function AppShell({
   title,
@@ -57,6 +59,20 @@ export function AppShell({
     setDark(readTheme() === "dark");
     setWide(readWideCanvas());
     setDensity(readDensity());
+  }, []);
+
+  // Битый токен после смены WEBAPP_AUTH_SECRET — сброс, иначе отчёты/логин ломаются.
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    let cancelled = false;
+    void fetchAuthMe().catch(() => {
+      if (cancelled) return;
+      logout();
+      window.location.assign("/login?reason=session");
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

@@ -1,5 +1,16 @@
 import type { AuthUser } from "@/lib/auth";
-import { authHeaders } from "@/lib/auth";
+import { authHeaders, logout } from "@/lib/auth";
+
+/** Битый/просроченный Bearer — сброс сессии и на логин (иначе «войти» не даёт из‑за флага в localStorage). */
+function redirectIfAuthExpired(status: number | undefined, detail: string) {
+  if (status !== 401 || typeof window === "undefined") return;
+  if (window.location.pathname.startsWith("/login")) return;
+  logout();
+  const q = detail
+    ? `?reason=${encodeURIComponent(detail.slice(0, 120))}`
+    : "";
+  window.location.assign(`/login${q}`);
+}
 
 export const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE ?? ""
@@ -179,6 +190,7 @@ export async function apiGet<T>(
       .json()
       .then((body) => (typeof body?.detail === "string" ? body.detail : ""))
       .catch(() => "");
+    redirectIfAuthExpired(res.status, detail);
     throw new ApiError(detail || `API ${res.status}: ${url}`, {
       status: res.status,
       url,
@@ -221,6 +233,7 @@ export async function apiPost<T>(
       .json()
       .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
       .catch(() => "");
+    redirectIfAuthExpired(res.status, detail);
     throw new ApiError(detail || `API ${res.status}: ${url}`, {
       status: res.status,
       url,
@@ -258,6 +271,7 @@ export async function apiPut<T>(
       .json()
       .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
       .catch(() => "");
+    redirectIfAuthExpired(res.status, detail);
     throw new ApiError(detail || `API ${res.status}: ${url}`, {
       status: res.status,
       url,
@@ -295,6 +309,7 @@ export async function apiDelete<T>(
       .json()
       .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
       .catch(() => "");
+    redirectIfAuthExpired(res.status, detail);
     throw new ApiError(detail || `API ${res.status}: ${url}`, {
       status: res.status,
       url,

@@ -19,9 +19,15 @@ def require_active_user(authorization: str | None) -> dict:
 
 
 def optional_active_user(authorization: str | None) -> dict | None:
+    """Bearer опционален: битый/просроченный токен = аноним, не 401 на весь отчёт."""
     if not (authorization or "").strip():
         return None
-    return require_active_user(authorization)
+    try:
+        return require_active_user(authorization)
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            return None
+        raise
 
 
 def require_admin_user(authorization: str | None) -> dict:
