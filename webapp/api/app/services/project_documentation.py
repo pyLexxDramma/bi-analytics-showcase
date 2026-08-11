@@ -693,7 +693,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v3|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v5|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1068,27 +1068,55 @@ def build_project_documentation_payload(
             msrc = _dedupe_by_cipher(
                 msrc, cipher_col=cipher_col if isinstance(cipher_col, str) else None, project_col=proj_col
             )
+            # После dedupe пересчитать ontime (как main `_pd_monthly_dedupe_by_cipher`).
+            if "_pd_row_fact" in msrc.columns and "_pd_row_overdue" in msrc.columns:
+                msrc["_pd_row_fact_ontime"] = (
+                    (pd.to_numeric(msrc["_pd_row_fact"], errors="coerce").fillna(0) > 0)
+                    & (pd.to_numeric(msrc["_pd_row_overdue"], errors="coerce").fillna(0) <= 0)
+                ).astype(int)
             msrc["_month"] = _to_dt(msrc["_plan_end_dt"]).dt.to_period("M")
             cur_m = pd.Period(pd.Timestamp.today().normalize(), freq="M")
             msrc = msrc[msrc["_month"] <= cur_m]
             if not msrc.empty:
+                # Как main `_rd_monthly_sections_aggregate(..., overdue_col=_pd_row_overdue)`:
+                # done = факт вовремя; overdue = просрочка (в т.ч. сдано с опозданием).
+                _ov = pd.to_numeric(msrc["_pd_row_overdue"], errors="coerce").fillna(0).gt(0)
+                _fact = pd.to_numeric(msrc["_pd_row_fact"], errors="coerce").fillna(0)
+                _plan = pd.to_numeric(msrc["_pd_row_plan"], errors="coerce").fillna(0)
+                msrc["_overdue_n"] = np.where(_ov, _plan, 0.0)
+                msrc["_done_n"] = np.where(~_ov & (_fact > 0), np.minimum(_plan, _fact), 0.0)
                 agg = (
                     msrc.groupby("_month", as_index=False)
-                    .agg(plan=("_pd_row_plan", "sum"), fact=("_pd_row_fact", "sum"))
+                    .agg(
+                        plan=("_pd_row_plan", "sum"),
+                        done=("_done_n", "sum"),
+                        overdue=("_overdue_n", "sum"),
+                    )
                     .sort_values("_month")
                 )
-                cum_p = cum_f = 0
+                agg = agg[agg["plan"] > 0].copy()
+                cum_p = cum_d = cum_o = 0
                 rows_m = []
                 for _, r in agg.iterrows():
-                    cum_p += int(r["plan"])
-                    cum_f += int(r["fact"])
+                    p_inc = int(r["plan"])
+                    d_inc = int(r["done"])
+                    o_inc = int(r["overdue"])
+                    cum_p += p_inc
+                    cum_d += d_inc
+                    cum_o += o_inc
+                    fact_inc = d_inc + o_inc
+                    rest = max(0, cum_p - cum_d - cum_o)
                     p = r["_month"]
                     rows_m.append(
                         {
                             "month": f"{p.year}-{int(p.month):02d}",
                             "month_label": f"{_MONTH_RU[int(p.month)]} {p.year}",
                             "plan": cum_p,
-                            "fact": cum_f,
+                            "done": cum_d,
+                            "overdue": cum_o,
+                            "rest": rest,
+                            "fact": cum_d + cum_o,
+                            "fact_inc": fact_inc,
                         }
                     )
                 monthly = list(reversed(rows_m))
@@ -1246,4 +1274,3 @@ def build_project_documentation_payload(
     except Exception as exc:  # noqa: BLE001
         out = _empty_payload(error=str(exc)[:400])
         return out
-
