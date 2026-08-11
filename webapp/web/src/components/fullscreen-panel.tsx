@@ -142,7 +142,7 @@ export function FullscreenPanel({
           active
             ? fill
               ? "h-full w-full"
-              : "flex min-h-full min-w-fit items-center justify-center p-4"
+              : "flex min-h-full min-w-0 w-full items-start justify-center p-4"
             : inlineBar
               ? `min-w-0 max-w-full ${scroll ? "overflow-x-auto" : "overflow-x-hidden"}`
               : ""

@@ -271,10 +271,8 @@ function ControlPointsGroup({
           {titles}
         </Text>
       </div>
-      <FullscreenPanel disabled={!projects.length} scroll={false}>
-        <ControlPointsMobileCards group={group} projects={projects} />
-        <ControlPointsDesktopTable group={group} projects={projects} />
-      </FullscreenPanel>
+      <ControlPointsMobileCards group={group} projects={projects} />
+      <ControlPointsDesktopTable group={group} projects={projects} />
     </Card>
   );
 }
@@ -309,6 +307,7 @@ export function ControlPointsView() {
   });
 
   const projects = data?.projects ?? [];
+  const groups = data?.groups ?? [];
   const metaError = data?.meta.error;
 
   return (
@@ -333,9 +332,15 @@ export function ControlPointsView() {
       {error || metaError ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || metaError}</Text></Card> : null}
       {!projects.length ? <Card className="rounded-xl"><Text>{loading ? "Загрузка…" : "Нет данных контрольных точек. Сделайте ingest в админке."}</Text></Card> : (
         <div className="space-y-6">
-          {(data?.groups ?? []).map((group) => (
-            <ControlPointsGroup key={group.id} group={group} projects={projects} />
-          ))}
+          <FullscreenPanel disabled={!projects.length || !groups.length} scroll={false}>
+            {(zoomed) => (
+              <div className={`space-y-6 ${zoomed ? "w-full max-w-none p-2 pt-10" : ""}`}>
+                {groups.map((group) => (
+                  <ControlPointsGroup key={group.id} group={group} projects={projects} />
+                ))}
+              </div>
+            )}
+          </FullscreenPanel>
           <DownloadTableButton getTable={() => (data ? buildExport(data) : null)} fileStem="control_points_matrix" />
         </div>
       )}
