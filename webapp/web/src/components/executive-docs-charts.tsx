@@ -119,7 +119,23 @@ function Chart({ data, xTitle, color, rows, horizontal = false }: { data: CountR
 }
 
 export function ExecutiveOverdueChart({ rows, customer }: { rows: CountRow[]; customer?: boolean }) {
-  return <Chart data={rows} rows={rows} xTitle="Количество" color={customer ? "#fbbf24" : "#f87171"} horizontal />;
+  // Plotly: первая категория Y — снизу. Сортируем по возрастанию → сверху наибольшая просрочка.
+  const ordered = useMemo(
+    () =>
+      [...rows].sort(
+        (a, b) => Number(a.count ?? a.new_docs ?? 0) - Number(b.count ?? b.new_docs ?? 0),
+      ),
+    [rows],
+  );
+  return (
+    <Chart
+      data={ordered}
+      rows={ordered}
+      xTitle="Количество"
+      color={customer ? "#fbbf24" : "#f87171"}
+      horizontal
+    />
+  );
 }
 
 export function ExecutiveStatusChart({ rows }: { rows: CountRow[] }) {
