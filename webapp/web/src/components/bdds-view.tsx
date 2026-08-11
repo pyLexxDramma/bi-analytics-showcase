@@ -75,12 +75,29 @@ type PeriodRow = BddsTableRow & { _index: number };
 type ProjectRow = BddsPayload["project_rows"][number] & { _index: number };
 
 /** «445.6 млн. руб.» — `utils.format_million_rub(value, decimals=1)` в [main]. */
-function mlnCell(value: number): string {
-  return `${(Number(value || 0) / 1_000_000).toFixed(1)} млн. руб.`;
+function mlnCell(value: number, opts?: { signed?: boolean }): string {
+  const n = Number(value || 0) / 1_000_000;
+  const abs = Math.abs(n).toFixed(1);
+  if (opts?.signed) {
+    if (n > 0) return `+${abs} млн. руб.`;
+    if (n < 0) return `-${abs} млн. руб.`;
+  }
+  return `${n.toFixed(1)} млн. руб.`;
 }
 
 function mlnNumber(value: number): number {
   return Number((Number(value || 0) / 1_000_000).toFixed(1));
+}
+
+/** Компактное число для mobile; при signed — с «+» для положительных. */
+function mlnPlain(value: number, opts?: { signed?: boolean }): string {
+  const n = mlnNumber(value);
+  const abs = Math.abs(n).toFixed(1);
+  if (opts?.signed) {
+    if (n > 0) return `+${abs}`;
+    if (n < 0) return `-${abs}`;
+  }
+  return n.toFixed(1);
 }
 
 function deviationClass(value: number): string {
@@ -97,24 +114,34 @@ function SortableHeader({
   sortKey,
   sort,
   onSort,
-  align = "left",
+  align = "center",
 }: {
   label: string;
   sortKey: SortKey;
   sort: SortState;
   onSort: (key: SortKey) => void;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
 }) {
   const active = sort?.key === sortKey;
+  const justify =
+    align === "right"
+      ? "justify-end"
+      : align === "left"
+        ? "justify-start"
+        : "justify-center";
+  const textAlign =
+    align === "right"
+      ? "text-right"
+      : align === "left"
+        ? "text-left"
+        : "text-center";
   return (
-    <th className={`${HEAD_CELL} ${align === "right" ? "text-right" : "text-left"}`}>
+    <th className={`${HEAD_CELL} ${textAlign}`}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
         title="Сортировать по колонке"
-        className={`flex w-full items-center gap-1 ${
-          align === "right" ? "justify-end" : "justify-start"
-        }`}
+        className={`flex w-full items-center gap-1 ${justify}`}
       >
         <span>{label}</span>
         <span className={active ? "text-emerald-700 dark:text-emerald-300" : "opacity-60"}>
@@ -198,30 +225,32 @@ function MobilePeriodBlocks({
             </colgroup>
             <thead>
               <tr>
-                <th className={`${HEAD_CELL} px-1.5 py-1.5 normal-case`}>{periodLabel}</th>
-                <th className={`${HEAD_CELL} px-1.5 py-1.5 text-right normal-case`}>План</th>
-                <th className={`${HEAD_CELL} px-1.5 py-1.5 text-right normal-case`}>Факт</th>
-                <th className={`${HEAD_CELL} px-1.5 py-1.5 text-right normal-case`}>Откл.</th>
+                <th className={`${HEAD_CELL} px-1.5 py-1.5 text-center normal-case`}>
+                  {periodLabel}
+                </th>
+                <th className={`${HEAD_CELL} px-1.5 py-1.5 text-center normal-case`}>План</th>
+                <th className={`${HEAD_CELL} px-1.5 py-1.5 text-center normal-case`}>Факт</th>
+                <th className={`${HEAD_CELL} px-1.5 py-1.5 text-center normal-case`}>Откл.</th>
               </tr>
             </thead>
             <tbody>
               {block.rows.map((row, index) => (
                 <tr key={`${block.project}-${row.period}-${index}`}>
-                  <td className={`${CELL} ${BODY_CELL} px-1.5 py-1.5 text-[11px] leading-snug`}>
+                  <td className={`${CELL} ${BODY_CELL} px-1.5 py-1.5 text-center text-[11px] leading-snug`}>
                     {row.period}
                   </td>
-                  <td className={`${CELL} ${BODY_CELL} px-1 py-1.5 text-right text-[11px] tabular-nums`}>
-                    {mlnNumber(row.plan).toFixed(1)}
+                  <td className={`${CELL} ${BODY_CELL} px-1 py-1.5 text-center text-[11px] tabular-nums`}>
+                    {mlnPlain(row.plan)}
                   </td>
-                  <td className={`${CELL} ${BODY_CELL} px-1 py-1.5 text-right text-[11px] tabular-nums`}>
-                    {mlnNumber(row.fact).toFixed(1)}
+                  <td className={`${CELL} ${BODY_CELL} px-1 py-1.5 text-center text-[11px] tabular-nums`}>
+                    {mlnPlain(row.fact)}
                   </td>
                   <td
-                    className={`${CELL} px-1 py-1.5 text-right text-[11px] tabular-nums ${deviationClass(
+                    className={`${CELL} px-1 py-1.5 text-center text-[11px] tabular-nums ${deviationClass(
                       row.deviation,
                     )}`}
                   >
-                    {mlnNumber(row.deviation).toFixed(1)}
+                    {mlnPlain(row.deviation, { signed: true })}
                   </td>
                 </tr>
               ))}
@@ -243,18 +272,18 @@ function MobilePeriodBlocks({
                 ИТОГО
                 <div className="text-[10px] font-normal opacity-80">{totalPeriodLabel}</div>
               </td>
-              <td className={`${CELL} px-1 py-2 text-right tabular-nums`}>
-                {mlnNumber(totals.plan).toFixed(1)}
+              <td className={`${CELL} px-1 py-2 text-center tabular-nums`}>
+                {mlnPlain(totals.plan)}
               </td>
-              <td className={`${CELL} px-1 py-2 text-right tabular-nums`}>
-                {mlnNumber(totals.fact).toFixed(1)}
+              <td className={`${CELL} px-1 py-2 text-center tabular-nums`}>
+                {mlnPlain(totals.fact)}
               </td>
               <td
-                className={`${CELL} px-1 py-2 text-right tabular-nums ${deviationClass(
+                className={`${CELL} px-1 py-2 text-center tabular-nums ${deviationClass(
                   totals.deviation,
                 )}`}
               >
-                {mlnNumber(totals.deviation).toFixed(1)}
+                {mlnPlain(totals.deviation, { signed: true })}
               </td>
             </tr>
           </tbody>
@@ -300,7 +329,7 @@ function MobileProjectBlocks({
             <div className={`${CELL} px-1 py-2`}>
               <dt className="text-[10px] font-semibold uppercase text-[#64748b]">Откл.</dt>
               <dd className={`mt-0.5 tabular-nums ${deviationClass(row.deviation)}`}>
-                {mlnNumber(row.deviation).toFixed(1)}
+                {mlnPlain(row.deviation, { signed: true })}
               </dd>
             </div>
           </dl>
@@ -320,7 +349,7 @@ function MobileProjectBlocks({
           <div className={`${CELL} px-1 py-2`}>
             <dt className="text-[10px] font-semibold uppercase">Откл.</dt>
             <dd className={`mt-0.5 font-bold tabular-nums ${deviationClass(totals.deviation)}`}>
-              {mlnNumber(totals.deviation).toFixed(1)}
+              {mlnPlain(totals.deviation, { signed: true })}
             </dd>
           </div>
         </dl>
@@ -701,21 +730,18 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                             sortKey="plan"
                             sort={periodSort}
                             onSort={togglePeriodSort}
-                            align="right"
                           />
                           <SortableHeader
                             label="Факт, млн. руб."
                             sortKey="fact"
                             sort={periodSort}
                             onSort={togglePeriodSort}
-                            align="right"
                           />
                           <SortableHeader
                             label="Отклонение, млн. руб."
                             sortKey="deviation"
                             sort={periodSort}
                             onSort={togglePeriodSort}
-                            align="right"
                           />
                         </tr>
                       </thead>
@@ -730,38 +756,42 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                           ) : (
                             <tr key={`${row.project}-${row.period}-${index}`}>
                               <td className={`${CELL} ${BODY_CELL}`}>{row.project}</td>
-                              <td className={`${CELL} ${BODY_CELL}`}>{row.period}</td>
-                              <td className={`${CELL} ${BODY_CELL} text-right tabular-nums`}>
+                              <td className={`${CELL} ${BODY_CELL} text-center`}>
+                                {row.period}
+                              </td>
+                              <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
                                 {mlnCell(row.plan)}
                               </td>
-                              <td className={`${CELL} ${BODY_CELL} text-right tabular-nums`}>
+                              <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
                                 {mlnCell(row.fact)}
                               </td>
                               <td
-                                className={`${CELL} px-3 py-2 text-right tabular-nums ${deviationClass(
+                                className={`${CELL} px-3 py-2 text-center tabular-nums ${deviationClass(
                                   row.deviation,
                                 )}`}
                               >
-                                {mlnCell(row.deviation)}
+                                {mlnCell(row.deviation, { signed: true })}
                               </td>
                             </tr>
                           ),
                         )}
                         <tr className={TOTAL_ROW}>
                           <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
-                          <td className={`${CELL} px-3 py-2`}>{data?.labels.total_period}</td>
-                          <td className={`${CELL} px-3 py-2 text-right tabular-nums`}>
+                          <td className={`${CELL} px-3 py-2 text-center`}>
+                            {data?.labels.total_period}
+                          </td>
+                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.plan)}
                           </td>
-                          <td className={`${CELL} px-3 py-2 text-right tabular-nums`}>
+                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.fact)}
                           </td>
                           <td
-                            className={`${CELL} px-3 py-2 text-right tabular-nums ${deviationClass(
+                            className={`${CELL} px-3 py-2 text-center tabular-nums ${deviationClass(
                               totals.deviation,
                             )}`}
                           >
-                            {mlnCell(totals.deviation)}
+                            {mlnCell(totals.deviation, { signed: true })}
                           </td>
                         </tr>
                       </tbody>
@@ -813,21 +843,18 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                             sortKey="plan"
                             sort={projectSort}
                             onSort={toggleProjectSort}
-                            align="right"
                           />
                           <SortableHeader
                             label="Факт, млн. руб."
                             sortKey="fact"
                             sort={projectSort}
                             onSort={toggleProjectSort}
-                            align="right"
                           />
                           <SortableHeader
                             label="Отклонение, млн. руб."
                             sortKey="deviation"
                             sort={projectSort}
                             onSort={toggleProjectSort}
-                            align="right"
                           />
                         </tr>
                       </thead>
@@ -835,35 +862,35 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                         {projectVisible.map((row) => (
                           <tr key={row.project}>
                             <td className={`${CELL} ${BODY_CELL}`}>{row.project}</td>
-                            <td className={`${CELL} ${BODY_CELL} text-right tabular-nums`}>
+                            <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
                               {mlnCell(row.plan)}
                             </td>
-                            <td className={`${CELL} ${BODY_CELL} text-right tabular-nums`}>
+                            <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
                               {mlnCell(row.fact)}
                             </td>
                             <td
-                              className={`${CELL} px-3 py-2 text-right tabular-nums ${deviationClass(
+                              className={`${CELL} px-3 py-2 text-center tabular-nums ${deviationClass(
                                 row.deviation,
                               )}`}
                             >
-                              {mlnCell(row.deviation)}
+                              {mlnCell(row.deviation, { signed: true })}
                             </td>
                           </tr>
                         ))}
                         <tr className={TOTAL_ROW}>
                           <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
-                          <td className={`${CELL} px-3 py-2 text-right tabular-nums`}>
+                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.plan)}
                           </td>
-                          <td className={`${CELL} px-3 py-2 text-right tabular-nums`}>
+                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.fact)}
                           </td>
                           <td
-                            className={`${CELL} px-3 py-2 text-right tabular-nums ${deviationClass(
+                            className={`${CELL} px-3 py-2 text-center tabular-nums ${deviationClass(
                               totals.deviation,
                             )}`}
                           >
-                            {mlnCell(totals.deviation)}
+                            {mlnCell(totals.deviation, { signed: true })}
                           </td>
                         </tr>
                       </tbody>

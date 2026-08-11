@@ -19,7 +19,7 @@ from app.services.finance_1c import (
 from app.services.report_cache import cache_get, cache_set
 
 CACHE_ID = "approved_budget"
-CACHE_VERSION = "v4"
+CACHE_VERSION = "v5"
 CACHE_MAX_AGE_SEC = 3600
 
 
@@ -79,7 +79,7 @@ def _empty_payload(
         "totals": {"plan": 0.0, "fact": 0.0, "deviation": 0.0, "remainder": 0.0},
         "hints": list(screen.hints) if screen else [],
         "labels": {
-            "period_table_title": "Сводная таблица по месяцам",
+            "period_table_title": "Сводная таблица БДДС по месяцам",
             "project_table_title": "Таблица утверждённого бюджет план/факт по проектам",
             "total_period": "",
         },
@@ -207,7 +207,7 @@ def build_approved_budget_payload(
         },
         "hints": screen.hints,
         "labels": {
-            "period_table_title": "Сводная таблица по месяцам",
+            "period_table_title": "Сводная таблица БДДС по месяцам",
             "project_table_title": "Таблица утверждённого бюджет план/факт по проектам",
             "total_period": _total_period(screen, visible_periods),
         },

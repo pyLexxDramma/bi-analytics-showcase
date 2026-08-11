@@ -7,6 +7,7 @@ import { DownloadTableButton } from "@/components/download-table-button";
 import { FinanceBarChart } from "@/components/finance-bar-chart";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
+  ApiError,
   fetchBddsPlanFact,
   type BddsPlanFactPayload,
   type BddsPlanFactQuery,
@@ -61,27 +62,52 @@ const TOTAL =
 const BANNER =
   "break-words rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100";
 
-function mlnCell(value: number, compact = false): string {
-  const n = (Number(value || 0) / 1_000_000).toFixed(1);
-  return compact ? n : `${n} млн. руб.`;
+/** Числа таблицы периода — как main `format_dataframe_as_html(..., finance_decimal_places=1)`. */
+function periodMln(valueRub: number): string {
+  return (Number(valueRub || 0) / 1_000_000).toFixed(1);
 }
 
-function mlnPlain(value: number): string {
-  return (Number(value || 0) / 1_000_000).toFixed(1);
+function mlnPlain(valueRub: number): string {
+  return periodMln(valueRub);
 }
 
-function deviationClass(value: number): string {
-  if (Math.abs(value) < 10_000) return "";
-  return value < 0
-    ? "font-semibold text-[#b91c1c] dark:text-rose-300"
-    : "font-semibold text-[#15803d] dark:text-emerald-300";
+/** Статус: `+.2f` как в main `_forecast_financier_status_table_html`. */
+function statusSignedMln(valueMln: number, decimals = 2): string {
+  const n = Number(valueMln || 0);
+  if (Math.abs(n) < 1e-9) return (0).toFixed(decimals);
+  const abs = Math.abs(n).toFixed(decimals);
+  return n > 0 ? `+${abs}` : `-${abs}`;
 }
 
-function statusClass(status: string): string {
-  const s = status.toLowerCase();
-  if (s.includes("перерасход")) return "text-[#15803d] dark:text-emerald-300";
-  if (s.includes("отставание")) return "text-[#b91c1c] dark:text-rose-300";
-  return "";
+/**
+ * Период: Откл. = план/факт − прогноз.
+ * Main conditional_cols: >0 красный, <0 зелёный.
+ */
+function periodDeviationClass(valueRub: number): string {
+  if (Math.abs(valueRub) < 10_000) return "";
+  return valueRub > 0
+    ? "font-semibold text-[#e11d48] dark:text-rose-300"
+    : "font-semibold text-[#059669] dark:text-emerald-300";
+}
+
+/**
+ * Статус: Откл. = прогноз − база.
+ * Main: >0 перерасход (зелёный), <0 отставание (красный).
+ */
+function statusDeviationClass(valueMln: number): string {
+  if (Math.abs(valueMln) < 1e-9) return "font-semibold";
+  return valueMln > 0
+    ? "font-semibold text-[#059669] dark:text-emerald-300"
+    : "font-semibold text-[#e11d48] dark:text-rose-300";
+}
+
+function statusBulletClass(valueMln: number): string {
+  if (Math.abs(valueMln) < 1e-9) {
+    return "text-slate-400 dark:text-slate-500";
+  }
+  return valueMln > 0
+    ? "text-[#059669] dark:text-emerald-300"
+    : "text-[#e11d48] dark:text-rose-300";
 }
 
 export function BddsPlanFactView() {
@@ -95,7 +121,7 @@ export function BddsPlanFactView() {
 
   const singleProject = filters.project !== "Все";
 
-  const load = useCallback(async (next: Filters) => {
+  const load = useCallback(async (next: Filters, signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
@@ -109,18 +135,22 @@ export function BddsPlanFactView() {
       if (next.date_from) query.date_from = next.date_from;
       if (next.date_to) query.date_to = next.date_to;
       if (next.hide_zero !== null) query.hide_zero = next.hide_zero;
-      setData(await fetchBddsPlanFact(query));
+      setData(await fetchBddsPlanFact(query, signal));
     } catch (cause) {
+      if (signal?.aborted) return;
+      if (cause instanceof ApiError && cause.aborted) return;
       setError(cause instanceof Error ? cause.message : String(cause));
       setData(null);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (singleProject) return;
-    void load(filters);
+    const controller = new AbortController();
+    void load(filters, controller.signal);
+    return () => controller.abort();
   }, [filters, load, singleProject]);
 
   useEffect(() => {
@@ -420,19 +450,21 @@ export function BddsPlanFactView() {
                         >
                           <div className="mb-2 break-words font-semibold">{row.period}</div>
                           <dl className="grid grid-cols-2 gap-1">
-                            <dt>План</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(row.plan, true)}</dd>
-                            <dt>Факт</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(row.fact, true)}</dd>
-                            <dt>Прогноз</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(row.forecast, true)}</dd>
+                            <dt>БДДС план</dt>
+                            <dd className="text-center tabular-nums">{periodMln(row.plan)}</dd>
+                            <dt>БДДС факт</dt>
+                            <dd className="text-center tabular-nums">{periodMln(row.fact)}</dd>
+                            <dt>БДДС прогноз</dt>
+                            <dd className="text-center tabular-nums">
+                              {periodMln(row.forecast)}
+                            </dd>
                             {!filters.hide_deviation ? (
                               <>
                                 <dt>Откл.</dt>
                                 <dd
-                                  className={`text-right tabular-nums ${deviationClass(row.deviation)}`}
+                                  className={`text-center tabular-nums ${periodDeviationClass(row.deviation)}`}
                                 >
-                                  {mlnCell(row.deviation, true)}
+                                  {periodMln(row.deviation)}
                                 </dd>
                               </>
                             ) : null}
@@ -443,19 +475,25 @@ export function BddsPlanFactView() {
                         <div className={`min-w-0 rounded-xl border-[3px] border-[#94a3b8] p-3 text-xs font-bold dark:border-white ${TOTAL}`}>
                           <div className="mb-2">ИТОГО</div>
                           <dl className="grid grid-cols-2 gap-1">
-                            <dt>План</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(totalRow.plan, true)}</dd>
-                            <dt>Факт</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(totalRow.fact, true)}</dd>
-                            <dt>Прогноз</dt>
-                            <dd className="text-right tabular-nums">{mlnCell(totalRow.forecast, true)}</dd>
+                            <dt>БДДС план</dt>
+                            <dd className="text-center tabular-nums">
+                              {periodMln(totalRow.plan)}
+                            </dd>
+                            <dt>БДДС факт</dt>
+                            <dd className="text-center tabular-nums">
+                              {periodMln(totalRow.fact)}
+                            </dd>
+                            <dt>БДДС прогноз</dt>
+                            <dd className="text-center tabular-nums">
+                              {periodMln(totalRow.forecast)}
+                            </dd>
                             {!filters.hide_deviation ? (
                               <>
                                 <dt>Откл.</dt>
                                 <dd
-                                  className={`text-right tabular-nums ${deviationClass(totalRow.deviation)}`}
+                                  className={`text-center tabular-nums ${periodDeviationClass(totalRow.deviation)}`}
                                 >
-                                  {mlnCell(totalRow.deviation, true)}
+                                  {periodMln(totalRow.deviation)}
                                 </dd>
                               </>
                             ) : null}
@@ -468,54 +506,54 @@ export function BddsPlanFactView() {
                     <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
                       <thead>
                         <tr>
-                          <th className={HEAD}>{periodLabel}</th>
-                          <th className={`${HEAD} text-right`}>БДДС план</th>
-                          <th className={`${HEAD} text-right`}>БДДС факт</th>
-                          <th className={`${HEAD} text-right`}>БДДС прогноз</th>
+                          <th className={`${HEAD} text-center`}>{periodLabel}</th>
+                          <th className={`${HEAD} text-center`}>БДДС план</th>
+                          <th className={`${HEAD} text-center`}>БДДС факт</th>
+                          <th className={`${HEAD} text-center`}>БДДС прогноз</th>
                           {!filters.hide_deviation ? (
-                            <th className={`${HEAD} text-right`}>{deviationColumn}</th>
+                            <th className={`${HEAD} text-center`}>{deviationColumn}</th>
                           ) : null}
                         </tr>
                       </thead>
                       <tbody>
                         {dataRows.map((row) => (
                           <tr key={row.period}>
-                            <td className={`${CELL} ${BODY}`}>{row.period}</td>
-                            <td className={`${CELL} ${BODY} text-right tabular-nums`}>
-                              {mlnCell(row.plan)}
+                            <td className={`${CELL} ${BODY} text-center`}>{row.period}</td>
+                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                              {periodMln(row.plan)}
                             </td>
-                            <td className={`${CELL} ${BODY} text-right tabular-nums`}>
-                              {mlnCell(row.fact)}
+                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                              {periodMln(row.fact)}
                             </td>
-                            <td className={`${CELL} ${BODY} text-right tabular-nums`}>
-                              {mlnCell(row.forecast)}
+                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                              {periodMln(row.forecast)}
                             </td>
                             {!filters.hide_deviation ? (
                               <td
-                                className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation)}`}
+                                className={`${CELL} ${BODY} text-center tabular-nums ${periodDeviationClass(row.deviation)}`}
                               >
-                                {mlnCell(row.deviation)}
+                                {periodMln(row.deviation)}
                               </td>
                             ) : null}
                           </tr>
                         ))}
                         {totalRow ? (
                           <tr className={TOTAL}>
-                            <td className={`${CELL} ${BODY}`}>ИТОГО</td>
-                            <td className={`${CELL} ${BODY} text-right tabular-nums`}>
-                              {mlnCell(totalRow.plan)}
+                            <td className={`${CELL} ${BODY} text-center`}>ИТОГО</td>
+                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                              {periodMln(totalRow.plan)}
                             </td>
-                            <td className={`${CELL} ${BODY} text-right tabular-nums`}>
-                              {mlnCell(totalRow.fact)}
+                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                              {periodMln(totalRow.fact)}
                             </td>
-                            <td className={`${CELL} ${BODY} text-right tabular-nums`}>
-                              {mlnCell(totalRow.forecast)}
+                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                              {periodMln(totalRow.forecast)}
                             </td>
                             {!filters.hide_deviation ? (
                               <td
-                                className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(totalRow.deviation)}`}
+                                className={`${CELL} ${BODY} text-center tabular-nums ${periodDeviationClass(totalRow.deviation)}`}
                               >
-                                {mlnCell(totalRow.deviation)}
+                                {periodMln(totalRow.deviation)}
                               </td>
                             ) : null}
                           </tr>
@@ -561,18 +599,27 @@ export function BddsPlanFactView() {
                           {row.month} · {row.project}
                         </div>
                         <dl className="grid grid-cols-2 gap-1">
-                          <dt>План</dt>
-                          <dd className="text-right tabular-nums">{row.plan_mln.toFixed(1)}</dd>
-                          <dt>Факт</dt>
-                          <dd className="text-right tabular-nums">{row.fact_mln.toFixed(1)}</dd>
-                          <dt>Прогноз</dt>
-                          <dd className="text-right tabular-nums">{row.forecast_mln.toFixed(1)}</dd>
-                          <dt>Откл.</dt>
-                          <dd className={`text-right tabular-nums ${deviationClass(row.deviation_mln * 1e6)}`}>
-                            {row.deviation_mln.toFixed(1)}
+                          <dt>БДДС (план), млн</dt>
+                          <dd className="text-center tabular-nums">{row.plan_mln.toFixed(2)}</dd>
+                          <dt>БДДС (факт), млн</dt>
+                          <dd className="text-center tabular-nums">{row.fact_mln.toFixed(2)}</dd>
+                          <dt>БДДС (прогноз), млн</dt>
+                          <dd className="text-center tabular-nums">
+                            {row.forecast_mln.toFixed(2)}
+                          </dd>
+                          <dt>Отклонение по сумме, млн</dt>
+                          <dd
+                            className={`text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
+                          >
+                            {statusSignedMln(row.deviation_mln, 2)}
                           </dd>
                           <dt className="col-span-2 mt-1">Статус</dt>
-                          <dd className={`col-span-2 break-words ${statusClass(row.status)}`}>
+                          <dd className="col-span-2 break-words font-semibold">
+                            <span
+                              className={`mr-1.5 text-[1.12em] font-bold ${statusBulletClass(row.deviation_mln)}`}
+                            >
+                              ●
+                            </span>
                             {row.status}
                           </dd>
                         </dl>
@@ -584,35 +631,40 @@ export function BddsPlanFactView() {
                 <table className={`${TABLE} bi-sticky-head bi-sticky-col`}>
                   <thead>
                     <tr>
-                      <th className={HEAD}>Месяц</th>
-                      <th className={HEAD}>Проект</th>
-                      <th className={`${HEAD} text-right`}>БДДС (план), млн</th>
-                      <th className={`${HEAD} text-right`}>БДДС (факт), млн</th>
-                      <th className={`${HEAD} text-right`}>БДДС (прогноз), млн</th>
-                      <th className={`${HEAD} text-right`}>Отклонение по сумме, млн</th>
-                      <th className={HEAD}>Статус</th>
+                      <th className={`${HEAD} text-center`}>Месяц</th>
+                      <th className={`${HEAD} text-center`}>Проект</th>
+                      <th className={`${HEAD} text-center`}>БДДС (план), млн</th>
+                      <th className={`${HEAD} text-center`}>БДДС (факт), млн</th>
+                      <th className={`${HEAD} text-center`}>БДДС (прогноз), млн</th>
+                      <th className={`${HEAD} text-center`}>Отклонение по сумме, млн</th>
+                      <th className={`${HEAD} text-center`}>Статус</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(data?.status_rows ?? []).map((row, index) => (
                       <tr key={`${row.month}-${row.project}-${index}`}>
-                        <td className={`${CELL} ${BODY}`}>{row.month}</td>
+                        <td className={`${CELL} ${BODY} text-center`}>{row.month}</td>
                         <td className={`${CELL} ${BODY}`}>{row.project}</td>
-                        <td className={`${CELL} ${BODY} text-right tabular-nums`}>
+                        <td className={`${CELL} ${BODY} text-center tabular-nums`}>
                           {row.plan_mln.toFixed(2)}
                         </td>
-                        <td className={`${CELL} ${BODY} text-right tabular-nums`}>
+                        <td className={`${CELL} ${BODY} text-center tabular-nums`}>
                           {row.fact_mln.toFixed(2)}
                         </td>
-                        <td className={`${CELL} ${BODY} text-right tabular-nums`}>
+                        <td className={`${CELL} ${BODY} text-center tabular-nums`}>
                           {row.forecast_mln.toFixed(2)}
                         </td>
                         <td
-                          className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation_mln * 1e6)}`}
+                          className={`${CELL} ${BODY} text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
                         >
-                          {row.deviation_mln.toFixed(2)}
+                          {statusSignedMln(row.deviation_mln, 2)}
                         </td>
-                        <td className={`${CELL} ${BODY} ${statusClass(row.status)}`}>
+                        <td className={`${CELL} ${BODY} font-semibold`}>
+                          <span
+                            className={`mr-1.5 text-[1.12em] font-bold ${statusBulletClass(row.deviation_mln)}`}
+                          >
+                            ●
+                          </span>
                           {row.status}
                         </td>
                       </tr>

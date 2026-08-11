@@ -42,22 +42,45 @@ const projectHeaders: Record<ProjectMetric, string> = {
   contract_coverage_pct: "% покрытия контрактами",
 };
 
-function mln(value: number) {
-  return `${(Number(value || 0) / 1_000_000).toFixed(1)} млн. руб.`;
+/** План/факт в сводной таблице — только число (как main). */
+function mlnNum(value: number, decimals = 1): string {
+  return (Number(value || 0) / 1_000_000).toFixed(decimals);
 }
-/** Число в млн с двумя знаками — как в таблице проектов main. */
-function mlnPlain(value: number) {
-  return (Number(value || 0) / 1_000_000).toFixed(2);
+
+/** Отклонение: «±N.N млн. руб.» — как `_finance_fmt_signed_million_deviation` в main. */
+function mlnDeviation(value: number): string {
+  const n = Number(value || 0) / 1_000_000;
+  const abs = Math.abs(n).toFixed(1);
+  if (n > 0) return `+${abs} млн. руб.`;
+  if (n < 0) return `-${abs} млн. руб.`;
+  return `${abs} млн. руб.`;
+}
+
+/** Число в млн с двумя знаками — таблица проектов. */
+function mlnPlain(value: number, opts?: { signed?: boolean }) {
+  const n = Number(value || 0) / 1_000_000;
+  const abs = Math.abs(n).toFixed(2);
+  if (opts?.signed) {
+    if (n > 0) return `+${abs}`;
+    if (n < 0) return `-${abs}`;
+  }
+  return n.toFixed(2);
 }
 function pct(value: number | null | undefined) {
   return `${Number(value ?? 0).toFixed(1)}%`;
 }
+
+/**
+ * fact vs plan: факт < план → красный, факт > план → зелёный
+ * (`deviation_color_fact_vs_plan=True` в main).
+ * `!` — иначе перебивает `text-tremor-content-strong` у BODY.
+ */
 function deviationClass(value: number) {
   return Math.abs(value) < 10_000
     ? ""
     : value < 0
-      ? "font-semibold text-[#b91c1c] dark:text-rose-300"
-      : "font-semibold text-[#15803d] dark:text-emerald-300";
+      ? "!font-semibold !text-[#e11d48] dark:!text-rose-300"
+      : "!font-semibold !text-[#059669] dark:!text-emerald-300";
 }
 
 function HalfGauge({ gauge }: { gauge: ApprovedBudgetPayload["gauge"] }) {
@@ -173,9 +196,38 @@ function HalfGauge({ gauge }: { gauge: ApprovedBudgetPayload["gauge"] }) {
   );
 }
 
-function SortHeader({ label, sortKey, sort, onSort, align = "left" }: { label: string; sortKey: SortKey; sort: SortState; onSort: (key: SortKey) => void; align?: "left" | "right" }) {
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  align = "center",
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+  align?: "left" | "right" | "center";
+}) {
   const active = sort?.key === sortKey;
-  return <th className={`${HEAD} ${align === "right" ? "text-right" : ""}`}><button type="button" className={`flex w-full gap-1 ${align === "right" ? "justify-end" : ""}`} onClick={() => onSort(sortKey)}><span>{label}</span><span className={active ? "text-emerald-700" : "opacity-60"}>{active ? (sort?.asc ? "↑" : "↓") : "⇅"}</span></button></th>;
+  const justify =
+    align === "right" ? "justify-end" : align === "left" ? "justify-start" : "justify-center";
+  const textAlign =
+    align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center";
+  return (
+    <th className={`${HEAD} ${textAlign}`}>
+      <button
+        type="button"
+        className={`flex w-full items-center gap-1 ${justify}`}
+        onClick={() => onSort(sortKey)}
+      >
+        <span>{label}</span>
+        <span className={active ? "text-emerald-700" : "opacity-60"}>
+          {active ? (sort?.asc ? "↑" : "↓") : "⇅"}
+        </span>
+      </button>
+    </th>
+  );
 }
 
 export function ApprovedBudgetView() {
@@ -202,7 +254,7 @@ export function ApprovedBudgetView() {
   });
   const periodRows = useMemo(() => sortRows(data?.period_rows ?? [], periodSort), [data, periodSort]);
   const projectRows = useMemo(() => sortRows(data?.project_rows ?? [], projectSort), [data, projectSort]);
-  const periodExport = (): ExportTable | null => data ? { header: [["Месяц", "План, млн. руб.", "Факт, млн. руб.", "Отклонение, млн. руб."]], rows: [...data.period_rows.map((row) => [row.period, row.plan / 1e6, row.fact / 1e6, row.deviation / 1e6]), ["ИТОГО", data.totals.plan / 1e6, data.totals.fact / 1e6, data.totals.deviation / 1e6]], sheetName: "Утверждённый бюджет" } : null;
+  const periodExport = (): ExportTable | null => data ? { header: [["Месяц", "БДДС план, млн руб.", "БДДС факт, млн руб.", "Отклонение, млн руб."]], rows: [...data.period_rows.map((row) => [row.period, row.plan / 1e6, row.fact / 1e6, row.deviation / 1e6]), ["ИТОГО", data.totals.plan / 1e6, data.totals.fact / 1e6, data.totals.deviation / 1e6]], sheetName: "Утверждённый бюджет" } : null;
   const projectExport = (): ExportTable | null =>
     data
       ? {
@@ -278,7 +330,9 @@ export function ApprovedBudgetView() {
       <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} />}</FullscreenPanel></Card>
       <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-          <Title>{data?.labels.period_table_title ?? "Сводная таблица по месяцам"}</Title>
+          <Title>
+            {data?.labels.period_table_title ?? "Сводная таблица БДДС по месяцам"}
+          </Title>
         </div>
         <FullscreenPanel disabled={!periodRows.length} scroll={false}>
           <MobileCardStack
@@ -290,7 +344,7 @@ export function ApprovedBudgetView() {
                     { label: "Факт", value: mlnPlain(data?.totals.fact ?? 0) },
                     {
                       label: "Откл.",
-                      value: mlnPlain(data?.totals.deviation ?? 0),
+                      value: mlnPlain(data?.totals.deviation ?? 0, { signed: true }),
                       className: deviationClass(data?.totals.deviation ?? 0),
                     },
                   ]}
@@ -305,7 +359,11 @@ export function ApprovedBudgetView() {
                   items={[
                     { label: "План", value: mlnPlain(row.plan) },
                     { label: "Факт", value: mlnPlain(row.fact) },
-                    { label: "Откл.", value: mlnPlain(row.deviation), className: deviationClass(row.deviation) },
+                    {
+                      label: "Откл.",
+                      value: mlnPlain(row.deviation, { signed: true }),
+                      className: deviationClass(row.deviation),
+                    },
                   ]}
                 />
               </MobileEntityCard>
@@ -317,25 +375,29 @@ export function ApprovedBudgetView() {
               <thead>
                 <tr>
                   <SortHeader label="Месяц" sortKey="period" sort={periodSort} onSort={toggleSort(setPeriodSort)} />
-                  <SortHeader label="План, млн. руб." sortKey="plan" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" />
-                  <SortHeader label="Факт, млн. руб." sortKey="fact" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" />
-                  <SortHeader label="Отклонение, млн. руб." sortKey="deviation" sort={periodSort} onSort={toggleSort(setPeriodSort)} align="right" />
+                  <SortHeader label="БДДС план, млн руб." sortKey="plan" sort={periodSort} onSort={toggleSort(setPeriodSort)} />
+                  <SortHeader label="БДДС факт, млн руб." sortKey="fact" sort={periodSort} onSort={toggleSort(setPeriodSort)} />
+                  <SortHeader label="Отклонение, млн руб." sortKey="deviation" sort={periodSort} onSort={toggleSort(setPeriodSort)} />
                 </tr>
               </thead>
               <tbody>
                 {periodRows.map((row) => (
                   <tr key={row.period} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20">
-                    <td className={`${CELL} ${BODY}`}>{row.period}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mln(row.plan)}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mln(row.fact)}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation)}`}>{mln(row.deviation)}</td>
+                    <td className={`${CELL} ${BODY} text-center`}>{row.period}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(row.plan)}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(row.fact)}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(row.deviation)}`}>
+                      {mlnDeviation(row.deviation)}
+                    </td>
                   </tr>
                 ))}
                 <tr className={TOTAL}>
-                  <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
-                  <td className={`${CELL} ${BODY} text-right`}>{mln(data?.totals.plan ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-right`}>{mln(data?.totals.fact ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-right ${deviationClass(data?.totals.deviation ?? 0)}`}>{mln(data?.totals.deviation ?? 0)}</td>
+                  <td className={`${CELL} px-3 py-2 text-center`}>ИТОГО</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(data?.totals.plan ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(data?.totals.fact ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>
+                    {mlnDeviation(data?.totals.deviation ?? 0)}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -365,7 +427,7 @@ export function ApprovedBudgetView() {
                     { label: "Остаток", value: mlnPlain(data?.totals.remainder ?? 0) },
                     {
                       label: "Откл.",
-                      value: mlnPlain(data?.totals.deviation ?? 0),
+                      value: mlnPlain(data?.totals.deviation ?? 0, { signed: true }),
                       className: deviationClass(data?.totals.deviation ?? 0),
                     },
                     { label: "% вып.", value: pct(data?.gauge.fact_pct ?? 0) },
@@ -389,7 +451,11 @@ export function ApprovedBudgetView() {
                     { label: "План", value: mlnPlain(row.plan) },
                     { label: "Факт", value: mlnPlain(row.fact) },
                     { label: "Остаток", value: mlnPlain(row.remainder) },
-                    { label: "Откл.", value: mlnPlain(row.deviation), className: deviationClass(row.deviation) },
+                    {
+                      label: "Откл.",
+                      value: mlnPlain(row.deviation, { signed: true }),
+                      className: deviationClass(row.deviation),
+                    },
                     { label: "% вып.", value: pct(row.completion_pct) },
                     { label: "% контр.", value: pct(row.contract_coverage_pct) },
                   ]}
@@ -412,7 +478,6 @@ export function ApprovedBudgetView() {
                       sortKey={key}
                       sort={projectSort}
                       onSort={toggleSort(setProjectSort)}
-                      align="right"
                     />
                   ))}
                 </tr>
@@ -421,22 +486,26 @@ export function ApprovedBudgetView() {
                 {projectRows.map((row) => (
                   <tr key={row.project} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20">
                     <td className={`${CELL} ${BODY}`}>{row.project}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.plan)}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.fact)}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(row.remainder)}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(row.deviation)}`}>{mln(row.deviation)}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(row.completion_pct)}</td>
-                    <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(row.contract_coverage_pct)}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(row.plan)}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(row.fact)}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(row.remainder)}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(row.deviation)}`}>
+                      {mlnDeviation(row.deviation)}
+                    </td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(row.completion_pct)}</td>
+                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(row.contract_coverage_pct)}</td>
                   </tr>
                 ))}
                 <tr className={TOTAL}>
                   <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
-                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.plan ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.fact ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{mlnPlain(data?.totals.remainder ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-right tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>{mln(data?.totals.deviation ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(data?.gauge.fact_pct ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-right tabular-nums`}>{pct(0)}</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(data?.totals.plan ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(data?.totals.fact ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(data?.totals.remainder ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>
+                    {mlnDeviation(data?.totals.deviation ?? 0)}
+                  </td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(data?.gauge.fact_pct ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(0)}</td>
                 </tr>
               </tbody>
             </table>

@@ -47,16 +47,18 @@ export class ApiError extends Error {
   readonly status: number;
   readonly url: string;
   readonly timeout: boolean;
+  readonly aborted: boolean;
 
   constructor(
     message: string,
-    { status = 0, url = "", timeout = false } = {},
+    { status = 0, url = "", timeout = false, aborted = false } = {},
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.url = url;
     this.timeout = timeout;
+    this.aborted = aborted;
   }
 }
 
@@ -111,6 +113,19 @@ function abortSignal(timeoutMs: number): AbortSignal | undefined {
   return undefined;
 }
 
+function mergeSignals(
+  timeoutMs: number,
+  external?: AbortSignal,
+): AbortSignal | undefined {
+  const timed = abortSignal(timeoutMs);
+  if (!external) return timed;
+  if (!timed) return external;
+  if (typeof AbortSignal !== "undefined" && "any" in AbortSignal) {
+    return AbortSignal.any([external, timed]);
+  }
+  return external;
+}
+
 export async function apiGet<T>(
   path: string,
   params: QueryParams = {},
@@ -132,19 +147,26 @@ export async function apiGet<T>(
   try {
     res = await fetch(url, {
       cache: "no-store",
-      signal: signal ?? abortSignal(timeoutMs),
+      signal: mergeSignals(timeoutMs, signal),
       headers,
     });
   } catch (err) {
-    const aborted =
-      err instanceof DOMException &&
-      (err.name === "TimeoutError" || err.name === "AbortError");
-    if (aborted) {
+    if (signal?.aborted) {
+      throw new ApiError("Запрос отменён", { url, aborted: true });
+    }
+    const isTimeout =
+      err instanceof DOMException && err.name === "TimeoutError";
+    if (isTimeout) {
       throw new ApiError(
         `Превышено время ожидания (${Math.round(timeoutMs / 1000)} с): ${path}. ` +
           "Отчёт ещё считается — обновите страницу через минуту.",
         { url, timeout: true },
       );
+    }
+    const isAbort =
+      err instanceof DOMException && err.name === "AbortError";
+    if (isAbort) {
+      throw new ApiError("Запрос отменён", { url, aborted: true });
     }
     throw new ApiError(
       `Нет связи с API (${path}): ${err instanceof Error ? err.message : String(err)}`,
@@ -743,6 +765,7 @@ export type BddsPlanFactQuery = {
 
 export async function fetchBddsPlanFact(
   query: BddsPlanFactQuery = {},
+  signal?: AbortSignal,
 ): Promise<BddsPlanFactPayload> {
   const params: QueryParams = {};
   if (query.project) params.project = query.project;
@@ -751,12 +774,11 @@ export async function fetchBddsPlanFact(
   if (query.group) params.group = query.group;
   if (query.view) params.view = query.view;
   if (query.dev_base) params.dev_base = query.dev_base;
-  if (query.hide_deviation !== undefined) {
-    params.hide_deviation = String(query.hide_deviation);
-  }
-  if (query.hide_zero !== undefined) params.hide_zero = String(query.hide_zero);
+  if (query.hide_deviation) params.hide_deviation = true;
+  if (query.hide_zero !== undefined) params.hide_zero = query.hide_zero;
   return apiGet<BddsPlanFactPayload>("/api/bdds-plan-fact", params, {
     headers: authHeaders(),
+    signal,
   });
 }
 
