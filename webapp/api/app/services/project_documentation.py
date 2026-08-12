@@ -357,7 +357,15 @@ def _necessary_productivity(
     *,
     schedule_finish: pd.Series | None = None,
 ) -> float | None:
-    if not abs(float(deviation_to_date or 0)):
+    """
+    Необходимая производительность за период (день/неделя/месяц).
+
+    ``deviation_to_date`` = план − факт на дату:
+    - ≤ 0 (план выполнен или перевыполнен) → 0;
+    - > 0 (отставание) → (отставание / дней до срока) × множитель (1/7/30).
+    """
+    lag = float(deviation_to_date or 0)
+    if lag <= 0:
         return 0.0
     rem_days: int | None = None
     bf = _to_dt(baseline_finish).dropna()
@@ -369,7 +377,7 @@ def _necessary_productivity(
             rem_days = (sf.max().date() - report_date).days
     if rem_days is None or rem_days <= 0:
         rem_days = max(int(period_multiplier) or 1, 1)
-    return (abs(float(deviation_to_date)) / float(rem_days)) * float(period_multiplier)
+    return (lag / float(rem_days)) * float(period_multiplier)
 
 
 def _period_label(ts: pd.Timestamp) -> str:
@@ -693,7 +701,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v5|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v6|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
