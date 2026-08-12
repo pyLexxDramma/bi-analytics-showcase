@@ -586,9 +586,18 @@ def _delay_segments(
     fin_n: pd.Timestamp | None,
     *,
     done: bool,
+    ts_report: pd.Timestamp | None = None,
 ) -> dict[str, Any]:
+    """Сегменты ганта ПД.
+
+    - done & finish <= base → зелёная полоса (fact_dur)
+    - done & finish > base → жёлтая + красная + late_complete (зелёная стрелка в UI)
+    - not done & today > base → жёлтая + красная до даты отчёта
+    - not done & today <= base → только жёлтая
+    """
     start_n = pd.Timestamp(start_n).normalize()
     bf_n = pd.Timestamp(bf_n).normalize()
+    today = pd.Timestamp(ts_report if ts_report is not None else pd.Timestamp.today()).normalize()
     fin_ts = (
         pd.Timestamp(fin_n).normalize()
         if fin_n is not None and pd.notna(fin_n)
@@ -599,13 +608,24 @@ def _delay_segments(
     delay_dur = 0
     delay_end = None
     fin_iso = None
-    if pd.notna(fin_ts) and fin_ts > bf_n:
-        delay_dur = int((fin_ts - bf_n).days)
-        delay_end = fin_ts.strftime("%Y-%m-%d")
+    late_complete = False
+    finish_label = ""
+
+    if done and pd.notna(fin_ts):
         fin_iso = fin_ts.strftime("%Y-%m-%d")
-    elif done and pd.notna(fin_ts) and fin_ts <= bf_n:
-        fact_dur = float(max(int((fin_ts - start_n).days), 0))
-        fin_iso = fin_ts.strftime("%Y-%m-%d")
+        finish_label = fin_ts.strftime("%d.%m.%Y")
+        if fin_ts <= bf_n:
+            fact_dur = float(max(int((fin_ts - start_n).days), 0))
+        else:
+            delay_dur = max(int((fin_ts - bf_n).days), 0)
+            delay_end = fin_iso
+            late_complete = True
+    elif not done:
+        if today > bf_n:
+            delay_dur = max(int((today - bf_n).days), 0)
+            delay_end = today.strftime("%Y-%m-%d")
+            finish_label = today.strftime("%d.%m.%Y")
+
     return {
         "start": start_n.strftime("%Y-%m-%d"),
         "base_finish": bf_n.strftime("%Y-%m-%d"),
@@ -614,8 +634,9 @@ def _delay_segments(
         "base_dur": float(base_dur),
         "fact_dur": float(fact_dur),
         "delay_dur": float(delay_dur),
+        "late_complete": bool(late_complete),
         "base_label": bf_n.strftime("%d.%m.%Y"),
-        "finish_label": pd.Timestamp(fin_ts).strftime("%d.%m.%Y") if pd.notna(fin_ts) else "",
+        "finish_label": finish_label,
     }
 
 
@@ -668,7 +689,13 @@ def _aggregate_delay_seg(
     if pd.isna(bf_n):
         return None
     done = bool(fin_all and all_done)
-    return _delay_segments(start_n, bf_n, fin_n if pd.notna(fin_n) else None, done=done)
+    return _delay_segments(
+        start_n,
+        bf_n,
+        fin_n if pd.notna(fin_n) else None,
+        done=done,
+        ts_report=ts_report,
+    )
 
 
 def _plan_due_mask(plan_finish: pd.Series, plan_start: pd.Series, ts: pd.Timestamp) -> pd.Series:
@@ -809,7 +836,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v9-forecast-legend|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v11-pd-gantt-arrow|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1159,6 +1186,7 @@ def build_project_documentation_payload(
                         pd.Timestamp(bf).normalize(),
                         fin if pd.notna(fin) else None,
                         done=done and pd.notna(fin),
+                        ts_report=ts_rep,
                     )
                     gantt_rows.append({"label": lbl or "—", **seg})
 

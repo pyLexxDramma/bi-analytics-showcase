@@ -1460,6 +1460,8 @@ export type ProjectDocumentationPayload = {
         base_dur: number;
         fact_dur: number;
         delay_dur: number;
+        /** Сдано с опозданием: жёлтый+красный + зелёная стрелка в UI. */
+        late_complete?: boolean;
         base_label: string;
         finish_label: string;
       }>;

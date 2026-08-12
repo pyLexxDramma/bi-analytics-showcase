@@ -315,6 +315,7 @@ export function PdMonthlyCumulativeChart({
   const mobile = useIsMobileViewport();
   const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
+    // Ascending months: Plotly y=0 at bottom → newest month on top.
     const chronological = [...rows].sort((a, b) => a.month.localeCompare(b.month));
     const labels = chronological.map((r) => r.month_label);
     const plan = chronological.map((r) => Number(r.plan) || 0);
@@ -331,8 +332,7 @@ export function PdMonthlyCumulativeChart({
     const factInc = chronological.map((r, i) => {
       if (r.fact_inc != null) return Math.max(0, Number(r.fact_inc) || 0);
       if (i === 0) return done[i] + overdue[i];
-      const prev = done[i - 1] + overdue[i - 1];
-      return Math.max(0, done[i] + overdue[i] - prev);
+      return Math.max(0, done[i] + overdue[i] - (done[i - 1] + overdue[i - 1]));
     });
     const yIdx = chronological.map((_, i) => i);
     const xMax = Math.max(1, ...plan, ...done.map((d, i) => d + overdue[i] + rest[i]));
@@ -341,11 +341,11 @@ export function PdMonthlyCumulativeChart({
       : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
 
     const incTxt = factInc.map((v) => (v > 0 ? `+${Math.round(v)}` : ""));
-    // Подпись «+N» на самом длинном сегменте справа (на накопленном итоге).
     const tipText = chronological.map((_, i) => {
       const total = done[i] + overdue[i] + rest[i];
       return total > 0 ? incTxt[i] : "";
     });
+    const tipFont = compact ? 13 : 15;
 
     const barBase = {
       type: "bar" as const,
@@ -353,7 +353,8 @@ export function PdMonthlyCumulativeChart({
       y: yIdx,
       cliponaxis: false,
       constraintext: "none" as const,
-      hovertemplate: "<b>%{customdata}</b><br>%{fullData.name}: %{x}<extra></extra>",
+      hovertemplate:
+        "<b>%{customdata}</b><br>%{fullData.name} (накопительно): %{x}<extra></extra>",
     };
 
     return {
@@ -367,7 +368,7 @@ export function PdMonthlyCumulativeChart({
           text: tipText.map((t, i) => (rest[i] <= 0 && overdue[i] <= 0 ? t : "")),
           textposition: "outside" as const,
           texttemplate: "%{text}",
-          textfont: { size: compact ? 12 : 15, color: theme.label },
+          textfont: { size: tipFont, color: theme.label },
         },
         {
           ...barBase,
@@ -378,18 +379,18 @@ export function PdMonthlyCumulativeChart({
           text: tipText.map((t, i) => (rest[i] <= 0 && overdue[i] > 0 ? t : "")),
           textposition: "outside" as const,
           texttemplate: "%{text}",
-          textfont: { size: compact ? 12 : 15, color: theme.label },
+          textfont: { size: tipFont, color: theme.label },
         },
         {
           ...barBase,
-          name: "План (остаток)",
+          name: CHART_RU.plan,
           x: rest,
           marker: { color: PD_MONTH_PLAN, opacity: 0.92 },
           customdata: labels,
           text: tipText.map((t, i) => (rest[i] > 0 ? t : "")),
           textposition: "outside" as const,
           texttemplate: "%{text}",
-          textfont: { size: compact ? 12 : 15, color: theme.label },
+          textfont: { size: tipFont, color: theme.label },
         },
       ],
       layout: {
@@ -397,8 +398,8 @@ export function PdMonthlyCumulativeChart({
         barmode: "stack" as const,
         bargap: 0.28,
         margin: compact
-          ? { l: 8, r: 56, t: 12, b: 96 }
-          : { l: 16, r: 72, t: 48, b: 96 },
+          ? { l: 8, r: 72, t: 12, b: 96 }
+          : { l: 16, r: 80, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         legend: plotlyLegendUnderLeft({
@@ -411,7 +412,7 @@ export function PdMonthlyCumulativeChart({
             text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * (compact ? 1.22 : 1.12)],
+          range: [0, xMax * (compact ? 1.32 : 1.14)],
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
@@ -504,6 +505,10 @@ export function PdDelayGanttChart({
     /** Даты на конце полос — ×1.5 к базовому (ТЗ / скрин). */
     const dateLabelFont = Math.max(11, Math.round(labelFont * 1.5));
 
+    const arrowY: string[] = [];
+    const arrowX: number[] = [];
+    const arrowCd: string[] = [];
+
     for (let i = 0; i < sorted.length; i++) {
       const row = sorted[i];
       const y = yLabels[i];
@@ -511,6 +516,14 @@ export function PdDelayGanttChart({
       const bfMs = toMs(row.base_finish);
       const finMs = toMs(row.finish);
       const delayEndMs = toMs(row.delay_end);
+      // Сдано с опозданием: finish совпадает с концом красной полосы (или флаг API).
+      const lateComplete =
+        Boolean(row.late_complete) ||
+        (Boolean(row.finish) &&
+          Boolean(row.delay_end) &&
+          row.finish === row.delay_end &&
+          (row.fact_dur || 0) <= 0 &&
+          (row.delay_dur || 0) > 0);
       const hasRed = (row.delay_dur || 0) > 0 && delayEndMs != null && bfMs != null;
       const hasGreen =
         (row.fact_dur || 0) > 0 && Boolean(row.finish) && !row.delay_end && startMs != null;
@@ -543,6 +556,17 @@ export function PdDelayGanttChart({
         }
       }
 
+      const arrowMs = lateComplete ? finMs ?? delayEndMs : null;
+      if (arrowMs != null) {
+        arrowY.push(y);
+        arrowX.push(arrowMs);
+        arrowCd.push(
+          row.finish_label
+            ? `Сдано с опозданием: ${row.finish_label}`
+            : "Сдано с опозданием",
+        );
+      }
+
       const labelColor = theme.dark ? "#e2e8f0" : "#1a1a1a";
       const annBase = {
         y,
@@ -569,7 +593,7 @@ export function PdDelayGanttChart({
       // Mobile: одна подпись на ряд (конец факта/просрочки), без пары дат на полосе.
       if (compact) {
         if (hasRed && row.finish_label && delayEndMs != null) {
-          place(delayEndMs, row.finish_label, "left", 6);
+          place(delayEndMs, row.finish_label, "left", lateComplete ? 18 : 6);
         } else if (hasGreen && row.finish_label && finMs != null) {
           place(finMs, row.finish_label, "left", 6);
         } else if (row.base_label && bfMs != null) {
@@ -591,7 +615,7 @@ export function PdDelayGanttChart({
         }
 
         if (hasRed && row.finish_label && delayEndMs != null) {
-          place(delayEndMs, row.finish_label, "left", 6);
+          place(delayEndMs, row.finish_label, "left", lateComplete ? 20 : 6);
         }
       }
     }
@@ -637,6 +661,24 @@ export function PdDelayGanttChart({
         width: 0.48,
         customdata: redCd,
         hovertemplate: "%{y}<br>Просрочка до %{customdata}<extra></extra>",
+      });
+    }
+    if (arrowY.length) {
+      data.push({
+        type: "scatter",
+        mode: "markers",
+        name: "Сдано с опозданием",
+        y: arrowY,
+        x: arrowX,
+        marker: {
+          symbol: "triangle-right",
+          size: compact ? 14 : 16,
+          color: PD_GANTT_GREEN,
+          line: { width: 1, color: "#1e8449" },
+        },
+        customdata: arrowCd,
+        hovertemplate: "%{y}<br>%{customdata}<extra></extra>",
+        cliponaxis: false,
       });
     }
 

@@ -496,10 +496,14 @@ function ProjectDocumentationScreen({
                   <MobileCardStack>
                     {mainRows.map((row, index) => {
                       const ahead = (row.dev_end_days ?? 0) > 0;
+                      const overdue = (row.dev_end_days ?? 0) < 0;
+                      const rowTint = ahead ? AHEAD_BG : overdue ? OVERDUE_BG : "";
+                      const cellHl = ahead ? "ok" : overdue ? "bad" : "none";
                       return (
                         <MobileEntityCard
                           key={`m-pd-${row.project}-${row.section}-${index}`}
                           title={`${row.project}: ${row.section}`}
+                          className={rowTint}
                           badge={row.dev_end || undefined}
                           badgeTone={
                             row.dev_end_days == null
@@ -512,17 +516,30 @@ function ProjectDocumentationScreen({
                           <MobileMetricGrid
                             columns={2}
                             items={[
-                              { label: "№", value: row.n ?? index + 1 },
-                              { label: "Раздел", value: row.section },
+                              {
+                                label: "№",
+                                value: row.n ?? index + 1,
+                                highlight: cellHl,
+                              },
+                              {
+                                label: "Проект",
+                                value: row.project,
+                                highlight: cellHl,
+                              },
+                              {
+                                label: "Раздел",
+                                value: row.section,
+                                highlight: cellHl === "none" ? "date" : cellHl,
+                              },
                               {
                                 label: "Базовое",
                                 value: row.base_end ?? "—",
-                                highlight: ahead ? "ok" : "date",
+                                highlight: cellHl === "none" ? "date" : cellHl,
                               },
                               {
                                 label: "Окончание",
                                 value: row.plan_end ?? "—",
-                                highlight: ahead ? "ok" : "date",
+                                highlight: cellHl === "none" ? "date" : cellHl,
                               },
                               {
                                 label: "Откл.",
@@ -582,19 +599,28 @@ function ProjectDocumentationScreen({
                     <tbody>
                       {mainRows.map((row, index) => {
                         const ahead = (row.dev_end_days ?? 0) > 0;
+                        const overdue = (row.dev_end_days ?? 0) < 0;
+                        const rowBg = ahead ? AHEAD_BG : overdue ? OVERDUE_BG : "";
+                        const stickyTone = ahead
+                          ? "bi-row-ahead"
+                          : overdue
+                            ? "bi-row-overdue"
+                            : "";
                         return (
                           <tr key={`${row.project}-${row.section}-${index}`}>
-                            <td className={`${TD} tabular-nums`}>{row.n ?? index + 1}</td>
-                            <td className={TD}>{row.project}</td>
-                            <td className={`${TD} ${ahead ? AHEAD_BG : ""}`}>{row.section}</td>
-                            <td className={`${TD} tabular-nums ${ahead ? AHEAD_BG : ""}`}>
+                            <td className={`${TD} tabular-nums ${rowBg} ${stickyTone}`}>
+                              {row.n ?? index + 1}
+                            </td>
+                            <td className={`${TD} ${rowBg}`}>{row.project}</td>
+                            <td className={`${TD} ${rowBg}`}>{row.section}</td>
+                            <td className={`${TD} tabular-nums ${rowBg}`}>
                               {row.base_end ?? "—"}
                             </td>
-                            <td className={`${TD} tabular-nums ${ahead ? AHEAD_BG : ""}`}>
+                            <td className={`${TD} tabular-nums ${rowBg}`}>
                               {row.plan_end ?? "—"}
                             </td>
                             <td
-                              className={`${TD} tabular-nums ${ahead ? AHEAD_BG : ""} ${deviationClass(row.dev_end_days)}`}
+                              className={`${TD} tabular-nums ${rowBg} ${deviationClass(row.dev_end_days)}`}
                             >
                               {row.dev_end || "—"}
                             </td>

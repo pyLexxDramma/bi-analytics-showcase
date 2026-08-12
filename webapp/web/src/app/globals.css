@@ -461,6 +461,21 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     background-color: #f1f5f9;
   }
 
+  /* Статусные заливки перекрывают дефолтный фон sticky № */
+  .bi-sticky-col tbody td:first-child.bi-row-ahead,
+  .bi-sticky-col tbody th:first-child.bi-row-ahead,
+  .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-ahead,
+  .bi-sticky-col tbody tr:hover > td:first-child.bi-row-ahead {
+    background-color: rgba(46, 204, 113, 0.22);
+  }
+
+  .bi-sticky-col tbody td:first-child.bi-row-overdue,
+  .bi-sticky-col tbody th:first-child.bi-row-overdue,
+  .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-overdue,
+  .bi-sticky-col tbody tr:hover > td:first-child.bi-row-overdue {
+    background-color: rgba(231, 76, 60, 0.22);
+  }
+
   html.dark .bi-sticky-col tbody td:first-child,
   html.dark .bi-sticky-col tbody th:first-child {
     background-color: #111827;
@@ -475,6 +490,18 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   html.dark .bi-sticky-col tbody tr:hover > td:first-child,
   html.dark .bi-sticky-col tbody tr:hover > th:first-child {
     background-color: #1e293b;
+  }
+
+  html.dark .bi-sticky-col tbody td:first-child.bi-row-ahead,
+  html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-ahead,
+  html.dark .bi-sticky-col tbody tr:hover > td:first-child.bi-row-ahead {
+    background-color: rgba(70, 214, 138, 0.18);
+  }
+
+  html.dark .bi-sticky-col tbody td:first-child.bi-row-overdue,
+  html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-overdue,
+  html.dark .bi-sticky-col tbody tr:hover > td:first-child.bi-row-overdue {
+    background-color: rgba(255, 84, 84, 0.18);
   }
 
   /* Угловая ячейка — только в верхнем ряду: в нижних рядах первая ячейка
