@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Text } from "@tremor/react";
 import type { BaselineDeviationPayload } from "@/lib/api";
 import { CHART_RU } from "@/lib/chart-ru";
-import { PLOTLY_CONFIG } from "@/lib/plotly-config";
+import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -20,8 +20,8 @@ const SCROLL_VISIBLE_ROWS = 18;
 const ROW_PX = 44;
 const BAR_WIDTH = 0.14;
 const LANE_GAP = 0.04;
-const MARGIN_TOP = 44;
-const MARGIN_BOTTOM = 88;
+const MARGIN_TOP = 28;
+const MARGIN_BOTTOM = 110;
 const DAY_MS = 24 * 3600 * 1000;
 const LABEL_COL_PCT = 28;
 
@@ -70,18 +70,10 @@ function wrapTaskLabelLines(name: string, widthChars = 30, maxLines = 2): string
 }
 
 function chartLegend(fullscreen: boolean) {
-  // Сверху: снизу пересекалась с title оси X («Дата…») → «каша» на десктопе
-  return {
-    orientation: "h" as const,
-    yanchor: "bottom" as const,
-    y: 1.02,
-    xanchor: "center" as const,
-    x: 0.5,
-    font: { size: fullscreen ? 13 : 12 },
-    bgcolor: "rgba(0,0,0,0)",
-    tracegroupgap: 16,
-    itemsizing: "constant" as const,
-  };
+  return plotlyLegendUnderLeft({
+    fontSize: fullscreen ? 13 : 12,
+    y: -0.16,
+  });
 }
 
 function laneOffset(lane: "base" | "plan", hasPlan: boolean): number {

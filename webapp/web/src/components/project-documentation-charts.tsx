@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectDocumentationPayload } from "@/lib/api";
 import { CHART_RU } from "@/lib/chart-ru";
-import { PLOTLY_CONFIG } from "@/lib/plotly-config";
+import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
@@ -198,17 +198,15 @@ export function PdDynamicsLineChart({
       ],
       layout: {
         height,
-        margin: { l: 56, r: 36, t: 72, b: 88 },
+        margin: { l: 56, r: 36, t: 48, b: 100 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         hovermode: false as const,
-        legend: {
-          orientation: "h" as const,
-          y: 1.14,
-          x: 0.5,
-          xanchor: "center" as const,
-          font: { size: 13, color: theme.axis },
-        },
+        legend: plotlyLegendUnderLeft({
+          fontSize: 13,
+          labelColor: theme.axis,
+          y: -0.16,
+        }),
         xaxis: {
           title: {
             text: "Период",
@@ -355,25 +353,14 @@ export function PdMonthlyCumulativeChart({
         bargap: 0.28,
         margin: compact
           ? { l: 8, r: 56, t: 12, b: 96 }
-          : { l: 16, r: 72, t: 48, b: 56 },
+          : { l: 16, r: 72, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        legend: compact
-          ? {
-              orientation: "h" as const,
-              y: -0.28,
-              yanchor: "top" as const,
-              x: 0,
-              xanchor: "left" as const,
-              font: { size: 11, color: theme.axis },
-              bgcolor: "rgba(0,0,0,0)",
-            }
-          : {
-              orientation: "h" as const,
-              y: 1.12,
-              x: 0,
-              font: { size: 12, color: theme.axis },
-            },
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 11 : 12,
+          labelColor: theme.axis,
+          y: compact ? -0.28 : -0.12,
+        }),
         xaxis: {
           title: {
             text: compact ? "" : "Количество разделов (накопительно)",
@@ -628,26 +615,15 @@ export function PdDelayGanttChart({
         // Mobile: легенда снизу — иначе наезжает на первую полосу
         margin: compact
           ? { l: 8, r: 64, t: 16, b: 168 }
-          : { l: 16, r: 140, t: 56, b: 56 },
+          : { l: 16, r: 140, t: 40, b: 88 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         showlegend: true,
-        legend: compact
-          ? {
-              orientation: "h" as const,
-              y: -0.42,
-              yanchor: "top" as const,
-              x: 0,
-              xanchor: "left" as const,
-              font: { size: 10, color: theme.axis },
-              bgcolor: "rgba(0,0,0,0)",
-            }
-          : {
-              orientation: "h" as const,
-              y: 1.12,
-              x: 0,
-              font: { size: 12, color: theme.axis },
-            },
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 10 : 12,
+          labelColor: theme.axis,
+          y: compact ? -0.42 : -0.14,
+        }),
         annotations,
         xaxis: {
           type: "date" as const,

@@ -6,12 +6,12 @@ import {
   BarChart,
   CartesianGrid,
   LabelList,
-  Legend,
   ResponsiveContainer,
   XAxis,
   YAxis,
 } from "recharts";
 import { Text } from "@tremor/react";
+import { ChartHtmlLegend } from "@/components/chart-html-legend";
 
 export type FinanceBarPoint = {
   period: string;
@@ -291,156 +291,172 @@ export function FinanceBarChart({
 
   const angled = compact || rows.length > 6 || categoryKey === "project";
 
+  const legendItems = [
+    { name: planName, color: planColor, short: "План" },
+    { name: factName, color: factColor, short: "Факт" },
+    ...(showForecast
+      ? [{ name: forecastName, color: forecastColor, short: "Прогноз" }]
+      : []),
+    ...(hasNegDev
+      ? [{ name: DEV_NEG_NAME, color: DEV_BAR_RED, short: "Факт < план" }]
+      : []),
+    ...(hasPosDev
+      ? [{ name: DEV_POS_NAME, color: DEV_BAR_GREEN, short: "Факт > план" }]
+      : []),
+  ];
+
   return (
     <div
       className={
         fullscreen
-          ? "h-full w-full min-w-0 max-w-full overflow-x-auto p-4 text-slate-700 dark:text-slate-200"
-          : "w-full min-w-0 max-w-full overflow-x-auto text-slate-700 dark:text-slate-200"
+          ? "flex h-full w-full min-w-0 max-w-full flex-col p-4 text-slate-700 dark:text-slate-200"
+          : "flex w-full min-w-0 max-w-full flex-col text-slate-700 dark:text-slate-200"
       }
     >
       <Text className="mb-2 text-tremor-content dark:text-dark-tremor-content">
         {xAxisTitle}
       </Text>
-      <div
-        className="min-w-0"
-        style={{ width: chartWidth, minWidth: "100%", height }}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            margin={{
-              top: compact ? 28 : 72,
-              right: 12,
-              left: 8,
-              bottom:
-                (angled ? 64 : 28) +
-                (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
-            }}
-            barCategoryGap={compact ? "12%" : "18%"}
-            barGap={showDeviation ? 6 : 2}
-          >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="category"
-              tick={{ fontSize: compact ? 10 : 12 }}
-              interval={0}
-              angle={angled ? -35 : 0}
-              textAnchor={angled ? "end" : "middle"}
-              height={angled ? (hasNegDev ? 96 : 80) : hasNegDev ? 56 : 40}
-              dy={hasNegDev ? 8 : 0}
-            />
-            <YAxis
-              width={compact ? 48 : 72}
-              tick={{ fontSize: compact ? 10 : 12 }}
-              label={
-                yAxisTitle && showUnitOnBars
-                  ? {
-                      value: yAxisTitle,
-                      angle: -90,
-                      position: "insideLeft",
-                      style: {
-                        textAnchor: "middle",
-                        fontSize: 12,
-                        fill: dark ? "#94a3b8" : "#64748b",
-                      },
-                    }
-                  : undefined
-              }
-              tickFormatter={(v) =>
-                Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 })
-              }
-                  domain={
-                showDeviation
-                  ? [
-                      (dataMin: number) =>
-                        dataMin < 0
-                          ? Math.floor(dataMin * (showUnitOnBars ? 1.28 : 1.18))
-                          : 0,
-                      (dataMax: number) => Math.ceil(dataMax * 1.32),
-                    ]
-                  : [0, (dataMax: number) => Math.ceil(dataMax * 1.32)]
-              }
-            />
-            <Legend wrapperStyle={{ fontSize: compact ? 11 : 13 }} />
-            <Bar
-              dataKey={planName}
-              fill={planColor}
-              radius={[3, 3, 0, 0]}
-              isAnimationActive={false}
+      <div className="min-w-0 max-w-full overflow-x-auto">
+        <div
+          className="min-w-0"
+          style={{ width: chartWidth, minWidth: "100%", height }}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              margin={{
+                top: compact ? 28 : 72,
+                right: 12,
+                left: 8,
+                bottom:
+                  (angled ? 64 : 28) +
+                  (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
+              }}
+              barCategoryGap={compact ? "12%" : "18%"}
+              barGap={showDeviation ? 6 : 2}
             >
-              <LabelList
-                dataKey={planName}
-                content={(props) => renderValueLabel(props as never) as never}
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="category"
+                tick={{ fontSize: compact ? 10 : 12 }}
+                interval={0}
+                angle={angled ? -35 : 0}
+                textAnchor={angled ? "end" : "middle"}
+                height={angled ? (hasNegDev ? 96 : 80) : hasNegDev ? 56 : 40}
+                dy={hasNegDev ? 8 : 0}
               />
-            </Bar>
-            <Bar
-              dataKey={factName}
-              fill={factColor}
-              radius={[3, 3, 0, 0]}
-              isAnimationActive={false}
-            >
-              <LabelList
-                dataKey={factName}
-                content={(props) => renderValueLabel(props as never) as never}
+              <YAxis
+                width={compact ? 48 : 72}
+                tick={{ fontSize: compact ? 10 : 12 }}
+                label={
+                  yAxisTitle && showUnitOnBars
+                    ? {
+                        value: yAxisTitle,
+                        angle: -90,
+                        position: "insideLeft",
+                        style: {
+                          textAnchor: "middle",
+                          fontSize: 12,
+                          fill: dark ? "#94a3b8" : "#64748b",
+                        },
+                      }
+                    : undefined
+                }
+                tickFormatter={(v) =>
+                  Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 })
+                }
+                domain={
+                  showDeviation
+                    ? [
+                        (dataMin: number) =>
+                          dataMin < 0
+                            ? Math.floor(dataMin * (showUnitOnBars ? 1.28 : 1.18))
+                            : 0,
+                        (dataMax: number) => Math.ceil(dataMax * 1.32),
+                      ]
+                    : [0, (dataMax: number) => Math.ceil(dataMax * 1.32)]
+                }
               />
-            </Bar>
-            {showForecast ? (
               <Bar
-                dataKey={forecastName}
-                fill={forecastColor}
+                dataKey={planName}
+                fill={planColor}
                 radius={[3, 3, 0, 0]}
                 isAnimationActive={false}
               >
                 <LabelList
-                  dataKey={forecastName}
+                  dataKey={planName}
                   content={(props) => renderValueLabel(props as never) as never}
                 />
               </Bar>
-            ) : null}
-            {hasNegDev ? (
               <Bar
-                dataKey={DEV_NEG_NAME}
-                name={DEV_NEG_NAME}
-                fill={DEV_BAR_RED}
-                radius={[3, 3, 3, 3]}
-                isAnimationActive={false}
-              >
-                <LabelList
-                  dataKey={DEV_NEG_NAME}
-                  content={
-                    ((props: Record<string, unknown>) =>
-                      renderValueLabel(props, {
-                        signed: true,
-                        colorBySign: true,
-                      })) as never
-                  }
-                />
-              </Bar>
-            ) : null}
-            {hasPosDev ? (
-              <Bar
-                dataKey={DEV_POS_NAME}
-                name={DEV_POS_NAME}
-                fill={DEV_BAR_GREEN}
+                dataKey={factName}
+                fill={factColor}
                 radius={[3, 3, 0, 0]}
                 isAnimationActive={false}
               >
                 <LabelList
-                  dataKey={DEV_POS_NAME}
-                  content={
-                    ((props: Record<string, unknown>) =>
-                      renderValueLabel(props, {
-                        signed: true,
-                        colorBySign: true,
-                      })) as never
-                  }
+                  dataKey={factName}
+                  content={(props) => renderValueLabel(props as never) as never}
                 />
               </Bar>
-            ) : null}
-          </BarChart>
-        </ResponsiveContainer>
+              {showForecast ? (
+                <Bar
+                  dataKey={forecastName}
+                  fill={forecastColor}
+                  radius={[3, 3, 0, 0]}
+                  isAnimationActive={false}
+                >
+                  <LabelList
+                    dataKey={forecastName}
+                    content={(props) => renderValueLabel(props as never) as never}
+                  />
+                </Bar>
+              ) : null}
+              {hasNegDev ? (
+                <Bar
+                  dataKey={DEV_NEG_NAME}
+                  name={DEV_NEG_NAME}
+                  fill={DEV_BAR_RED}
+                  radius={[3, 3, 3, 3]}
+                  isAnimationActive={false}
+                >
+                  <LabelList
+                    dataKey={DEV_NEG_NAME}
+                    content={
+                      ((props: Record<string, unknown>) =>
+                        renderValueLabel(props, {
+                          signed: true,
+                          colorBySign: true,
+                        })) as never
+                    }
+                  />
+                </Bar>
+              ) : null}
+              {hasPosDev ? (
+                <Bar
+                  dataKey={DEV_POS_NAME}
+                  name={DEV_POS_NAME}
+                  fill={DEV_BAR_GREEN}
+                  radius={[3, 3, 0, 0]}
+                  isAnimationActive={false}
+                >
+                  <LabelList
+                    dataKey={DEV_POS_NAME}
+                    content={
+                      ((props: Record<string, unknown>) =>
+                        renderValueLabel(props, {
+                          signed: true,
+                          colorBySign: true,
+                        })) as never
+                    }
+                  />
+                </Bar>
+              ) : null}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
+      <ChartHtmlLegend items={legendItems} compact={compact} />
       <p className="mt-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
         {compact
           ? "Подписи на столбцах — млн ₽ (кратко). Прокрутите график вправо при длинном периоде."

@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { PLOTLY_CONFIG } from "@/lib/plotly-config";
+import { ChartHtmlLegend } from "@/components/chart-html-legend";
+import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -262,18 +263,16 @@ export function PrescriptionsStatusPieChart({
       ],
       layout: {
         height,
-        margin: compact ? { l: 8, r: 8, t: 8, b: 96 } : { l: 44, r: 44, t: 44, b: 120 },
+        margin: compact ? { l: 8, r: 8, t: 8, b: 24 } : { l: 44, r: 44, t: 44, b: 40 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        showlegend: true,
-        legend: {
-          orientation: "h" as const,
-          x: 0.5,
-          xanchor: "center" as const,
+        showlegend: false,
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 11 : 12,
+          labelColor: theme.label,
           y: -0.1,
-          font: { size: compact ? 11 : 12, color: theme.label },
-        },
+        }),
         uniformtext: { minsize: 10, mode: "show" as const },
         modebar: { bgcolor: "rgba(0,0,0,0)", color: theme.axis, activecolor: "#0f766e" },
       },
@@ -286,13 +285,22 @@ export function PrescriptionsStatusPieChart({
 
   if (!rows.length) return empty("Нет данных для круговой диаграммы по статусам.");
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div>
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+      <ChartHtmlLegend
+        compact={compact}
+        items={rows.map((row) => ({
+          name: row.status,
+          color: PRED_PIE_STATUS_COLOR[row.status] ?? "#94a3b8",
+        }))}
+      />
+    </div>
   );
 }
 
@@ -370,17 +378,14 @@ export function PrescriptionsObjectsChart({
           fixedrange: false,
           tickfont: { color: theme.axis },
         },
-        showlegend: true,
-        legend: {
-          orientation: "h" as const,
-          yanchor: "top" as const,
+        showlegend: false,
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 10 : 12,
+          labelColor: theme.label,
           y: -0.18,
-          xanchor: "center" as const,
-          x: 0.5,
-          font: { size: compact ? 10 : 12, color: theme.label },
-        },
+        }),
         annotations,
-        margin: compact ? { l: 40, r: 16, t: 40, b: 90 } : { l: 56, r: 36, t: 64, b: 110 },
+        margin: compact ? { l: 40, r: 16, t: 40, b: 56 } : { l: 56, r: 36, t: 64, b: 72 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
@@ -397,13 +402,22 @@ export function PrescriptionsObjectsChart({
 
   if (!rows.length) return empty("Нет данных для диаграммы по объектам.");
   return (
-    <div className={compact && rows.length > 6 ? "overflow-x-auto" : ""}>
-      <PlotlyFigure
-        data={figure.data}
-        layout={figure.layout}
-        config={figure.config}
-        useResizeHandler
-        style={{ width: compact && rows.length > 6 ? "max-content" : "100%", height: "100%" }}
+    <div>
+      <div className={compact && rows.length > 6 ? "overflow-x-auto" : ""}>
+        <PlotlyFigure
+          data={figure.data}
+          layout={figure.layout}
+          config={figure.config}
+          useResizeHandler
+          style={{ width: compact && rows.length > 6 ? "max-content" : "100%", height: "100%" }}
+        />
+      </div>
+      <ChartHtmlLegend
+        compact={compact}
+        items={statusKeys.map((status) => ({
+          name: status,
+          color: PRED_OBJECT_STATUS_COLOR[status] ?? "#94a3b8",
+        }))}
       />
     </div>
   );

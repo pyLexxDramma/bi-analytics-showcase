@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { WorkingDocumentationPayload } from "@/lib/api";
 import { CHART_RU } from "@/lib/chart-ru";
-import { PLOTLY_CONFIG } from "@/lib/plotly-config";
+import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
@@ -224,27 +224,15 @@ export function RdDynamicsLineChart({
         height,
         margin: compact
           ? { l: 48, r: 20, t: 28, b: 108 }
-          : { l: 56, r: 36, t: 72, b: 100 },
+          : { l: 56, r: 36, t: 48, b: 100 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         hovermode: false as const,
-        legend: compact
-          ? {
-              orientation: "h" as const,
-              y: -0.32,
-              yanchor: "top" as const,
-              x: 0.5,
-              xanchor: "center" as const,
-              font: { size: 11, color: theme.axis },
-              bgcolor: "rgba(0,0,0,0)",
-            }
-          : {
-              orientation: "h" as const,
-              y: 1.14,
-              x: 0.5,
-              xanchor: "center" as const,
-              font: { size: 13, color: theme.axis },
-            },
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 11 : 13,
+          labelColor: theme.axis,
+          y: compact ? -0.32 : -0.18,
+        }),
         xaxis: {
           title: {
             text: compact ? "" : "Период",
@@ -393,25 +381,14 @@ export function RdMonthlyCumulativeChart({
         bargap: 0.28,
         margin: compact
           ? { l: 8, r: 56, t: 12, b: 96 }
-          : { l: 16, r: 72, t: 48, b: 56 },
+          : { l: 16, r: 72, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        legend: compact
-          ? {
-              orientation: "h" as const,
-              y: -0.28,
-              yanchor: "top" as const,
-              x: 0,
-              xanchor: "left" as const,
-              font: { size: 11, color: theme.axis },
-              bgcolor: "rgba(0,0,0,0)",
-            }
-          : {
-              orientation: "h" as const,
-              y: 1.12,
-              x: 0,
-              font: { size: 12, color: theme.axis },
-            },
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 11 : 12,
+          labelColor: theme.axis,
+          y: compact ? -0.28 : -0.12,
+        }),
         xaxis: {
           title: {
             text: compact ? "" : "Количество разделов (накопительно)",
@@ -647,27 +624,15 @@ export function RdDelayGanttChart({
         // Запас снизу: тики + легенда в 2 ряда, без «Дата Периодвору»
         margin: compact
           ? { l: 8, r: 64, t: 16, b: 168 }
-          : { l: 16, r: 160, t: 56, b: 56 },
+          : { l: 16, r: 160, t: 40, b: 88 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         showlegend: true,
-        legend: compact
-          ? {
-              orientation: "h" as const,
-              y: -0.42,
-              yanchor: "top" as const,
-              x: 0,
-              xanchor: "left" as const,
-              font: { size: 10, color: theme.axis },
-              bgcolor: "rgba(0,0,0,0)",
-              traceorder: "normal" as const,
-            }
-          : {
-              orientation: "h" as const,
-              y: 1.14,
-              x: 0,
-              font: { size: 12, color: theme.axis },
-            },
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 10 : 12,
+          labelColor: theme.axis,
+          y: compact ? -0.42 : -0.14,
+        }),
         annotations,
         xaxis: {
           type: "date" as const,

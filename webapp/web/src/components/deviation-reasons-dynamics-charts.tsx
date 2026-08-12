@@ -7,6 +7,7 @@ import {
   PLOTLY_AXIS_LINE,
   PLOTLY_CONFIG,
   PLOTLY_ZEROLINE,
+  plotlyLegendUnderLeft,
 } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
@@ -142,17 +143,11 @@ export function DeviationFacetChart({
           automargin: true,
           ...PLOTLY_AXIS_LINE,
         },
-        legend: {
-          orientation: "h" as const,
-          yanchor: "top" as const,
+        legend: plotlyLegendUnderLeft({
+          fontSize: mobile ? 10 : 11,
+          labelColor: theme.axis,
           y: mobile ? -0.28 : -0.18,
-          xanchor: "center" as const,
-          x: 0.5,
-          font: { size: mobile ? 10 : 11, color: theme.axis },
-          bgcolor: "rgba(0,0,0,0)",
-          tracegroupgap: 8,
-          itemsizing: "constant" as const,
-        },
+        }),
         bargap: periods.length <= 4 ? 0.45 : 0.28,
         showlegend: true,
         modebar: {
@@ -272,16 +267,11 @@ export function DeviationStackChart({
           automargin: true,
           ...PLOTLY_AXIS_LINE,
         },
-        legend: {
-          orientation: "h" as const,
-          yanchor: "top" as const,
+        legend: plotlyLegendUnderLeft({
+          fontSize: mobile ? 10 : 11,
+          labelColor: theme.axis,
           y: mobile ? -0.32 : -0.2,
-          xanchor: "center" as const,
-          x: 0.5,
-          font: { size: mobile ? 10 : 11, color: theme.axis },
-          bgcolor: "rgba(0,0,0,0)",
-          itemsizing: "constant" as const,
-        },
+        }),
         bargap: periods.length <= 4 ? 0.64 : 0.5,
         showlegend: true,
         modebar: {

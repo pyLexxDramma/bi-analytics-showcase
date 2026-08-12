@@ -43,3 +43,35 @@ export const PLOTLY_AXIS_LINE = {
   linewidth: 1,
   linecolor: "rgba(100, 116, 139, 0.65)",
 } as const;
+
+/**
+ * Легенда под графиком слева (не по центру полотна).
+ * Для широких графиков со scroll — showlegend:false + ChartHtmlLegend снаружи.
+ */
+export function plotlyLegendUnderLeft(opts?: {
+  fontSize?: number;
+  y?: number;
+  labelColor?: string;
+}) {
+  return {
+    orientation: "h" as const,
+    x: 0,
+    xanchor: "left" as const,
+    y: opts?.y ?? -0.18,
+    yanchor: "top" as const,
+    font: {
+      size: opts?.fontSize ?? 12,
+      ...(opts?.labelColor ? { color: opts.labelColor } : {}),
+    },
+    bgcolor: "rgba(0,0,0,0)",
+    tracegroupgap: 8,
+    itemsizing: "constant" as const,
+  };
+}
+
+/** @deprecated alias — используйте plotlyLegendUnderLeft */
+export function plotlyLegendUnderRight(
+  opts?: Parameters<typeof plotlyLegendUnderLeft>[0],
+) {
+  return plotlyLegendUnderLeft(opts);
+}

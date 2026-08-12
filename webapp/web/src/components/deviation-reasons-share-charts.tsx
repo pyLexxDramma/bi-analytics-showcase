@@ -7,6 +7,7 @@ import {
   PLOTLY_AXIS_LINE,
   PLOTLY_CONFIG,
   PLOTLY_ZEROLINE,
+  plotlyLegendUnderLeft,
 } from "@/lib/plotly-config";
 import { useIsMobileViewport, useIsNarrowPhone } from "@/lib/use-is-mobile";
 
@@ -272,14 +273,11 @@ export function DeviationReasonsPieChart({
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         showlegend: true,
-        legend: {
-          orientation: "h" as const,
-          x: 0.5,
-          xanchor: "center" as const,
+        legend: plotlyLegendUnderLeft({
+          fontSize: 12,
+          labelColor: theme.axis,
           y: -0.08,
-          yanchor: "top" as const,
-          font: { size: 12, color: theme.axis },
-        },
+        }),
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
         modebar: {
           bgcolor: "rgba(0,0,0,0)",

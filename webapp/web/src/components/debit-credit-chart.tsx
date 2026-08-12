@@ -49,12 +49,16 @@ const SERIES = {
 } as const;
 
 const METRIC_LEGEND = [
-  { name: "Договор стоимость", color: "#2E86AB" },
-  { name: "Всего выполненных обязательств по платежам", color: "#95A5A6" },
-  { name: "КС-2", color: "#B7950B" },
-  { name: "Аванс", color: "#F7DC6F" },
-  { name: "КС-2 − Аванс (≥ 0)", color: "#95A5A6" },
-  { name: "КС-2 − Аванс (< 0)", color: "#F1948A" },
+  { name: "Договор стоимость", short: "Договор", color: "#2E86AB" },
+  {
+    name: "Всего выполненных обязательств по платежам",
+    short: "Обязательства",
+    color: "#95A5A6",
+  },
+  { name: "КС-2", short: "КС-2", color: "#B7950B" },
+  { name: "Аванс", short: "Аванс", color: "#F7DC6F" },
+  { name: "КС-2 − Аванс (≥ 0)", short: "КС−Ав ≥0", color: "#95A5A6" },
+  { name: "КС-2 − Аванс (< 0)", short: "КС−Ав <0", color: "#F1948A" },
 ] as const;
 
 function useChartTheme() {
@@ -109,7 +113,7 @@ function canvasWidth(n: number, grouped: boolean): { scroll: boolean; width: num
 }
 
 function isMetricRows(
-  rows: DebitCreditContractorChartRow[] | DebitCreditMetricChartRow[],
+  rows: Array<DebitCreditContractorChartRow | DebitCreditMetricChartRow>,
   aggregation: "by_contractor" | "by_metric",
 ): rows is DebitCreditMetricChartRow[] {
   return aggregation === "by_metric";
@@ -132,7 +136,7 @@ export function DebitCreditChart({
   compact = false,
   aggregation = "by_contractor",
 }: {
-  rows: DebitCreditContractorChartRow[] | DebitCreditMetricChartRow[];
+  rows: Array<DebitCreditContractorChartRow | DebitCreditMetricChartRow>;
   stacked: boolean;
   compact?: boolean;
   aggregation?: "by_contractor" | "by_metric";
@@ -417,7 +421,7 @@ export function DebitCreditChartLegend({
     aggregation === "by_metric"
       ? METRIC_LEGEND.map((item) => ({
           name: item.name,
-          short: item.name,
+          short: item.short,
           color: item.color,
         }))
       : stacked
@@ -433,15 +437,25 @@ export function DebitCreditChartLegend({
             { name: "Отклонение, если меньше 0", short: "Откл. <0", color: "#F1948A" },
           ];
   return (
-    <div className="mt-2 flex flex-nowrap gap-x-4 overflow-x-auto overscroll-x-contain px-1 text-xs text-tremor-content-strong scrollbar-none dark:text-dark-tremor-content-strong">
+    <div
+      className={
+        mobile
+          ? "mt-2 flex flex-wrap items-center justify-start gap-x-3 gap-y-1 px-0.5 text-[11px] leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong"
+          : "mt-2 flex flex-wrap items-center justify-start gap-x-4 gap-y-1.5 px-1 text-xs text-tremor-content-strong dark:text-dark-tremor-content-strong"
+      }
+    >
       {items.map((item) => (
-        <span key={item.name} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+        <span key={item.name} className="inline-flex max-w-full items-center gap-1.5">
           <span
-            className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm"
+            className={
+              mobile
+                ? "inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                : "inline-block h-3.5 w-3.5 shrink-0 rounded-sm"
+            }
             style={{ background: item.color }}
             aria-hidden
           />
-          {mobile ? item.short : item.name}
+          <span className="min-w-0 break-words">{mobile ? item.short : item.name}</span>
         </span>
       ))}
     </div>

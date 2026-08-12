@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { PLOTLY_CONFIG } from "@/lib/plotly-config";
+import { ChartHtmlLegend } from "@/components/chart-html-legend";
+import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -176,38 +177,25 @@ export function GdrsGroupedBarChart({
           t: compact ? 28 : 88,
           b: contractors
             ? compact
-              ? 130
+              ? 100
               : labels.length > 8
-                ? 200
-                : 160
+                ? 170
+                : 130
             : compact
-              ? 108
+              ? 80
               : light
-                ? 120
-                : 100,
+                ? 90
+                : 72,
         },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        legend: compact
-          ? {
-              orientation: "h" as const,
-              x: 0.5,
-              xanchor: "center" as const,
-              y: -0.22,
-              yanchor: "top" as const,
-              font: { color: theme.label, size: 11 },
-              bgcolor: "rgba(0,0,0,0)",
-              tracegroupgap: 8,
-              itemsizing: "constant" as const,
-            }
-          : {
-              orientation: "h" as const,
-              x: 0.5,
-              xanchor: "center" as const,
-              y: -0.18,
-              font: { color: theme.label, size: contractors ? 16 : 13 },
-            },
+        showlegend: false,
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 11 : contractors ? 16 : 13,
+          labelColor: theme.label,
+          y: -0.18,
+        }),
         xaxis: {
           tickangle: contractors || (compact && labels.length > 3) ? -45 : 0,
           tickfont: {
@@ -237,13 +225,27 @@ export function GdrsGroupedBarChart({
 
   if (!rows.length) return empty("Нет данных для графика.");
   return (
-    <div className={contractors ? "overflow-x-auto" : ""}>
-      <PlotlyFigure
-        data={figure.data}
-        layout={figure.layout}
-        config={figure.config}
-        useResizeHandler
-        style={{ width: contractors ? "max-content" : "100%", height: "100%" }}
+    <div>
+      <div className={contractors ? "overflow-x-auto" : ""}>
+        <PlotlyFigure
+          data={figure.data}
+          layout={figure.layout}
+          config={figure.config}
+          useResizeHandler
+          style={{ width: contractors ? "max-content" : "100%", height: "100%" }}
+        />
+      </div>
+      <ChartHtmlLegend
+        compact={compact}
+        items={[
+          { name: "План", color: "#2563eb" },
+          { name: "Факт", color: "#15803d" },
+          {
+            name: compact ? "Отклонение" : "Отклонение (факт − план)",
+            short: "Отклонение",
+            color: "#64748b",
+          },
+        ]}
       />
     </div>
   );
@@ -327,19 +329,16 @@ export function GdrsContractorsPieChart({
         height,
         margin: compact
           ? { l: 8, r: 8, t: 8, b: 8 }
-          : { l: 8, r: 8, t: 24, b: 120 },
+          : { l: 8, r: 8, t: 24, b: 24 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        showlegend: !compact,
-        legend: {
-          orientation: "h" as const,
-          x: 0.5,
-          xanchor: "center" as const,
+        showlegend: false,
+        legend: plotlyLegendUnderLeft({
+          fontSize: 12,
+          labelColor: theme.label,
           y: -0.08,
-          font: { color: theme.label, size: 12 },
-          itemsizing: "constant" as const,
-        },
+        }),
         modebar: {
           bgcolor: "rgba(0,0,0,0)",
           color: theme.axis,
@@ -384,7 +383,14 @@ export function GdrsContractorsPieChart({
             );
           })}
         </ul>
-      ) : null}
+      ) : (
+        <ChartHtmlLegend
+          items={rows.map((row, i) => ({
+            name: row.name,
+            color: PIE_COLORS[i % PIE_COLORS.length],
+          }))}
+        />
+      )}
     </div>
   );
 }
@@ -478,29 +484,17 @@ export function GdrsDynamicsLineChart({
         width: chartWidth,
         height,
         margin: compact
-          ? { l: 40, r: 16, t: 28, b: 100 }
-          : { l: 56, r: 36, t: 76, b: 110 },
+          ? { l: 40, r: 16, t: 28, b: 72 }
+          : { l: 56, r: 36, t: 76, b: 72 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         hovermode: false as const,
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
-        legend: compact
-          ? {
-              orientation: "h" as const,
-              y: -0.28,
-              yanchor: "top" as const,
-              x: 0.5,
-              xanchor: "center" as const,
-              font: { size: 11 },
-              bgcolor: "rgba(0,0,0,0)",
-            }
-          : {
-              orientation: "h" as const,
-              y: 1.15,
-              x: 0.5,
-              xanchor: "center" as const,
-              font: { size: 12 },
-            },
+        showlegend: false,
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 11 : 12,
+          y: -0.22,
+        }),
         xaxis: {
           title: compact ? undefined : "Период",
           tickangle: -45,
@@ -533,16 +527,25 @@ export function GdrsDynamicsLineChart({
 
   if (!rows.length) return empty("Нет точек динамики.");
   return (
-    <div className={compact && rows.length > 12 ? "overflow-x-auto" : ""}>
-      <PlotlyFigure
-        data={figure.data}
-        layout={figure.layout}
-        config={figure.config}
-        useResizeHandler
-        style={{
-          width: compact && rows.length > 12 ? "max-content" : "100%",
-          height: "100%",
-        }}
+    <div>
+      <div className={compact && rows.length > 12 ? "overflow-x-auto" : ""}>
+        <PlotlyFigure
+          data={figure.data}
+          layout={figure.layout}
+          config={figure.config}
+          useResizeHandler
+          style={{
+            width: compact && rows.length > 12 ? "max-content" : "100%",
+            height: "100%",
+          }}
+        />
+      </div>
+      <ChartHtmlLegend
+        compact={compact}
+        items={[
+          { name: "План", color: "#2563eb" },
+          { name: "Факт", color: "#ea580c" },
+        ]}
       />
     </div>
   );
