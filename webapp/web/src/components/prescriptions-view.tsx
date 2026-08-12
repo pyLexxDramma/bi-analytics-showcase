@@ -61,21 +61,24 @@ const STATUS_KEYS = [
 const UNRESOLVED_STATUS_KEYS = ["Остановка работ", "Критические", "Не устранено"] as const;
 
 const tableColumns: Array<[string, string]> = [
-  ["status", "Статус предписания"],
+  ["status", "Статус"],
   ["contractor", "Подрядчик"],
   ["project", "Проект"],
   ["contract_no", "№ договора"],
   ["doc_number", "№ документа"],
   ["pred_number", "№ предписания"],
   ["name", "Наименование"],
-  ["issue_date", "Дата выдачи предписания"],
-  ["issue_block", "Блок выдачи предписания"],
+  ["issue_date", "Дата выдачи"],
+  ["issue_block", "Блок выдачи"],
   ["due_date", "Срок устранения"],
-  ["completion_date", "Фактическая дата устранения предписания"],
+  ["completion_date", "Факт. устранение"],
   ["overdue_days", "Дней просрочки"],
-  ["critical", "Критические предписания"],
+  ["critical", "Критические"],
   ["stop_work", "Остановка работ"],
 ];
+
+/** Длинный текст без nowrap — иначе колонка раздувается на тысячи px. */
+const TRUNCATE_COLS = new Set(["name", "issue_block", "contractor", "contract_no"]);
 
 function compare(a: unknown, b: unknown) {
   const an = Number(a);
@@ -536,76 +539,90 @@ export function PrescriptionsView() {
                   Нет строк по фильтрам.
                 </div>
               ) : (
-                <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
-                  <thead>
-                    <tr>
-                      {tableColumns.map(([key, label]) => (
-                        <th
-                          key={key}
-                          className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(key)}
-                            className="inline-flex items-center gap-1"
-                          >
-                            {label}
-                            <span aria-hidden>
-                              {sort?.key === key ? (sort.asc ? "↑" : "↓") : "⇅"}
-                            </span>
-                          </button>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, index) => (
-                      <tr
-                        key={`${row.pred_number}-${index}`}
-                        className={
-                          row.row_tone === "overdue"
-                            ? "!bg-rose-50/80 dark:!bg-rose-950/25"
-                            : row.row_tone === "resolved"
-                              ? "!bg-emerald-50/60 dark:!bg-emerald-950/20"
-                              : "!bg-tremor-background dark:!bg-dark-tremor-background"
-                        }
-                      >
-                        {tableColumns.map(([key]) => (
-                          <td
+                /* shrink-wrap: иначе table width:auto = 100% карточки и колонки раздуваются */
+                <div className="w-max max-w-none">
+                  <table
+                    className="bi-sticky-head border-separate border-spacing-0 text-left text-sm"
+                    style={{ width: "max-content" }}
+                  >
+                    <thead>
+                      <tr>
+                        {tableColumns.map(([key, label]) => (
+                          <th
                             key={key}
-                            className={`max-w-72 whitespace-nowrap border-b border-tremor-border px-3 py-2 align-middle dark:border-dark-tremor-border ${
-                              key === "overdue_days" && row.overdue_days > 0
-                                ? "font-semibold text-rose-600 dark:text-rose-400"
-                                : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
-                            }`}
+                            className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content"
                           >
-                            {key === "status" ? (
-                              <span
-                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                                  row.status_chip === "overdue"
-                                    ? "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200"
-                                    : row.status_chip === "ok"
-                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-200"
-                                      : "bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-200"
-                                }`}
-                              >
-                                {row.status}
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(key)}
+                              className="inline-flex items-center gap-1"
+                            >
+                              {label}
+                              <span aria-hidden>
+                                {sort?.key === key ? (sort.asc ? "↑" : "↓") : "⇅"}
                               </span>
-                            ) : key === "critical" || key === "stop_work" ? (
-                              row[key] ? (
-                                "Да"
-                              ) : (
-                                "—"
-                              )
-                            ) : (
-                              String(row[key as keyof typeof row] ?? "—")
-                            )}
-                          </td>
+                            </button>
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, index) => {
+                        const toneBg =
+                          row.row_tone === "overdue"
+                            ? "bg-rose-50 dark:bg-rose-950/40"
+                            : row.row_tone === "resolved"
+                              ? "bg-emerald-50 dark:bg-emerald-950/30"
+                              : "bg-tremor-background dark:bg-dark-tremor-background";
+                        return (
+                          <tr key={`${row.pred_number}-${index}`}>
+                            {tableColumns.map(([key]) => (
+                              <td
+                                key={key}
+                                title={
+                                  TRUNCATE_COLS.has(key)
+                                    ? String(row[key as keyof typeof row] ?? "")
+                                    : undefined
+                                }
+                                className={`border-b border-tremor-border px-3 py-2 align-middle dark:border-dark-tremor-border ${toneBg} ${
+                                  TRUNCATE_COLS.has(key)
+                                    ? "max-w-[16rem] truncate"
+                                    : "whitespace-nowrap"
+                                } ${
+                                  key === "overdue_days" && row.overdue_days > 0
+                                    ? "font-semibold text-rose-600 dark:text-rose-400"
+                                    : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                                }`}
+                              >
+                                {key === "status" ? (
+                                  <span
+                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                      row.status_chip === "overdue"
+                                        ? "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200"
+                                        : row.status_chip === "ok"
+                                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-200"
+                                          : "bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-200"
+                                    }`}
+                                  >
+                                    {row.status}
+                                  </span>
+                                ) : key === "critical" || key === "stop_work" ? (
+                                  row[key] ? (
+                                    "Да"
+                                  ) : (
+                                    "—"
+                                  )
+                                ) : (
+                                  String(row[key as keyof typeof row] ?? "—")
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </FullscreenPanel>
