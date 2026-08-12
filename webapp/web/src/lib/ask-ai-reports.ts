@@ -127,7 +127,7 @@ function isAllProject(value: string): boolean {
 
 /**
  * Срез фильтров из query (в момент клика — из window.location.search).
- * См. ASK_AI_XCA_REQUEST.md §1.1.
+ * См. ASK_AI_LINK_CONTRACT.md / ASK_AI_XCA_REQUEST.md.
  */
 export function collectAskAiFiltersFromSearch(
   search: string,
@@ -143,6 +143,7 @@ export function collectAskAiFiltersFromSearch(
 
   const projectRaw =
     (params.get("project") || params.get("projects") || "").trim();
+  // Подсказка «на что смотрел» — первый выбранный; полный ACL уходит с API как projects.
   const project =
     projectRaw && !isAllProject(projectRaw.split("|")[0] || "")
       ? projectRaw.split("|")[0]
@@ -153,8 +154,16 @@ export function collectAskAiFiltersFromSearch(
   const to = (params.get("date_to") || params.get("to") || "").trim();
   let period: string | undefined = periodDirect || undefined;
   if (!period && (from || to)) {
-    period = `${from}..${to}`;
+    if (from && to && from.length >= 7 && from.slice(0, 7) === to.slice(0, 7)) {
+      period = from.slice(0, 7); // YYYY-MM
+    } else if (from && !to && from.length >= 7) {
+      period = from.slice(0, 7);
+    } else {
+      period = `${from}..${to}`;
+    }
   }
+  if (from) filters.date_from = from;
+  if (to) filters.date_to = to;
 
   params.forEach((value, key) => {
     const k = key.trim();

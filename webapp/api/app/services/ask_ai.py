@@ -19,6 +19,13 @@ MAX_Q = 120
 MAX_CTX = 600
 MAX_FILTERS = 400
 MAX_URL = 1500
+LINK_TTL_SECONDS = 600
+
+# Имена в UI/ACL дашборда → имена в витрине XCA (см. ASK_AI_LINK_CONTRACT.md §5).
+PROJECT_NAME_ALIASES_FOR_XCA: dict[str, str] = {
+    "Дмитровский": "Дмитровский-1",
+    "Дмитровский1": "Дмитровский-1",
+}
 
 
 class AskAiConfigError(RuntimeError):
@@ -70,6 +77,49 @@ def _filters_json(filters: dict[str, Any] | str | None) -> str | None:
     return _clip(raw, MAX_FILTERS) or None
 
 
+def map_project_name_for_xca(name: str) -> str:
+    raw = (name or "").strip()
+    if not raw:
+        return raw
+    return PROJECT_NAME_ALIASES_FOR_XCA.get(raw, raw)
+
+
+def format_projects_param(names: list[str] | None) -> str:
+    """`*` = все; иначе имена через `|` (как в дашборде), с алиасами под XCA."""
+    if names is None:
+        return "*"
+    mapped = [map_project_name_for_xca(n) for n in names if str(n).strip()]
+    # Стабильный порядок для подписи / сверки на стороне XCA.
+    uniq = sorted({m for m in mapped if m})
+    return "|".join(uniq) if uniq else "*"
+
+
+def format_reports_param(screen_ids: list[str] | None) -> str:
+    """`*` = все экраны; иначе `screen_*` через запятую."""
+    if screen_ids is None:
+        return "*"
+    ids = [str(s).strip() for s in screen_ids if str(s).strip()]
+    return ",".join(ids) if ids else "*"
+
+
+def user_projects_param(user: dict[str, Any]) -> str:
+    from app.services.project_scope import allowed_projects_for_user
+
+    return format_projects_param(allowed_projects_for_user(user))
+
+
+def user_reports_param(user: dict[str, Any]) -> str:
+    auth = import_auth()
+    role = str(user.get("role") or "").strip().lower()
+    if role in ("superadmin", "admin"):
+        return "*"
+    reports: list[str] = []
+    for nav_id, meta in SCREENS.items():
+        if role_can_open_screen(auth, role, nav_id):
+            reports.append(str(meta["report"]))
+    return format_reports_param(reports)
+
+
 def build_ask_url(
     *,
     user: dict[str, Any],
@@ -82,41 +132,66 @@ def build_ask_url(
     filters: dict[str, Any] | str | None = None,
     src: str | None = None,
     ts: int | None = None,
+    exp: int | None = None,
+    free: bool = False,
+    projects: str | None = None,
+    reports: str | None = None,
 ) -> dict[str, Any]:
-    report_id, screen = resolve_report(nav_id, report)
-    title = (screen or {}).get("title") or report_id
-    question = _clip(
-        (q or "").strip() or f"Объясни дашборд «{title}»",
-        MAX_Q,
-    )
-    if not question:
-        question = "Объясни дашборд"
-
-    default_ctx_parts = []
-    if screen:
-        default_ctx_parts.append(f"Отчёт «{screen['title']}».")
-        hint = screen.get("ctx_hint")
-        if hint:
-            default_ctx_parts.append(str(hint))
-    context = _clip((ctx or "").strip() or " ".join(default_ctx_parts), MAX_CTX)
+    if free or (report or "").strip() == "free" or (
+        not (nav_id or "").strip() and not (report or "").strip()
+    ):
+        report_id = "free"
+        screen = None
+        # Свободный чат: вопрос пишет пользователь, ctx не обязателен.
+        question = _clip((q or "").strip(), MAX_Q)
+        context = _clip((ctx or "").strip(), MAX_CTX)
+    else:
+        report_id, screen = resolve_report(nav_id, report)
+        title = (screen or {}).get("title") or report_id
+        question = _clip(
+            (q or "").strip() or f"Объясни дашборд «{title}»",
+            MAX_Q,
+        )
+        if not question:
+            question = "Объясни дашборд"
+        default_ctx_parts = []
+        if screen:
+            default_ctx_parts.append(f"Отчёт «{screen['title']}».")
+            hint = screen.get("ctx_hint")
+            if hint:
+                default_ctx_parts.append(str(hint))
+        context = _clip((ctx or "").strip() or " ".join(default_ctx_parts), MAX_CTX)
 
     source = (src or "").strip() or (str(screen["src"]) if screen else "") or (nav_id or "")
+    if free and not source:
+        source = "sidebar"
     uid = f"u_{user.get('id')}" if user.get("id") is not None else f"u_{user.get('username')}"
     role = str(user.get("role") or "").strip().lower() or "analyst"
     stamp = int(ts if ts is not None else time.time())
+    exp_ts = int(exp) if exp is not None else stamp + LINK_TTL_SECONDS
+
+    projects_s = (projects if projects is not None else user_projects_param(user)).strip()
+    reports_s = (reports if reports is not None else user_reports_param(user)).strip()
 
     params: dict[str, str] = {
         "v": "1",
         "report": report_id,
-        "q": question,
         "uid": uid,
         "role": role,
         "ts": str(stamp),
+        "exp": str(exp_ts),
+        "projects": projects_s or "*",
+        "reports": reports_s or "*",
     }
+    if question:
+        params["q"] = question
     if context:
         params["ctx"] = context
     if project and str(project).strip():
-        params["project"] = str(project).strip()
+        # Подсказка «на что смотрел» — тоже через алиас XCA.
+        first = str(project).strip().split("|")[0].strip()
+        if first:
+            params["project"] = map_project_name_for_xca(first)
     if period and str(period).strip():
         params["period"] = str(period).strip()
     filters_s = _filters_json(filters)
@@ -125,7 +200,7 @@ def build_ask_url(
     if source:
         params["src"] = source
 
-    # Укладываемся в лимит URL: режем ctx, не report/фильтры.
+    # Укладываемся в лимит URL: режем ctx, не report/фильтры/ACL.
     params["sig"] = sign_params(params)
     url = f"{_base_url()}?{urlencode(params)}"
     while len(url) > MAX_URL and "ctx" in params and len(params["ctx"]) > 40:
@@ -136,15 +211,22 @@ def build_ask_url(
         params["filters"] = _clip(params["filters"], max(40, len(params["filters"]) // 2))
         params["sig"] = sign_params(params)
         url = f"{_base_url()}?{urlencode(params)}"
+    if len(url) > MAX_URL and "q" in params and len(params["q"]) > 40:
+        params["q"] = _clip(params["q"], max(40, len(params["q"]) - 40))
+        params["sig"] = sign_params(params)
+        url = f"{_base_url()}?{urlencode(params)}"
     if len(url) > MAX_URL:
         raise ValueError("Ссылка Ask AI длиннее 1500 символов даже после усечения ctx/filters")
 
     return {
         "url": url,
         "report": report_id,
-        "nav_id": nav_id or (None),
+        "nav_id": nav_id,
         "ts": stamp,
-        "expires_in": 600,
+        "exp": exp_ts,
+        "expires_in": max(0, exp_ts - stamp),
+        "projects": projects_s or "*",
+        "reports": reports_s or "*",
     }
 
 

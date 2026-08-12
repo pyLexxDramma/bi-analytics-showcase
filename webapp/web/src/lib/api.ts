@@ -2426,6 +2426,8 @@ export async function putReportConfig(
 export type AskAiLinkRequest = {
   nav_id?: string;
   report?: string;
+  /** free = чат без экрана (сайдбар «ИИ помощник»). */
+  mode?: "screen" | "free";
   q?: string;
   ctx?: string;
   project?: string;
@@ -2440,7 +2442,10 @@ export type AskAiLinkResponse = {
   report: string;
   nav_id?: string | null;
   ts: number;
+  exp?: number;
   expires_in: number;
+  projects?: string;
+  reports?: string;
 };
 
 /** Подписанная ссылка XCA Ask AI (генерируется на API в момент клика). */

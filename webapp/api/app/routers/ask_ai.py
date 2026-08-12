@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -10,6 +10,7 @@ from app.services.ask_ai import (
     AskAiConfigError,
     build_ask_url,
     build_roles_catalog,
+    map_project_name_for_xca,
     role_can_open_screen,
 )
 from app.services.ask_ai_reports import NAV_BY_REPORT, get_screen, resolve_report
@@ -22,12 +23,22 @@ router = APIRouter(prefix="/api/ask-ai", tags=["ask-ai"])
 class AskAiLinkBody(BaseModel):
     nav_id: str | None = Field(default=None, max_length=64)
     report: str | None = Field(default=None, max_length=128)
+    """screen | free — free = чат без привязки к отчёту (кнопка «ИИ помощник»)."""
+    mode: Literal["screen", "free"] | None = None
     q: str | None = Field(default=None, max_length=200)
     ctx: str | None = Field(default=None, max_length=800)
     project: str | None = Field(default=None, max_length=200)
     period: str | None = Field(default=None, max_length=64)
     filters: dict[str, Any] | str | None = None
     src: str | None = Field(default=None, max_length=200)
+
+
+def _is_free_request(body: AskAiLinkBody) -> bool:
+    if body.mode == "free":
+        return True
+    if (body.report or "").strip().lower() == "free":
+        return True
+    return False
 
 
 def _assert_user_may_ask(user: dict, nav_id: str | None, report: str | None) -> str:
@@ -58,6 +69,7 @@ def _require_roles_catalog_access(
         return
     require_admin_user(authorization)
 
+
 @router.post("/link")
 @router.post("/link/", include_in_schema=False)
 def create_ask_ai_link(
@@ -65,9 +77,16 @@ def create_ask_ai_link(
     authorization: str | None = Header(default=None),
 ):
     user = require_report_user(authorization)
-    if not (body.nav_id or body.report):
-        raise HTTPException(status_code=400, detail="Нужен nav_id или report")
-    nav = _assert_user_may_ask(user, body.nav_id, body.report)
+    free = _is_free_request(body)
+    nav: str | None = None
+    if free:
+        # Свободный чат: любой пользователь с доступом к отчётам; ACL в projects/reports.
+        pass
+    else:
+        if not (body.nav_id or body.report):
+            raise HTTPException(status_code=400, detail="Нужен nav_id или report")
+        nav = _assert_user_may_ask(user, body.nav_id, body.report)
+
     from app.services.project_scope import clamp_project_pipe, allowed_projects_for_user
 
     project = body.project
@@ -80,19 +99,25 @@ def create_ask_ai_link(
                     status_code=403,
                     detail="Нет доступа к выбранному проекту для ИИ",
                 )
-        elif len(allowed) == 1:
+        elif not free and len(allowed) == 1:
             project = allowed[0]
+
+    # Подсказка project — один объект; полный scope уходит в projects.
+    if project and "|" in str(project):
+        project = str(project).split("|")[0].strip() or None
+
     try:
         result = build_ask_url(
             user=user,
             nav_id=nav,
-            report=body.report,
-            q=body.q,
-            ctx=body.ctx,
+            report=("free" if free else body.report),
+            q=("" if free and body.q is None else body.q),
+            ctx=("" if free and body.ctx is None else body.ctx),
             project=project,
             period=body.period,
             filters=body.filters,
-            src=body.src,
+            src=body.src or ("sidebar" if free else None),
+            free=free,
         )
     except AskAiConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -155,12 +180,18 @@ def my_screens(authorization: str | None = Header(default=None)):
         if user.get("id") is not None
         else f"u_{user.get('username')}"
     )
+    raw_projects = allowed_projects_for_user(user)
     return {
         "ok": True,
         "uid": uid,
         "role": role,
         "allowed_nav_ids": nav_ids,
         "allowed_reports": reports,
-        "allowed_projects": allowed_projects_for_user(user),
+        "allowed_projects": raw_projects,
+        "allowed_projects_xca": (
+            None
+            if raw_projects is None
+            else [map_project_name_for_xca(p) for p in raw_projects]
+        ),
         "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }

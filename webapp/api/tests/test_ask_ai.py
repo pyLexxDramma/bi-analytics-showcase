@@ -74,6 +74,26 @@ class _Auth:
     def get_user_role_display(role: str) -> str:
         return _Auth.ROLES.get(role, role)
 
+    @staticmethod
+    def resolve_allowed_projects(role: str, user_id):
+        if role == "manager":
+            return ["Есипово-5", "Дмитровский"]
+        return None
+
+    @staticmethod
+    def clamp_projects_for_user(role: str, user_id, requested):
+        allowed = _Auth.resolve_allowed_projects(role, user_id)
+        if allowed is None:
+            return list(requested or [])
+        if not requested:
+            return list(allowed)
+        allow = set(allowed)
+        return [p for p in requested if p in allow]
+
+    @staticmethod
+    def get_role_projects(role: str):
+        return _Auth.resolve_allowed_projects(role, None)
+
 
 @pytest.fixture
 def ask_client(monkeypatch: pytest.MonkeyPatch):
@@ -81,6 +101,10 @@ def ask_client(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(ask_ai_service, "import_auth", lambda: _Auth())
     monkeypatch.setattr(
         "app.routers.ask_ai.import_auth",
+        lambda: _Auth(),
+    )
+    monkeypatch.setattr(
+        "app.services.project_scope.import_auth",
         lambda: _Auth(),
     )
     monkeypatch.setattr(ask_ai_service, "XCA_ASK_BASE_URL", "https://xca.example")
@@ -138,6 +162,9 @@ def test_ask_ai_link_signed(ask_client: TestClient, monkeypatch: pytest.MonkeyPa
     body = res.json()
     assert body["ok"] is True
     assert body["report"] == "screen_approved_budget"
+    assert body["projects"] == "*"
+    assert body["reports"] == "*"
+    assert body["exp"] == 1_700_000_000 + 600
     url = body["url"]
     assert url.startswith("https://xca.example/ask?")
     qs = parse_qs(urlparse(url).query)
@@ -146,8 +173,54 @@ def test_ask_ai_link_signed(ask_client: TestClient, monkeypatch: pytest.MonkeyPa
     assert qs["uid"] == ["u_1"]
     assert qs["role"] == ["superadmin"]
     assert qs["project"] == ["Есипово-5"]
+    assert qs["period"] == ["2026-08"]
+    assert qs["projects"] == ["*"]
+    assert qs["reports"] == ["*"]
+    assert qs["exp"] == ["1700000600"]
     assert "sig" in qs
 
+    params = {k: v[0] for k, v in qs.items()}
+    sig = params.pop("sig")
+    assert sign_params(params, b"test-secret") == sig
+
+
+def test_ask_ai_link_includes_acl_scope(ask_client: TestClient):
+    token = create_token("mgr")
+    res = ask_client.post(
+        "/api/ask-ai/link",
+        json={"nav_id": "gdrs-people", "project": "Есипово-5|Дмитровский"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    qs = parse_qs(urlparse(res.json()["url"]).query)
+    # Полный ACL роли, не один проект из фильтра.
+    assert qs["projects"] == ["Дмитровский-1|Есипово-5"]
+    assert qs["project"] == ["Есипово-5"]
+    report_ids = qs["reports"][0].split(",")
+    assert "screen_gdrs_people" in report_ids
+    assert "screen_bdds" not in report_ids
+    assert "exp" in qs
+
+
+def test_ask_ai_free_link_sidebar(ask_client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(ask_ai_service.time, "time", lambda: 1_700_000_000)
+    token = create_token("mgr")
+    res = ask_client.post(
+        "/api/ask-ai/link",
+        json={"mode": "free", "src": "sidebar"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["report"] == "free"
+    qs = parse_qs(urlparse(body["url"]).query)
+    assert qs["report"] == ["free"]
+    assert qs["projects"] == ["Дмитровский-1|Есипово-5"]
+    assert "screen_gdrs_people" in qs["reports"][0]
+    assert "q" not in qs  # пустой вопрос не подписываем
+    assert qs["src"] == ["sidebar"]
+    assert qs["uid"] == ["u_2"]
+    assert qs["role"] == ["manager"]
     params = {k: v[0] for k, v in qs.items()}
     sig = params.pop("sig")
     assert sign_params(params, b"test-secret") == sig

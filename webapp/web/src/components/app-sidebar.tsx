@@ -25,6 +25,7 @@ import {
   fetchDataVersions,
   postActivateVersion,
   postAdminSync,
+  postAskAiLink,
   postEnsureFresh,
   type DataFreshness,
   type DataVersion,
@@ -229,10 +230,38 @@ export function AppSidebar({
     canAccessReport(i.id, session),
   );
   const externalAi = process.env.NEXT_PUBLIC_AI_MODE === "full";
-  const aiHref = externalAi
-    ? process.env.NEXT_PUBLIC_OPENCODE_URL
-      || "https://opencode.conall.ru/L3dvcmtzcGFjZQ/session"
-    : "/ai-assistant";
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const openFreeAskAi = async () => {
+    if (!externalAi) {
+      router.push("/ai-assistant");
+      onNavigate?.();
+      return;
+    }
+    setAiError(null);
+    setAiBusy(true);
+    const popup = window.open("about:blank", "_blank");
+    try {
+      const { url } = await postAskAiLink({
+        mode: "free",
+        report: "free",
+        q: "",
+        src: "sidebar",
+      });
+      if (popup && !popup.closed) {
+        popup.location.replace(url);
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+      onNavigate?.();
+    } catch (err) {
+      if (popup && !popup.closed) popup.close();
+      setAiError(err instanceof Error ? err.message : "Не удалось открыть ИИ");
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const runFtpSync = async () => {
     const token = getAdminToken();
@@ -397,20 +426,21 @@ export function AppSidebar({
         ) : null}
         <section className="mb-5">
           <SectionTitle>Меню</SectionTitle>
-          <Link
-            href={aiHref}
-            target={externalAi ? "_blank" : undefined}
-            rel={externalAi ? "noopener noreferrer" : undefined}
-            {...navProps}
-            className={`flex min-h-11 items-center gap-2 rounded-md border px-3 py-2 ${
+          <button
+            type="button"
+            onClick={() => void openFreeAskAi()}
+            disabled={aiBusy}
+            className={`flex min-h-11 w-full items-center gap-2 rounded-md border px-3 py-2 text-left ${
               isActive("/ai-assistant")
                 ? "border-sky-400 bg-sky-50 text-sky-800 dark:border-sky-600 dark:bg-sky-950/40 dark:text-sky-200"
                 : "border-sky-300 bg-white text-sky-700 hover:bg-sky-50 dark:border-sky-700 dark:bg-dark-tremor-background dark:text-sky-300"
-            }`}
+            } disabled:opacity-60`}
           >
             <span aria-hidden>✨</span>
             <span className="min-w-0 flex-1">
-              <span className="block">ИИ помощник</span>
+              <span className="block">
+                {aiBusy ? "Открываю ИИ…" : "ИИ помощник"}
+              </span>
               {externalAi ? (
                 <span className="mt-0.5 block text-[11px] font-normal leading-tight text-sky-600 dark:text-sky-400 lg:hidden">
                   ИИ откроется в отдельном окне
@@ -422,7 +452,12 @@ export function AppSidebar({
                 ↗
               </span>
             ) : null}
-          </Link>
+          </button>
+          {aiError ? (
+            <p className="mt-1 text-[11px] leading-snug text-red-600 dark:text-red-400">
+              {aiError}
+            </p>
+          ) : null}
         </section>
 
         <section className="mb-5">
