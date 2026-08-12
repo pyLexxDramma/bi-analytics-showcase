@@ -77,8 +77,12 @@ const tableColumns: Array<[string, string]> = [
   ["stop_work", "Остановка работ"],
 ];
 
-/** Длинный текст без nowrap — иначе колонка раздувается на тысячи px. */
-const TRUNCATE_COLS = new Set(["name", "issue_block", "contractor", "contract_no"]);
+/** Длинный текст: truncate (ellipsis) — не для «Наименование». */
+const TRUNCATE_COLS = new Set(["issue_block", "contractor", "contract_no"]);
+
+/** Перенос только у «Наименование»; даты всегда в одну строку, без многоточия. */
+const WRAP_COLS = new Set(["name"]);
+const DATE_COLS = new Set(["issue_date", "due_date", "completion_date"]);
 
 function compare(a: unknown, b: unknown) {
   const an = Number(a);
@@ -580,14 +584,18 @@ export function PrescriptionsView() {
                               <td
                                 key={key}
                                 title={
-                                  TRUNCATE_COLS.has(key)
+                                  TRUNCATE_COLS.has(key) || WRAP_COLS.has(key)
                                     ? String(row[key as keyof typeof row] ?? "")
                                     : undefined
                                 }
-                                className={`border-b border-tremor-border px-3 py-2 align-middle dark:border-dark-tremor-border ${toneBg} ${
-                                  TRUNCATE_COLS.has(key)
-                                    ? "max-w-[16rem] truncate"
-                                    : "whitespace-nowrap"
+                                className={`border-b border-tremor-border px-3 py-2 dark:border-dark-tremor-border ${toneBg} ${
+                                  WRAP_COLS.has(key)
+                                    ? "max-w-[22rem] whitespace-normal break-words align-top"
+                                    : DATE_COLS.has(key)
+                                      ? "whitespace-nowrap align-middle"
+                                      : TRUNCATE_COLS.has(key)
+                                        ? "max-w-[16rem] truncate align-middle"
+                                        : "whitespace-nowrap align-middle"
                                 } ${
                                   key === "overdue_days" && row.overdue_days > 0
                                     ? "font-semibold text-rose-600 dark:text-rose-400"

@@ -219,21 +219,28 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
         pred,
         ["Completed", "CompletionDate", "Дата завершения", "Факт устранения"],
     )
+    # Блок выдачи: не Comment (там пометки вроде «не критично»).
     issue_block_col = _column(
         renderer,
         pred,
         [
-            "Comment",
-            "comment",
-            "Комментарий",
             "BlockName",
             "IssueBlock",
             "Блок выдачи предписания",
             "Блок выдачи",
             "Блок",
+            "SubDivisionVersionName",
+            "DivisionName",
+            "Подразделение",
+            "Department",
         ],
     )
-    name_col = _column(renderer, pred, ["Name", "name", "Наименование", "Title"])
+    # Наименование предписания = TESSA Name (не Comment).
+    name_col = _column(
+        renderer,
+        pred,
+        ["Name", "name", "Наименование", "Title", "Subject", "Тема", "Заголовок"],
+    )
     doc_number_col = _column(
         renderer, pred, ["DocNumber", "DocumentNumber", "НомерДокумента"]
     )
