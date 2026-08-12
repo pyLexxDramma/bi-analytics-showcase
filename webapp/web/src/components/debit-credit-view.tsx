@@ -72,6 +72,20 @@ function toneCellClass(tone: string | undefined): string {
   return "";
 }
 
+/** Непрозрачная заливка для sticky-футера — иначе строки просвечивают и «накладываются». */
+function toneCellSolid(tone: string | undefined): string {
+  if (tone === "green") {
+    return "bg-[#86efac] font-semibold text-[#14532d] dark:bg-[#166534] dark:text-[#bbf7d0]";
+  }
+  if (tone === "yellow") {
+    return "bg-[#fde047] font-semibold text-[#713f12] dark:bg-[#a16207] dark:text-[#fef08a]";
+  }
+  if (tone === "red") {
+    return "bg-[#fca5a5] font-semibold text-[#7f1d1d] dark:bg-[#991b1b] dark:text-[#fecaca]";
+  }
+  return "bg-[#e8eef5] dark:bg-[hsl(209,50%,12%)]";
+}
+
 type MobileSortKey = "contractor" | "contract_sum" | "advance_pct" | "advance_ks2";
 
 const MOBILE_SORT_OPTIONS: Array<{ value: MobileSortKey; label: string }> = [
@@ -80,6 +94,24 @@ const MOBILE_SORT_OPTIONS: Array<{ value: MobileSortKey; label: string }> = [
   { value: "advance_pct", label: "Аванс %" },
   { value: "advance_ks2", label: "Аванс − КС-2" },
 ];
+
+/** Закреплённые колонки: Проект узкий; Подрядчик/Договор ~вдвое уже, с переносом по словам. */
+const DC_W_PROJECT = "9.25rem";
+const DC_W_CONTRACTOR = "9rem";
+const DC_W_CONTRACT = "9rem";
+const DC_LEFT_2 = `calc(${DC_W_PROJECT} + ${DC_W_CONTRACTOR})`;
+
+const DC_BORDER = "border border-[#64748b] dark:border-[#94a3b8]";
+const DC_TH = `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-[1rem] font-semibold leading-snug dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
+const DC_TD = `${DC_BORDER} bg-white px-2 py-2 text-[1.125rem] leading-snug text-[#0f172a] dark:bg-[#111827] dark:text-[#f1f5f9]`;
+const DC_TD_ALT = `${DC_BORDER} bg-[#eef2f7] px-2 py-2 text-[1.125rem] leading-snug text-[#0f172a] dark:bg-[#0b1220] dark:text-[#f1f5f9]`;
+const DC_WRAP =
+  "whitespace-normal [overflow-wrap:break-word] [word-break:normal] hyphens-manual";
+const DC_STICKY_SHADOW =
+  "shadow-[7px_0_10px_-6px_rgba(15,23,42,0.4)] dark:shadow-[7px_0_10px_-6px_rgba(0,0,0,0.7)]";
+const DC_NUM = `${DC_BORDER} whitespace-nowrap px-2 py-2 text-right text-[1.125rem] tabular-nums`;
+const DC_FOOT =
+  `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-[1.125rem] font-semibold dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
 
 export function DebitCreditView() {
   const [filters, setFilters] = useState<Filters>(initial);
@@ -302,13 +334,38 @@ export function DebitCreditView() {
         </div>
         <FullscreenPanel disabled={!data?.rows?.length} scroll={false}>
           <div className="bi-table-scroll">
-            <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+            <table className="bi-sticky-head min-w-max border-separate border-spacing-0 text-left">
               <thead>
                 <tr>
+                  <th
+                    className={`sticky left-0 z-[5] ${DC_TH}`}
+                    style={{ width: DC_W_PROJECT, minWidth: DC_W_PROJECT, maxWidth: DC_W_PROJECT }}
+                  >
+                    Проект
+                  </th>
+                  <th
+                    className={`sticky z-[5] ${DC_TH} ${DC_WRAP}`}
+                    style={{
+                      left: DC_W_PROJECT,
+                      width: DC_W_CONTRACTOR,
+                      minWidth: DC_W_CONTRACTOR,
+                      maxWidth: DC_W_CONTRACTOR,
+                    }}
+                  >
+                    Подрядчик
+                  </th>
+                  <th
+                    className={`sticky z-[5] ${DC_TH} ${DC_WRAP} ${DC_STICKY_SHADOW}`}
+                    style={{
+                      left: DC_LEFT_2,
+                      width: DC_W_CONTRACT,
+                      minWidth: DC_W_CONTRACT,
+                      maxWidth: DC_W_CONTRACT,
+                    }}
+                  >
+                    Договор
+                  </th>
                   {[
-                    "Проект",
-                    "Подрядчик",
-                    "Договор",
                     "Договор стоимость",
                     "Всего выполненных обязательств по платежам",
                     "Аванс",
@@ -317,83 +374,128 @@ export function DebitCreditView() {
                     "Остаток",
                     "Аванс − КС-2",
                   ].map((label) => (
-                    <th
-                      key={label}
-                      className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
-                    >
+                    <th key={label} className={`${DC_TH} whitespace-nowrap`}>
                       {label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {(data?.rows ?? []).map((row, index) => (
-                  <tr
-                    key={`${row.contract}-${index}`}
-                    className="border-t border-tremor-border dark:border-dark-tremor-border"
-                  >
-                    <td className="whitespace-nowrap px-3 py-2">{row.project}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{row.contractor}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{row.contract}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                      {mln(row.contract_sum)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                      {mln(row.fulfilled)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                      {mln(row.advance)}
-                    </td>
-                    <td
-                      className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
-                    >
-                      {toneDot(row.advance_tone)}{" "}
-                      {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                      {mln(row.ks2)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                      {mln(row.balance)}
-                    </td>
-                    <td
-                      className={`whitespace-nowrap px-3 py-2 text-left tabular-nums ${toneCellClass(row.advance_tone)}`}
-                    >
-                      {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
-                    </td>
-                  </tr>
-                ))}
+                {(data?.rows ?? []).map((row, index) => {
+                  const stripe = index % 2 === 1 ? DC_TD_ALT : DC_TD;
+                  const numStripe =
+                    index % 2 === 1
+                      ? `${DC_NUM} bg-[#eef2f7] dark:bg-[#0b1220]`
+                      : `${DC_NUM} bg-white dark:bg-[#111827]`;
+                  return (
+                    <tr key={`${row.contract}-${index}`}>
+                      <td
+                        className={`sticky left-0 z-[2] ${stripe} whitespace-nowrap`}
+                        style={{
+                          width: DC_W_PROJECT,
+                          minWidth: DC_W_PROJECT,
+                          maxWidth: DC_W_PROJECT,
+                        }}
+                      >
+                        {row.project}
+                      </td>
+                      <td
+                        className={`sticky z-[2] ${stripe} ${DC_WRAP}`}
+                        style={{
+                          left: DC_W_PROJECT,
+                          width: DC_W_CONTRACTOR,
+                          minWidth: DC_W_CONTRACTOR,
+                          maxWidth: DC_W_CONTRACTOR,
+                        }}
+                      >
+                        {row.contractor}
+                      </td>
+                      <td
+                        className={`sticky z-[2] ${stripe} ${DC_WRAP} ${DC_STICKY_SHADOW}`}
+                        style={{
+                          left: DC_LEFT_2,
+                          width: DC_W_CONTRACT,
+                          minWidth: DC_W_CONTRACT,
+                          maxWidth: DC_W_CONTRACT,
+                        }}
+                      >
+                        {row.contract}
+                      </td>
+                      <td className={numStripe}>{mln(row.contract_sum)}</td>
+                      <td className={numStripe}>{mln(row.fulfilled)}</td>
+                      <td className={numStripe}>{mln(row.advance)}</td>
+                      <td
+                        className={`${DC_BORDER} whitespace-nowrap px-2 py-2 text-left text-[1.125rem] tabular-nums ${toneCellClass(row.advance_tone)}`}
+                      >
+                        {toneDot(row.advance_tone)}{" "}
+                        {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                      </td>
+                      <td className={numStripe}>{mln(row.ks2)}</td>
+                      <td className={numStripe}>{mln(row.balance)}</td>
+                      <td
+                        className={`${DC_BORDER} whitespace-nowrap px-2 py-2 text-left text-[1.125rem] tabular-nums ${toneCellClass(row.advance_tone)}`}
+                      >
+                        {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
-              <tfoot className="sticky bottom-0 z-10 bg-tremor-background font-semibold dark:bg-dark-tremor-background">
+              <tfoot>
                 <tr>
-                  <td className="border-t border-tremor-border px-3 py-3 dark:border-dark-tremor-border" colSpan={3}>
+                  <td
+                    className={`sticky bottom-0 left-0 z-[12] ${DC_FOOT}`}
+                    style={{
+                      width: DC_W_PROJECT,
+                      minWidth: DC_W_PROJECT,
+                      maxWidth: DC_W_PROJECT,
+                    }}
+                  >
                     ИТОГО
                   </td>
-                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  <td
+                    className={`sticky bottom-0 z-[12] ${DC_FOOT}`}
+                    style={{
+                      left: DC_W_PROJECT,
+                      width: DC_W_CONTRACTOR,
+                      minWidth: DC_W_CONTRACTOR,
+                      maxWidth: DC_W_CONTRACTOR,
+                    }}
+                  />
+                  <td
+                    className={`sticky bottom-0 z-[12] ${DC_FOOT} ${DC_STICKY_SHADOW}`}
+                    style={{
+                      left: DC_LEFT_2,
+                      width: DC_W_CONTRACT,
+                      minWidth: DC_W_CONTRACT,
+                      maxWidth: DC_W_CONTRACT,
+                    }}
+                  />
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
                     {mln(data?.totals.contract_sum)}
                   </td>
-                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
                     {mln(data?.totals.fulfilled)}
                   </td>
-                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
                     {mln(data?.totals.advance)}
                   </td>
                   <td
-                    className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
+                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-left text-[1.125rem] tabular-nums ${toneCellSolid(data?.totals.advance_tone)}`}
                   >
                     {toneDot(data?.totals.advance_tone)}{" "}
                     {data?.totals.advance_pct == null
                       ? "—"
                       : `${data.totals.advance_pct}%`}
                   </td>
-                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
                     {mln(data?.totals.ks2)}
                   </td>
-                  <td className="border-t border-tremor-border px-3 py-3 text-right tabular-nums dark:border-dark-tremor-border">
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
                     {mln(data?.totals.balance)}
                   </td>
                   <td
-                    className={`border-t border-tremor-border px-3 py-3 text-left tabular-nums dark:border-dark-tremor-border ${toneCellClass(data?.totals.advance_tone)}`}
+                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-left text-[1.125rem] tabular-nums ${toneCellSolid(data?.totals.advance_tone)}`}
                   >
                     {toneDot(data?.totals.advance_tone)}{" "}
                     {mln(data?.totals.advance_ks2)}

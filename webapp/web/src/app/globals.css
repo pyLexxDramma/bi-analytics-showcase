@@ -397,9 +397,19 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     overflow: auto;
   }
 
-  /* В полном экране высоту не режем: прокрутка уже на хосте панели. */
+  /* Fullscreen: скролл остаётся на .bi-table-scroll (не на хосте), иначе
+     sticky left (Проект/Подрядчик/Договор) и sticky head не работают. */
+  .bi-fs-active.bi-fs-table {
+    overflow: hidden;
+  }
+
   .bi-fs-active .bi-table-scroll {
-    max-height: none;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    height: calc(100vh - 2rem);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
   }
 
   .bi-sticky-head thead th {

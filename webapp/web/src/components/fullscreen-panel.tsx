@@ -100,7 +100,9 @@ export function FullscreenPanel({
         fill ? "bi-fs-fill" : "bi-fs-table"
       } ${
         active
-          ? "bi-fs-active h-screen w-screen overflow-auto"
+          ? fill
+            ? "bi-fs-active h-screen w-screen overflow-auto"
+            : "bi-fs-active flex h-screen w-screen flex-col overflow-hidden"
           : inlineBar
             ? ""
             : "overflow-x-auto"
@@ -142,7 +144,7 @@ export function FullscreenPanel({
           active
             ? fill
               ? "h-full w-full"
-              : "flex min-h-full min-w-0 w-full items-start justify-center p-4"
+              : "min-h-0 min-w-0 flex-1 overflow-hidden p-4"
             : inlineBar
               ? `min-w-0 max-w-full ${scroll ? "overflow-x-auto" : "overflow-x-hidden"}`
               : ""
