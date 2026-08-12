@@ -229,6 +229,58 @@ def _building_values(frame: pd.DataFrame, level_col: str | None, task_col: str |
     return sorted({n for n in names if n}, key=str.casefold)
 
 
+def _outline_levels(series: pd.Series) -> pd.Series:
+    num = pd.to_numeric(series, errors="coerce")
+    mask_na = num.isna()
+    if not bool(mask_na.any()):
+        return num
+    ext = series[mask_na].astype(str).str.strip().str.extract(r"(-?\d+)", expand=False)
+    out = num.copy()
+    out.loc[mask_na] = pd.to_numeric(ext, errors="coerce").values
+    return out
+
+
+def _enrich_ancestor_keys(
+    frame: pd.DataFrame, level_col: str | None, task_col: str
+) -> pd.DataFrame:
+    """Как main: «Строение» = предок с Уровень=3 (не лот)."""
+    work = frame.copy()
+    if "_dt_lvl2_key" in work.columns and "_dt_lvl3_key" in work.columns:
+        return work
+    work["_dt_lvl2_key"] = ""
+    work["_dt_lvl3_key"] = ""
+    if not level_col or level_col not in work.columns or task_col not in work.columns:
+        return work
+    lv = _outline_levels(work[level_col])
+    names = work[task_col].map(_clean)
+    stack: list[tuple[float, str]] = []
+    l2_keys: list[str] = []
+    l3_keys: list[str] = []
+    for i in range(len(work)):
+        raw_l = lv.iloc[i]
+        name = names.iloc[i]
+        if pd.isna(raw_l):
+            l2_keys.append(next((n for l, n in reversed(stack) if l == 2.0), ""))
+            l3_keys.append(next((n for l, n in reversed(stack) if l == 3.0), ""))
+            continue
+        level = float(raw_l)
+        while stack and stack[-1][0] >= level:
+            stack.pop()
+        l2 = next((n for l, n in reversed(stack) if l == 2.0), "")
+        l3 = next((n for l, n in reversed(stack) if l == 3.0), "")
+        if level == 2.0:
+            l2 = name
+        if level == 3.0:
+            l3 = name
+        l2_keys.append(l2)
+        l3_keys.append(l3)
+        stack.append((level, name))
+    # Позиционно — иначе срезы с чужим index ломают «Строение».
+    work["_dt_lvl2_key"] = pd.Series(l2_keys, dtype=object).to_numpy()
+    work["_dt_lvl3_key"] = pd.Series(l3_keys, dtype=object).to_numpy()
+    return work
+
+
 def _apply_building_slice(
     frame: pd.DataFrame,
     *,
@@ -398,7 +450,7 @@ def build_deviation_reasons_payload(
     top5: bool = False,
 ) -> dict[str, Any]:
     cache_key = (
-        f"v2|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v3|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|r={reason or 'Все'}|df={date_from or ''}|dt={date_to or ''}"
         f"|t5={int(bool(top5))}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -467,6 +519,9 @@ def build_deviation_reasons_payload(
             scoped = scoped[
                 scoped[block_col].astype(str).map(_cmp_key) == _cmp_key(applied_block)
             ].copy()
+
+        # До date/maket-среза: иначе предки ур.3 выпадают и «Строение» падает в лот.
+        scoped = _enrich_ancestor_keys(scoped, level_col, task_col)
 
         available_buildings = ["Все"] + _building_values(scoped, level_col, task_col)
         applied_building = building if building in available_buildings else "Все"
@@ -791,9 +846,10 @@ def build_deviation_reasons_payload(
             if "_dt_lvl3_key" in table_df.columns:
                 stv = _clean(rr.get("_dt_lvl3_key"))
             if not stv:
+                # Без lot: в «Строение» только название строения (ур.3 / колонка building).
                 bld_col = _col(
                     table_df,
-                    ["строение", "корпус", "здание", "building", "лот", "lot"],
+                    ["строение", "Строение", "корпус", "здание", "building", "объект"],
                 )
                 if bld_col:
                     stv = _clean(rr.get(bld_col))
