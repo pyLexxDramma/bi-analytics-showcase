@@ -10,7 +10,13 @@ import {
   accordionIdForPath,
 } from "@/lib/nav";
 import { openCommandPalette } from "@/components/command-palette";
-import { getAuthSession, isAdminRole, logout, canAccessReport } from "@/lib/auth";
+import {
+  getAuthSession,
+  isAdminRole,
+  logout,
+  canAccessReport,
+  type AuthUser,
+} from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
 import { loadDataStatus } from "@/lib/data-status-store";
 import {
@@ -121,6 +127,8 @@ export function AppSidebar({
   const [versionNote, setVersionNote] = useState<string | null>(null);
 
   const [collapsed, setCollapsed] = useState(false);
+  /** localStorage недоступен на SSR — иначе hydration mismatch и «1 Error» в DevTools. */
+  const [session, setSession] = useState<AuthUser | null>(null);
 
   const navProps = onNavigate
     ? { onClick: () => onNavigate() }
@@ -129,6 +137,10 @@ export function AppSidebar({
   useEffect(() => {
     if (activeAccordion) setOpenId(activeAccordion);
   }, [activeAccordion]);
+
+  useEffect(() => {
+    setSession(getAuthSession());
+  }, [pathname]);
 
   useEffect(() => {
     if (!collapsible) return;
@@ -206,7 +218,6 @@ export function AppSidebar({
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
-  const session = getAuthSession();
   const visibleTop = canAccessReport(REPORT_TOP_TAB.id, session)
     ? REPORT_TOP_TAB
     : null;

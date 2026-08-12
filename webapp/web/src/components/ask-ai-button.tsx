@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { postAskAiLink } from "@/lib/api";
-import { canAccessReport, isAuthenticated } from "@/lib/auth";
+import {
+  canAccessReport,
+  getAuthSession,
+  isAuthenticated,
+  type AuthUser,
+} from "@/lib/auth";
 import {
   ASK_AI_SCREENS,
   collectAskAiFiltersFromSearch,
@@ -20,11 +25,16 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    setSession(getAuthSession());
+  }, [pathname]);
 
   const nav = findNavItem(pathname);
   const screen = nav ? ASK_AI_SCREENS[nav.id] : undefined;
   if (!screen || !nav) return null;
-  if (!canAccessReport(nav.id)) return null;
+  if (!canAccessReport(nav.id, session)) return null;
 
   const onClick = async () => {
     tapFeedback();

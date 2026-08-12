@@ -131,7 +131,8 @@ export function isAdminRole(role: string | undefined): boolean {
 }
 
 export function hasAdminAccess(user?: AuthUser | null): boolean {
-  const session = user ?? getAuthSession();
+  // undefined = взять из localStorage; null = явно «нет сессии» (SSR/до mount)
+  const session = user !== undefined ? user : getAuthSession();
   if (!session) return false;
   if (isAdminRole(session.role)) return true;
   return Boolean(session.can_admin);
@@ -142,7 +143,7 @@ export function canAccessReport(
   user?: AuthUser | null,
 ): boolean {
   if (!reportId) return true;
-  const session = user ?? getAuthSession();
+  const session = user !== undefined ? user : getAuthSession();
   if (!session) return false;
   if (hasAdminAccess(session)) return true;
   const allowed = session.allowed_reports;

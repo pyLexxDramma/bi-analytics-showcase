@@ -165,8 +165,9 @@ export function BddsPlanFactEditor({
         if (seq !== previewSeq.current) return;
         onDataChange(payload);
         setLotRecalc(payload.lot_recalc ?? null);
-        if (payload.lot_recalc?.selected_period) {
-          setLotPeriod(payload.lot_recalc.selected_period);
+        const nextPeriod = payload.lot_recalc?.selected_period ?? "";
+        if (nextPeriod) {
+          setLotPeriod((prev) => (prev === nextPeriod ? prev : nextPeriod));
         }
         if (payload.validation_errors?.length) {
           onPreviewError?.(payload.validation_errors.join("; "));
@@ -200,7 +201,14 @@ export function BddsPlanFactEditor({
   };
 
   const setAllDist = (dist: string) => {
+    const useAbc =
+      dist.includes("%") || dist.toLowerCase().includes("распредел");
     setRows((prev) => prev.map((r) => ({ ...r, [COL.dist]: dist })));
+    if (useAbc) {
+      // Сброс «Весь срок» (Δ=0) → API без period выберет первый месяц.
+      setLotPeriod("");
+      setLotRecalc(null);
+    }
   };
 
   const handleApply = async () => {

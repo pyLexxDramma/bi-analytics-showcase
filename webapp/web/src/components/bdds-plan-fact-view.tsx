@@ -121,6 +121,39 @@ export function BddsPlanFactView() {
 
   const singleProject = filters.project !== "Все";
 
+  const editorFilters = useMemo(
+    () => ({
+      project: filters.project,
+      date_from: filters.date_from || undefined,
+      date_to: filters.date_to || undefined,
+      group: filters.group,
+      view: filters.view,
+      dev_base: filters.dev_base,
+      hide_deviation: filters.hide_deviation,
+      hide_zero: filters.hide_zero,
+    }),
+    [
+      filters.project,
+      filters.date_from,
+      filters.date_to,
+      filters.group,
+      filters.view,
+      filters.dev_base,
+      filters.hide_deviation,
+      filters.hide_zero,
+    ],
+  );
+
+  const onEditorDataChange = useCallback((payload: BddsPlanFactPayload) => {
+    setData(payload);
+    setLoading(false);
+    setError(null);
+  }, []);
+
+  const onEditorPreviewError = useCallback((message: string | null) => {
+    setPreviewError(message);
+  }, []);
+
   const load = useCallback(async (next: Filters, signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
@@ -357,22 +390,9 @@ export function BddsPlanFactView() {
       {singleProject ? (
         <BddsPlanFactEditor
           project={filters.project}
-          filters={{
-            project: filters.project,
-            date_from: filters.date_from || undefined,
-            date_to: filters.date_to || undefined,
-            group: filters.group,
-            view: filters.view,
-            dev_base: filters.dev_base,
-            hide_deviation: filters.hide_deviation,
-            hide_zero: filters.hide_zero,
-          }}
-          onDataChange={(payload) => {
-            setData(payload);
-            setLoading(false);
-            setError(null);
-          }}
-          onPreviewError={setPreviewError}
+          filters={editorFilters}
+          onDataChange={onEditorDataChange}
+          onPreviewError={onEditorPreviewError}
         />
       ) : null}
 
