@@ -184,6 +184,7 @@ def _empty(message: str | None = None) -> dict[str, Any]:
         "chart": {
             "rows": [],
             "mode": "group",
+            "aggregation": "by_contractor",
             "caption": "Топ 0 из 0 контрагентов",
             "unit": "млн ₽",
         },
@@ -211,7 +212,7 @@ def _empty(message: str | None = None) -> dict[str, Any]:
 
 
 def _semaphore(delta: float, contract_sum: float) -> dict[str, Any]:
-    """Как main `_dc_advance_*`: 🟢 ≤30%, 🟡 30–80%, 🔴 ≥80% от договора при delta>0."""
+    """Светофор авансирования: 🟢 ≤30%, 🟡 30–60%, 🔴 ≥60% от договора при delta>0."""
     if contract_sum <= 0:
         return {"tone": "green" if delta <= 0 else "red", "pct": None}
     if delta <= 0:
@@ -220,7 +221,7 @@ def _semaphore(delta: float, contract_sum: float) -> dict[str, Any]:
     pct = round(ratio * 100, 1)
     if ratio <= 0.30:
         return {"tone": "green", "pct": pct}
-    if ratio < 0.80:
+    if ratio < 0.60:
         return {"tone": "yellow", "pct": pct}
     return {"tone": "red", "pct": pct}
 
@@ -467,32 +468,87 @@ def build_debit_credit_payload(
             | view.contract_date.lt(pd.Timestamp(date_to) + pd.Timedelta(days=1))
         ]
 
-    chart_src = (
-        view.groupby("contractor", as_index=False)[["advance", "ks2"]]
-        .sum()
-        .rename(columns={"contractor": "label"})
+    # Исключительный кейс: Все проекты + Все подрядчики + без фильтра договора
+    # → агрегация только по типу суммы. Но «С группировкой» остаётся
+    # прежним режимом стека по подрядчику.
+    all_open = (
+        (not project or project == "Все")
+        and (not contractor or contractor == "Все")
+        and not (contract_q and str(contract_q).strip())
     )
-    chart_src["deviation"] = chart_src.ks2 - chart_src.advance
-    chart_src["_rank"] = chart_src[["advance", "ks2", "deviation"]].abs().max(axis=1)
-    chart_src = chart_src.sort_values("_rank", ascending=False, kind="stable").head(28)
-    chart_rows = []
-    for _, row in chart_src.iterrows():
-        adv = float(row.advance) / 1e6
-        ks2 = float(row.ks2) / 1e6
-        dev = float(row.deviation) / 1e6
-        chart_rows.append(
-            {
-                "label": _clean(row.label),
-                "Аванс": round(adv, 3),
-                "КС-2": round(ks2, 3),
-                "Отклонение ≥0": round(max(dev, 0.0), 3),
-                "Отклонение <0": round(min(dev, 0.0), 3),
-            }
-        )
+    use_metric_chart = all_open and display_view != "С группировкой"
 
-    chart_rows = _apply_orphan_advance_to_chart_rows(
-        chart_rows, _read_orphan_advance_mln()
-    )
+    orphan_mln = _read_orphan_advance_mln()
+    chart_aggregation = "by_metric" if use_metric_chart else "by_contractor"
+    chart_rows: list[dict[str, Any]] = []
+
+    if use_metric_chart:
+        contract_mln = float(view.contract_sum.sum()) / 1e6 if len(view) else 0.0
+        fulfilled_mln = float(view.fulfilled.sum()) / 1e6 if len(view) else 0.0
+        ks2_mln = float(view.ks2.sum()) / 1e6 if len(view) else 0.0
+        adv_mln = float(view.advance.sum()) / 1e6 if len(view) else 0.0
+        if orphan_mln > 1e-6:
+            adv_mln += orphan_mln
+        dev_mln = ks2_mln - adv_mln
+        chart_rows = [
+            {
+                "label": "Договор стоимость",
+                "value": round(contract_mln, 3),
+                "color": "#2E86AB",
+            },
+            {
+                "label": "Всего выполненных обязательств по платежам",
+                "value": round(fulfilled_mln, 3),
+                "color": "#95A5A6",
+            },
+            {
+                "label": "КС-2",
+                "value": round(ks2_mln, 3),
+                "color": "#B7950B",
+            },
+            {
+                "label": "Аванс",
+                "value": round(adv_mln, 3),
+                "color": "#F7DC6F",
+            },
+            {
+                "label": "КС-2 − Аванс",
+                "value": round(dev_mln, 3),
+                "color": "#95A5A6" if dev_mln >= 0 else "#F1948A",
+            },
+        ]
+        chart_caption = (
+            "Сводка по типам сумм (все проекты, подрядчики и договоры)."
+        )
+    else:
+        chart_src = (
+            view.groupby("contractor", as_index=False)[["advance", "ks2"]]
+            .sum()
+            .rename(columns={"contractor": "label"})
+        )
+        chart_src["deviation"] = chart_src.ks2 - chart_src.advance
+        chart_src["_rank"] = chart_src[["advance", "ks2", "deviation"]].abs().max(axis=1)
+        chart_src = chart_src.sort_values("_rank", ascending=False, kind="stable").head(28)
+        for _, row in chart_src.iterrows():
+            adv = float(row.advance) / 1e6
+            ks2 = float(row.ks2) / 1e6
+            dev = float(row.deviation) / 1e6
+            chart_rows.append(
+                {
+                    "label": _clean(row.label),
+                    "Аванс": round(adv, 3),
+                    "КС-2": round(ks2, 3),
+                    "Отклонение ≥0": round(max(dev, 0.0), 3),
+                    "Отклонение <0": round(min(dev, 0.0), 3),
+                }
+            )
+
+        chart_rows = _apply_orphan_advance_to_chart_rows(chart_rows, orphan_mln)
+        chart_caption = (
+            f"График показывает топ-{len(chart_rows)} из "
+            f"{int(view.contractor.nunique())} контрагентов/договоров "
+            "по убыванию значения."
+        )
 
     detail = (
         view.groupby(["project", "contractor", "contract"], as_index=False, dropna=False)
@@ -584,11 +640,8 @@ def build_debit_credit_payload(
         "chart": {
             "rows": chart_rows,
             "mode": mode,
-            "caption": (
-                f"График показывает топ-{len(chart_rows)} из "
-                f"{int(view.contractor.nunique())} контрагентов/договоров "
-                "по убыванию значения."
-            ),
+            "aggregation": chart_aggregation,
+            "caption": chart_caption,
             "unit": "млн ₽",
         },
         "rows": rows,

@@ -161,6 +161,7 @@ export function DebitCreditView() {
       : contractOptionsRef.current;
 
   const stacked = filters.display_view === "С группировкой";
+  const chartAggregation = data?.chart.aggregation ?? "by_contractor";
 
   // Сортировка только для мобильных карточек: таблица на desktop идёт в порядке API
   const mobileRows = useMemo(() => {
@@ -186,7 +187,7 @@ export function DebitCreditView() {
           "Договор стоимость",
           "Всего выполненных обязательств",
           "Аванс",
-          "Допущения по авансированию %",
+          "Допущения по авансированию",
           "Выполнено (КС-2)",
           "Остаток",
           "Аванс − КС-2",
@@ -199,7 +200,7 @@ export function DebitCreditView() {
         row.contract_sum,
         row.fulfilled,
         row.advance,
-        row.advance_pct ?? "",
+        row.advance_tone ?? "",
         row.ks2,
         row.balance,
         row.advance_ks2,
@@ -310,18 +311,29 @@ export function DebitCreditView() {
             {data?.chart.caption ?? "График показывает топ-28 контрагентов/договоров по убыванию значения."}
           </div>
           <div className="mt-4 hidden lg:block">
-            <DebitCreditChart rows={data?.chart.rows ?? []} stacked={stacked} />
-            <DebitCreditChartLegend stacked={stacked} />
+            <DebitCreditChart
+              rows={data?.chart.rows ?? []}
+              stacked={stacked}
+              aggregation={chartAggregation}
+            />
+            <DebitCreditChartLegend stacked={stacked} aggregation={chartAggregation} />
           </div>
           <div className="mt-4 lg:hidden">
-            <DebitCreditChart rows={data?.chart.rows ?? []} stacked={stacked} compact />
-            <DebitCreditChartLegend stacked={stacked} />
+            <DebitCreditChart
+              rows={data?.chart.rows ?? []}
+              stacked={stacked}
+              compact
+              aggregation={chartAggregation}
+            />
+            <DebitCreditChartLegend stacked={stacked} aggregation={chartAggregation} />
           </div>
           <Text className="mt-3">
             Значения на графике — млн руб.{" "}
-            {stacked
-              ? "Суммы по подрядчику. С группировкой (стек): отклонение ≥0 (сер.) → КС-2 (жёлт.) → Аванс (син.)."
-              : "Суммы по подрядчику. Без группировки: Аванс (син.), КС-2 (жёлт.), отклонение ≥0 (сер.), отклонение <0 (красн., ниже 0)."}
+            {chartAggregation === "by_metric"
+              ? "Сводка по типам сумм (все проекты, подрядчики и договоры): Договор стоимость (син.), обязательства (сер.), КС-2 (тёмн. жёлт.), Аванс (светл. жёлт.), КС-2 − Аванс (сер./красн. ниже 0). Для стека по подрядчикам выберите «С группировкой»."
+              : stacked
+                ? "Суммы по подрядчику. С группировкой (стек): отклонение ≥0 (сер.) → КС-2 (жёлт.) → Аванс (син.)."
+                : "Суммы по подрядчику. Без группировки: Аванс (син.), КС-2 (жёлт.), отклонение ≥0 (сер.), отклонение <0 (красн., ниже 0)."}
           </Text>
         </Card>
       </FullscreenPanel>
@@ -369,7 +381,7 @@ export function DebitCreditView() {
                     "Договор стоимость",
                     "Всего выполненных обязательств по платежам",
                     "Аванс",
-                    "Допущения по авансированию %",
+                    "Допущения по авансированию",
                     "Выполнено (КС-2)",
                     "Остаток",
                     "Аванс − КС-2",
@@ -425,10 +437,10 @@ export function DebitCreditView() {
                       <td className={numStripe}>{mln(row.fulfilled)}</td>
                       <td className={numStripe}>{mln(row.advance)}</td>
                       <td
-                        className={`${DC_BORDER} whitespace-nowrap px-2 py-2 text-left text-[1.125rem] tabular-nums ${toneCellClass(row.advance_tone)}`}
+                        className={`${DC_BORDER} px-2 py-2 text-center text-[1.25rem] ${toneCellClass(row.advance_tone)}`}
+                        title="Допущения по авансированию"
                       >
-                        {toneDot(row.advance_tone)}{" "}
-                        {row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                        {toneDot(row.advance_tone) || "—"}
                       </td>
                       <td className={numStripe}>{mln(row.ks2)}</td>
                       <td className={numStripe}>{mln(row.balance)}</td>
@@ -481,12 +493,10 @@ export function DebitCreditView() {
                     {mln(data?.totals.advance)}
                   </td>
                   <td
-                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-left text-[1.125rem] tabular-nums ${toneCellSolid(data?.totals.advance_tone)}`}
+                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-center text-[1.25rem] ${toneCellSolid(data?.totals.advance_tone)}`}
+                    title="Допущения по авансированию"
                   >
-                    {toneDot(data?.totals.advance_tone)}{" "}
-                    {data?.totals.advance_pct == null
-                      ? "—"
-                      : `${data.totals.advance_pct}%`}
+                    {toneDot(data?.totals.advance_tone) || "—"}
                   </td>
                   <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
                     {mln(data?.totals.ks2)}
@@ -506,11 +516,19 @@ export function DebitCreditView() {
           </div>
         </FullscreenPanel>
         <div className="space-y-2 border-t border-tremor-border p-4 text-sm dark:border-dark-tremor-border">
-          <Text>
-            Цветовые индикаторы (Аванс − КС-2): 🟢 ≤ 0 или ≤ 30% стоимости
-            договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%. Колонки «Допущения по
-            авансированию %» и «Аванс − КС-2» заливаются по тем же порогам.
-          </Text>
+          <div className="rounded-lg border border-tremor-border bg-tremor-background-muted/60 px-3 py-2.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background-muted/40">
+            <p className="font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              Легенда — цветовые индикаторы (Аванс − КС-2):
+            </p>
+            <ul className="mt-2 flex list-none flex-col gap-1.5 text-tremor-content dark:text-dark-tremor-content">
+              <li className="block">🟢 ≤ 0 или &gt; 0, но ≤ 30% стоимости договора</li>
+              <li className="block">🟡 &gt; 30% и &lt; 60% стоимости договора</li>
+              <li className="block">🔴 ≥ 60% стоимости договора</li>
+            </ul>
+            <p className="mt-1.5 text-xs text-tremor-content dark:text-dark-tremor-content">
+              В колонке «Допущения по авансированию» — только индикатор; колонка «Аванс − КС-2» заливается по тем же порогам.
+            </p>
+          </div>
           <DownloadTableButton
             getTable={exportTable}
             fileStem="debit_credit"
@@ -538,11 +556,7 @@ export function DebitCreditView() {
                 <MobileEntityCard
                   className="bi-card-pinned"
                   title="ИТОГО"
-                  badge={
-                    data.totals.advance_pct == null
-                      ? "—"
-                      : `${data.totals.advance_pct}%`
-                  }
+                  badge={toneDot(data.totals.advance_tone) || "—"}
                   badgeTone={
                     data.totals.advance_tone === "red"
                       ? "bad"
@@ -579,7 +593,7 @@ export function DebitCreditView() {
                 <MobileEntityCard
                   key={`${row.contract}-${index}`}
                   title={row.contractor}
-                  badge={row.advance_pct == null ? "—" : `${row.advance_pct}%`}
+                  badge={toneDot(row.advance_tone) || "—"}
                   badgeTone={
                     row.advance_tone === "red"
                       ? "bad"
@@ -619,9 +633,16 @@ export function DebitCreditView() {
           </>
         )}
         <div className="space-y-2 px-2 pb-3 text-sm">
-          <Text>
-            Цветовые индикаторы (Аванс − КС-2): 🟢 ≤ 0 или ≤ 30% стоимости договора · 🟡 &gt; 30% и &lt; 80% · 🔴 ≥ 80%. Колонки «Допущения по авансированию %» и «Аванс − КС-2» заливаются по тем же порогам.
-          </Text>
+          <div className="rounded-lg border border-tremor-border bg-tremor-background-muted/60 px-3 py-2.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background-muted/40">
+            <p className="font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              Легенда — цветовые индикаторы (Аванс − КС-2):
+            </p>
+            <ul className="mt-2 flex list-none flex-col gap-1.5 text-tremor-content dark:text-dark-tremor-content">
+              <li className="block">🟢 ≤ 0 или &gt; 0, но ≤ 30% стоимости договора</li>
+              <li className="block">🟡 &gt; 30% и &lt; 60% стоимости договора</li>
+              <li className="block">🔴 ≥ 60% стоимости договора</li>
+            </ul>
+          </div>
           <DownloadTableButton
             getTable={exportTable}
             fileStem="debit_credit"

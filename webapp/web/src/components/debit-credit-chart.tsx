@@ -14,12 +14,18 @@ const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ),
 });
 
-type ChartRow = {
+export type DebitCreditContractorChartRow = {
   label: string;
   Аванс: number;
   "КС-2": number;
   "Отклонение ≥0": number;
   "Отклонение <0": number;
+};
+
+export type DebitCreditMetricChartRow = {
+  label: string;
+  value: number;
+  color: string;
 };
 
 /** Как main `_DK_BAR_PX_SLOT` / `_DK_BAR_PX_SLOT_GROUP`. */
@@ -42,6 +48,15 @@ const SERIES = {
   },
 } as const;
 
+const METRIC_LEGEND = [
+  { name: "Договор стоимость", color: "#2E86AB" },
+  { name: "Всего выполненных обязательств по платежам", color: "#95A5A6" },
+  { name: "КС-2", color: "#B7950B" },
+  { name: "Аванс", color: "#F7DC6F" },
+  { name: "КС-2 − Аванс (≥ 0)", color: "#95A5A6" },
+  { name: "КС-2 − Аванс (< 0)", color: "#F1948A" },
+] as const;
+
 function useChartTheme() {
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -59,9 +74,9 @@ function useChartTheme() {
   };
 }
 
-/** Только цифры — единица «млн руб» указана под графиком. */
+/** Цифра + единица — как на замечании заказчика. */
 function valueLabel(value: number): string {
-  return Math.abs(value) >= 0.05 ? value.toFixed(1) : "";
+  return Math.abs(value) >= 0.05 ? `${value.toFixed(1)} млн.руб` : "";
 }
 
 /** Как main `_dk_x_tick_labels`: wrap width 16, max 2 lines. */
@@ -93,19 +108,131 @@ function canvasWidth(n: number, grouped: boolean): { scroll: boolean; width: num
   return { scroll: true, width: Math.min(18000, content) };
 }
 
+function isMetricRows(
+  rows: DebitCreditContractorChartRow[] | DebitCreditMetricChartRow[],
+  aggregation: "by_contractor" | "by_metric",
+): rows is DebitCreditMetricChartRow[] {
+  return aggregation === "by_metric";
+}
+
+function niceDtick(peak: number, compact: boolean): number {
+  const span = Math.max(peak, 0.01);
+  const target = compact ? 5 : 8;
+  const rough = span / target;
+  const pow = 10 ** Math.floor(Math.log10(rough));
+  const norm = rough / pow;
+  const nice =
+    norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+  return nice * pow;
+}
+
 export function DebitCreditChart({
   rows,
   stacked,
   compact = false,
+  aggregation = "by_contractor",
 }: {
-  rows: ChartRow[];
+  rows: DebitCreditContractorChartRow[] | DebitCreditMetricChartRow[];
   stacked: boolean;
   compact?: boolean;
+  aggregation?: "by_contractor" | "by_metric";
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
-    const n = Math.max(1, rows.length);
-    const labels = rows.map((row) => row.label);
+    if (isMetricRows(rows, aggregation)) {
+      const labels = rows.map((row) => row.label);
+      const values = rows.map((row) => row.value);
+      const colors = rows.map((row) => row.color);
+      const ticktext = labels.map(wrapTickLabel);
+      const peak = Math.max(0.01, ...values.map((v) => Math.abs(v)));
+      const negMin = Math.min(0, ...values);
+      const yTop = peak * 1.14;
+      const yBot =
+        negMin < 0
+          ? -(Math.abs(negMin) * 1.14 + Math.max(Math.abs(negMin) * 0.12, 0.8))
+          : 0;
+      const dtick = niceDtick(Math.max(yTop, Math.abs(yBot)), compact);
+      const height = compact ? 360 : 720;
+      // Для отрицательных столбцов «outside» уезжает вниз и пересекается с подписью оси X.
+      const textPositions = values.map((v) => (v < 0 ? "inside" : "outside"));
+
+      return {
+        scroll: false,
+        width: undefined as number | undefined,
+        data: [
+          {
+            type: "bar" as const,
+            x: labels,
+            y: values,
+            marker: { color: colors },
+            width: 0.55,
+            text: values.map(valueLabel),
+            textposition: textPositions,
+            textangle: 0,
+            cliponaxis: false,
+            constraintext: "none" as const,
+            textfont: { size: compact ? 9 : 12, color: theme.label },
+            hovertemplate: `<b>%{x}</b><br>%{y:.1f} млн руб.<extra></extra>`,
+            showlegend: false,
+          },
+        ],
+        layout: {
+          height,
+          autosize: true,
+          barmode: "relative" as const,
+          bargap: 0.28,
+          showlegend: false,
+          margin: compact
+            ? { l: 56, r: 16, t: 28, b: 120 }
+            : { l: 80, r: 40, t: 48, b: 140 },
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+          font: { family: "Inter, system-ui, sans-serif", color: theme.label },
+          uniformtext: { minsize: 7, mode: "show" as const },
+          xaxis: {
+            type: "category" as const,
+            categoryorder: "array" as const,
+            categoryarray: labels,
+            tickmode: "array" as const,
+            tickvals: labels,
+            ticktext,
+            tickangle: 0,
+            tickfont: { size: compact ? 11 : 12, color: theme.axis },
+            automargin: true,
+            ...PLOTLY_AXIS_LINE,
+          },
+          yaxis: {
+            title: compact
+              ? undefined
+              : { text: "млн руб.", font: { size: 16, color: theme.axis } },
+            range: [yBot, yTop],
+            dtick,
+            tick0: 0,
+            nticks: compact ? 6 : 9,
+            tickfont: { size: compact ? 11 : 14, color: theme.axis },
+            gridcolor: theme.grid,
+            automargin: true,
+            separatethousands: true,
+            ...PLOTLY_AXIS_LINE,
+            ...PLOTLY_ZEROLINE,
+          },
+          modebar: {
+            orientation: "v" as const,
+            bgcolor: "rgba(0,0,0,0)",
+            color: theme.axis,
+            activecolor: "#0f766e",
+          },
+        },
+        config: {
+          ...PLOTLY_CONFIG,
+          ...(compact ? { displayModeBar: false } : {}),
+        },
+      };
+    }
+
+    const contractorRows = rows as DebitCreditContractorChartRow[];
+    const n = Math.max(1, contractorRows.length);
+    const labels = contractorRows.map((row) => row.label);
     const ticktext = labels.map(wrapTickLabel);
     const seriesOrder = stacked
       ? [SERIES.positive, SERIES.ks2, SERIES.advance]
@@ -126,7 +253,7 @@ export function DebitCreditChart({
     }
 
     const traces: Array<Record<string, unknown>> = seriesOrder.map((series) => {
-      const values = rows.map((row) => row[series.key]);
+      const values = contractorRows.map((row) => row[series.key]);
       return {
         type: "bar" as const,
         x: labels,
@@ -134,18 +261,22 @@ export function DebitCreditChart({
         name: series.name,
         marker: { color: series.color },
         width: barWidth,
-        // Стек: без подписей сегментов — суммы на вершине через один столбец
-        text: stacked ? values.map(() => "") : values.map(valueLabel),
-        textposition: "outside" as const,
+        text: values.map(valueLabel),
+        textposition: stacked ? ("inside" as const) : ("outside" as const),
+        insidetextanchor: stacked ? ("middle" as const) : undefined,
         textangle: 0,
         cliponaxis: false,
-        textfont: { size: compact ? 9 : 11, color: theme.label },
+        constraintext: "none" as const,
+        textfont: {
+          size: compact ? 9 : stacked ? 11 : 11,
+          color: stacked ? "#111827" : theme.label,
+        },
         hovertemplate: `<b>%{x}</b><br>${series.name}: %{y:.1f} млн руб.<extra></extra>`,
         showlegend: true,
       };
     });
 
-    const stackTops = rows.map(
+    const stackTops = contractorRows.map(
       (row) => row["Отклонение ≥0"] + row["КС-2"] + row.Аванс,
     );
 
@@ -155,8 +286,8 @@ export function DebitCreditChart({
         mode: "text",
         x: labels,
         y: stackTops,
-        text: stackTops.map((v, i) =>
-          i % 2 === 0 && Math.abs(v) >= 0.05 ? valueLabel(v) : "",
+        text: stackTops.map((v) =>
+          Math.abs(v) >= 0.05 ? valueLabel(v) : "",
         ),
         textposition: "top center",
         textfont: { size: compact ? 10 : 12, color: theme.label },
@@ -166,7 +297,7 @@ export function DebitCreditChart({
       });
     }
 
-    const groupPeaks = rows.flatMap((row) => [
+    const groupPeaks = contractorRows.flatMap((row) => [
       row.Аванс,
       row["КС-2"],
       row["Отклонение ≥0"],
@@ -177,13 +308,11 @@ export function DebitCreditChart({
       : Math.max(0.01, ...groupPeaks);
     const negMin = stacked
       ? 0
-      : Math.min(0, ...rows.map((row) => row["Отклонение <0"]));
+      : Math.min(0, ...contractorRows.map((row) => row["Отклонение <0"]));
     const yTop = peak * (stacked ? 1.2 : 1.14);
     const yBot =
       negMin < 0 ? -(Math.abs(negMin) * 1.14 + Math.max(Math.abs(negMin) * 0.12, 0.8)) : 0;
-    // На узком экране подписи Y наслаиваются — шаг в 2 раза реже
-    const baseDtick = peak >= 1000 ? 200 : peak >= 200 ? 50 : 20;
-    const dtick = compact ? baseDtick * 2 : baseDtick;
+    const dtick = niceDtick(Math.max(yTop, Math.abs(yBot)), compact);
 
     const { scroll, width } = compact
       ? { scroll: n > 6, width: Math.max(560, n * (stacked ? 140 : 220)) }
@@ -237,6 +366,7 @@ export function DebitCreditChart({
           ...PLOTLY_ZEROLINE,
         },
         modebar: {
+          orientation: "v" as const,
           bgcolor: "rgba(0,0,0,0)",
           color: theme.axis,
           activecolor: "#0f766e",
@@ -247,7 +377,7 @@ export function DebitCreditChart({
         ...(compact ? { displayModeBar: false } : {}),
       },
     };
-  }, [compact, rows, stacked, theme]);
+  }, [aggregation, compact, rows, stacked, theme]);
 
   if (!rows.length) {
     return (
@@ -274,21 +404,34 @@ export function DebitCreditChart({
   );
 }
 
-/** Статичная легенда под графиком — одна строка (гориз. скролл на узком экране). */
-export function DebitCreditChartLegend({ stacked }: { stacked: boolean }) {
+/** Легенда под графиком. */
+export function DebitCreditChartLegend({
+  stacked,
+  aggregation = "by_contractor",
+}: {
+  stacked: boolean;
+  aggregation?: "by_contractor" | "by_metric";
+}) {
   const mobile = useIsMobileViewport();
-  const items = stacked
-    ? [
-        { name: "Отклонение, если больше или = 0", short: "Откл. ≥0", color: "#95A5A6" },
-        { name: "КС-2", short: "КС-2", color: "#F1C40F" },
-        { name: "Аванс", short: "Аванс", color: "#2E86AB" },
-      ]
-    : [
-        { name: "Аванс", short: "Аванс", color: "#2E86AB" },
-        { name: "КС-2", short: "КС-2", color: "#F1C40F" },
-        { name: "Отклонение, если больше или = 0", short: "Откл. ≥0", color: "#95A5A6" },
-        { name: "Отклонение, если меньше 0", short: "Откл. <0", color: "#F1948A" },
-      ];
+  const items =
+    aggregation === "by_metric"
+      ? METRIC_LEGEND.map((item) => ({
+          name: item.name,
+          short: item.name,
+          color: item.color,
+        }))
+      : stacked
+        ? [
+            { name: "Отклонение, если больше или = 0", short: "Откл. ≥0", color: "#95A5A6" },
+            { name: "КС-2", short: "КС-2", color: "#F1C40F" },
+            { name: "Аванс", short: "Аванс", color: "#2E86AB" },
+          ]
+        : [
+            { name: "Аванс", short: "Аванс", color: "#2E86AB" },
+            { name: "КС-2", short: "КС-2", color: "#F1C40F" },
+            { name: "Отклонение, если больше или = 0", short: "Откл. ≥0", color: "#95A5A6" },
+            { name: "Отклонение, если меньше 0", short: "Откл. <0", color: "#F1948A" },
+          ];
   return (
     <div className="mt-2 flex flex-nowrap gap-x-4 overflow-x-auto overscroll-x-contain px-1 text-xs text-tremor-content-strong scrollbar-none dark:text-dark-tremor-content-strong">
       {items.map((item) => (

@@ -381,14 +381,23 @@ export type DebitCreditPayload = {
     applied?: Record<string, string | null | undefined>;
   };
   chart: {
-    rows: Array<{
-      label: string;
-      Аванс: number;
-      "КС-2": number;
-      "Отклонение ≥0": number;
-      "Отклонение <0": number;
-    }>;
+    rows: Array<
+      | {
+          label: string;
+          Аванс: number;
+          "КС-2": number;
+          "Отклонение ≥0": number;
+          "Отклонение <0": number;
+        }
+      | {
+          label: string;
+          value: number;
+          color: string;
+        }
+    >;
     mode: "group" | "stack";
+    /** by_metric — только при Все/Все/без договора; иначе by_contractor. */
+    aggregation?: "by_contractor" | "by_metric";
     caption: string;
     unit?: string;
   };
