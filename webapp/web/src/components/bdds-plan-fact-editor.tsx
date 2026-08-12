@@ -103,6 +103,7 @@ export function BddsPlanFactEditor({
   const [lotRecalc, setLotRecalc] = useState<BddsPlanFactLotRecalc | null>(null);
   const [lotPeriod, setLotPeriod] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [applyBlinkOn, setApplyBlinkOn] = useState(false);
   const previewSeq = useRef(0);
 
   const session = getAuthSession();
@@ -201,15 +202,39 @@ export function BddsPlanFactEditor({
   };
 
   const setAllDist = (dist: string) => {
-    const useAbc =
-      dist.includes("%") || dist.toLowerCase().includes("распредел");
     setRows((prev) => prev.map((r) => ({ ...r, [COL.dist]: dist })));
-    if (useAbc) {
-      // Сброс «Весь срок» (Δ=0) → API без period выберет первый месяц.
-      setLotPeriod("");
-      setLotRecalc(null);
-    }
   };
+
+  const effectiveLotPeriod =
+    lotPeriod || lotRecalc?.selected_period || "";
+  const isFullTermPeriod = /весь срок/i.test(effectiveLotPeriod);
+  const hasAbcRows = rows.some((r) =>
+    rowUsesAbc(String(r[COL.dist] || "")),
+  );
+  /** Как в ТЗ: на «весь срок» Δ=0 — кнопка мигает «Пересчет» ↔ «Применить правки», пока не выберут месяц. */
+  const nudgePickMonth =
+    canEdit && hasAbcRows && isFullTermPeriod && Boolean(lotRecalc) && !applying;
+
+  useEffect(() => {
+    if (!nudgePickMonth || previewing) {
+      setApplyBlinkOn(false);
+      return;
+    }
+    const id = window.setInterval(() => {
+      setApplyBlinkOn((v) => !v);
+    }, 650);
+    return () => window.clearInterval(id);
+  }, [nudgePickMonth, previewing]);
+
+  const applyButtonLabel = applying
+    ? "Применение…"
+    : previewing
+      ? "Пересчет"
+      : nudgePickMonth
+        ? applyBlinkOn
+          ? "Пересчет"
+          : "Применить правки"
+        : "Применить правки";
 
   const handleApply = async () => {
     if (!canEdit) return;
@@ -265,6 +290,9 @@ export function BddsPlanFactEditor({
             Правки в полях сразу идут в график/таблицу. «Применить правки» — зафиксировать
             в сессии (до перезагрузки).
             {previewing ? " · пересчёт…" : null}
+            {nudgePickMonth && !previewing
+              ? " · на «весь срок» Δ=0 — выберите месяц в «Прогноз за период»"
+              : null}
           </Text>
         )}
 
@@ -605,11 +633,17 @@ export function BddsPlanFactEditor({
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               type="button"
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+              className={`rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50 ${
+                nudgePickMonth && !previewing
+                  ? applyBlinkOn
+                    ? "opacity-100 ring-2 ring-sky-300"
+                    : "opacity-70"
+                  : ""
+              }`}
               disabled={applying || previewing}
               onClick={() => void handleApply()}
             >
-              {applying ? "Применение…" : "Применить правки"}
+              {applyButtonLabel}
             </button>
             {applyFlash ? (
               <Text className="text-sm text-emerald-700 dark:text-emerald-300">

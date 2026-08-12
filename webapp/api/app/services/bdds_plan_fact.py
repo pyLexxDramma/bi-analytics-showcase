@@ -386,21 +386,10 @@ def _build_lot_recalc_payload(
         updated_data, abc_source=abc_src, row_modes=row_modes
     )
     period_choices = [period_all_lbl] + [utils_mod.format_period_ru(m) for m in month_opts]
-    # Как Streamlit: при «% A/B/C» на «весь срок» Δ всегда 0 — по умолчанию первый месяц.
-    has_abc = False
-    try:
-        has_abc = bool(
-            row_modes is not None
-            and any(ren._forecast_row_modes_use_abc(x) for x in row_modes.astype(str))
-        )
-    except Exception:
-        has_abc = False
-    if period_label in period_choices:
-        sel_period_lbl = period_label
-    elif has_abc and len(period_choices) > 1:
-        sel_period_lbl = period_choices[1]
-    else:
-        sel_period_lbl = period_all_lbl
+    # «Весь срок» + % A/B/C → Δ=0 (меняется только раскладка по месяцам).
+    # Месяц пользователь выбирает сам — как после применения A/B/C в Streamlit,
+    # если selectbox уже был на «весь срок».
+    sel_period_lbl = period_label if period_label in period_choices else period_all_lbl
     only = None
     if sel_period_lbl != period_all_lbl:
         for m in month_opts:
