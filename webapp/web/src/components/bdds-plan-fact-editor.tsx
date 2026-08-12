@@ -13,6 +13,7 @@ import {
   type BddsPlanFactQuery,
 } from "@/lib/api";
 import { getAuthSession } from "@/lib/auth";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 type EditorFilters = Omit<BddsPlanFactQuery, "hide_zero"> & {
   hide_zero?: boolean | null;
@@ -105,6 +106,8 @@ export function BddsPlanFactEditor({
   const [localError, setLocalError] = useState<string | null>(null);
   const [applyBlinkOn, setApplyBlinkOn] = useState(false);
   const previewSeq = useRef(0);
+  const mobile = useIsMobileViewport();
+  const periodSelectRef = useRef<HTMLSelectElement | null>(null);
 
   const session = getAuthSession();
   const canEdit = editor?.can_edit ?? false;
@@ -211,12 +214,19 @@ export function BddsPlanFactEditor({
   const hasAbcRows = rows.some((r) =>
     rowUsesAbc(String(r[COL.dist] || "")),
   );
-  /** Как в ТЗ: на «весь срок» Δ=0 — кнопка мигает «Пересчет» ↔ «Применить правки», пока не выберут месяц. */
+  /** На «весь срок» Δ=0 — нужно выбрать месяц. Desktop: мигание кнопки; mobile: баннер + 1 тап. */
   const nudgePickMonth =
     canEdit && hasAbcRows && isFullTermPeriod && Boolean(lotRecalc) && !applying;
+  const firstMonthChoice =
+    lotRecalc?.period_choices.find((p) => !/весь срок/i.test(p)) || "";
+  const monthChoices = useMemo(
+    () => (lotRecalc?.period_choices || []).filter((p) => !/весь срок/i.test(p)),
+    [lotRecalc?.period_choices],
+  );
 
   useEffect(() => {
-    if (!nudgePickMonth || previewing) {
+    // На телефоне мигание кнопки неудобно — подсказка в блоке пересчёта.
+    if (!nudgePickMonth || previewing || mobile) {
       setApplyBlinkOn(false);
       return;
     }
@@ -224,17 +234,26 @@ export function BddsPlanFactEditor({
       setApplyBlinkOn((v) => !v);
     }, 650);
     return () => window.clearInterval(id);
-  }, [nudgePickMonth, previewing]);
+  }, [nudgePickMonth, previewing, mobile]);
 
   const applyButtonLabel = applying
     ? "Применение…"
     : previewing
       ? "Пересчет"
-      : nudgePickMonth
+      : nudgePickMonth && !mobile
         ? applyBlinkOn
           ? "Пересчет"
           : "Применить правки"
         : "Применить правки";
+
+  const pickFirstMonth = () => {
+    if (!firstMonthChoice) return;
+    setLotPeriod(firstMonthChoice);
+    periodSelectRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  };
 
   const handleApply = async () => {
     if (!canEdit) return;
@@ -290,8 +309,11 @@ export function BddsPlanFactEditor({
             Правки в полях сразу идут в график/таблицу. «Применить правки» — зафиксировать
             в сессии (до перезагрузки).
             {previewing ? " · пересчёт…" : null}
-            {nudgePickMonth && !previewing
+            {nudgePickMonth && !previewing && !mobile
               ? " · на «весь срок» Δ=0 — выберите месяц в «Прогноз за период»"
+              : null}
+            {nudgePickMonth && !previewing && mobile
+              ? " · на «весь срок» Δ=0 — ниже кнопка «Показать Δ»"
               : null}
           </Text>
         )}
@@ -634,7 +656,7 @@ export function BddsPlanFactEditor({
             <button
               type="button"
               className={`rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50 ${
-                nudgePickMonth && !previewing
+                nudgePickMonth && !previewing && !mobile
                   ? applyBlinkOn
                     ? "opacity-100 ring-2 ring-sky-300"
                     : "opacity-70"
@@ -667,10 +689,46 @@ export function BddsPlanFactEditor({
             </Title>
           </div>
           <div className="space-y-3 px-4 py-3">
+            {nudgePickMonth && !previewing ? (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 lg:hidden">
+                <p className="leading-snug">
+                  На <b>всём сроке</b> Δ = 0: A/B/C только перекладывает суммы по
+                  месяцам. Чтобы увидеть эффект — выберите месяц.
+                </p>
+                {firstMonthChoice ? (
+                  <button
+                    type="button"
+                    className="mt-3 min-h-11 w-full rounded-lg bg-amber-600 px-3 py-2.5 text-sm font-semibold text-white active:bg-amber-700"
+                    onClick={pickFirstMonth}
+                  >
+                    Показать Δ · {firstMonthChoice}
+                  </button>
+                ) : null}
+                {monthChoices.length > 1 ? (
+                  <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+                    {monthChoices.slice(0, 12).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setLotPeriod(p)}
+                        className="min-h-10 shrink-0 rounded-full border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 dark:border-amber-600 dark:bg-dark-tremor-background dark:text-amber-100"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <label className="block text-sm">
               <Text>Прогноз за период</Text>
               <select
-                className="mt-1 w-full max-w-md rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                ref={periodSelectRef}
+                className={`mt-1 w-full max-w-md rounded-tremor-default border bg-tremor-background px-3 py-2 text-sm dark:bg-dark-tremor-background ${
+                  nudgePickMonth && !previewing
+                    ? "border-amber-400 ring-2 ring-amber-200 dark:border-amber-500 dark:ring-amber-900"
+                    : "border-tremor-border dark:border-dark-tremor-border"
+                }`}
                 value={lotPeriod || lotRecalc.selected_period}
                 onChange={(e) => setLotPeriod(e.target.value)}
               >
