@@ -349,6 +349,114 @@ def _cumsum_by_granularity(dates: pd.Series, row_mask: pd.Series, gran_key: str)
     return daily[["Дата", "Количество"]]
 
 
+def _bucket_ts(ts: pd.Timestamp, gran_key: str) -> pd.Timestamp:
+    s = pd.Timestamp(ts).normalize()
+    if gran_key == "week":
+        return s - pd.to_timedelta(int(s.dayofweek), unit="D")
+    if gran_key == "month":
+        return s - pd.to_timedelta(int(s.day) - 1, unit="D")
+    return s
+
+
+def _splice_pd_forecast_from_fact(
+    dynamics: list[dict[str, Any]],
+    *,
+    remaining_dates: pd.Series,
+    remaining_mask: pd.Series,
+    report: date,
+    fact_at_report: float,
+    gran_key: str,
+) -> list[dict[str, Any]]:
+    """Прогноз ПД: стык с фактом на дату отчёта; дальше — срок окончания невыданных."""
+    if not dynamics:
+        return dynamics
+    junction = _bucket_ts(pd.Timestamp(report), gran_key)
+    rem = remaining_mask.fillna(False)
+    dt = _to_dt(remaining_dates)
+    rem = rem & dt.notna()
+    increments: dict[pd.Timestamp, float] = {}
+    if rem.any():
+        for raw in dt.loc[rem]:
+            b = _bucket_ts(pd.Timestamp(raw), gran_key)
+            if b < junction:
+                b = junction
+            increments[b] = increments.get(b, 0.0) + 1.0
+
+    by_period: dict[str, dict[str, Any]] = {
+        str(r["period"])[:10]: dict(r) for r in dynamics
+    }
+    jkey = junction.strftime("%Y-%m-%d")
+    if jkey not in by_period:
+        left = None
+        for row in dynamics:
+            try:
+                d = pd.Timestamp(str(row["period"])[:10]).normalize()
+            except Exception:
+                continue
+            if d <= junction:
+                left = dict(row)
+        seed = left or {
+            "period": jkey,
+            "period_label": _axis_label(junction),
+            "plan_bp": 0.0,
+            "fact": fact_at_report,
+            "forecast": fact_at_report,
+        }
+        by_period[jkey] = {
+            **seed,
+            "period": jkey,
+            "period_label": _axis_label(junction),
+            "fact": float(fact_at_report),
+        }
+    for m in increments:
+        k = pd.Timestamp(m).strftime("%Y-%m-%d")
+        if k not in by_period:
+            by_period[k] = {
+                "period": k,
+                "period_label": _axis_label(pd.Timestamp(m)),
+                "plan_bp": None,
+                "fact": float(fact_at_report),
+                "forecast": None,
+            }
+    if increments and not any(pd.Timestamp(m) > junction for m in increments):
+        if gran_key == "week":
+            nxt = junction + pd.Timedelta(days=7)
+        elif gran_key == "month":
+            nxt = (junction + pd.DateOffset(months=1)).normalize()
+        else:
+            nxt = junction + pd.Timedelta(days=1)
+        nxt = _bucket_ts(nxt, gran_key)
+        nk = nxt.strftime("%Y-%m-%d")
+        if nk not in by_period:
+            by_period[nk] = {
+                "period": nk,
+                "period_label": _axis_label(nxt),
+                "plan_bp": None,
+                "fact": float(fact_at_report),
+                "forecast": None,
+            }
+
+    ordered = sorted(by_period.values(), key=lambda r: str(r["period"])[:10])
+    last_p = 0.0
+    for r in ordered:
+        if r.get("plan_bp") is not None:
+            last_p = float(r["plan_bp"] or 0.0)
+        r["plan_bp"] = last_p
+        d = pd.Timestamp(str(r["period"])[:10]).normalize()
+        if d < junction:
+            r["forecast"] = None
+            continue
+        if d == junction:
+            r["fact"] = float(round(fact_at_report))
+            r["forecast"] = float(round(fact_at_report))
+            continue
+        cum_inc = sum(float(v) for m, v in increments.items() if pd.Timestamp(m) <= d)
+        r["forecast"] = float(round(fact_at_report + cum_inc))
+        # Факт после даты отчёта не продлеваем — плато на факте отчёта
+        r["fact"] = float(round(fact_at_report))
+    return ordered
+
+
 def _necessary_productivity(
     deviation_to_date: float,
     baseline_finish: pd.Series,
@@ -701,7 +809,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v7-single-proj-label|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v9-forecast-legend|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -890,6 +998,16 @@ def build_project_documentation_payload(
                         "fact": last_a,
                     }
                 )
+            # Прогноз стыкуется с фактом на дату отчёта; дальше — срок окончания невыданных.
+            remaining = chart_mask.fillna(False) & (~done_sec.fillna(False)) & sf.notna()
+            dynamics = _splice_pd_forecast_from_fact(
+                dynamics,
+                remaining_dates=sf,
+                remaining_mask=remaining,
+                report=report,
+                fact_at_report=float(fact_to_date),
+                gran_key=gran_key,
+            )
 
         nec = _necessary_productivity(
             float(plan_to_date - fact_to_date),

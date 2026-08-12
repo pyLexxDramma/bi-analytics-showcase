@@ -264,6 +264,159 @@ def _detail_to_rows(df: pd.DataFrame) -> tuple[list[dict[str, Any]], list[str]]:
     return rows, cols
 
 
+def _forecast_date_series(plan_df: pd.DataFrame) -> pd.Series:
+    """«Прогнозная дата выдачи» из plan_df (_fact_dt после CSV pick или имя колонки)."""
+    if plan_df is None or plan_df.empty:
+        return pd.Series(dtype="datetime64[ns]")
+    if "_forecast_dyn_dt" in plan_df.columns:
+        s = pd.to_datetime(plan_df["_forecast_dyn_dt"], errors="coerce")
+        if s.notna().any():
+            return s
+    if "_fact_dt" in plan_df.columns:
+        s = pd.to_datetime(plan_df["_fact_dt"], errors="coerce")
+        if s.notna().any():
+            return s
+    for col in (
+        "Прогнозная дата выдачи разделов",
+        "Прогнозная дата выдачи",
+        "Прогнозная дата",
+    ):
+        if col in plan_df.columns:
+            s = pd.to_datetime(
+                plan_df[col], errors="coerce", dayfirst=True, format="mixed"
+            )
+            if s.notna().any():
+                return s
+    return pd.Series(pd.NaT, index=plan_df.index)
+
+
+def _forecast_month_increments(
+    plan_df: pd.DataFrame, *, junction: pd.Timestamp
+) -> dict[pd.Timestamp, float]:
+    """Не выданные разделы → прирост прогноза по месяцу «Прогнозной даты выдачи».
+
+    Факт выдачи — `_tessa_production_dt`. Нет прогнозной даты — fallback на `_plan_dt`
+    (иначе линия прогноза не строится при пустых датах CSV).
+    """
+    if plan_df is None or plan_df.empty:
+        return {}
+    df = plan_df
+    if "_tessa_production_dt" in df.columns:
+        issued = pd.to_datetime(df["_tessa_production_dt"], errors="coerce")
+    else:
+        issued = pd.Series(pd.NaT, index=df.index)
+    fcst = _forecast_date_series(df)
+    rem = issued.isna()
+    if not rem.any():
+        return {}
+    use_dt = fcst.where(fcst.notna(), pd.to_datetime(df.get("_plan_dt"), errors="coerce"))
+    rem = rem & use_dt.notna()
+    if not rem.any():
+        return {}
+    jn = pd.Timestamp(junction).to_period("M").to_timestamp()
+    months = use_dt.loc[rem].dt.to_period("M").dt.to_timestamp()
+    months = months.where(months >= jn, jn)
+    return {pd.Timestamp(k): float(v) for k, v in months.value_counts().items()}
+
+
+def _attach_forecast_from_fact(
+    dynamics: list[dict[str, Any]],
+    plan_df: pd.DataFrame,
+    *,
+    today: date | None = None,
+) -> list[dict[str, Any]]:
+    """Прогноз: начало = точка факта на сегодня; далее — по «Прогнозной дате выдачи»."""
+    if not dynamics:
+        return dynamics
+    today = today or date.today()
+    junction = pd.Timestamp(today).to_period("M").to_timestamp().normalize()
+    fact_at_j = 0.0
+    last_period = None
+    for row in dynamics:
+        try:
+            d = pd.Timestamp(str(row["period"])[:10]).normalize()
+        except Exception:
+            continue
+        last_period = d
+        if d <= junction:
+            fact_at_j = float(row.get("fact") or 0.0)
+
+    increments = _forecast_month_increments(plan_df, junction=junction)
+    by_period: dict[str, dict[str, Any]] = {
+        str(r["period"])[:10]: dict(r) for r in dynamics
+    }
+    jkey = junction.strftime("%Y-%m-%d")
+    if jkey not in by_period:
+        left: dict[str, Any] | None = None
+        for row in dynamics:
+            try:
+                d = pd.Timestamp(str(row["period"])[:10]).normalize()
+            except Exception:
+                continue
+            if d <= junction:
+                left = dict(row)
+        seed = left or {
+            "period": jkey,
+            "period_label": _axis_label(junction),
+            "plan": 0.0,
+            "fact": fact_at_j,
+        }
+        by_period[jkey] = {
+            **seed,
+            "period": jkey,
+            "period_label": _axis_label(junction),
+            "fact": fact_at_j,
+        }
+    for m in increments:
+        k = pd.Timestamp(m).strftime("%Y-%m-%d")
+        if k not in by_period:
+            by_period[k] = {
+                "period": k,
+                "period_label": _axis_label(pd.Timestamp(m)),
+                "plan": None,
+                "fact": fact_at_j,
+            }
+
+    # Всегда нужна хотя бы одна точка после стыка — иначе «Прогноз» = одна точка на факте.
+    need_tail = True
+    if increments and any(pd.Timestamp(m) > junction for m in increments):
+        need_tail = False
+    if need_tail:
+        nxt = (junction + pd.DateOffset(months=1)).to_period("M").to_timestamp()
+        if last_period is not None and last_period > junction:
+            nxt = max(nxt, last_period)
+        nk = nxt.strftime("%Y-%m-%d")
+        if nk not in by_period:
+            by_period[nk] = {
+                "period": nk,
+                "period_label": _axis_label(nxt),
+                "plan": None,
+                "fact": fact_at_j,
+            }
+
+    ordered = sorted(by_period.values(), key=lambda r: str(r["period"])[:10])
+    last_p = 0.0
+    for r in ordered:
+        if r.get("plan") is not None:
+            last_p = float(r["plan"] or 0.0)
+        r["plan"] = last_p
+        d = pd.Timestamp(str(r["period"])[:10]).normalize()
+        if d < junction:
+            r["forecast"] = None
+            continue
+        if d == junction:
+            r["fact"] = float(round(fact_at_j))
+            r["forecast"] = float(round(fact_at_j))
+            continue
+        cum_inc = sum(float(v) for m, v in increments.items() if pd.Timestamp(m) <= d)
+        capped = fact_at_j + cum_inc
+        if last_p > 0:
+            capped = min(capped, last_p)
+        r["forecast"] = float(round(capped))
+        r["fact"] = float(round(fact_at_j))
+    return ordered
+
+
 def _build_dynamics(plan_df: pd.DataFrame, mod: ModuleType) -> list[dict[str, Any]]:
     del mod
     if plan_df is None or plan_df.empty or "_plan_dt" not in plan_df.columns:
@@ -271,9 +424,8 @@ def _build_dynamics(plan_df: pd.DataFrame, mod: ModuleType) -> list[dict[str, An
     df = plan_df.copy()
     if "_tessa_production_dt" in df.columns:
         df["_fact_dyn_dt"] = pd.to_datetime(df["_tessa_production_dt"], errors="coerce")
-    elif "_fact_dt" in df.columns:
-        df["_fact_dyn_dt"] = pd.to_datetime(df["_fact_dt"], errors="coerce")
     else:
+        # Без TESSA не подменяем факт прогнозной датой (_fact_dt) — иначе факт=прогноз.
         df["_fact_dyn_dt"] = pd.NaT
     parts: list[pd.DataFrame] = []
     pm = df["_plan_dt"].notna()
@@ -350,6 +502,7 @@ def _build_dynamics(plan_df: pd.DataFrame, mod: ModuleType) -> list[dict[str, An
                 "period_label": _axis_label(d),
                 "plan": last_p,
                 "fact": last_f,
+                "forecast": None,
             }
         )
     return out
@@ -602,7 +755,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v9-kpi-issued-not-issued",
+            "v12-rd-forecast-line",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -938,6 +1091,12 @@ def build_working_documentation_payload(
         exec_kpis, dynamics = _exec_kpis(
             mod, plan_df, dynamics, applied_projects, total_sections
         )
+        if show_fc:
+            dynamics = _attach_forecast_from_fact(
+                dynamics, plan_df, today=date.today()
+            )
+        else:
+            dynamics = [{**r, "forecast": None} for r in dynamics]
         monthly_rows = _align_monthly_delta_to_kpi(
             monthly_rows,
             dynamics,
@@ -1013,10 +1172,11 @@ def build_working_documentation_payload(
                 "doc_kind": "rd",
                 "title": "Рабочая документация",
                 "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
-                "parity": "main_working_documentation_rd_plan_tessa",
-                "version_id": int(vid),
-                "error": None,
-            },
+            "parity": "main_working_documentation_rd_plan_tessa",
+            "version_id": int(vid),
+            "error": None,
+            "forecast_line": "v12",
+        },
             "filters": {
                 "projects": projects,
                 "sections": ["Все"] + section_opts,

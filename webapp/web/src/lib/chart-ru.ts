@@ -13,6 +13,8 @@ export const CHART_RU = {
   planEnd: "Окончание",
   planBp: "План по проекту (БП)",
   forecast: "Прогноз по проекту",
+  /** РД: прогнозная линия от факта */
+  forecastRd: "Прогноз",
   factLine: "Факт",
   total: "Всего",
   overdue: "Просрочено",

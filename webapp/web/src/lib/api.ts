@@ -111,7 +111,7 @@ function appendParam(
     return;
   }
   if (typeof value === "boolean") {
-    if (value) search.set(key, "true");
+    search.set(key, value ? "true" : "false");
     return;
   }
   search.set(key, String(value));
@@ -1422,7 +1422,7 @@ export type ProjectDocumentationPayload = {
       period: string;
       period_label: string;
       plan_bp: number;
-      forecast: number;
+      forecast: number | null;
       fact?: number;
     }>;
     monthly: Array<{
@@ -1575,6 +1575,8 @@ export type WorkingDocumentationPayload = {
       period_label: string;
       plan: number;
       fact: number;
+      /** Стык с фактом → дальше по «Прогнозной дате выдачи»; null до стыка. */
+      forecast?: number | null;
     }>;
     monthly: Array<{
       month: string;

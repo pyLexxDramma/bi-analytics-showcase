@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { WorkingDocumentationPayload } from "@/lib/api";
+import { ChartHtmlLegend } from "@/components/chart-html-legend";
 import { stripProjectPrefixIfSingle } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
@@ -19,6 +20,7 @@ const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
 
 const RD_PLAN = "#2E86AB";
 const RD_FACT = "#F39C12";
+const RD_FCST = "#9B59B6";
 const RD_MONTH_PLAN = "#F39C12";
 const RD_MONTH_FACT = "#27AE60";
 const RD_MONTH_OVERDUE = "#C0392B";
@@ -166,9 +168,11 @@ export function RdExecutionPieChart({
 export function RdDynamicsLineChart({
   rows,
   fullscreen = false,
+  showForecast = true,
 }: {
   rows: DynamicsRow[];
   fullscreen?: boolean;
+  showForecast?: boolean;
 }) {
   const theme = useChartTheme();
   const mobile = useIsMobileViewport();
@@ -182,7 +186,19 @@ export function RdDynamicsLineChart({
     const x = rows.map((r) => r.period_label || r.period);
     const plan = rows.map((r) => r.plan);
     const fact = rows.map((r) => r.fact);
-    const yMax = Math.max(1, ...plan, ...fact);
+    const forecast = rows.map((r) =>
+      r.forecast == null || Number.isNaN(Number(r.forecast))
+        ? null
+        : Number(r.forecast),
+    );
+    const hasForecast =
+      showForecast && forecast.some((v) => v != null && Number.isFinite(v));
+    const yMax = Math.max(
+      1,
+      ...plan,
+      ...fact,
+      ...forecast.map((v) => (v == null ? 0 : v)),
+    );
     const yHead = Math.max(yMax * (compact ? 0.08 : 0.1), 4);
     // Прореживание подписей оси X как main (~≤12 тиков), без наложения месяцев.
     const tickStep = Math.max(1, Math.ceil(x.length / (compact ? 8 : 12)));
@@ -198,46 +214,60 @@ export function RdDynamicsLineChart({
     }
     /** Mobile: без text на точках — иначе плато и легенда сверху слипаются. */
     const mk = (
-      y: number[],
+      y: Array<number | null>,
       name: string,
       color: string,
+      opts?: { dash?: string; width?: number },
     ): Record<string, unknown> => ({
       type: "scatter",
       mode: compact ? "lines+markers" : "lines+markers+text",
       name,
       x,
       y,
+      connectgaps: false,
       ...(compact
         ? {}
         : {
-            text: y.map(pointLabel),
+            text: y.map((v) => (v == null ? "" : pointLabel(v))),
             textposition: "top center",
             textfont: { color, size: 10 },
           }),
-      line: { color, width: 2.5 },
+      line: {
+        color,
+        width: opts?.width ?? 2.5,
+        ...(opts?.dash ? { dash: opts.dash } : {}),
+      },
       marker: { size: compact ? 7 : 8, color, line: { width: 1, color: "#fff" } },
       cliponaxis: false,
       hovertemplate: `<b>%{x}</b><br>${name}: %{y}<extra></extra>`,
     });
+    const data: Array<Record<string, unknown>> = [
+      mk(plan, CHART_RU.plan, RD_PLAN),
+      mk(fact, CHART_RU.fact, RD_FACT),
+    ];
+    if (hasForecast) {
+      data.push(
+        mk(forecast, CHART_RU.forecastRd, RD_FCST, {
+          dash: "dash",
+          width: 2.8,
+        }),
+      );
+    }
     return {
-      data: [mk(plan, CHART_RU.plan, RD_PLAN), mk(fact, CHART_RU.fact, RD_FACT)],
+      data,
       layout: {
         height,
         margin: compact
-          ? { l: 48, r: 20, t: 28, b: 108 }
-          : { l: 56, r: 36, t: 48, b: 100 },
+          ? { l: 44, r: 16, t: 24, b: 72 }
+          : { l: 56, r: 28, t: 40, b: 80 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         hovermode: false as const,
-        legend: plotlyLegendUnderLeft({
-          fontSize: compact ? 11 : 13,
-          labelColor: theme.axis,
-          y: compact ? -0.32 : -0.18,
-        }),
+        showlegend: false,
         xaxis: {
           title: {
             text: compact ? "" : "Период",
-            standoff: 22,
+            standoff: 14,
             font: { size: 12, color: theme.axis },
           },
           tickmode: "array" as const,
@@ -266,8 +296,15 @@ export function RdDynamicsLineChart({
         },
       },
       config: { ...PLOTLY_CONFIG },
+      legendItems: [
+        { name: CHART_RU.plan, color: RD_PLAN },
+        { name: CHART_RU.fact, color: RD_FACT },
+        ...(hasForecast
+          ? [{ name: CHART_RU.forecastRd, color: RD_FCST }]
+          : []),
+      ],
     };
-  }, [rows, fullscreen, theme, compact]);
+  }, [rows, fullscreen, theme, compact, showForecast]);
 
   if (!rows.length) {
     return (
@@ -278,13 +315,16 @@ export function RdDynamicsLineChart({
   }
 
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div className="min-w-0">
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+      <ChartHtmlLegend items={figure.legendItems} compact={compact} />
+    </div>
   );
 }
 

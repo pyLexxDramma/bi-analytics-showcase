@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectDocumentationPayload } from "@/lib/api";
+import { ChartHtmlLegend } from "@/components/chart-html-legend";
 import { stripProjectPrefixIfSingle } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
@@ -159,70 +160,105 @@ export function PdDynamicsLineChart({
   fullscreen?: boolean;
 }) {
   const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
+  const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const height = fullscreen
       ? Math.max(520, Math.min(window.innerHeight * 0.62, 760))
-      : 420;
+      : compact
+        ? 360
+        : 420;
     const x = rows.map((r) => r.period_label || r.period);
-    const ys = [
-      rows.map((r) => r.plan_bp),
-      rows.map((r) => r.forecast),
-      rows.map((r) => r.fact ?? 0),
-    ];
-    const yMax = Math.max(1, ...ys.flat().map((v) => Number(v) || 0));
-    const yHead = Math.max(yMax * 0.1, 4);
+    const plan = rows.map((r) => r.plan_bp);
+    const forecast = rows.map((r) =>
+      r.forecast == null || Number.isNaN(Number(r.forecast))
+        ? null
+        : Number(r.forecast),
+    );
+    const fact = rows.map((r) => r.fact ?? 0);
+    const yMax = Math.max(
+      1,
+      ...plan.map((v) => Number(v) || 0),
+      ...forecast.map((v) => (v == null ? 0 : v)),
+      ...fact.map((v) => Number(v) || 0),
+    );
+    const yHead = Math.max(yMax * (compact ? 0.08 : 0.1), 4);
+    const tickStep = Math.max(1, Math.ceil(x.length / (compact ? 8 : 12)));
+    const tickvals: string[] = [];
+    const ticktext: string[] = [];
+    for (let i = 0; i < x.length; i += tickStep) {
+      tickvals.push(x[i]);
+      ticktext.push(x[i]);
+    }
+    if (x.length && tickvals[tickvals.length - 1] !== x[x.length - 1]) {
+      tickvals.push(x[x.length - 1]);
+      ticktext.push(x[x.length - 1]);
+    }
     const mk = (
-      y: number[],
+      y: Array<number | null>,
       name: string,
       color: string,
       width: number,
       markerSize: number,
+      opts?: { dash?: string },
     ): Record<string, unknown> => ({
       type: "scatter",
-      mode: "lines+markers+text",
+      mode: compact ? "lines+markers" : "lines+markers+text",
       name,
       x,
       y,
-      text: y.map(pointLabel),
-      textposition: "top center",
-      textfont: { color, size: 10 },
-      line: { color, width },
+      connectgaps: false,
+      ...(compact
+        ? {}
+        : {
+            text: y.map((v) => (v == null ? "" : pointLabel(v))),
+            textposition: "top center",
+            textfont: { color, size: 10 },
+          }),
+      line: {
+        color,
+        width,
+        ...(opts?.dash ? { dash: opts.dash } : {}),
+      },
       marker: { size: markerSize, color, line: { width: 1, color: "#fff" } },
       cliponaxis: false,
       hovertemplate: `<b>%{x}</b><br>${name}: %{y}<extra></extra>`,
     });
     return {
       data: [
-        mk(ys[0], CHART_RU.planBp, PD_PLAN, 2.5, 8),
-        mk(ys[1], CHART_RU.forecast, PD_FCST, 3, 9),
-        mk(ys[2], CHART_RU.factLine, PD_FACT, 2.5, 8),
+        mk(plan, CHART_RU.planBp, PD_PLAN, 2.5, compact ? 7 : 8),
+        mk(forecast, CHART_RU.forecast, PD_FCST, 3, compact ? 8 : 9, {
+          dash: "dash",
+        }),
+        mk(fact, CHART_RU.factLine, PD_FACT, 2.5, compact ? 7 : 8),
       ],
       layout: {
         height,
-        margin: { l: 56, r: 36, t: 48, b: 100 },
+        margin: compact
+          ? { l: 44, r: 16, t: 24, b: 72 }
+          : { l: 56, r: 28, t: 40, b: 80 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         hovermode: false as const,
-        legend: plotlyLegendUnderLeft({
-          fontSize: 13,
-          labelColor: theme.axis,
-          y: -0.16,
-        }),
+        showlegend: false,
         xaxis: {
           title: {
-            text: "Период",
-            standoff: 18,
+            text: compact ? "" : "Период",
+            standoff: 14,
             font: { size: 12, color: theme.axis },
           },
+          tickmode: "array" as const,
+          tickvals,
+          ticktext,
           tickangle: -35,
-          tickfont: { size: 12, color: theme.axis },
+          tickfont: { size: compact ? 10 : 12, color: theme.axis },
           gridcolor: theme.grid,
           automargin: true,
         },
         yaxis: {
           title: {
-            text: "Количество разделов ПД",
-            font: { size: 12, color: theme.axis },
+            text: compact ? "Разделы ПД" : "Количество разделов ПД",
+            font: { size: compact ? 11 : 12, color: theme.axis },
           },
           tickfont: { size: 10, color: theme.axis },
           gridcolor: theme.grid,
@@ -237,8 +273,13 @@ export function PdDynamicsLineChart({
         },
       },
       config: { ...PLOTLY_CONFIG },
+      legendItems: [
+        { name: CHART_RU.planBp, color: PD_PLAN, short: "План (БП)" },
+        { name: CHART_RU.forecast, color: PD_FCST, short: "Прогноз" },
+        { name: CHART_RU.factLine, color: PD_FACT },
+      ],
     };
-  }, [rows, fullscreen, theme]);
+  }, [rows, fullscreen, theme, compact]);
 
   if (!rows.length) {
     return (
@@ -249,13 +290,16 @@ export function PdDynamicsLineChart({
   }
 
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div className="min-w-0">
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+      <ChartHtmlLegend items={figure.legendItems} compact={compact} />
+    </div>
   );
 }
 

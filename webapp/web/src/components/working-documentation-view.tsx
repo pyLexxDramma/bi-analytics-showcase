@@ -747,7 +747,11 @@ export function WorkingDocumentationView() {
                 <FullscreenPanel fill disabled={!dynamics.length}>
                   {(zoomed) => (
                     <div className="mt-2">
-                      <RdDynamicsLineChart rows={dynamics} fullscreen={zoomed} />
+                      <RdDynamicsLineChart
+                        rows={dynamics}
+                        fullscreen={zoomed}
+                        showForecast={filters.showForecast}
+                      />
                     </div>
                   )}
                 </FullscreenPanel>
