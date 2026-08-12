@@ -701,7 +701,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v6|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v7-single-proj-label|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1023,8 +1023,11 @@ def build_project_documentation_payload(
                         lbl = _clean(row.get(cipher_col))
                     if not lbl and name_col:
                         lbl = _clean(row.get(name_col))
-                    if proj_col:
+                    if proj_col and applied_project == "Все":
+                        # При «Все»/нескольких — «Проект | раздел»; при одном проекте — только шифр/раздел.
                         lbl = f"{_clean(row.get(proj_col))} | {lbl or '—'}"
+                    elif not lbl:
+                        lbl = "—"
                     start = bs_dt.loc[idx] if pd.notna(bs_dt.loc[idx]) else ss_dt.loc[idx]
                     if pd.isna(start):
                         start = bf_dt.loc[idx]

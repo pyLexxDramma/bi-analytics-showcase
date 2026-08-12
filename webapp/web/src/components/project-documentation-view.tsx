@@ -23,6 +23,7 @@ import {
   FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
+import { isSingleProjectSelection } from "@/lib/chart-labels";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -630,6 +631,7 @@ function ProjectDocumentationScreen({
                     rangeStart={data?.delay.gantt.range_start ?? null}
                     rangeEnd={data?.delay.gantt.range_end ?? null}
                     fullscreen={zoomed}
+                    hideProjectPrefix={isSingleProjectSelection(filters.project)}
                   />
                 </div>
               </Card>

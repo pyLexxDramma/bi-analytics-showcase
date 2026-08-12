@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { WorkingDocumentationPayload } from "@/lib/api";
+import { stripProjectPrefixIfSingle } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -312,23 +313,17 @@ export function RdMonthlyCumulativeChart({
       if (r.rest != null) return Math.max(0, Number(r.rest) || 0);
       return Math.max(0, plan[i] - done[i] - overdue[i]);
     });
-    const factInc = chronological.map((r, i) => {
-      if (r.fact_inc != null) return Math.max(0, Number(r.fact_inc) || 0);
-      if (i === 0) return done[i] + overdue[i];
-      const prev = done[i - 1] + overdue[i - 1];
-      return Math.max(0, done[i] + overdue[i] - prev);
+    // delta: выдано − план_к_дате (≥0 зелёный / <0 красный просрок)
+    const deltas = chronological.map((r, i) => {
+      if (r.delta != null && Number.isFinite(Number(r.delta))) return Number(r.delta);
+      return -overdue[i];
     });
     const yIdx = chronological.map((_, i) => i);
-    const xMax = Math.max(1, ...plan, ...done.map((d, i) => d + overdue[i] + rest[i]));
+    const totals = done.map((d, i) => d + overdue[i] + rest[i]);
+    const xMax = Math.max(1, ...plan, ...totals);
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
       : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
-
-    const incTxt = factInc.map((v) => (v > 0 ? `+${Math.round(v)}` : ""));
-    const tipText = chronological.map((_, i) => {
-      const total = done[i] + overdue[i] + rest[i];
-      return total > 0 ? incTxt[i] : "";
-    });
 
     const barBase = {
       type: "bar" as const,
@@ -337,7 +332,32 @@ export function RdMonthlyCumulativeChart({
       cliponaxis: false,
       constraintext: "none" as const,
       hovertemplate: "<b>%{customdata}</b><br>%{fullData.name}: %{x}<extra></extra>",
+      textposition: "none" as const,
     };
+
+    const annotations = chronological
+      .map((_, i) => {
+        const d = Math.round(deltas[i]);
+        const total = totals[i];
+        if (total <= 0) return null;
+        const label = d > 0 ? `+${d}` : `${d}`;
+        return {
+          x: total,
+          y: i,
+          xref: "x" as const,
+          yref: "y" as const,
+          text: `<b>${label}</b>`,
+          showarrow: false,
+          xanchor: "left" as const,
+          yanchor: "middle" as const,
+          xshift: compact ? 4 : 8,
+          font: {
+            size: compact ? 11 : 14,
+            color: d < 0 ? RD_MONTH_OVERDUE : "#15803d",
+          },
+        };
+      })
+      .filter(Boolean);
 
     return {
       data: [
@@ -347,10 +367,6 @@ export function RdMonthlyCumulativeChart({
           x: done,
           marker: { color: RD_MONTH_FACT, opacity: 0.95 },
           customdata: labels,
-          text: tipText.map((t, i) => (rest[i] <= 0 && overdue[i] <= 0 ? t : "")),
-          textposition: "outside" as const,
-          texttemplate: "%{text}",
-          textfont: { size: compact ? 12 : 15, color: theme.label },
         },
         {
           ...barBase,
@@ -358,10 +374,6 @@ export function RdMonthlyCumulativeChart({
           x: overdue,
           marker: { color: RD_MONTH_OVERDUE, opacity: 0.95 },
           customdata: labels,
-          text: tipText.map((t, i) => (rest[i] <= 0 && overdue[i] > 0 ? t : "")),
-          textposition: "outside" as const,
-          texttemplate: "%{text}",
-          textfont: { size: compact ? 12 : 15, color: theme.label },
         },
         {
           ...barBase,
@@ -369,10 +381,6 @@ export function RdMonthlyCumulativeChart({
           x: rest,
           marker: { color: RD_MONTH_PLAN, opacity: 0.92 },
           customdata: labels,
-          text: tipText.map((t, i) => (rest[i] > 0 ? t : "")),
-          textposition: "outside" as const,
-          texttemplate: "%{text}",
-          textfont: { size: compact ? 12 : 15, color: theme.label },
         },
       ],
       layout: {
@@ -380,8 +388,8 @@ export function RdMonthlyCumulativeChart({
         barmode: "stack" as const,
         bargap: 0.28,
         margin: compact
-          ? { l: 8, r: 56, t: 12, b: 96 }
-          : { l: 16, r: 72, t: 48, b: 96 },
+          ? { l: 8, r: 52, t: 12, b: 96 }
+          : { l: 16, r: 64, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         legend: plotlyLegendUnderLeft({
@@ -389,12 +397,13 @@ export function RdMonthlyCumulativeChart({
           labelColor: theme.axis,
           y: compact ? -0.28 : -0.12,
         }),
+        annotations,
         xaxis: {
           title: {
             text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * (compact ? 1.22 : 1.12)],
+          range: [0, xMax * (compact ? 1.28 : 1.16)],
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
@@ -449,18 +458,23 @@ export function RdDelayGanttChart({
   rangeStart,
   rangeEnd,
   fullscreen = false,
+  hideProjectPrefix = false,
 }: {
   rows: GanttRow[];
   rangeStart: string | null;
   rangeEnd: string | null;
   fullscreen?: boolean;
+  /** Один проект в фильтре — без префикса «Проект | ». */
+  hideProjectPrefix?: boolean;
 }) {
   const theme = useChartTheme();
   const mobile = useIsMobileViewport();
   const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const sorted = [...rows].sort((a, b) => (b.delay_dur || 0) - (a.delay_dur || 0));
-    const yLabels = sorted.map((r) => r.label);
+    const yLabels = sorted.map((r) =>
+      stripProjectPrefixIfSingle(r.label, hideProjectPrefix),
+    );
     const categoryOrder = [...yLabels].reverse();
 
     const yellowY: string[] = [];
@@ -477,9 +491,11 @@ export function RdDelayGanttChart({
     const redCd: string[] = [];
     const annotations: Array<Record<string, unknown>> = [];
     const labelFont = compact ? 9 : 10;
+    const dateLabelFont = Math.max(11, Math.round(labelFont * 1.5));
 
-    for (const row of sorted) {
-      const y = row.label;
+    for (let i = 0; i < sorted.length; i++) {
+      const row = sorted[i];
+      const y = yLabels[i];
       const startMs = toMs(row.start);
       const bfMs = toMs(row.base_finish);
       const delayEndMs = toMs(row.delay_end);
@@ -519,7 +535,7 @@ export function RdDelayGanttChart({
         y,
         showarrow: false,
         yanchor: "middle" as const,
-        font: { size: labelFont, color: labelColor },
+        font: { size: dateLabelFont, color: labelColor },
       };
 
       // RD: mobile — одна подпись; desktop — дата по договору + «N дн.»
@@ -547,7 +563,7 @@ export function RdDelayGanttChart({
           text: `${Math.round(row.delay_dur)} дн.`,
           xanchor: "left",
           xshift: 8,
-          font: { size: labelFont, color: labelColor },
+          font: { size: dateLabelFont, color: labelColor },
         });
       }
     }
@@ -623,8 +639,8 @@ export function RdDelayGanttChart({
         bargap: 0.44,
         // Запас снизу: тики + легенда в 2 ряда, без «Дата Периодвору»
         margin: compact
-          ? { l: 8, r: 64, t: 16, b: 168 }
-          : { l: 16, r: 160, t: 40, b: 88 },
+          ? { l: 8, r: 80, t: 16, b: 168 }
+          : { l: 16, r: 180, t: 40, b: 88 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         showlegend: true,
@@ -667,7 +683,7 @@ export function RdDelayGanttChart({
       },
       config: { ...PLOTLY_CONFIG },
     };
-  }, [rows, rangeStart, rangeEnd, fullscreen, theme, compact]);
+  }, [rows, rangeStart, rangeEnd, fullscreen, theme, compact, hideProjectPrefix]);
 
   if (!rows.length) {
     return (

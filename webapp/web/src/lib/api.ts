@@ -1556,6 +1556,10 @@ export type WorkingDocumentationPayload = {
     total_sections: number;
     overdue: number;
     avg_delay: number;
+    /** Выдано в производство работ (как сегмент pie). */
+    issued_production?: number;
+    /** Всего разделов − выдано в производство. */
+    not_issued?: number;
     plan_total: number;
     plan_to_date: number;
     fact_to_date: number;
@@ -1581,6 +1585,8 @@ export type WorkingDocumentationPayload = {
       overdue?: number;
       rest?: number;
       fact_inc?: number;
+      /** Выдано − план к дате (≥0 зелёный, <0 красный). */
+      delta?: number;
     }>;
   };
   detail_rows: Array<Record<string, string | number | null>>;

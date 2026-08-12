@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectDocumentationPayload } from "@/lib/api";
+import { stripProjectPrefixIfSingle } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -421,18 +422,23 @@ export function PdDelayGanttChart({
   rangeStart,
   rangeEnd,
   fullscreen = false,
+  hideProjectPrefix = false,
 }: {
   rows: GanttRow[];
   rangeStart: string | null;
   rangeEnd: string | null;
   fullscreen?: boolean;
+  /** Один проект в фильтре — без префикса «Проект | ». */
+  hideProjectPrefix?: boolean;
 }) {
   const theme = useChartTheme();
   const mobile = useIsMobileViewport();
   const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const sorted = [...rows].sort((a, b) => (b.delay_dur || 0) - (a.delay_dur || 0));
-    const yLabels = sorted.map((r) => r.label);
+    const yLabels = sorted.map((r) =>
+      stripProjectPrefixIfSingle(r.label, hideProjectPrefix),
+    );
     const categoryOrder = [...yLabels].reverse();
 
     const yellowY: string[] = [];
@@ -451,9 +457,12 @@ export function PdDelayGanttChart({
     /** На узком экране две даты рядом нечитаемы — оставляем одну с min gap. */
     const minLabelGapDays = compact ? 55 : 12;
     const labelFont = compact ? 9 : 10;
+    /** Даты на конце полос — ×1.5 к базовому (ТЗ / скрин). */
+    const dateLabelFont = Math.max(11, Math.round(labelFont * 1.5));
 
-    for (const row of sorted) {
-      const y = row.label;
+    for (let i = 0; i < sorted.length; i++) {
+      const row = sorted[i];
+      const y = yLabels[i];
       const startMs = toMs(row.start);
       const bfMs = toMs(row.base_finish);
       const finMs = toMs(row.finish);
@@ -495,7 +504,7 @@ export function PdDelayGanttChart({
         y,
         showarrow: false,
         yanchor: "middle" as const,
-        font: { size: labelFont, color: labelColor },
+        font: { size: dateLabelFont, color: labelColor },
       };
 
       const placedXs: number[] = [];
@@ -614,8 +623,8 @@ export function PdDelayGanttChart({
         bargap: 0.44,
         // Mobile: легенда снизу — иначе наезжает на первую полосу
         margin: compact
-          ? { l: 8, r: 64, t: 16, b: 168 }
-          : { l: 16, r: 140, t: 40, b: 88 },
+          ? { l: 8, r: 80, t: 16, b: 168 }
+          : { l: 16, r: 168, t: 40, b: 88 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         showlegend: true,
@@ -658,7 +667,7 @@ export function PdDelayGanttChart({
       },
       config: { ...PLOTLY_CONFIG },
     };
-  }, [rows, rangeStart, rangeEnd, fullscreen, theme, compact]);
+  }, [rows, rangeStart, rangeEnd, fullscreen, theme, compact, hideProjectPrefix]);
 
   if (!rows.length) {
     return (

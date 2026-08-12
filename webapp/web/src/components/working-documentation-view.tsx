@@ -20,6 +20,7 @@ import {
   FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
+import { isSingleProjectSelection } from "@/lib/chart-labels";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -35,6 +36,7 @@ import {
   RdMonthlyCumulativeChart,
 } from "@/components/working-documentation-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const TH =
   "whitespace-nowrap px-2.5 py-2 text-center text-[13px] font-bold leading-tight text-[#111827] dark:text-[#fafafa]";
@@ -495,6 +497,16 @@ export function WorkingDocumentationView() {
   const statusMix = data?.tremor.status_mix ?? [];
   const dynamics = data?.tremor.dynamics ?? [];
   const monthly = data?.tremor.monthly ?? [];
+  const mobile = useIsMobileViewport();
+  const issuedProduction =
+    kpis?.issued_production ??
+    statusMix.find((s) => /производств/i.test(s.name))?.value ??
+    null;
+  const notIssued =
+    kpis?.not_issued ??
+    (kpis?.total_sections != null && issuedProduction != null
+      ? Math.max(0, Number(kpis.total_sections) - Number(issuedProduction))
+      : null);
 
   const resetFilters = () => {
     setFilters({
@@ -626,16 +638,20 @@ export function WorkingDocumentationView() {
         <>
           <Grid numItemsSm={1} numItemsMd={3} className="mb-6 gap-4">
             <Card className="rounded-xl">
-              <Text>Всего разделов</Text>
-              <Metric>{fmtNum(kpis?.total_sections)}</Metric>
+              <Text className="leading-snug">Всего разделов</Text>
+              <Metric className="mt-1">{fmtNum(kpis?.total_sections)}</Metric>
             </Card>
             <Card className="rounded-xl">
-              <Text>С отклонением (дн. &lt; 0)</Text>
-              <Metric>{fmtNum(kpis?.overdue)}</Metric>
+              <Text className="leading-snug">
+                {mobile ? "Выдано в пр-во" : "Выдано в производство работ"}
+              </Text>
+              <Metric className="mt-1">{fmtNum(issuedProduction)}</Metric>
             </Card>
             <Card className="rounded-xl">
-              <Text>Ср. задержка, дн.</Text>
-              <Metric>{fmtNum(kpis?.avg_delay, 1)}</Metric>
+              <Text className="leading-snug">
+                {mobile ? "Не выдано (всего − выдано)" : "Не выдано (всего − выдано в пр-во)"}
+              </Text>
+              <Metric className="mt-1">{fmtNum(notIssued)}</Metric>
             </Card>
           </Grid>
 
@@ -670,7 +686,8 @@ export function WorkingDocumentationView() {
                   <Card className="rounded-xl">
                     <Title>Динамика по месяцам</Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      График Выдача рабочей документации по месяцам
+                      Накопительно: зелёный — выдано, красный — просрок, жёлтый — план впереди.
+                      Справа то же отклонение, что «факт − план» (как KPI).
                     </Text>
                     <div className="mt-3">
                       <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
@@ -759,6 +776,7 @@ export function WorkingDocumentationView() {
                         rangeStart={data?.delay.gantt.range_start ?? null}
                         rangeEnd={data?.delay.gantt.range_end ?? null}
                         fullscreen={zoomed}
+                        hideProjectPrefix={isSingleProjectSelection(filters.projects)}
                       />
                     </div>
                   </Card>
@@ -770,7 +788,8 @@ export function WorkingDocumentationView() {
                   <Card className="rounded-xl">
                     <Title>Динамика по месяцам</Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      График Выдача рабочей документации по месяцам
+                      Накопительно: зелёный — выдано, красный — просрок, жёлтый — план впереди.
+                      Справа то же отклонение, что «факт − план» (как KPI).
                     </Text>
                     <div className="mt-3">
                       <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />

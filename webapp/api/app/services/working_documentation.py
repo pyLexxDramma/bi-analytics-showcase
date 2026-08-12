@@ -91,6 +91,8 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "total_sections": 0,
             "overdue": 0,
             "avg_delay": 0.0,
+            "issued_production": 0,
+            "not_issued": 0,
             "plan_total": 0,
             "plan_to_date": 0,
             "fact_to_date": 0,
@@ -498,6 +500,77 @@ def _exec_kpis(
     return kpis, dynamics
 
 
+def _month_end(period: pd.Period, today: pd.Timestamp | None = None) -> pd.Timestamp:
+    today = today if today is not None else pd.Timestamp.today().normalize()
+    return min(pd.Timestamp(period.end_time).normalize(), today)
+
+
+def _delta_fact_minus_plan_as_of(
+    dynamics: list[dict[str, Any]],
+    as_of: date | pd.Timestamp,
+) -> float | None:
+    """Факт − план на дату (как KPI / кривая «Динамика выдачи РД»)."""
+    if not dynamics:
+        return None
+    if isinstance(as_of, pd.Timestamp):
+        as_of_d = as_of.date()
+    else:
+        as_of_d = as_of
+    last_p = last_f = None
+    for row in dynamics:
+        try:
+            d = date.fromisoformat(str(row.get("period") or "")[:10])
+        except ValueError:
+            continue
+        if d <= as_of_d:
+            last_p = float(row.get("plan") or 0.0)
+            last_f = float(row.get("fact") or 0.0)
+    if last_p is None or last_f is None:
+        return None
+    return float(last_f - last_p)
+
+
+def _align_monthly_delta_to_kpi(
+    monthly_rows: list[dict[str, Any]],
+    dynamics: list[dict[str, Any]],
+    *,
+    deviation_to_date: float,
+    today: date | None = None,
+) -> list[dict[str, Any]]:
+    """Подписи справа на стеке = то же «факт − план», что KPI отклонения.
+
+    У самого свежего месяца в выборке — ровно KPI ``deviation_to_date``.
+    """
+    if not monthly_rows:
+        return monthly_rows
+    today = today or date.today()
+    parsed: list[tuple[dict[str, Any], pd.Period | None]] = []
+    for row in monthly_rows:
+        try:
+            p = pd.Period(str(row.get("month") or ""), freq="M")
+        except Exception:
+            p = None
+        parsed.append((dict(row), p))
+    newest = max((p for _, p in parsed if p is not None), default=None)
+    out: list[dict[str, Any]] = []
+    for r, p in parsed:
+        if p is None:
+            out.append(r)
+            continue
+        if newest is not None and p == newest:
+            r["delta"] = float(round(float(deviation_to_date)))
+        else:
+            as_of = _month_end(p, pd.Timestamp(today))
+            dlt = _delta_fact_minus_plan_as_of(dynamics, as_of.date())
+            if dlt is not None:
+                r["delta"] = float(round(dlt))
+            else:
+                # fallback: не оставляем старый −overdue
+                r["delta"] = float(round(float(r.get("delta") or 0)))
+        out.append(r)
+    return out
+
+
 def build_working_documentation_payload(
     *,
     project: str | None = None,
@@ -529,7 +602,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v5-fact-kpi-align",
+            "v9-kpi-issued-not-issued",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -732,18 +805,50 @@ def build_working_documentation_payload(
             if v > 0
         ]
 
-        # Monthly bars
+        # Сводные KPI: «Выдано в производство» + «всего − выдано» (как на скрине заказчика).
+        # «Всего разделов» не трогаем — тот же total_sections = len(plan_df).
+        try:
+            _prod_key = getattr(mod, "_RD_TESSA_STATUS_PRODUCTION", "Выдано в производство работ")
+        except Exception:
+            _prod_key = "Выдано в производство работ"
+        issued_production = int(pie_counts.get(_prod_key, 0) or 0)
+        if issued_production <= 0 and pie_counts:
+            for _k, _v in pie_counts.items():
+                if "производств" in str(_k).casefold():
+                    issued_production = int(_v)
+                    break
+        not_issued_kpi = max(0, int(total_sections) - int(issued_production))
+
+        # Monthly bars — накопительный стек на конец каждого месяца (как ТЗ / скрин):
+        # зелёный = «Выдано в производство» к as_of;
+        # красный = не выдано и срок договора уже наступил (plan_date ≤ as_of);
+        # жёлтый = не выдано и срок ещё впереди (plan_date > as_of).
+        # Подпись delta = выдано − план_к_дате (= early − overdue): ≥0 зелёный, <0 красный.
         monthly_rows: list[dict[str, Any]] = []
         try:
             month_df = plan_df[plan_df["_plan_dt"].notna()].copy()
             month_df["_rd_plan_n"] = 1.0
+            month_df["_plan_end_dt"] = pd.to_datetime(month_df["_plan_dt"], errors="coerce")
+
+            # Факт: статус/дата «Выдано в производство работ»
             if "_tessa_production_dt" in month_df.columns:
-                month_df["_rd_fact_n"] = month_df["_tessa_production_dt"].notna().astype(float)
+                _fact_dt = pd.to_datetime(month_df["_tessa_production_dt"], errors="coerce")
             elif "_fact_dt" in month_df.columns:
-                month_df["_rd_fact_n"] = month_df["_fact_dt"].notna().astype(float)
+                _fact_dt = pd.to_datetime(month_df["_fact_dt"], errors="coerce")
             else:
-                month_df["_rd_fact_n"] = 0.0
-            # fact by status bucket from detail if available
+                _fact_dt = pd.Series(pd.NaT, index=month_df.index)
+
+            try:
+                _prod_mask = mod._rd_in_production_mask(month_df)
+                if isinstance(_prod_mask, pd.Series) and _prod_mask.reindex(month_df.index).fillna(False).any():
+                    # Если есть только флаг без даты — считаем выданным «с даты плана» (не раньше).
+                    _fact_dt = _fact_dt.where(
+                        _fact_dt.notna(),
+                        month_df["_plan_end_dt"].where(_prod_mask.reindex(month_df.index).fillna(False)),
+                    )
+            except Exception:
+                pass
+
             if not detail_tbl.empty and "Статус" in detail_tbl.columns:
                 try:
                     month_df["_bucket"] = mod._rd_plan_map_buckets_from_detail(
@@ -754,28 +859,17 @@ def build_working_documentation_payload(
                         name_col=name_col,
                         full_cipher_col=pc.get("full_cipher"),
                     )
-                    month_df["_rd_fact_n"] = np.where(
-                        month_df["_bucket"].notna()
-                        & month_df["_bucket"].isin(["Принято", "Передано подрядчику"]),
-                        month_df["_rd_plan_n"],
-                        month_df["_rd_fact_n"],
+                    _iss_bucket = month_df["_bucket"].astype(str).str.strip().eq(
+                        "Выдано в производство работ"
+                    ) | month_df["_bucket"].isin(["Принято", "Передано подрядчику"])
+                    _fact_dt = _fact_dt.where(
+                        _fact_dt.notna(),
+                        month_df["_plan_end_dt"].where(_iss_bucket),
                     )
                 except Exception:
                     pass
-            month_df["_plan_end_dt"] = month_df["_plan_dt"]
-            # Срез «на конец месяца»: зелёный = выдано вовремя к этой дате;
-            # красный = срок уже прошёл и не вовремя; жёлтый = срок ещё не наступил.
-            # Иначе при оценке «на сегодня» ранние месяцы почти без жёлтого и
-            # не стыкуются с линией план/факт.
-            _today = pd.Timestamp.today().normalize()
-            _plan_end = pd.to_datetime(month_df["_plan_end_dt"], errors="coerce")
-            if "_tessa_production_dt" in month_df.columns:
-                _fact_dt = pd.to_datetime(month_df["_tessa_production_dt"], errors="coerce")
-            elif "_fact_dt" in month_df.columns:
-                _fact_dt = pd.to_datetime(month_df["_fact_dt"], errors="coerce")
-            else:
-                _fact_dt = pd.Series(pd.NaT, index=month_df.index)
-            _plan_n = _plan_end.dt.normalize()
+
+            _plan_n = month_df["_plan_end_dt"].dt.normalize()
             _fact_n = _fact_dt.dt.normalize()
             _w = _plan_n.notna()
             _plan_w = _plan_n[_w]
@@ -784,25 +878,30 @@ def build_working_documentation_payload(
             total_plan = float(_weights.sum())
             use_pct = str(metric).strip().startswith("%")
             periods = sorted({p for p in _plan_w.dt.to_period("M").tolist() if p is not pd.NaT})
+            _today = pd.Timestamp.today().normalize()
             cur_m = pd.Period(_today, freq="M")
             periods = [p for p in periods if p <= cur_m]
             rows_m: list[dict[str, Any]] = []
-            prev_resolved = 0.0
+            prev_green = 0.0
             for p in periods:
                 as_of = min(pd.Timestamp(p.end_time).normalize(), _today)
+                issued = _fact_w.notna() & (_fact_w <= as_of)
                 due = _plan_w <= as_of
-                on_time = (
-                    _fact_w.notna()
-                    & (_fact_w <= _plan_w)
-                    & (_fact_w <= as_of)
-                )
-                done_v = float(_weights[on_time].sum())
-                overdue_v = float(_weights[due & ~on_time].sum())
-                rest_v = max(0.0, total_plan - done_v - overdue_v)
+                future = _plan_w > as_of
+                done_v = float(_weights[issued].sum())
+                overdue_v = float(_weights[(~issued) & due].sum())
+                rest_v = float(_weights[(~issued) & future].sum())
+                # Страховка от округления: сегменты покрывают весь план.
+                covered = done_v + overdue_v + rest_v
+                if abs(covered - total_plan) > 0.05 and total_plan > 0:
+                    rest_v = max(0.0, total_plan - done_v - overdue_v)
+                plan_due = done_v + overdue_v
+                delta_v = done_v - plan_due  # = −overdue + early-issued-from-future
+                # early: issued & future plan → в done, не в plan_due
+                # equivalent: done_v - (total_plan - rest_v) = done_v - plan_due
+                fact_inc = max(0.0, done_v - prev_green)
+                prev_green = done_v
                 plan_v = total_plan
-                resolved = done_v + overdue_v
-                fact_inc = max(0.0, resolved - prev_resolved)
-                prev_resolved = resolved
                 if use_pct and plan_v > 0:
                     rows_m.append(
                         {
@@ -812,8 +911,9 @@ def build_working_documentation_payload(
                             "done": round(done_v / plan_v * 100, 1),
                             "overdue": round(overdue_v / plan_v * 100, 1),
                             "rest": round(rest_v / plan_v * 100, 1),
-                            "fact": round(resolved / plan_v * 100, 1),
+                            "fact": round(done_v / plan_v * 100, 1),
                             "fact_inc": round(fact_inc / plan_v * 100, 1),
+                            "delta": round(delta_v / plan_v * 100, 1),
                         }
                     )
                 else:
@@ -825,8 +925,9 @@ def build_working_documentation_payload(
                             "done": done_v,
                             "overdue": overdue_v,
                             "rest": rest_v,
-                            "fact": resolved,
+                            "fact": done_v,
                             "fact_inc": fact_inc,
+                            "delta": delta_v,
                         }
                     )
             monthly_rows = list(reversed(rows_m))
@@ -837,6 +938,16 @@ def build_working_documentation_payload(
         exec_kpis, dynamics = _exec_kpis(
             mod, plan_df, dynamics, applied_projects, total_sections
         )
+        monthly_rows = _align_monthly_delta_to_kpi(
+            monthly_rows,
+            dynamics,
+            deviation_to_date=float(exec_kpis.get("deviation_to_date") or 0),
+        )
+        # Гарантия: верхний месяц стека = KPI «Отклонение на текущую дату»
+        if monthly_rows:
+            monthly_rows[0]["delta"] = float(
+                round(float(exec_kpis.get("deviation_to_date") or 0))
+            )
 
         detail_show = mod._rd_detail_prepare_for_display(
             detail_tbl.copy() if not detail_tbl.empty else pd.DataFrame(),
@@ -932,9 +1043,12 @@ def build_working_documentation_payload(
                 },
             },
             "kpis": {
+                # total_sections — без изменений условий (len plan_df после фильтров)
                 "total_sections": total_sections,
                 "overdue": int(overdue),
                 "avg_delay": round(float(avg_delay), 1) if overdue > 0 else 0.0,
+                "issued_production": int(issued_production),
+                "not_issued": int(not_issued_kpi),
                 **exec_kpis,
             },
             "tremor": {
