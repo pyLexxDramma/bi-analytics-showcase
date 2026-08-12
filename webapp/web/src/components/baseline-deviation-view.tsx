@@ -501,16 +501,6 @@ export function BaselineDeviationView() {
                           className: plateDevClass(plate.dev_days),
                           highlight: highlightFromDays(plate.dev_days),
                         },
-                        {
-                          label: "Макс. |откл.|",
-                          value: plate.max_abs_dev_days ?? "Н/Д",
-                          className:
-                            (plate.max_abs_dev_days ?? 0) > 0
-                              ? "text-rose-600 dark:text-rose-400"
-                              : "",
-                          highlight:
-                            (plate.max_abs_dev_days ?? 0) > 0 ? "bad" : "none",
-                        },
                       ]}
                     />
                   </MobileEntityCard>
@@ -520,7 +510,7 @@ export function BaselineDeviationView() {
                 {plates.map((plate, index) => (
                   <div
                     key={`${plate.project ?? "one"}-${index}`}
-                    className="grid gap-2 rounded-lg border border-tremor-border bg-tremor-background px-3 py-2.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background md:grid-cols-2 xl:grid-cols-5"
+                    className="grid gap-2 rounded-lg border border-tremor-border bg-tremor-background px-3 py-2.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background md:grid-cols-2 xl:grid-cols-4"
                   >
                     {plate.project ? (
                       <div>
@@ -548,18 +538,6 @@ export function BaselineDeviationView() {
                         className={`mt-0.5 text-xl font-bold tabular-nums ${plateDevClass(plate.dev_days)}`}
                       >
                         {plate.dev ?? "Н/Д"}
-                      </p>
-                    </div>
-                    <div>
-                      <Text className="!text-xs">Максимальное отклонение (дней)</Text>
-                      <p
-                        className={`mt-0.5 text-xl font-bold tabular-nums ${
-                          (plate.max_abs_dev_days ?? 0) > 0
-                            ? "text-rose-600 dark:text-rose-400"
-                            : ""
-                        }`}
-                      >
-                        {plate.max_abs_dev_days ?? "Н/Д"}
                       </p>
                     </div>
                   </div>
