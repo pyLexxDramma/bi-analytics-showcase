@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectDocumentationPayload } from "@/lib/api";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
-import { stripProjectPrefixIfSingle, uniquePlotCategories } from "@/lib/chart-labels";
+import { stripProjectPrefixIfSingle, uniquePlotCategories, wrapAxisLabel } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -704,16 +704,21 @@ export function PdDelayGanttChart({
     }
 
     const dense = sorted.length >= 8;
-    const rowH = dense ? (compact ? 56 : 58) : compact ? 48 : 52;
+    const perLine = dense ? 26 : 30;
+    const wrapped = yTickTexts.map((t) => wrapAxisLabel(t, perLine, 3));
+    const tickTextsDisplay = wrapped.map((w) => w.text);
+    const maxWrapLines = Math.max(1, ...wrapped.map((w) => w.lines));
+    const rowH =
+      (dense ? (compact ? 42 : 44) : compact ? 40 : 44) +
+      (maxWrapLines - 1) * (compact ? 14 : 16);
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.72, 900))
       : Math.max(compact ? 300 : 280, (compact ? 100 : 72) + sorted.length * rowH);
 
-    const maxTick = Math.max(8, ...yTickTexts.map((t) => t.length));
-    const tickTextsDisplay = yTickTexts.map((t) =>
-      t.length > (dense ? 44 : 56) ? `${t.slice(0, dense ? 43 : 55)}…` : t,
-    );
-    const leftMargin = compact ? 8 : Math.min(dense ? 260 : 160, Math.max(88, maxTick * 6.2));
+    const maxTick = Math.max(8, ...tickTextsDisplay.map((t) =>
+      Math.max(...t.split("<br>").map((line) => line.length)),
+    ));
+    const leftMargin = compact ? 8 : Math.min(dense ? 280 : 200, Math.max(100, maxTick * 7.2));
 
     const legendItems = [
       { name: "Базовое окончание", color: PD_GANTT_YELLOW },

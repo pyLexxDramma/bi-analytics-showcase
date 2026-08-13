@@ -46,3 +46,35 @@ export function isSingleProjectSelection(
   const concrete = list.filter((p) => p && p !== allToken);
   return concrete.length === 1;
 }
+
+/**
+ * Подпись оси Y в 2–3 строки (Plotly `<br>`), без обрезки «…» если влазит в лимит.
+ */
+export function wrapAxisLabel(
+  label: string,
+  maxCharsPerLine = 28,
+  maxLines = 3,
+): { text: string; lines: number } {
+  const s = String(label || "—").trim() || "—";
+  if (s.length <= maxCharsPerLine) return { text: s, lines: 1 };
+
+  const lines: string[] = [];
+  let rest = s;
+  while (rest.length > 0 && lines.length < maxLines) {
+    if (lines.length === maxLines - 1 || rest.length <= maxCharsPerLine) {
+      lines.push(rest);
+      break;
+    }
+    // Предпочитаем разрыв после «| » или пробела.
+    let cut = -1;
+    const pipe = rest.lastIndexOf(" | ", maxCharsPerLine);
+    if (pipe >= Math.floor(maxCharsPerLine * 0.35)) cut = pipe + 3;
+    if (cut < 0) {
+      const sp = rest.lastIndexOf(" ", maxCharsPerLine);
+      cut = sp >= Math.floor(maxCharsPerLine * 0.35) ? sp : maxCharsPerLine;
+    }
+    lines.push(rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).trimStart();
+  }
+  return { text: lines.join("<br>"), lines: lines.length };
+}
