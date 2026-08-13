@@ -19991,7 +19991,10 @@ def _rd_delay_build_date_rows(
 
     rows: list[dict] = []
     for y_key, grp in work.groupby("_y_key", sort=False):
-        y_lbl = str(grp["_y_disp"].iloc[0] if len(grp) else y_key)
+        y_lbl = str(grp["_y_disp"].iloc[0] if len(grp) else y_key).strip()
+        # Пустой проект/раздел → на оси «—»; такие строки без имени не рисуем.
+        if not y_lbl or y_lbl in {"—", "-", "–", "−", "nan", "None"}:
+            continue
         _contracts = grp["_contract_dt"].dropna()
         if _contracts.empty:
             continue

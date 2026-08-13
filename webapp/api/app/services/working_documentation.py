@@ -755,7 +755,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v14-rd-gantt-norm-y",
+            "v15-rd-gantt-skip-empty-y",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1133,6 +1133,9 @@ def build_working_documentation_payload(
                 starts = []
                 ends = []
                 for _, r in gdf.iterrows():
+                    label = _cell(r.get(label_col))
+                    if not label or label in {"—", "-", "–", "−"}:
+                        continue
                     start = r.get("_start_dt")
                     bf = r.get("_bf_dt")
                     fin = r.get("_fin_dt")
@@ -1143,7 +1146,7 @@ def build_working_documentation_payload(
                             ends.append(pd.Timestamp(t))
                     gantt_rows.append(
                         {
-                            "label": _cell(r.get(label_col)),
+                            "label": label,
                             "start": _iso(start),
                             "base_finish": _iso(bf),
                             "finish": _iso(fin),
