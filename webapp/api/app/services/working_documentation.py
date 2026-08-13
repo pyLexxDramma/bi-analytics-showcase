@@ -755,7 +755,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v13-rd-gantt-ref",
+            "v14-rd-gantt-norm-y",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),

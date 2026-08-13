@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta, date
 import numpy as np
 import re
+import unicodedata
 import json
 import textwrap
 import html as html_module
@@ -19948,6 +19949,15 @@ def _rd_delay_build_date_rows(
         work["_y"] = work["Проект"].fillna("").astype(str).str.strip()
         y_col = "Проект"
     work["_y"] = work["_y"].replace({"": "—", "nan": "—"})
+    # Стенд: «Дмитровский-1» двоился из‑за NBSP / разных тире — ключ нормализуем.
+    def _rd_norm_y_label(v: object) -> str:
+        s = unicodedata.normalize("NFKC", str(v or ""))
+        s = re.sub(r"[\s\u00a0\u202f]+", " ", s).strip()
+        s = re.sub(r"[\u2010-\u2015\u2212\ufe58\ufe63\uff0d]", "-", s)
+        return s or "—"
+
+    work["_y_key"] = work["_y"].map(_rd_norm_y_label)
+    work["_y_disp"] = work.groupby("_y_key", sort=False)["_y"].transform("first")
 
     # Отсекаем мусорные даты до расчёта шкалы (иначе max → 2080 и ломает ось).
     _ymax = pd.Timestamp(ts_report).normalize() + pd.DateOffset(years=10)
@@ -19980,7 +19990,8 @@ def _rd_delay_build_date_rows(
     _start = (_dmin - pd.Timedelta(days=max(int(_span * 0.04), 3))).normalize()
 
     rows: list[dict] = []
-    for y_lbl, grp in work.groupby("_y", sort=False):
+    for y_key, grp in work.groupby("_y_key", sort=False):
+        y_lbl = str(grp["_y_disp"].iloc[0] if len(grp) else y_key)
         _contracts = grp["_contract_dt"].dropna()
         if _contracts.empty:
             continue
@@ -20011,7 +20022,7 @@ def _rd_delay_build_date_rows(
             done=done,
             ts_report=pd.Timestamp(ts_report),
         )
-        rows.append({y_col: str(y_lbl), **seg})
+        rows.append({y_col: y_lbl, **seg})
     return pd.DataFrame(rows), y_col
 
 

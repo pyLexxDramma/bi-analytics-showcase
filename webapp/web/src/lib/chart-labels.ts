@@ -11,6 +11,27 @@ export function stripProjectPrefixIfSingle(
   return rest || label;
 }
 
+/**
+ * Уникальные ключи категорий Plotly при одинаковых подписях (иначе дубли
+ * слипаются/двоятся на оси Y). В ticktext — исходный текст.
+ */
+export function uniquePlotCategories(labels: string[]): {
+  keys: string[];
+  texts: string[];
+} {
+  const seen = new Map<string, number>();
+  const keys: string[] = [];
+  const texts: string[] = [];
+  for (const raw of labels) {
+    const label = raw || "—";
+    const n = (seen.get(label) ?? 0) + 1;
+    seen.set(label, n);
+    texts.push(label);
+    keys.push(n === 1 ? label : `${label}\u200b${n}`);
+  }
+  return { keys, texts };
+}
+
 export function isSingleProjectSelection(
   project: string | string[] | null | undefined,
   allToken = "Все",

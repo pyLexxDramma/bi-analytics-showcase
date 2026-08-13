@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { WorkingDocumentationPayload } from "@/lib/api";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
-import { stripProjectPrefixIfSingle } from "@/lib/chart-labels";
+import { stripProjectPrefixIfSingle, uniquePlotCategories } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -512,9 +512,10 @@ export function RdDelayGanttChart({
   const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
     const sorted = [...rows].sort((a, b) => (b.delay_dur || 0) - (a.delay_dur || 0));
-    const yLabels = sorted.map((r) =>
+    const displayLabels = sorted.map((r) =>
       stripProjectPrefixIfSingle(r.label, hideProjectPrefix),
     );
+    const { keys: yLabels, texts: yTickTexts } = uniquePlotCategories(displayLabels);
     const categoryOrder = [...yLabels].reverse();
 
     const yellowY: string[] = [];
@@ -626,21 +627,26 @@ export function RdDelayGanttChart({
         } else if (row.base_label && bfMs != null) {
           place(bfMs, row.base_label, "left", 6);
         }
-      } else {
-        if (row.base_label && bfMs != null && !hasRed) {
-          place(bfMs, row.base_label, "left", 6);
-        } else if (row.base_label && bfMs != null && hasRed) {
+      } else if (hasRed) {
+        if (row.base_label && bfMs != null) {
           place(bfMs, row.base_label, "right", -6);
         }
-        if (hasGreen && row.fact_label && finMs != null && !hasRed) {
-          place(finMs, row.fact_label, "left", 6);
-        }
-        if (hasRed && delayEndMs != null) {
+        if (delayEndMs != null) {
           const tip =
             row.delay_label ||
             ((row.delay_dur || 0) > 0 ? `${Math.round(row.delay_dur)} дн.` : "");
           place(delayEndMs, tip, "left", lateComplete ? 20 : 8);
         }
+      } else if (hasGreen && finMs != null) {
+        const ahead = bfMs != null && finMs < bfMs - DAY_MS;
+        if (ahead) {
+          if (row.fact_label) place(finMs, row.fact_label, "right", -4);
+          if (row.base_label && bfMs != null) place(bfMs, row.base_label, "left", 6);
+        } else {
+          place(finMs, row.fact_label || row.base_label || "", "left", 6);
+        }
+      } else if (row.base_label && bfMs != null) {
+        place(bfMs, row.base_label, "left", 6);
       }
     }
 
@@ -764,7 +770,7 @@ export function RdDelayGanttChart({
           categoryarray: categoryOrder,
           tickmode: "array" as const,
           tickvals: yLabels,
-          ticktext: yLabels,
+          ticktext: yTickTexts,
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           automargin: true,
         },
