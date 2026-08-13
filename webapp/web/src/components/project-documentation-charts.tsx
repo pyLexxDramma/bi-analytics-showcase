@@ -591,34 +591,38 @@ export function PdDelayGanttChart({
         });
       };
 
-      // Mobile: одна подпись на ряд (конец факта/просрочки), без пары дат на полосе.
+      // Даты у правого края сегментов — без склейки у названий слева.
+      const tipMs = delayEndMs ?? (hasGreen ? finMs : null) ?? bfMs;
+      const tipText = hasRed
+        ? row.finish_label || row.base_label || ""
+        : hasGreen
+          ? row.finish_label || row.base_label || ""
+          : row.base_label || "";
+
       if (compact) {
-        if (hasRed && row.finish_label && delayEndMs != null) {
-          place(delayEndMs, row.finish_label, "left", lateComplete ? 18 : 6);
-        } else if (hasGreen && row.finish_label && finMs != null) {
-          place(finMs, row.finish_label, "left", 6);
-        } else if (row.base_label && bfMs != null) {
-          place(bfMs, row.base_label, "left", 6);
+        if (tipMs != null && tipText) {
+          place(tipMs, tipText, "left", lateComplete ? 18 : 6);
         }
-      } else if (hasRed) {
-        if (row.base_label && bfMs != null) {
-          place(bfMs, row.base_label, "right", -6);
+      } else {
+        if (tipMs != null && tipText) {
+          place(tipMs, tipText, "left", lateComplete ? 20 : 8);
         }
-        if (row.finish_label && delayEndMs != null) {
-          place(delayEndMs, row.finish_label, "left", lateComplete ? 20 : 6);
+        if (hasRed && row.base_label && bfMs != null && tipMs != null) {
+          if ((tipMs - bfMs) / DAY_MS >= minLabelGapDays * 2.5) {
+            place(bfMs, row.base_label, "right", -6);
+          }
+        } else if (
+          hasGreen &&
+          !hasRed &&
+          row.finish_label &&
+          finMs != null &&
+          bfMs != null &&
+          tipMs === bfMs &&
+          finMs < bfMs - DAY_MS &&
+          (bfMs - finMs) / DAY_MS >= minLabelGapDays * 2
+        ) {
+          place(finMs, row.finish_label, "right", -4);
         }
-      } else if (hasGreen && finMs != null) {
-        // Опережение: факт левее базы — даты по разные стороны стыка (без «29.01.202531.03»).
-        const ahead = bfMs != null && finMs < bfMs - DAY_MS;
-        if (ahead) {
-          if (row.finish_label) place(finMs, row.finish_label, "right", -4);
-          if (row.base_label && bfMs != null) place(bfMs, row.base_label, "left", 6);
-        } else {
-          const tip = row.finish_label || row.base_label || "";
-          place(finMs, tip, "left", 6);
-        }
-      } else if (row.base_label && bfMs != null) {
-        place(bfMs, row.base_label, "left", 6);
       }
     }
 
@@ -695,46 +699,54 @@ export function PdDelayGanttChart({
     const rangeHi = rangeEnd ? toMs(rangeEnd) : xs.length ? Math.max(...xs) : null;
     let xRange: [number, number] | undefined;
     if (rangeLo != null && rangeHi != null) {
-      const pad = Math.max((rangeHi - rangeLo) * (compact ? 0.12 : 0.08), 6 * DAY_MS);
+      const pad = Math.max((rangeHi - rangeLo) * (compact ? 0.12 : 0.1), 6 * DAY_MS);
       xRange = [rangeLo - pad, rangeHi + pad];
     }
 
+    const dense = sorted.length >= 8;
+    const rowH = dense ? (compact ? 56 : 58) : compact ? 48 : 52;
     const height = fullscreen
-      ? Math.max(420, Math.min(window.innerHeight * 0.62, 780))
-      : Math.max(compact ? 300 : 280, (compact ? 140 : 120) + sorted.length * (compact ? 48 : 52));
+      ? Math.max(420, Math.min(window.innerHeight * 0.72, 900))
+      : Math.max(compact ? 300 : 280, (compact ? 100 : 72) + sorted.length * rowH);
+
+    const maxTick = Math.max(8, ...yTickTexts.map((t) => t.length));
+    const tickTextsDisplay = yTickTexts.map((t) =>
+      t.length > (dense ? 44 : 56) ? `${t.slice(0, dense ? 43 : 55)}…` : t,
+    );
+    const leftMargin = compact ? 8 : Math.min(dense ? 260 : 160, Math.max(88, maxTick * 6.2));
+
+    const legendItems = [
+      { name: "Базовое окончание", color: PD_GANTT_YELLOW },
+      ...(greenY.length ? [{ name: "Окончание", color: PD_GANTT_GREEN }] : []),
+      ...(redY.length ? [{ name: "Просрочка", color: PD_GANTT_RED }] : []),
+      ...(arrowY.length
+        ? [{ name: "Сдано с опозданием", color: PD_GANTT_GREEN, short: "С опозданием" }]
+        : []),
+    ];
 
     return {
       data,
+      legendItems,
       layout: {
         height,
         barmode: "overlay" as const,
-        bargap: 0.44,
-        // Mobile: легенда снизу — иначе наезжает на первую полосу
+        bargap: dense ? 0.35 : 0.44,
         margin: compact
-          ? { l: 8, r: 80, t: 16, b: 168 }
-          : { l: 16, r: 168, t: 40, b: 88 },
+          ? { l: 8, r: 88, t: 12, b: 56 }
+          : { l: leftMargin, r: 120, t: 28, b: 52 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        showlegend: true,
-        legend: plotlyLegendUnderLeft({
-          fontSize: compact ? 10 : 12,
-          labelColor: theme.axis,
-          y: compact ? -0.42 : -0.14,
-        }),
+        showlegend: false,
         annotations,
         xaxis: {
           type: "date" as const,
-          title: {
-            text: compact ? "" : "Период",
-            font: { size: compact ? 11 : 12, color: theme.axis },
-            standoff: compact ? 8 : 4,
-          },
+          title: { text: "" },
           tickformat: compact ? "%d.%m.%y" : "%d.%m.%Y",
-          tickangle: compact ? -45 : 0,
+          tickangle: compact ? -35 : 0,
           nticks: compact ? 5 : undefined,
           tickfont: { size: compact ? 9 : 11, color: theme.axis },
           gridcolor: theme.grid,
-          automargin: !compact,
+          automargin: true,
           ...(xRange ? { range: xRange } : {}),
         },
         yaxis: {
@@ -742,9 +754,9 @@ export function PdDelayGanttChart({
           categoryarray: categoryOrder,
           tickmode: "array" as const,
           tickvals: yLabels,
-          ticktext: yTickTexts,
-          tickfont: { size: compact ? 10 : 11, color: theme.axis },
-          automargin: true,
+          ticktext: tickTextsDisplay,
+          tickfont: { size: compact ? 10 : dense ? 10 : 11, color: theme.axis },
+          automargin: compact,
         },
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
         modebar: {
@@ -766,12 +778,15 @@ export function PdDelayGanttChart({
   }
 
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div className="min-w-0 overflow-x-hidden">
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+      <ChartHtmlLegend items={figure.legendItems} compact={compact} />
+    </div>
   );
 }

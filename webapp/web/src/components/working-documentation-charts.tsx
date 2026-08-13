@@ -618,35 +618,46 @@ export function RdDelayGanttChart({
         });
       };
 
-      // По окончанию каждого цвета — дата (референс).
+      // Даты только у правого края сегментов (не у названий слева) — без наложения.
+      const tipMs = delayEndMs ?? (hasGreen ? finMs : null) ?? bfMs;
+      const tipText = hasRed
+        ? row.delay_label ||
+          ((row.delay_dur || 0) > 0 ? `${Math.round(row.delay_dur)} дн.` : "") ||
+          row.fact_label ||
+          row.base_label ||
+          ""
+        : hasGreen
+          ? row.fact_label || row.base_label || ""
+          : row.base_label || "";
+
       if (compact) {
-        if (hasRed && row.delay_label && delayEndMs != null) {
-          place(delayEndMs, row.delay_label, "left", lateComplete ? 18 : 6);
-        } else if (hasGreen && row.fact_label && finMs != null) {
-          place(finMs, row.fact_label, "left", 6);
-        } else if (row.base_label && bfMs != null) {
-          place(bfMs, row.base_label, "left", 6);
+        if (tipMs != null && tipText) {
+          place(tipMs, tipText, "left", lateComplete ? 18 : 6);
         }
-      } else if (hasRed) {
-        if (row.base_label && bfMs != null) {
-          place(bfMs, row.base_label, "right", -6);
+      } else {
+        if (tipMs != null && tipText) {
+          place(tipMs, tipText, "left", lateComplete ? 20 : 8);
         }
-        if (delayEndMs != null) {
-          const tip =
-            row.delay_label ||
-            ((row.delay_dur || 0) > 0 ? `${Math.round(row.delay_dur)} дн.` : "");
-          place(delayEndMs, tip, "left", lateComplete ? 20 : 8);
+        // Вторая дата (договор / стык) — только если далеко от правого конца и не у левого края.
+        if (hasRed && row.base_label && bfMs != null && tipMs != null) {
+          const gapFromTip = (tipMs - bfMs) / DAY_MS;
+          if (gapFromTip >= minLabelGapDays * 2.5) {
+            place(bfMs, row.base_label, "right", -6);
+          }
+        } else if (
+          hasGreen &&
+          !hasRed &&
+          row.fact_label &&
+          finMs != null &&
+          bfMs != null &&
+          tipMs === bfMs &&
+          finMs < bfMs - DAY_MS
+        ) {
+          const gapFromTip = (bfMs - finMs) / DAY_MS;
+          if (gapFromTip >= minLabelGapDays * 2) {
+            place(finMs, row.fact_label, "right", -4);
+          }
         }
-      } else if (hasGreen && finMs != null) {
-        const ahead = bfMs != null && finMs < bfMs - DAY_MS;
-        if (ahead) {
-          if (row.fact_label) place(finMs, row.fact_label, "right", -4);
-          if (row.base_label && bfMs != null) place(bfMs, row.base_label, "left", 6);
-        } else {
-          place(finMs, row.fact_label || row.base_label || "", "left", 6);
-        }
-      } else if (row.base_label && bfMs != null) {
-        place(bfMs, row.base_label, "left", 6);
       }
     }
 
@@ -723,46 +734,57 @@ export function RdDelayGanttChart({
     const rangeHi = rangeEnd ? toMs(rangeEnd) : xs.length ? Math.max(...xs) : null;
     let xRange: [number, number] | undefined;
     if (rangeLo != null && rangeHi != null) {
-      const pad = Math.max((rangeHi - rangeLo) * (compact ? 0.12 : 0.08), 6 * DAY_MS);
+      const pad = Math.max((rangeHi - rangeLo) * (compact ? 0.12 : 0.1), 6 * DAY_MS);
       xRange = [rangeLo - pad, rangeHi + pad];
     }
 
+    const dense = sorted.length >= 8;
+    const rowH = dense ? (compact ? 56 : 58) : compact ? 48 : 52;
     const height = fullscreen
-      ? Math.max(420, Math.min(window.innerHeight * 0.62, 780))
-      : Math.max(compact ? 320 : 280, (compact ? 160 : 120) + sorted.length * (compact ? 48 : 52));
+      ? Math.max(420, Math.min(window.innerHeight * 0.72, 900))
+      : Math.max(compact ? 320 : 280, (compact ? 100 : 72) + sorted.length * rowH);
+
+    const maxTick = Math.max(8, ...yTickTexts.map((t) => t.length));
+    const tickTextsDisplay = yTickTexts.map((t) =>
+      t.length > (dense ? 44 : 56) ? `${t.slice(0, dense ? 43 : 55)}…` : t,
+    );
+    const leftMargin = compact ? 8 : Math.min(dense ? 260 : 160, Math.max(88, maxTick * 6.2));
+
+    const legendItems = [
+      { name: compact ? "Договор" : "Дата по договору", color: RD_GANTT_YELLOW },
+      ...(greenY.length
+        ? [{ name: compact ? "Выдано" : "Выдано в производство", color: RD_GANTT_GREEN }]
+        : []),
+      ...(redY.length ? [{ name: "Просрочка", color: RD_GANTT_RED }] : []),
+      ...(arrowY.length
+        ? [{ name: "Выдано с опозданием", color: RD_GANTT_GREEN, short: "С опозданием" }]
+        : []),
+    ];
 
     return {
       data,
+      legendItems,
       layout: {
         height,
         barmode: "overlay" as const,
-        bargap: 0.44,
-        // Запас снизу: тики + легенда в 2 ряда, без «Дата Периодвору»
+        bargap: dense ? 0.35 : 0.44,
+        // Легенда снаружи (ChartHtmlLegend) — без наложения на «Период» / тики.
         margin: compact
-          ? { l: 8, r: 80, t: 16, b: 168 }
-          : { l: 16, r: 180, t: 40, b: 88 },
+          ? { l: 8, r: 88, t: 12, b: 56 }
+          : { l: leftMargin, r: 120, t: 28, b: 52 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        showlegend: true,
-        legend: plotlyLegendUnderLeft({
-          fontSize: compact ? 10 : 12,
-          labelColor: theme.axis,
-          y: compact ? -0.42 : -0.14,
-        }),
+        showlegend: false,
         annotations,
         xaxis: {
           type: "date" as const,
-          title: {
-            text: compact ? "" : "Период",
-            font: { size: 12, color: theme.axis },
-            standoff: 18,
-          },
+          title: { text: "" },
           tickformat: "%d.%m.%y",
-          tickangle: compact ? -45 : 0,
+          tickangle: compact ? -35 : 0,
           nticks: compact ? 5 : 8,
           tickfont: { size: compact ? 9 : 11, color: theme.axis },
           gridcolor: theme.grid,
-          automargin: !compact,
+          automargin: true,
           ...(xRange ? { range: xRange } : {}),
         },
         yaxis: {
@@ -770,9 +792,10 @@ export function RdDelayGanttChart({
           categoryarray: categoryOrder,
           tickmode: "array" as const,
           tickvals: yLabels,
-          ticktext: yTickTexts,
-          tickfont: { size: compact ? 10 : 11, color: theme.axis },
-          automargin: true,
+          ticktext: tickTextsDisplay,
+          tickfont: { size: compact ? 10 : dense ? 10 : 11, color: theme.axis },
+          automargin: compact,
+          // Фиксированный left margin выше — оси не «уезжают» от полос.
         },
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
         modebar: {
@@ -794,12 +817,15 @@ export function RdDelayGanttChart({
   }
 
   return (
-    <PlotlyFigure
-      data={figure.data}
-      layout={figure.layout}
-      config={figure.config}
-      useResizeHandler
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div className="min-w-0 overflow-x-hidden">
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+      <ChartHtmlLegend items={figure.legendItems} compact={compact} />
+    </div>
   );
 }
