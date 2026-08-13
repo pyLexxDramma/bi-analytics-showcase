@@ -53,8 +53,8 @@
 | 7 | График проекта | `/timeline/project-schedule` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ковенанты=main; date pad; mobile compact gantt+cards (`51b4758`) |
 | 8 | Причины отклонений | `/timeline/deviation-reasons` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Plotly 1:1; y=0; modebar desktop; mobile cards+без modebar; download (`182242d`) |
 | 9 | Отклонение от базового плана | `/timeline/baseline-deviation` | ✅ принят на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | ЗОС=main; ковенанты points+таблица; фильтры kit; mobile cards; ⛶ под modebar (`de0fa01`) |
-| 10 | Проектная документация | `/docs/project-documentation` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx (3 таблицы) | ✓ | Plotly pie/line/monthly/gantt 1:1; mobile cards; правило графиков |
-| 11 | Рабочая документация | `/docs/working-documentation` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Plotly 1:1; overdue~520; chips BDDS+scroll; mobile cards (`c9e115f`) |
+| 10 | Проектная документация | `/docs/project-documentation` | ✅ Этап 3 принято на стенде 13.08.2026 (реф. гант/даты; было ✅ 03.08) | ✓ CSV+xlsx (3 таблицы) | ✓ | Plotly pie/line/monthly/gantt; late-complete ▶; легенда вне полотна; wrap подписей |
+| 11 | Рабочая документация | `/docs/working-documentation` | ✅ Этап 3 принято на стенде 13.08.2026 (реф. гант РД; было ✅ 03.08) | ✓ CSV+xlsx | ✓ | Gantt today/late-complete; без ряда «—»; wrap подписей (`1eea6bf`) |
 | 12 | ГДРС (люди) | `/gdrs/people` | ✅ принято на стенде 03.08.2026 | ✓ CSV+xlsx | ✓ | Plotly desktop+mobile; pie legend; dynamics scroll; chips; Итого |
 | 13 | ГДРС (техника) | `/gdrs/equipment` | ✅ принято на стенде 03.08.2026 (регресс) | ✓ CSV+xlsx | ✓ | Тот же UI что §12 (`GdrsView`); vid=Техника |
 | 14 | Предписания по подрядчикам | `/prescriptions` | ✅ принято на стенде 31.07.2026 | ✓ CSV+xlsx | ✓ | БД через core_bridge; см. §14 |
