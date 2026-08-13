@@ -1606,6 +1606,8 @@ export type WorkingDocumentationPayload = {
         base_dur: number;
         fact_dur: number;
         delay_dur: number;
+        /** Выдано с опозданием: жёлтый+красный + зелёная стрелка в UI. */
+        late_complete?: boolean;
         base_label: string;
         fact_label: string;
         delay_label: string;

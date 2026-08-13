@@ -529,21 +529,32 @@ export function RdDelayGanttChart({
     const redBase: number[] = [];
     const redLen: number[] = [];
     const redCd: string[] = [];
+    const arrowY: string[] = [];
+    const arrowX: number[] = [];
+    const arrowCd: string[] = [];
     const annotations: Array<Record<string, unknown>> = [];
     const labelFont = compact ? 9 : 10;
     const dateLabelFont = Math.max(11, Math.round(labelFont * 1.5));
+    const minLabelGapDays = compact ? 55 : 12;
 
     for (let i = 0; i < sorted.length; i++) {
       const row = sorted[i];
       const y = yLabels[i];
       const startMs = toMs(row.start);
       const bfMs = toMs(row.base_finish);
+      const finMs = toMs(row.finish);
       const delayEndMs = toMs(row.delay_end);
-      // Как main `_rd_delay_chart_segments` + `_render_pd_delay_duration_chart`:
-      // зелёный рисуется по `_fin_dt` даже при красном (выдано с опозданием).
+      const lateComplete =
+        Boolean(row.late_complete) ||
+        (Boolean(row.finish) &&
+          Boolean(row.delay_end) &&
+          row.finish === row.delay_end &&
+          (row.fact_dur || 0) <= 0 &&
+          (row.delay_dur || 0) > 0);
       const hasRed = (row.delay_dur || 0) > 0 && delayEndMs != null && bfMs != null;
-      const gLen = barLenMs(row.start, row.finish);
-      const hasGreen = gLen != null && startMs != null && Boolean(row.finish);
+      // Зелёная полоса только при выдаче в срок/раньше (не при late-complete).
+      const hasGreen =
+        (row.fact_dur || 0) > 0 && Boolean(row.finish) && !row.delay_end && startMs != null;
 
       const yLen = barLenMs(row.start, row.base_finish);
       if (yLen != null && startMs != null) {
@@ -553,11 +564,14 @@ export function RdDelayGanttChart({
         yellowCd.push(row.base_label || "");
       }
 
-      if (hasGreen && gLen != null && startMs != null) {
-        greenY.push(y);
-        greenBase.push(startMs);
-        greenLen.push(gLen);
-        greenCd.push(row.fact_label || row.base_label || "");
+      if (hasGreen) {
+        const gLen = barLenMs(row.start, row.finish);
+        if (gLen != null && startMs != null) {
+          greenY.push(y);
+          greenBase.push(startMs);
+          greenLen.push(gLen);
+          greenCd.push(row.fact_label || row.base_label || "");
+        }
       }
 
       if (hasRed && bfMs != null) {
@@ -570,6 +584,17 @@ export function RdDelayGanttChart({
         }
       }
 
+      const arrowMs = lateComplete ? finMs ?? delayEndMs : null;
+      if (arrowMs != null) {
+        arrowY.push(y);
+        arrowX.push(arrowMs);
+        arrowCd.push(
+          row.delay_label
+            ? `Выдано с опозданием: ${row.delay_label}`
+            : "Выдано с опозданием",
+        );
+      }
+
       const labelColor = theme.dark ? "#e2e8f0" : "#1a1a1a";
       const annBase = {
         y,
@@ -577,34 +602,45 @@ export function RdDelayGanttChart({
         yanchor: "middle" as const,
         font: { size: dateLabelFont, color: labelColor },
       };
+      const placedXs: number[] = [];
+      const farEnough = (ms: number) =>
+        placedXs.every((p) => Math.abs(ms - p) / DAY_MS >= minLabelGapDays);
+      const place = (ms: number, text: string, xanchor: "left" | "right", xshift: number) => {
+        if (!text || !farEnough(ms)) return;
+        placedXs.push(ms);
+        annotations.push({
+          ...annBase,
+          x: ms,
+          text,
+          xanchor,
+          xshift,
+        });
+      };
 
-      // RD: mobile — одна подпись; desktop — дата по договору + «N дн.»
-      if (!hasRed && bfMs != null) {
-        annotations.push({
-          ...annBase,
-          x: bfMs,
-          text: "в срок",
-          xanchor: "left",
-          xshift: 6,
-        });
-      } else if (hasRed && delayEndMs != null && (row.delay_dur || 0) > 0) {
-        if (!compact && row.base_label && bfMs != null) {
-          annotations.push({
-            ...annBase,
-            x: bfMs,
-            text: row.base_label,
-            xanchor: "right",
-            xshift: -6,
-          });
+      // По окончанию каждого цвета — дата (референс).
+      if (compact) {
+        if (hasRed && row.delay_label && delayEndMs != null) {
+          place(delayEndMs, row.delay_label, "left", lateComplete ? 18 : 6);
+        } else if (hasGreen && row.fact_label && finMs != null) {
+          place(finMs, row.fact_label, "left", 6);
+        } else if (row.base_label && bfMs != null) {
+          place(bfMs, row.base_label, "left", 6);
         }
-        annotations.push({
-          ...annBase,
-          x: delayEndMs,
-          text: `${Math.round(row.delay_dur)} дн.`,
-          xanchor: "left",
-          xshift: 8,
-          font: { size: dateLabelFont, color: labelColor },
-        });
+      } else {
+        if (row.base_label && bfMs != null && !hasRed) {
+          place(bfMs, row.base_label, "left", 6);
+        } else if (row.base_label && bfMs != null && hasRed) {
+          place(bfMs, row.base_label, "right", -6);
+        }
+        if (hasGreen && row.fact_label && finMs != null && !hasRed) {
+          place(finMs, row.fact_label, "left", 6);
+        }
+        if (hasRed && delayEndMs != null) {
+          const tip =
+            row.delay_label ||
+            ((row.delay_dur || 0) > 0 ? `${Math.round(row.delay_dur)} дн.` : "");
+          place(delayEndMs, tip, "left", lateComplete ? 20 : 8);
+        }
       }
     }
 
@@ -627,14 +663,14 @@ export function RdDelayGanttChart({
       data.push({
         type: "bar",
         orientation: "h",
-        name: compact ? "Прогноз" : "Прогнозная дата",
+        name: compact ? "Выдано" : "Выдано в производство",
         y: greenY,
         x: greenLen,
         base: greenBase,
         marker: { color: RD_GANTT_GREEN },
         width: 0.48,
         customdata: greenCd,
-        hovertemplate: "%{y}<br>Прогнозная дата выдачи: %{customdata}<extra></extra>",
+        hovertemplate: "%{y}<br>Выдано: %{customdata}<extra></extra>",
       });
     }
     if (redY.length) {
@@ -649,6 +685,24 @@ export function RdDelayGanttChart({
         width: 0.48,
         customdata: redCd,
         hovertemplate: "%{y}<br>Просрочка до %{customdata}<extra></extra>",
+      });
+    }
+    if (arrowY.length) {
+      data.push({
+        type: "scatter",
+        mode: "markers",
+        name: "Выдано с опозданием",
+        y: arrowY,
+        x: arrowX,
+        marker: {
+          symbol: "triangle-right",
+          size: compact ? 14 : 16,
+          color: RD_GANTT_GREEN,
+          line: { width: 1, color: "#1e8449" },
+        },
+        customdata: arrowCd,
+        hovertemplate: "%{y}<br>%{customdata}<extra></extra>",
+        cliponaxis: false,
       });
     }
 

@@ -755,7 +755,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v12-rd-forecast-line",
+            "v13-rd-gantt-ref",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1151,6 +1151,7 @@ def build_working_documentation_payload(
                             "base_dur": float(r.get("_base_dur") or 0),
                             "fact_dur": float(r.get("_fact_dur") or 0),
                             "delay_dur": float(r.get("_delay_dur") or 0),
+                            "late_complete": bool(r.get("_late_complete") or False),
                             "base_label": _cell(r.get("_lbl_yellow")),
                             "fact_label": _cell(r.get("_lbl_green")),
                             "delay_label": _cell(r.get("_lbl_red")),

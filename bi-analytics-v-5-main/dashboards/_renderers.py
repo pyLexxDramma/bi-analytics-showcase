@@ -19834,69 +19834,68 @@ def _rd_delay_enrich_detail_from_plan(
 def _rd_delay_chart_segments(
     start_n: pd.Timestamp,
     contract_n: pd.Timestamp,
-    forecast_n: pd.Timestamp | None,
+    finish_n: pd.Timestamp | None,
     *,
     done: bool,
+    ts_report: pd.Timestamp | None = None,
 ) -> dict:
-    """Сегменты графика просрочки РД (как ПД по ТЗ):
-      • жёлтый — start → «Дата по договору» (подпись — дата по договору);
-      • зелёный — только если все «Завершено» и прогнозная ≤ по договору;
-      • красный — от даты по договору до прогнозной, если прогнозная позже
-        (и для незавершённых, и для завершённых с опозданием).
+    """Сегменты графика просрочки РД (референс ПД/РД, Этап 3):
+
+      • done & finish ≤ договор → зелёная полоса (start → факт выдачи);
+      • done & finish > договор → жёлтая + красная (договор → факт) + late_complete
+        (зелёная стрелка в UI, без полной зелёной полосы поверх);
+      • not done & today > договор → жёлтая + красная до даты отчёта;
+      • not done & today ≤ договор → только жёлтая.
     """
     start_n = pd.Timestamp(start_n).normalize()
     contract_n = pd.Timestamp(contract_n).normalize()
-    forecast_ts = (
-        pd.Timestamp(forecast_n).normalize()
-        if forecast_n is not None and pd.notna(forecast_n)
+    today = pd.Timestamp(
+        ts_report if ts_report is not None else pd.Timestamp.today()
+    ).normalize()
+    fin_ts = (
+        pd.Timestamp(finish_n).normalize()
+        if finish_n is not None and pd.notna(finish_n)
         else pd.NaT
     )
     base_dur = max(int((contract_n - start_n).days), 0)
     contract_lbl = _pd_chart_date_label(contract_n)
-    forecast_lbl = _pd_chart_date_label(forecast_ts) if pd.notna(forecast_ts) else ""
-    if pd.notna(forecast_ts) and forecast_ts > contract_n:
-        delay_dur = int((forecast_ts - contract_n).days)
-        # RD-09: раздел выдан в производство с опозданием — рисуем зелёный
-        # (start → дата по договору) + красный (по договору → факт), чтобы у
-        # выданных разделов всегда была зелёная линия, а не только красная.
-        return {
-            "_start_dt": start_n,
-            "_bf_dt": contract_n,
-            "_fin_dt": contract_n if done else pd.NaT,
-            "_delay_end_dt": forecast_ts,
-            "_base_dur": float(base_dur),
-            "_fact_dur": float(base_dur) if done else 0.0,
-            "_delay_dur": float(delay_dur),
-            "_lbl_yellow": contract_lbl,
-            "_lbl_green": "",
-            "_lbl_red": forecast_lbl,
-        }
-    if done and pd.notna(forecast_ts):
-        fact_dur = max(int((forecast_ts - start_n).days), 0)
-        gap_small = abs(int((contract_n - forecast_ts).days)) <= 5
-        return {
-            "_start_dt": start_n,
-            "_bf_dt": contract_n,
-            "_fin_dt": forecast_ts,
-            "_delay_end_dt": pd.NaT,
-            "_base_dur": float(base_dur),
-            "_fact_dur": float(fact_dur),
-            "_delay_dur": 0.0,
-            "_lbl_yellow": contract_lbl,
-            "_lbl_green": "" if gap_small or fact_dur <= 0 else forecast_lbl,
-            "_lbl_red": "",
-        }
+    late_complete = False
+    fact_dur = 0.0
+    delay_dur = 0.0
+    fin_dt = pd.NaT
+    delay_end = pd.NaT
+    green_lbl = ""
+    red_lbl = ""
+
+    if done and pd.notna(fin_ts):
+        fin_lbl = _pd_chart_date_label(fin_ts)
+        if fin_ts <= contract_n:
+            fact_dur = float(max(int((fin_ts - start_n).days), 0))
+            fin_dt = fin_ts
+            green_lbl = "" if abs(int((contract_n - fin_ts).days)) <= 5 or fact_dur <= 0 else fin_lbl
+        else:
+            delay_dur = float(max(int((fin_ts - contract_n).days), 0))
+            delay_end = fin_ts
+            fin_dt = fin_ts
+            late_complete = True
+            red_lbl = fin_lbl
+    elif not done and today > contract_n:
+        delay_dur = float(max(int((today - contract_n).days), 0))
+        delay_end = today
+        red_lbl = _pd_chart_date_label(today)
+
     return {
         "_start_dt": start_n,
         "_bf_dt": contract_n,
-        "_fin_dt": pd.NaT,
-        "_delay_end_dt": pd.NaT,
+        "_fin_dt": fin_dt,
+        "_delay_end_dt": delay_end,
         "_base_dur": float(base_dur),
-        "_fact_dur": 0.0,
-        "_delay_dur": 0.0,
+        "_fact_dur": float(fact_dur),
+        "_delay_dur": float(delay_dur),
+        "_late_complete": bool(late_complete),
         "_lbl_yellow": contract_lbl,
-        "_lbl_green": "",
-        "_lbl_red": "",
+        "_lbl_green": green_lbl,
+        "_lbl_red": red_lbl,
     }
 
 
@@ -19991,23 +19990,26 @@ def _rd_delay_build_date_rows(
         # блокировать зелёный, если есть завершённая/выданная карточка.
         _done_grp = grp.loc[grp["_done_flag"]]
         done = not _done_grp.empty
-        forecast_n = None
-        if show_forecast:
+        # Конец факта: при выдаче — дата в производство; иначе прогнозная (для done-ветки).
+        # Для not-done просрочки сегменты берут дату отчёта (ts_report), не прогноз.
+        finish_n = None
+        if show_forecast or done:
             _src = _done_grp if done else grp
             _prod = _src["_production_dt"].dropna()
             if not _prod.empty:
-                forecast_n = pd.Timestamp(_prod.max()).normalize()
+                finish_n = pd.Timestamp(_prod.max()).normalize()
             else:
                 _forecasts = _src["_forecast_dt"].dropna()
                 if _forecasts.empty and done:
                     _forecasts = grp["_forecast_dt"].dropna()
                 if not _forecasts.empty:
-                    forecast_n = pd.Timestamp(_forecasts.max()).normalize()
+                    finish_n = pd.Timestamp(_forecasts.max()).normalize()
         seg = _rd_delay_chart_segments(
             _start,
             contract_n,
-            forecast_n,
+            finish_n,
             done=done,
+            ts_report=pd.Timestamp(ts_report),
         )
         rows.append({y_col: str(y_lbl), **seg})
     return pd.DataFrame(rows), y_col
