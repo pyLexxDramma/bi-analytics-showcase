@@ -605,6 +605,11 @@ def load_bdds_screen_frame(
         )
 
     frame_attrs = dict(getattr(filtered, "attrs", {}) or {})
+    # MSP-календарь часто без budget plan/fact — колонки появятся из 1С overlay,
+    # но ensure_* может их не создать; без них был KeyError → API 500.
+    for _col in (PLAN_COL, FACT_COL):
+        if _col not in filtered.columns:
+            filtered[_col] = 0.0
     filtered[PLAN_COL] = pd.to_numeric(filtered[PLAN_COL], errors="coerce")
     filtered[FACT_COL] = pd.to_numeric(filtered[FACT_COL], errors="coerce")
     filtered = _recalc_reserve(filtered)
