@@ -1107,6 +1107,7 @@ def ensure_budget_frame_with_fallback(
     period_end: Any | None = None,
     force_from_1c: bool = False,
     narrow_to_project_norm_key: Optional[str] = None,
+    reference_1c_dannye: Optional[pd.DataFrame] = None,
 ) -> tuple[pd.DataFrame, bool]:
     """
     Возвращает (df_for_budget, used_fallback_1c).
@@ -1131,7 +1132,7 @@ def ensure_budget_frame_with_fallback(
         # MSP-задачи часто дают «копейки» (630k на весь проект) — не блокируем overlay 1С+demo.
         if msp_total >= 5_000_000.0:
             return work, False
-    ref = resolve_reference_1c_dannye()
+    ref = resolve_reference_1c_dannye(reference_1c_dannye)
     syn = try_synthetic_budget_from_1c_dannye(reference_1c_dannye=ref)
     if syn is None or syn.empty:
         return work, False

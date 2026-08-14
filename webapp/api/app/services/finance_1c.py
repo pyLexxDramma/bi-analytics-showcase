@@ -578,15 +578,26 @@ def load_bdds_screen_frame(
         filtered = filtered[keep].copy()
 
     utils_mod.ensure_budget_columns(filtered)
+    # Явно передаём reference: stub/streamlit session в API не всегда виден коду [main].
+    # force_from_1c — MSP-календарь без реальных сумм не должен блокировать обороты 1С.
     filtered, used_1c = fin.ensure_budget_frame_with_fallback(
         filtered,
         show_caption=False,
         restrict_projects_from_df=True,
         period_start=pd.Timestamp(cal_start) if cal_start else None,
         period_end=pd.Timestamp(cal_end) if cal_end else None,
-        force_from_1c=False,
+        force_from_1c=True,
         narrow_to_project_norm_key=narrow_key,
+        reference_1c_dannye=reference,
     )
+    if not used_1c:
+        try:
+            syn = fin.try_synthetic_budget_from_1c_dannye(reference_1c_dannye=reference)
+            if syn is not None and not getattr(syn, "empty", True):
+                filtered = syn
+                used_1c = True
+        except Exception:  # noqa: BLE001
+            pass
     if selected:
         filtered = labels_mod.filter_dataframe_by_project_labels(filtered, selected, col=PROJECT_COL)
     utils_mod.ensure_date_columns(filtered)
