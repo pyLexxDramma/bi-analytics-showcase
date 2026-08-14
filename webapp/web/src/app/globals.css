@@ -518,6 +518,17 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     background-color: hsl(209, 72%, 6%);
     box-shadow: 6px 0 8px -6px rgba(0, 0, 0, 0.55);
   }
+
+  /*
+    Несколько колонок sticky-left в thead (ДЗ/КЗ: Проект/Подрядчик/Договор).
+    У всех th из .bi-sticky-head z-index: 3 — при горизонтальном скролле
+    соседние заголовки перекрывают закреплённые. bi-sticky-x поднимает z-index
+    выше остальных sticky-head (специфичность выше утилиты z-[5]).
+  */
+  .bi-sticky-head thead th.bi-sticky-x {
+    z-index: 6;
+    background-clip: padding-box;
+  }
 }
 
 /* ===== Desktop: плотность строк ===== */

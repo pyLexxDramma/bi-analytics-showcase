@@ -350,13 +350,13 @@ export function DebitCreditView() {
               <thead>
                 <tr>
                   <th
-                    className={`sticky left-0 z-[5] ${DC_TH}`}
+                    className={`bi-sticky-x sticky left-0 ${DC_TH}`}
                     style={{ width: DC_W_PROJECT, minWidth: DC_W_PROJECT, maxWidth: DC_W_PROJECT }}
                   >
                     Проект
                   </th>
                   <th
-                    className={`sticky z-[5] ${DC_TH} ${DC_WRAP}`}
+                    className={`bi-sticky-x sticky ${DC_TH} ${DC_WRAP}`}
                     style={{
                       left: DC_W_PROJECT,
                       width: DC_W_CONTRACTOR,
@@ -367,7 +367,7 @@ export function DebitCreditView() {
                     Подрядчик
                   </th>
                   <th
-                    className={`sticky z-[5] ${DC_TH} ${DC_WRAP} ${DC_STICKY_SHADOW}`}
+                    className={`bi-sticky-x sticky ${DC_TH} ${DC_WRAP} ${DC_STICKY_SHADOW}`}
                     style={{
                       left: DC_LEFT_2,
                       width: DC_W_CONTRACT,
