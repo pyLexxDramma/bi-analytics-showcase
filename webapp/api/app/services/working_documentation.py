@@ -755,7 +755,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v15-rd-gantt-skip-empty-y",
+            "v16-rd-monthly-status-fact",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -999,6 +999,19 @@ def build_working_documentation_payload(
                     issued_mask = issued_mask | _prod_mask.reindex(month_df.index).fillna(False)
             except Exception:
                 pass
+            if "_tessa_status" in month_df.columns:
+                _canon = getattr(mod, "_rd_canonical_tessa_rd_status", None)
+                _prod = getattr(
+                    mod, "_RD_TESSA_STATUS_PRODUCTION", "Выдано в производство работ"
+                )
+                if callable(_canon):
+                    issued_mask = issued_mask | month_df["_tessa_status"].map(
+                        lambda x: _canon(x) == _prod
+                    ).fillna(False)
+                else:
+                    issued_mask = issued_mask | month_df["_tessa_status"].astype(
+                        str
+                    ).str.contains("производств", case=False, na=False)
             if "_tessa_kr_state" in month_df.columns:
                 _kr = month_df["_tessa_kr_state"].astype(str)
                 issued_mask = issued_mask | _kr.str.contains("производств", case=False, na=False)

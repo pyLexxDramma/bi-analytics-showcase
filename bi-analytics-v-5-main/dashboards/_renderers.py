@@ -31717,6 +31717,12 @@ def _rd_in_production_mask(
             s.astype(str).str.replace(",", ".", regex=False), errors="coerce"
         ).fillna(0)
         return num > 0
+    if "_tessa_status" in df.columns:
+        st_m = df["_tessa_status"].map(
+            lambda x: _rd_canonical_tessa_rd_status(x) == _RD_TESSA_STATUS_PRODUCTION
+        )
+        if isinstance(st_m, pd.Series) and st_m.fillna(False).any():
+            return st_m.fillna(False)
     if "_tessa_kr_state" in df.columns:
         kr = df["_tessa_kr_state"].astype(str)
         m = kr.str.contains("производств", case=False, na=False)
@@ -45819,6 +45825,7 @@ def _build_tessa_rd_card_lookup() -> dict:
     doc_descr_col = _tessa_find_column(t, ["DocDescription", "DocDescr"])
     internal_col = _tessa_find_column(t, ["InternalID", "Internal Id", "InternalId"])
     kr_state_col = _tessa_find_column(t, ["KrState"])
+    status_col = _tessa_find_column(t, ["Status", "Статус"])
     ver_col = _tessa_find_column(t, ["SubDivisionVersionName"])
     doc_num_col = _tessa_find_column(t, ["DocNumber"])
     creation_col = _tessa_find_column(t, ["CreationDate", "CreatedDate"])
@@ -45848,6 +45855,7 @@ def _build_tessa_rd_card_lookup() -> dict:
             "DocDescription": str(r.get(doc_descr_col, "")).strip() if doc_descr_col else "",
             "DivisionCipher": cipher_v,
             "KrState": str(r.get(kr_state_col, "")).strip() if kr_state_col else "",
+            "Status": str(r.get(status_col, "")).strip() if status_col else "",
             "SubDivisionVersionName": str(r.get(ver_col, "")).strip() if ver_col else "",
             "DocNumber": str(r.get(doc_num_col, "")).strip() if doc_num_col else "",
             "ProjectName": project_v,
@@ -45905,6 +45913,9 @@ def _augment_df_with_tessa_rd(
     out["_tessa_doc_id"] = [_pick(p, c, "DocID") for p, c in zip(proj_keys, ciph_keys)]
     out["_tessa_kr_state"] = [
         _pick(p, c, "KrState") for p, c in zip(proj_keys, ciph_keys)
+    ]
+    out["_tessa_status"] = [
+        _pick(p, c, "Status") for p, c in zip(proj_keys, ciph_keys)
     ]
     out["_tessa_card_count"] = [_count(p, c) for p, c in zip(proj_keys, ciph_keys)]
     try:
