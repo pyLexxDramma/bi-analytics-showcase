@@ -1,6 +1,9 @@
 services:
   api:
-    build: ./api
+    build:
+      context: ./api
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     environment:
       WEBAPP_DATA_MODE: ${WEBAPP_DATA_MODE:-synthetic}
@@ -54,7 +57,10 @@ services:
         condition: service_completed_successfully
 
   db-init:
-    build: ./api
+    build:
+      context: ./api
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     command:
       - python
       - -c
@@ -95,6 +101,7 @@ services:
         NEXT_PUBLIC_API_BASE: ""
         NEXT_PUBLIC_AI_MODE: ${NEXT_PUBLIC_AI_MODE:-stub}
         NEXT_PUBLIC_OPENCODE_URL: ${NEXT_PUBLIC_OPENCODE_URL:-https://opencode.conall.ru/L3dvcmtzcGFjZQ/session}
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_BASE: ""

@@ -77,11 +77,15 @@ _upsert_env NEXT_PUBLIC_AI_MODE "full"
 _upsert_env XCA_ASK_SECRET "${XCA_ASK_SECRET:-}"
 _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 
-echo "==> prod compose up in $WEBAPP (project=$COMPOSE_PROJECT_NAME)"
+GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+export GIT_SHA
+echo "==> prod compose up in $WEBAPP (project=$COMPOSE_PROJECT_NAME sha=${GIT_SHA:0:7})"
 "${COMPOSE[@]}" pull edge || true
 "${COMPOSE[@]}" stop opencode >/dev/null 2>&1 || true
 export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
 export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
+# Force rebuild api/web so BuildKit does not keep stale npm run build layers.
+"${COMPOSE[@]}" build --build-arg "GIT_SHA=$GIT_SHA" api web
 "${COMPOSE[@]}" up -d --build --remove-orphans --force-recreate db-init api web edge
 
 echo "==> health :3081 (wait up to 90s)"

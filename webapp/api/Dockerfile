@@ -5,6 +5,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+# Invalidate image when deploy SHA changes (avoids stale CACHED app layers).
+ARG GIT_SHA=unknown
+ENV WEBAPP_GIT_SHA=$GIT_SHA
 
 ENV PYTHONUNBUFFERED=1
 ENV WEBAPP_DATA_MODE=synthetic
