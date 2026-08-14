@@ -262,14 +262,11 @@ def _issued_mask_from_tessa_status(
             proj_hits = pd.Series(hits, index=plan_df.index)
             if proj_hits.any():
                 return proj_hits
+        # Только точный шифр / InternalID — без endswith (иначе monthly fact
+        # раздувается до ~695 при KPI «выдано» 319).
         cipher_hits = plan_ck.isin(issued_ck) | plan_fc.isin(issued_ck) | plan_fc.isin(
             issued_internal
         )
-        if issued_ck:
-            for ck in issued_ck:
-                if len(ck) < 4:
-                    continue
-                cipher_hits = cipher_hits | plan_fc.str.endswith(ck, na=False)
         return cipher_hits.fillna(False)
     except Exception:
         return mask
@@ -855,7 +852,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v18-rd-monthly-cipher-fallback",
+            "v19-rd-uuid-project-resolve",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),

@@ -18018,6 +18018,15 @@ def _rd_plan_csv_sections_df(
     if not pc.get("plan"):
         return pd.DataFrame()
     df = _rd_plan_keep_latest_snapshot(df, pc.get("proj"))
+    # План на prod часто хранит ID_проекта (GUID), TESSA — наименование.
+    # Без подмены в таблице «Проект» = UUID, а join с TESSA по проекту ломается.
+    if pc.get("proj") and pc["proj"] in df.columns:
+        try:
+            _lu = _load_project_id_to_name_lookup()
+            if _lu:
+                df[pc["proj"]] = _resolve_project_display_labels(df[pc["proj"]], _lu)
+        except Exception:
+            pass
     if selected_projects and pc.get("proj") and pc["proj"] in df.columns:
         _pk = {_project_filter_norm_key(p) for p in selected_projects}
         df = df[df[pc["proj"]].map(_project_filter_norm_key).isin(_pk)].copy()
@@ -19102,9 +19111,16 @@ def _build_rd_work_doc_detail_table(
             tr = tessa_tbl.loc[tessa_idx]
             _plan_from_t = str(tr.get("Дата выдачи разделов по Договору", "") or "").strip()
             _fc_from_t = str(tr.get("Прогнозная дата выдачи разделов", "") or "").strip()
+            _tessa_proj = str(tr.get("Проект", "") or "").strip()
+            # Не оставляем GUID, если в TESSA уже есть человекочитаемое имя.
+            _proj_out = proj
+            if _is_uuid_like(_proj_out) and _tessa_proj and not _is_uuid_like(_tessa_proj):
+                _proj_out = _tessa_proj
+            elif not _proj_out:
+                _proj_out = _tessa_proj
             out_rows.append(
                 {
-                    "Проект": proj or str(tr.get("Проект", "") or ""),
+                    "Проект": _proj_out,
                     "Наименование разделов работ": sect
                     or str(tr.get("Наименование разделов работ", "") or ""),
                     "Номер договора": (

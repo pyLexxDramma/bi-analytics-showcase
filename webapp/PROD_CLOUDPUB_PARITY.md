@@ -32,7 +32,7 @@
 | 8 | deviation-reasons | Причины отклонений | `walk_20260814_1818` | 🔄 walk clean | 0% |
 | 9 | baseline-deviation | Отклонение от БП | batch 1818+ | 🔄 walk clean | 0% |
 | 10 | project-documentation | Проектная документация | `walk_20260814_1834` | 🔄 walk clean | первый прогон — timeout prod (артефакт); re-walk 0% |
-| 11 | working-documentation | Рабочая документация | `walk_20260814_1837` | 🔄 data drift | default ≤0.16% OK; checkbox/dark ~0.63–0.65% — monthly fact (prod cipher-fallback vs cloudpub dates); не UI |
+| 11 | working-documentation | Рабочая документация | — | ❌ в работе | **Не принимать.** Причины: (1) prod `version_id=23` vs cloudpub `225` → KPI 722/403 vs 728/409; (2) prod «Проект»=UUID, cloudpub=имена; (3) monthly fact prod раздут cipher-fallback. Фикс UUID→имя + убран endswith; ждём deploy+визуальную приёмку |
 | 12 | gdrs-people | ГДРС люди | `walk_20260814_1825` | 🔄 walk clean | 6 кадров, 0% |
 | 13 | gdrs-equipment | ГДРС техника | `walk_20260814_1827` | 🔄 walk clean | 6 кадров, ≤0.12% |
 | 14 | prescriptions | Предписания | `walk_20260814_1828` | 🔄 walk clean | 6 кадров, 0% |
@@ -45,15 +45,23 @@
 
 ## Журнал
 
-### 2026-08-14 — полный прогон §1–§16
+### 2026-08-14 — РД: почему cloudpub ≠ ai.conall (скрины 1–4 vs 5–8)
 
-- Инструмент: `visual_walk_parity.mjs` (SITE=both, DIFF_THRESHOLD=0.003).
-- UI-багов prod≠cloudpub по пикселям **не найдено** (кроме РД data drift).
-- Скрипт: stamp с секундами; `isLoading` игнор sr-only; soft_ready; cloudpub `DEV_PASS` default `admin`.
-- РД: known data drift monthly fact (prod UUID↔TESSA cipher fallback vs cloudpub task dates) — см. коммиты `5609c80` / API.
-- Приёмка: пользователь ставит ✅ по экранам на ai.conall.ru (можно пакетом «§1–§16 ок» если визуально совпадает).
+**Причины (не «пиксели»):**
+1. Разные активные снимки: prod `#23` (115489 строк) vs cloudpub `#225` (115495) при одинаковых 334 файлах → KPI РД **722/403** vs **728/409**.
+2. В prod в колонке «Проект» плана лежат **GUID**, на cloudpub — **Ленинский / Дмитровский-1** → красная таблица с UUID.
+3. Из‑за (2) раньше включался cipher-fallback → monthly fact ~686 при KPI выдано 319 (на cloudpub ~593 / +9).
+
+**Код (ещё не на prod):** UUID→имя из `projekts_json` в `_rd_plan_csv_sections_df`; TESSA-имя вместо GUID в деталке; убран `endswith` в monthly Status-join; cache `v19-rd-uuid-project-resolve`.
+
+**Процесс:** дальше только экран «Рабочая документация» → deploy → скрины → ваша приёмка → ✅ → следующий.
+
+### 2026-08-14 — полный прогон §1–§16 (устарел как приёмка)
+
+- Пиксельный walk **не заменяет** визуальную приёмку. Массовые «walk clean» сняты с роли OK.
+- Приёмка: только «ок» пользователя на ai.conall.ru по **одному** экрану.
 
 ### Health / versions (срез API)
 
 - Оба стенда: `version` API 0.19.0, `data_mode=ftp`.
-- `active_version_id` различается (prod vs cloudpub) — цифры РД/ИД могут плыть при том же UI.
+- `active_version_id`: prod **23**, cloudpub **225** (созданы почти одновременно 14:51, но содержимое rd_plan отличается).
