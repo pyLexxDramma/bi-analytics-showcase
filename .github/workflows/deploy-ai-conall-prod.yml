@@ -47,13 +47,9 @@ jobs:
             export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
             export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
             export WEBAPP_CORS_ORIGINS="https://ai.conall.ru"
-            # First boot admin if users.db empty
-            if ! grep -qE '^BI_BOOTSTRAP_ADMIN_PASSWORD=.+' webapp/.env 2>/dev/null; then
-              echo "BI_BOOTSTRAP_ADMIN_PASSWORD=adminAIcon!2026X" >> webapp/.env
-            fi
             bash webapp/scripts/server_deploy_prod.sh
-            BI_NEW_ADMIN_PASSWORD='adminAIcon!2026X' bash webapp/scripts/set_admin_password_prod.sh || true
             echo "Prod deployed $(git rev-parse --short HEAD) edge :3081"
+            echo "Set admin password on server: BI_NEW_ADMIN_PASSWORD='…' bash webapp/scripts/set_admin_password_prod.sh"
         env:
           XCA_ASK_SECRET: ${{ secrets.XCA_ASK_SECRET }}
           XCA_ASK_BASE_URL: ${{ secrets.XCA_ASK_BASE_URL }}
