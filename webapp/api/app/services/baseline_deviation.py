@@ -238,9 +238,9 @@ def _apply_building_slice(
     return frame.iloc[start:end].copy()
 
 
-def _is_zos_task(name: str) -> bool:
-    text = (name or "").strip()
-    if not text:
+def _is_zos_task(name: object) -> bool:
+    text = str(name or "").strip()
+    if not text or text.lower() in ("nan", "none", "<na>"):
         return False
     lower = text.casefold()
     if "заключение о соответствии" in lower:
@@ -248,10 +248,10 @@ def _is_zos_task(name: str) -> bool:
     return bool(_ZOS_WORD_RE.search(text))
 
 
-def _zos_rank(name: str) -> int:
+def _zos_rank(name: object) -> int:
     if not _is_zos_task(name):
         return 99
-    lower = name.casefold().strip()
+    lower = str(name or "").casefold().strip()
     if lower == "зос" or lower.startswith("зос"):
         return 0
     if "заключение о соответствии" in lower:
