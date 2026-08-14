@@ -22,7 +22,7 @@ from app.services.report_cache import cache_get, cache_set
 from app.services.users_bridge import import_auth
 
 CACHE_ID = "bdds_plan_fact"
-CACHE_VERSION = "v5-1c-turnover-fallback"
+CACHE_VERSION = "v6-syn-unfiltered"
 CACHE_MAX_AGE_SEC = 3600
 
 GROUP_TO_EN = {"month": "Month", "quarter": "Quarter", "year": "Year"}
@@ -135,7 +135,10 @@ def _turnover_from_reference(
         col = "project name" if "project name" in work.columns else None
         if col:
             keys = {labels_mod.project_filter_norm_key(x) for x in project_labels}
-            work = work[work[col].map(labels_mod.project_filter_norm_key).isin(keys)].copy()
+            filtered = work[work[col].map(labels_mod.project_filter_norm_key).isin(keys)].copy()
+            # MSP-имена и 1С «Проект» часто расходятся — для свода «Все» берём весь 1С.
+            if not filtered.empty:
+                work = filtered
     month_col = "plan_month" if "plan_month" in work.columns else None
     if month_col is None and "plan end" in work.columns:
         work["_m"] = pd.to_datetime(work["plan end"], errors="coerce").dt.to_period("M")
@@ -868,6 +871,56 @@ def build_bdds_plan_fact_payload(
         utils_mod=utils_mod,
     )
 
+    # Последний рубеж: если свод всё ещё нулевой — собрать периоды прямо из 1С.
+    if (
+        abs(float(totals.get("plan") or 0))
+        + abs(float(totals.get("fact") or 0))
+        + abs(float(totals.get("forecast") or 0))
+        <= 50_000.0
+    ):
+        if not turnover:
+            turnover = _turnover_from_reference(
+                reference=reference,
+                project_labels=turn_labels if not many_projects else [],
+                date_from=cal_start,
+                date_to=cal_end,
+                ren=ren,
+            )
+        if turnover:
+            rows = []
+            for mk, (pl, fc) in sorted(turnover.items(), key=lambda x: str(x[0])):
+                rows.append(
+                    {
+                        "month": mk,
+                        "bdds_plan_msp": float(pl),
+                        "bdds_fact": float(fc),
+                        "bdds_forecast": float(pl),
+                        "_dev": float(pl) - float(pl),
+                        "Период": utils_mod.format_period_ru(mk),
+                    }
+                )
+            mf_fc = pd.DataFrame(rows)
+            if not mf_fc.empty:
+                if view == "cumulative":
+                    mf_fc = ren._forecast_apply_view_cumulative(mf_fc)
+                    if dev_base == "fact":
+                        mf_fc["_dev"] = mf_fc["bdds_fact"] - mf_fc["bdds_forecast"]
+                    else:
+                        mf_fc["_dev"] = mf_fc["bdds_plan_msp"] - mf_fc["bdds_forecast"]
+                    mf_fc["Период"] = mf_fc["month"].apply(utils_mod.format_period_ru)
+                chart_df = mf_fc.copy()
+                if group == "month" and hide_zero_effective:
+                    chart_df = ren._forecast_filter_chart_months(chart_df, hide_zero_months=True)
+                period_rows, totals, dev_col = _build_period_rows(
+                    mf_fc,
+                    period_label=period_label,
+                    dev_base=dev_base,
+                    hide_deviation=hide_deviation,
+                    utils_mod=utils_mod,
+                )
+                calc_error = None
+                # hint added below when hints list is built
+
     chart_points = []
     for _, row in chart_df.iterrows():
         plan = float(row.get("bdds_plan_msp") or 0)
@@ -947,6 +1000,16 @@ def build_bdds_plan_fact_payload(
     if calc_error:
         hints.append(str(calc_error))
     hints.extend(edit_errors)
+    if abs(float(totals.get("plan") or 0)) + abs(float(totals.get("fact") or 0)) > 50_000.0:
+        if any(
+            abs(float(r.get("plan") or 0)) + abs(float(r.get("fact") or 0)) > 50_000.0
+            for r in period_rows
+            if r.get("kind") != "total"
+        ):
+            # already filled from 1C path
+            pass
+    if turnover and abs(float(totals.get("plan") or 0)) > 50_000.0:
+        hints.append("Суммы подставлены из оборотов 1С (MSP budget пуст).")
 
     payload = {
         "meta": {
@@ -957,6 +1020,8 @@ def build_bdds_plan_fact_payload(
             "error": calc_error,
             "version_id": vid,
             "rows_1c": int(len(reference)),
+            "turnover_months": int(len(turnover or {})),
+            "cache_version": CACHE_VERSION,
             "db": db_status(),
             "edit_errors": edit_errors,
         },
