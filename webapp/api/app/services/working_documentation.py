@@ -175,6 +175,79 @@ def _load_rd_renderers() -> ModuleType:
     return module
 
 
+def _issued_mask_from_tessa_status(
+    mod: ModuleType,
+    plan_df: pd.DataFrame,
+    proj_col: str | None,
+    code_col: str | None,
+) -> pd.Series:
+    """Выдано = TESSA Status как на пироге (не даты tasks и не KrState).
+
+    Join плана к карточкам — тот же толерантный матч проектов, что у круговой.
+    Иначе на prod (пустые даты tasks) стек остаётся с fact=0 при KPI 319.
+    """
+    mask = pd.Series(False, index=plan_df.index)
+    if plan_df.empty or not proj_col or not code_col:
+        return mask
+    if proj_col not in plan_df.columns or code_col not in plan_df.columns:
+        return mask
+    try:
+        import streamlit as st  # type: ignore
+
+        tdf = st.session_state.get("tessa_data")
+    except Exception:
+        return mask
+    if tdf is None or getattr(tdf, "empty", True):
+        return mask
+    try:
+        t = tdf.copy()
+        t.columns = [str(c).strip() for c in t.columns]
+        project_col = mod._tessa_find_column(t, ["ObjectProjectName", "ProjectName", "ObjectName"])
+        cipher_col = mod._tessa_find_column(t, ["DivisionCipher", "Cipher"])
+        status_col = mod._tessa_find_column(t, ["Status", "Статус"])
+        if not project_col or not cipher_col or not status_col:
+            return mask
+        t = t[t[cipher_col].map(mod._tessa_cell_has_value).fillna(False)]
+        t = mod._tessa_rd_dedupe_cards_latest(t)
+        prod = getattr(mod, "_RD_TESSA_STATUS_PRODUCTION", "Выдано в производство работ")
+        t = t.loc[t[status_col].map(mod._rd_canonical_tessa_rd_status).eq(prod)]
+        if t.empty:
+            return mask
+        issued: list[tuple[str, str]] = []
+        for _, r in t.iterrows():
+            pk = str(mod._tessa_norm_project_key(r.get(project_col, "")) or "")
+            ck = str(mod._tessa_norm_cipher_key(r.get(cipher_col, "")) or "")
+            if pk and ck:
+                issued.append((pk, ck))
+        if not issued:
+            return mask
+        by_ciph: dict[str, set[str]] = {}
+        for pk, ck in issued:
+            by_ciph.setdefault(ck, set()).add(pk)
+        plan_pk = plan_df[proj_col].map(mod._tessa_norm_project_key).fillna("").astype(str)
+        plan_ck = plan_df[code_col].map(mod._tessa_norm_cipher_key).fillna("").astype(str)
+        hits: list[bool] = []
+        match_fn = getattr(mod, "_project_norm_key_matches_msp_keys", None)
+        for p, c in zip(plan_pk.tolist(), plan_ck.tolist()):
+            tessa_pks = by_ciph.get(c) or set()
+            if not tessa_pks:
+                hits.append(False)
+                continue
+            if p in tessa_pks:
+                hits.append(True)
+                continue
+            ok = False
+            if callable(match_fn) and p:
+                for tpk in tessa_pks:
+                    if match_fn(tpk, {p}) or match_fn(p, {tpk}):
+                        ok = True
+                        break
+            hits.append(ok)
+        return pd.Series(hits, index=plan_df.index)
+    except Exception:
+        return mask
+
+
 def _seed_session(vid: int) -> None:
     import streamlit as st  # type: ignore
 
@@ -755,7 +828,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v16-rd-monthly-status-fact",
+            "v17-rd-monthly-tessa-status-join",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -978,6 +1051,8 @@ def build_working_documentation_payload(
         # жёлтый = не выдано и срок ещё впереди (plan_date > as_of).
         # Подпись delta = выдано − план_к_дате (= early − overdue): ≥0 зелёный, <0 красный.
         monthly_rows: list[dict[str, Any]] = []
+        monthly_exc: str | None = None
+        monthly_issued_n = 0
         try:
             month_df = plan_df[plan_df["_plan_dt"].notna()].copy()
             month_df["_rd_plan_n"] = 1.0
@@ -1012,6 +1087,9 @@ def build_working_documentation_payload(
                     issued_mask = issued_mask | month_df["_tessa_status"].astype(
                         str
                     ).str.contains("производств", case=False, na=False)
+            issued_mask = issued_mask | _issued_mask_from_tessa_status(
+                mod, month_df, proj_col, code_col
+            )
             if "_tessa_kr_state" in month_df.columns:
                 _kr = month_df["_tessa_kr_state"].astype(str)
                 issued_mask = issued_mask | _kr.str.contains("производств", case=False, na=False)
@@ -1030,6 +1108,7 @@ def build_working_documentation_payload(
                     ) | month_df["_bucket"].isin(["Принято", "Передано подрядчику"])
                 except Exception:
                     pass
+            monthly_issued_n = int(issued_mask.fillna(False).sum())
             if issued_mask.any():
                 _fact_dt = _fact_dt.where(
                     _fact_dt.notna(),
@@ -1099,8 +1178,11 @@ def build_working_documentation_payload(
                         }
                     )
             monthly_rows = list(reversed(rows_m))
-        except Exception:
+        except Exception as exc:
             monthly_rows = []
+            monthly_exc = str(exc)[:200]
+        else:
+            monthly_exc = None
 
         dynamics = _build_dynamics(plan_df, mod)
         exec_kpis, dynamics = _exec_kpis(
@@ -1195,6 +1277,8 @@ def build_working_documentation_payload(
             "version_id": int(vid),
             "error": None,
             "forecast_line": "v12",
+            "monthly_issued_n": monthly_issued_n,
+            "monthly_error": monthly_exc,
         },
             "filters": {
                 "projects": projects,
