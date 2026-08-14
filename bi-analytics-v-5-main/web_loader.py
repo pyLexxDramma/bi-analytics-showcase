@@ -162,17 +162,51 @@ def _msp_source_project_bucket(source_file: Any) -> Optional[str]:
     return _msp_project_bucket(stem)
 
 
+def _snapshot_rows_per_key_date(part: pd.DataFrame, key_col: str) -> pd.Series:
+    """Число строк на пару (ключ проекта, snapshot_date)."""
+    return part.groupby([key_col, "snapshot_date"], dropna=False).size()
+
+
+def _keep_latest_substantial_snapshot(part: pd.DataFrame, key_col: str) -> pd.DataFrame:
+    """
+    На ключ — один снимок: самый свежий среди «полных».
+
+    Если более новый файл сильно урезан (типично budget/partial MSP),
+    брать абсолютный max(snapshot_date) выкидывает ЗОС/КТ. Порог:
+    строк >= 50% от максимального снимка этого ключа.
+    """
+    if part is None or part.empty:
+        return part
+    counts = _snapshot_rows_per_key_date(part, key_col)
+    n_map = part.set_index([key_col, "snapshot_date"]).index.map(counts)
+    n = pd.Series(n_map, index=part.index, dtype="float64")
+    max_n = part.assign(_n=n).groupby(key_col, dropna=False)["_n"].transform("max")
+    thresh = (max_n * 0.5).clip(lower=1.0)
+    eligible = part.loc[n >= thresh]
+    if eligible.empty:
+        eligible = part
+    chosen = eligible.groupby(key_col, dropna=False)["snapshot_date"].max()
+    keep = part[key_col].map(chosen) == part["snapshot_date"]
+    return part.loc[keep].copy()
+
+
 def _deduplicate_project_snapshots(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Для проектных данных из MSP: оставляет только последний снимок каждого
-    проекта (строки с максимальным snapshot_date).
+    Для проектных данных из MSP: оставляет один снимок на проект.
 
     Группировка: сначала bucket из ``__source_file`` / ``source_file``
     (msp_zhukovsky1_…), иначе точный ``project name``. Так июньский и июльский
     файлы одного slug не остаются рядом из‑за разных подписей проекта
     («zhukovsky1» vs «Жуковский») — иначе матрица Девелоперских смешивает
     снимки и отклонения обнуляются (у старых выгрузок base end == plan end).
+
     Строки без snapshot_date оставляет нетронутыми.
+
+    Дополнительно:
+    - среди дат снимка берём самый свежий *полный* (≥50% max строк ключа),
+      чтобы урезанный поздний файл не затирал ЗОС/КТ;
+    - строки без MSP-bucket (budget и т.п.) не затирают MSP: остаются только
+      для проектов, которых нет в выбранных MSP-снимках.
     """
     if df is None or df.empty:
         return df
@@ -195,25 +229,64 @@ def _deduplicate_project_snapshots(df: pd.DataFrame) -> pd.DataFrame:
         None,
     )
     if src_col is not None:
-        _keys = snap_part[src_col].map(_msp_source_project_bucket)
+        msp_bucket = snap_part[src_col].map(_msp_source_project_bucket)
     else:
-        _keys = pd.Series([None] * len(snap_part), index=snap_part.index, dtype=object)
-    if "project name" in snap_part.columns:
-        _pn = snap_part["project name"].map(
-            lambda x: (
-                str(x).strip()
-                if x is not None and not (isinstance(x, float) and pd.isna(x)) and str(x).strip()
-                else None
+        msp_bucket = pd.Series([None] * len(snap_part), index=snap_part.index, dtype=object)
+
+    has_msp = msp_bucket.notna() & (msp_bucket.astype(str).str.strip() != "")
+    msp_part = snap_part.loc[has_msp].copy()
+    other_part = snap_part.loc[~has_msp].copy()
+
+    kept_parts: list[pd.DataFrame] = []
+    if not msp_part.empty:
+        msp_part = msp_part.copy()
+        msp_part["_snap_proj_key"] = msp_bucket.loc[msp_part.index].astype(str)
+        msp_kept = _keep_latest_substantial_snapshot(msp_part, "_snap_proj_key")
+        msp_kept = msp_kept.drop(columns=["_snap_proj_key"], errors="ignore")
+        kept_parts.append(msp_kept)
+    else:
+        msp_kept = msp_part
+
+    msp_project_names: set[str] = set()
+    if (
+        not msp_kept.empty
+        and "project name" in msp_kept.columns
+    ):
+        msp_project_names = {
+            str(x).strip()
+            for x in msp_kept["project name"].dropna().unique()
+            if str(x).strip() and str(x).strip().lower() not in ("nan", "none", "nat")
+        }
+
+    if not other_part.empty:
+        if "project name" in other_part.columns:
+            _pn = other_part["project name"].map(
+                lambda x: (
+                    str(x).strip()
+                    if x is not None
+                    and not (isinstance(x, float) and pd.isna(x))
+                    and str(x).strip()
+                    else None
+                )
             )
-        )
-        _keys = _keys.where(pd.notna(_keys) & (_keys.astype(str).str.strip() != ""), _pn)
-    snap_part["_snap_proj_key"] = _keys.fillna("__all__").astype(str)
+            other_part = other_part.copy()
+            other_part["_snap_proj_key"] = _pn.fillna("__all__").astype(str)
+            other_kept = _keep_latest_substantial_snapshot(other_part, "_snap_proj_key")
+            other_kept = other_kept.drop(columns=["_snap_proj_key"], errors="ignore")
+            if msp_project_names and "project name" in other_kept.columns:
+                _names = other_kept["project name"].map(
+                    lambda x: str(x).strip() if x is not None and not (isinstance(x, float) and pd.isna(x)) else ""
+                )
+                other_kept = other_kept.loc[~_names.isin(msp_project_names)].copy()
+            if not other_kept.empty:
+                kept_parts.append(other_kept)
+        else:
+            kept_parts.append(other_part)
 
-    latest = snap_part.groupby("_snap_proj_key", dropna=False)["snapshot_date"].transform("max")
-    snap_part = snap_part[snap_part["snapshot_date"] == latest]
-    snap_part = snap_part.drop(columns=["_snap_proj_key"], errors="ignore")
-
-    result = pd.concat([no_snap_part, snap_part], ignore_index=True)
+    snap_kept = (
+        pd.concat(kept_parts, ignore_index=True) if kept_parts else snap_part.iloc[0:0].copy()
+    )
+    result = pd.concat([no_snap_part, snap_kept], ignore_index=True)
     return result
 
 
