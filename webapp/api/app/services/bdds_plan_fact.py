@@ -22,7 +22,7 @@ from app.services.report_cache import cache_get, cache_set
 from app.services.users_bridge import import_auth
 
 CACHE_ID = "bdds_plan_fact"
-CACHE_VERSION = "v4-1c-overlay"
+CACHE_VERSION = "v5-1c-turnover-fallback"
 CACHE_MAX_AGE_SEC = 3600
 
 GROUP_TO_EN = {"month": "Month", "quarter": "Quarter", "year": "Year"}
@@ -71,6 +71,88 @@ def _labels_mod():
     from app.services.core_bridge import import_dashboard_module
 
     return import_dashboard_module("project_labels")
+
+
+def _fin_mod():
+    from app.services.core_bridge import import_dashboard_module
+
+    return import_dashboard_module("finance_from_1c")
+
+
+def _turnover_from_reference(
+    *,
+    reference: pd.DataFrame,
+    project_labels: list[str],
+    date_from: date | None,
+    date_to: date | None,
+    ren: Any,
+) -> dict[Any, tuple[float, float]]:
+    """План/факт по месяцам из reference_dannye без зависимости от st.session_state."""
+    session_state()["reference_1c_dannye"] = reference
+    fin = _fin_mod()
+    agg: dict[Any, list[float]] = {}
+    for lab in project_labels:
+        try:
+            prep = fin._bdds_turnover_g_for_project(
+                project_name=str(lab),
+                period_start=date_from,
+                period_end=date_to,
+                reference_1c_dannye=reference,
+                prefer_budget_scenario=True,
+            )
+        except Exception:  # noqa: BLE001
+            prep = None
+        if prep is None:
+            continue
+        g = prep[0]
+        if g is None or getattr(g, "empty", True) or "_m" not in g.columns:
+            continue
+        for m in sorted(g["_m"].dropna().unique(), key=lambda x: str(x)):
+            mk = ren._forecast_norm_month_period(m)
+            if mk is pd.NaT or (isinstance(mk, float) and pd.isna(mk)):
+                continue
+            chunk = g.loc[g["_m"] == m]
+            plan_v = float(pd.to_numeric(chunk.get("_plan"), errors="coerce").fillna(0).sum())
+            fact_v = float(pd.to_numeric(chunk.get("_fact"), errors="coerce").fillna(0).sum())
+            if plan_v + fact_v <= 50_000.0:
+                continue
+            if mk not in agg:
+                agg[mk] = [0.0, 0.0]
+            agg[mk][0] += plan_v
+            agg[mk][1] += fact_v
+    if agg:
+        return {m: (v[0], v[1]) for m, v in agg.items()}
+
+    try:
+        syn = fin.try_synthetic_budget_from_1c_dannye(reference_1c_dannye=reference)
+    except Exception:  # noqa: BLE001
+        syn = None
+    if syn is None or getattr(syn, "empty", True):
+        return {}
+    work = syn.copy()
+    if project_labels:
+        labels_mod = _labels_mod()
+        col = "project name" if "project name" in work.columns else None
+        if col:
+            keys = {labels_mod.project_filter_norm_key(x) for x in project_labels}
+            work = work[work[col].map(labels_mod.project_filter_norm_key).isin(keys)].copy()
+    month_col = "plan_month" if "plan_month" in work.columns else None
+    if month_col is None and "plan end" in work.columns:
+        work["_m"] = pd.to_datetime(work["plan end"], errors="coerce").dt.to_period("M")
+        month_col = "_m"
+    if not month_col or work.empty:
+        return {}
+    out: dict[Any, tuple[float, float]] = {}
+    for m, chunk in work.groupby(month_col, sort=True):
+        mk = ren._forecast_norm_month_period(m)
+        if mk is pd.NaT or (isinstance(mk, float) and pd.isna(mk)):
+            continue
+        pl = float(pd.to_numeric(chunk.get("budget plan"), errors="coerce").fillna(0).sum())
+        fc = float(pd.to_numeric(chunk.get("budget fact"), errors="coerce").fillna(0).sum())
+        if pl + fc <= 50_000.0:
+            continue
+        out[mk] = (pl, fc)
+    return out
 
 
 def _applied(
@@ -713,7 +795,38 @@ def build_bdds_plan_fact_payload(
     turnover = ren._forecast_turnover_monthly_plan_fact_scope(
         turn_labels, date_from=cal_start, date_to=cal_end
     )
+    if not turnover:
+        turnover = _turnover_from_reference(
+            reference=reference,
+            project_labels=turn_labels,
+            date_from=cal_start,
+            date_to=cal_end,
+            ren=ren,
+        )
     mf_fc = ren._forecast_overlay_turnover_on_monthly(forecast_df.sort_values("month").copy(), turnover)
+    # Если overlay не сработал (старый код/кэш) — принудительно залить 1С в пустой MSP-ряд.
+    pl_sum = float(pd.to_numeric(mf_fc.get("bdds_plan_msp"), errors="coerce").fillna(0).abs().sum())
+    fc_sum = float(pd.to_numeric(mf_fc.get("bdds_fact"), errors="coerce").fillna(0).abs().sum())
+    if turnover and (pl_sum + fc_sum) <= 50_000.0:
+        mf_fc = ren._forecast_overlay_turnover_on_monthly(
+            forecast_df.sort_values("month").copy(), turnover
+        )
+        # Прямая подстановка, если функция overlay ещё без 1С-fill (prod lag).
+        pl_sum = float(pd.to_numeric(mf_fc.get("bdds_plan_msp"), errors="coerce").fillna(0).abs().sum())
+        fc_sum = float(pd.to_numeric(mf_fc.get("bdds_fact"), errors="coerce").fillna(0).abs().sum())
+        if (pl_sum + fc_sum) <= 50_000.0:
+            rows = []
+            for mk, (pl, fc) in turnover.items():
+                rows.append(
+                    {
+                        "month": mk,
+                        "bdds_plan_msp": float(pl),
+                        "bdds_fact": float(fc),
+                        "bdds_forecast": float(pl),
+                    }
+                )
+            if rows:
+                mf_fc = pd.DataFrame(rows).sort_values("month").reset_index(drop=True)
     mf_tot_snapshot = mf_fc.copy()
 
     if cal_start is not None and cal_end is not None:
