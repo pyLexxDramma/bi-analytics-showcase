@@ -1,9 +1,9 @@
 # Prod override for ai.conall.ru (iivm).
 # Usage: COMPOSE_PROJECT_NAME=webapp-prod docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-# Host edge :3081 → container Caddy :3080. No CloudPub.
+# !override replaces base ports (Compose merge would otherwise keep 3080 AND 3081).
 services:
   edge:
-    ports:
+    ports: !override
       - "3081:3080"
 
   api:
