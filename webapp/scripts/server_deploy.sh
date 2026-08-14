@@ -76,13 +76,19 @@ _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 
 GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 export GIT_SHA
+# Cloudpub: stamp bust by default; set WEBAPP_DOCKER_NO_CACHE=1 for full rebuild.
+export WEBAPP_DOCKER_NO_CACHE="${WEBAPP_DOCKER_NO_CACHE:-0}"
+# shellcheck disable=SC1091
+source "$WEBAPP/scripts/_docker_build_bust.sh"
+unset COMPOSE
+
 echo "==> docker compose build/up in $WEBAPP (sha=${GIT_SHA:0:7} XCA secret_len=${#XCA_ASK_SECRET} base_len=${#XCA_ASK_BASE_URL})"
 docker compose pull edge || true
 docker compose stop opencode >/dev/null 2>&1 || true
 export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
 export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
-docker compose build --build-arg "GIT_SHA=$GIT_SHA" api web
-docker compose up -d --build --remove-orphans --force-recreate db-init api web edge
+_webapp_stamp_and_build_api_web
+docker compose up -d --no-build --remove-orphans --force-recreate db-init api web edge
 
 echo "==> ensure CloudPub publish for :3080"
 if docker ps -a --format '{{.Names}}' | grep -qx cloudpub-webapp; then
@@ -119,6 +125,8 @@ if [[ "$ok" -ne 1 ]]; then
     2>/dev/null || true
   exit 1
 fi
+
+_webapp_verify_image_sha
 
 echo "==> verify XCA Ask AI env inside api container"
 docker compose exec -T api python -c \

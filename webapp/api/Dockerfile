@@ -5,7 +5,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-# Invalidate image when deploy SHA changes (avoids stale CACHED app layers).
+# Written by deploy scripts every run → invalidates app layers even if BuildKit mis-caches.
+COPY .build-id ./BUILD_ID
 ARG GIT_SHA=unknown
 ENV WEBAPP_GIT_SHA=$GIT_SHA
 

@@ -79,14 +79,19 @@ _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 
 GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 export GIT_SHA
+# Prod: always --no-cache for api/web (stale Next build already hit ai.conall.ru once).
+export WEBAPP_DOCKER_NO_CACHE="${WEBAPP_DOCKER_NO_CACHE:-1}"
+# shellcheck disable=SC1091
+source "$WEBAPP/scripts/_docker_build_bust.sh"
+
 echo "==> prod compose up in $WEBAPP (project=$COMPOSE_PROJECT_NAME sha=${GIT_SHA:0:7})"
 "${COMPOSE[@]}" pull edge || true
 "${COMPOSE[@]}" stop opencode >/dev/null 2>&1 || true
 export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
 export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
-# Force rebuild api/web so BuildKit does not keep stale npm run build layers.
-"${COMPOSE[@]}" build --build-arg "GIT_SHA=$GIT_SHA" api web
-"${COMPOSE[@]}" up -d --build --remove-orphans --force-recreate db-init api web edge
+_webapp_stamp_and_build_api_web
+# --no-build: use images from stamp/build above (do not let a second build reuse stale cache).
+"${COMPOSE[@]}" up -d --no-build --remove-orphans --force-recreate db-init api web edge
 
 echo "==> health :3081 (wait up to 90s)"
 ok=0
@@ -107,6 +112,8 @@ if [[ "$ok" -ne 1 ]]; then
   "${COMPOSE[@]}" logs api --tail 200 || true
   exit 1
 fi
+
+_webapp_verify_image_sha
 
 echo "==> verify XCA Ask AI env inside api container"
 "${COMPOSE[@]}" exec -T api python -c \
