@@ -465,14 +465,20 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   .bi-sticky-col tbody td:first-child.bi-row-ahead,
   .bi-sticky-col tbody th:first-child.bi-row-ahead,
   .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-ahead,
-  .bi-sticky-col tbody tr:hover > td:first-child.bi-row-ahead {
+  .bi-sticky-col tbody tr:hover > td:first-child.bi-row-ahead,
+  .bi-sticky-col tbody td:nth-child(2).bi-row-ahead,
+  .bi-sticky-col tbody tr:nth-child(odd) > td:nth-child(2).bi-row-ahead,
+  .bi-sticky-col tbody tr:hover > td:nth-child(2).bi-row-ahead {
     background-color: rgba(46, 204, 113, 0.22);
   }
 
   .bi-sticky-col tbody td:first-child.bi-row-overdue,
   .bi-sticky-col tbody th:first-child.bi-row-overdue,
   .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-overdue,
-  .bi-sticky-col tbody tr:hover > td:first-child.bi-row-overdue {
+  .bi-sticky-col tbody tr:hover > td:first-child.bi-row-overdue,
+  .bi-sticky-col tbody td:nth-child(2).bi-row-overdue,
+  .bi-sticky-col tbody tr:nth-child(odd) > td:nth-child(2).bi-row-overdue,
+  .bi-sticky-col tbody tr:hover > td:nth-child(2).bi-row-overdue {
     background-color: rgba(231, 76, 60, 0.22);
   }
 
@@ -494,13 +500,19 @@ html.dark .js-plotly-plot .modebar-btn.active path {
 
   html.dark .bi-sticky-col tbody td:first-child.bi-row-ahead,
   html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-ahead,
-  html.dark .bi-sticky-col tbody tr:hover > td:first-child.bi-row-ahead {
+  html.dark .bi-sticky-col tbody tr:hover > td:first-child.bi-row-ahead,
+  html.dark .bi-sticky-col tbody td:nth-child(2).bi-row-ahead,
+  html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:nth-child(2).bi-row-ahead,
+  html.dark .bi-sticky-col tbody tr:hover > td:nth-child(2).bi-row-ahead {
     background-color: rgba(70, 214, 138, 0.18);
   }
 
   html.dark .bi-sticky-col tbody td:first-child.bi-row-overdue,
   html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:first-child.bi-row-overdue,
-  html.dark .bi-sticky-col tbody tr:hover > td:first-child.bi-row-overdue {
+  html.dark .bi-sticky-col tbody tr:hover > td:first-child.bi-row-overdue,
+  html.dark .bi-sticky-col tbody td:nth-child(2).bi-row-overdue,
+  html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:nth-child(2).bi-row-overdue,
+  html.dark .bi-sticky-col tbody tr:hover > td:nth-child(2).bi-row-overdue {
     background-color: rgba(255, 84, 84, 0.18);
   }
 

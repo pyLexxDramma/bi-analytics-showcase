@@ -39,6 +39,7 @@ import {
   PdMonthlyCumulativeChart,
 } from "@/components/project-documentation-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { deviationCellStyle } from "@/lib/deviation-cell-style";
 
 const TH =
   "whitespace-nowrap border border-[#cbd5e1] bg-[#f3f4f6] px-2.5 py-2 text-center font-bold text-[#111827] dark:border-[#334155] dark:bg-[hsl(209,72%,6%)] dark:text-[#fafafa]";
@@ -139,6 +140,16 @@ function ProjectDocumentationScreen({
   const [mainSort, setMainSort] = useState<SortState>(null);
   const [detailSort, setDetailSort] = useState<SortState>(null);
   const [sumSort, setSumSort] = useState<SortState>(null);
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const el = document.documentElement;
+    const sync = () => setDark(el.classList.contains("dark"));
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -239,6 +250,33 @@ function ProjectDocumentationScreen({
       return sumSort.asc ? cmp : -cmp;
     });
   }, [data?.delay.summary_rows, sumSort]);
+
+  const mainVmax = useMemo(() => {
+    let vmax = 1;
+    for (const row of mainRows) {
+      const n = row.dev_end_days;
+      if (n != null && Number.isFinite(n)) vmax = Math.max(vmax, Math.abs(n));
+    }
+    return vmax;
+  }, [mainRows]);
+
+  const detailVmax = useMemo(() => {
+    let vmax = 1;
+    for (const row of detailRows) {
+      const n = row.dev_end_days;
+      if (n != null && Number.isFinite(n)) vmax = Math.max(vmax, Math.abs(n));
+    }
+    return vmax;
+  }, [detailRows]);
+
+  const sumVmax = useMemo(() => {
+    let vmax = 1;
+    for (const row of summaryRows) {
+      const n = row.overdue;
+      if (n != null && Number.isFinite(n)) vmax = Math.max(vmax, Math.abs(n));
+    }
+    return vmax;
+  }, [summaryRows]);
 
   const toggleSort = (current: SortState, key: string, set: (s: SortState) => void) => {
     if (!current || current.key !== key) set({ key, asc: true });
@@ -598,29 +636,34 @@ function ProjectDocumentationScreen({
                     </thead>
                     <tbody>
                       {mainRows.map((row, index) => {
-                        const ahead = (row.dev_end_days ?? 0) > 0;
-                        const overdue = (row.dev_end_days ?? 0) < 0;
-                        const rowBg = ahead ? AHEAD_BG : overdue ? OVERDUE_BG : "";
-                        const stickyTone = ahead
-                          ? "bi-row-ahead"
-                          : overdue
-                            ? "bi-row-overdue"
-                            : "";
+                        const tint = deviationCellStyle(row.dev_end_days, mainVmax, dark);
+                        const stickyTone =
+                          (row.dev_end_days ?? 0) > 0
+                            ? "bi-row-ahead"
+                            : (row.dev_end_days ?? 0) < 0
+                              ? "bi-row-overdue"
+                              : "";
+                        const cell = `${TD} ${tint.className} ${stickyTone}`;
                         return (
                           <tr key={`${row.project}-${row.section}-${index}`}>
-                            <td className={`${TD} tabular-nums ${rowBg} ${stickyTone}`}>
+                            <td className={`${cell} tabular-nums`} style={tint.style}>
                               {row.n ?? index + 1}
                             </td>
-                            <td className={`${TD} ${rowBg}`}>{row.project}</td>
-                            <td className={`${TD} ${rowBg}`}>{row.section}</td>
-                            <td className={`${TD} tabular-nums ${rowBg}`}>
+                            <td className={cell} style={tint.style}>
+                              {row.project}
+                            </td>
+                            <td className={cell} style={tint.style}>
+                              {row.section}
+                            </td>
+                            <td className={`${cell} tabular-nums`} style={tint.style}>
                               {row.base_end ?? "—"}
                             </td>
-                            <td className={`${TD} tabular-nums ${rowBg}`}>
+                            <td className={`${cell} tabular-nums`} style={tint.style}>
                               {row.plan_end ?? "—"}
                             </td>
                             <td
-                              className={`${TD} tabular-nums ${rowBg} ${deviationClass(row.dev_end_days)}`}
+                              className={`${cell} tabular-nums ${deviationClass(row.dev_end_days)}`}
+                              style={tint.style}
                             >
                               {row.dev_end || "—"}
                             </td>
@@ -788,32 +831,56 @@ function ProjectDocumentationScreen({
                       </tr>
                     </thead>
                     <tbody>
-                      {detailRows.map((row, i) => (
-                        <tr key={`${row.project}-${row.section}-${i}`}>
-                          <td className={TD}>{row.project}</td>
-                          <td className={`${TD} max-w-xs truncate text-left`}>{row.work_name}</td>
-                          <td className={TD}>{row.section}</td>
-                          <td className={TD}>{row.status}</td>
-                          <td className={`${TD} tabular-nums`}>{row.start}</td>
-                          <td className={`${TD} tabular-nums`}>{row.base_start}</td>
-                          <td className={`${TD} tabular-nums`}>{row.finish}</td>
-                          <td className={`${TD} tabular-nums`}>{row.base_finish}</td>
-                          <td className={`${TD} tabular-nums ${deviationClass(row.dev_start_days)}`}>
-                            {row.dev_start || "—"}
-                          </td>
-                          <td
-                            className={`${TD} tabular-nums ${
-                              (row.dev_end_days ?? 0) > 0
-                                ? AHEAD_BG
-                                : (row.dev_end_days ?? 0) < 0
-                                  ? OVERDUE_BG
-                                  : ""
-                            } ${deviationClass(row.dev_end_days)}`}
-                          >
-                            {row.dev_end || "—"}
-                          </td>
-                        </tr>
-                      ))}
+                      {detailRows.map((row, i) => {
+                        const tint = deviationCellStyle(row.dev_end_days, detailVmax, dark);
+                        const stickyTone =
+                          (row.dev_end_days ?? 0) > 0
+                            ? "bi-row-ahead"
+                            : (row.dev_end_days ?? 0) < 0
+                              ? "bi-row-overdue"
+                              : "";
+                        const cell = `${TD} ${tint.className} ${stickyTone}`;
+                        return (
+                          <tr key={`${row.project}-${row.section}-${i}`}>
+                            <td className={cell} style={tint.style}>
+                              {row.project}
+                            </td>
+                            <td className={`${cell} max-w-xs truncate text-left`} style={tint.style}>
+                              {row.work_name}
+                            </td>
+                            <td className={cell} style={tint.style}>
+                              {row.section}
+                            </td>
+                            <td className={cell} style={tint.style}>
+                              {row.status}
+                            </td>
+                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                              {row.start}
+                            </td>
+                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                              {row.base_start}
+                            </td>
+                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                              {row.finish}
+                            </td>
+                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                              {row.base_finish}
+                            </td>
+                            <td
+                              className={`${cell} tabular-nums ${deviationClass(row.dev_start_days)}`}
+                              style={tint.style}
+                            >
+                              {row.dev_start || "—"}
+                            </td>
+                            <td
+                              className={`${cell} tabular-nums ${deviationClass(row.dev_end_days)}`}
+                              style={tint.style}
+                            >
+                              {row.dev_end || "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                   </div>
@@ -887,20 +954,35 @@ function ProjectDocumentationScreen({
                     </tr>
                   </thead>
                   <tbody>
-                    {summaryRows.map((row) => (
+                    {summaryRows.map((row) => {
+                      const tint = deviationCellStyle(row.overdue, sumVmax, dark);
+                      const stickyTone =
+                        row.overdue > 0
+                          ? "bi-row-ahead"
+                          : row.overdue < 0
+                            ? "bi-row-overdue"
+                            : "";
+                      const cell = `${TD} ${tint.className} ${stickyTone}`;
+                      return (
                       <tr key={row.project}>
-                        <td className={TD}>{row.project}</td>
-                        <td className={`${TD} tabular-nums`}>{row.plan}</td>
-                        <td className={`${TD} tabular-nums`}>{row.fact}</td>
+                        <td className={cell} style={tint.style}>
+                          {row.project}
+                        </td>
+                        <td className={`${cell} tabular-nums`} style={tint.style}>
+                          {row.plan}
+                        </td>
+                        <td className={`${cell} tabular-nums`} style={tint.style}>
+                          {row.fact}
+                        </td>
                         <td
-                          className={`${TD} tabular-nums ${
-                            row.overdue < 0 ? OVERDUE_BG : OK_BG
-                          } ${deviationClass(row.overdue)}`}
+                          className={`${cell} tabular-nums ${deviationClass(row.overdue)}`}
+                          style={tint.style}
                         >
                           {row.overdue_label}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
                   </div>

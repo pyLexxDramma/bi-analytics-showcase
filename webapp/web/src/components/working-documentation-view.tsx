@@ -36,6 +36,12 @@ import {
   RdMonthlyCumulativeChart,
 } from "@/components/working-documentation-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import {
+  deviationCellStyle,
+  isDeviationCol,
+  isIdentityCol,
+  parseSortableNumber,
+} from "@/lib/deviation-cell-style";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const TH =
@@ -71,71 +77,6 @@ function deviationClass(value: number | null | undefined): string {
   return value < 0
     ? "font-semibold text-[hsl(348,100%,45%)] dark:text-[#ff5454]"
     : "font-semibold text-[#15803d] dark:text-[#46d68a]";
-}
-
-function deviationCellStyle(
-  value: number | null | undefined,
-  vmax: number,
-  dark: boolean,
-): { className: string; style?: CSSProperties } {
-  if (value == null || Number.isNaN(value)) {
-    return { className: "" };
-  }
-  const num = Number(value);
-  const t = Math.min(Math.abs(num) / Math.max(vmax, 1), 1);
-  // Как main `style_dataframe_for_dark_theme(..., days_deviation_gradient=True,
-  // days_positive_is_ahead=True)` — просрочка (<0) розовый/красный фон.
-  if (num === 0) {
-    return {
-      className: "font-semibold",
-      style: dark
-        ? { backgroundColor: "rgba(70,214,138,0.35)", color: "#b8f5c8" }
-        : { backgroundColor: "rgba(34,197,94,0.22)", color: "#15803d" },
-    };
-  }
-  if (num > 0) {
-    const alpha = 0.18 + 0.32 * t;
-    return {
-      className: "font-bold",
-      style: dark
-        ? {
-            backgroundColor: `rgba(70,214,138,${alpha.toFixed(3)})`,
-            color: "#00e676",
-          }
-        : {
-            backgroundColor: `rgba(34,197,94,${alpha.toFixed(3)})`,
-            color: "#15803d",
-          },
-    };
-  }
-  const alphaLight = 0.22 + 0.38 * t;
-  const alphaDark = 0.28 + 0.4 * t;
-  return {
-    className: "font-bold",
-    style: dark
-      ? {
-          backgroundColor: `rgba(255,84,84,${alphaDark.toFixed(3)})`,
-          color: "#ff6b6b",
-        }
-      : {
-          backgroundColor: `rgba(248,113,113,${alphaLight.toFixed(3)})`,
-          color: "#b91c1c",
-        },
-  };
-}
-
-function parseSortableNumber(raw: unknown): number | null {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (raw == null) return null;
-  const s = String(raw).trim().replace("\u2212", "-").replace(",", ".");
-  if (!s || s === "—" || s.toLowerCase() === "nan") return null;
-  const n = Number(s.replace(/[^\d.+-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
-
-function isDeviationCol(col: string): boolean {
-  const c = col.toLowerCase();
-  return c.includes("отклонен") || c.startsWith("отклонение");
 }
 
 function compareVal(a: unknown, b: unknown): number {
@@ -377,13 +318,21 @@ function DetailTable({
                     <tr key={i}>
                       {columns.map((c) => {
                         const isDev = isDeviationCol(c);
+                        const isId = isIdentityCol(c);
                         const num = isDev
                           ? parseSortableNumber(row[c] ?? row[`${c}__label`])
-                          : null;
+                          : isId && badgeCol
+                            ? parseSortableNumber(row[badgeCol] ?? row[`${badgeCol}__label`])
+                            : null;
                         const label = cellDisplay(row, c);
-                        const tint = isDev
-                          ? deviationCellStyle(num, vmaxByCol[c] ?? 1, dark)
-                          : { className: "", style: undefined as CSSProperties | undefined };
+                        const tint =
+                          isDev || isId
+                            ? deviationCellStyle(
+                                num,
+                                vmaxByCol[isDev ? c : badgeCol] ?? 1,
+                                dark,
+                              )
+                            : { className: "", style: undefined as CSSProperties | undefined };
                         const cellBorder = dark
                           ? "1px solid #334155"
                           : "1px solid #e5e7eb";
@@ -396,9 +345,6 @@ function DetailTable({
                             : dark
                               ? "transparent"
                               : "#fafafa");
-                        // Липкая первая колонка должна быть непрозрачной.
-                        const background =
-                          c === columns[0] && dark ? "#111827" : zebra || undefined;
                         return (
                           <td
                             key={c}
@@ -407,7 +353,7 @@ function DetailTable({
                             }`}
                             style={{
                               border: cellBorder,
-                              backgroundColor: background,
+                              backgroundColor: zebra || undefined,
                               ...(tint.style ?? {}),
                             }}
                           >
