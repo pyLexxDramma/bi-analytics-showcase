@@ -2193,7 +2193,7 @@ export async function postAuthLogin(
 }
 
 export async function fetchAuthMe(): Promise<{ ok: boolean; user: AuthUser }> {
-  return apiGet("/api/auth/me", {}, { headers: authHeaders(), timeoutMs: 15_000 });
+  return apiGet("/api/auth/me", {}, { headers: authHeaders(), timeoutMs: 60_000 });
 }
 
 export async function fetchMyDefaultFilters(

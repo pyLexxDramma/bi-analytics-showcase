@@ -59,3 +59,20 @@ Authorization: Bearer <WEBAPP_ADMIN_TOKEN>
 cd webapp
 docker compose up -d --build
 ```
+
+## Visual walk (prod vs cloudpub)
+
+Скриншоты всех отчётов, вкладок, фильтров, чекбоксов и тёмной темы на [ai.conall.ru](https://ai.conall.ru) и [cloudpub](https://insipidly-carefree-husky.cloudpub.ru/), затем pixel-diff 1:1.
+
+```powershell
+cd webapp
+npm install playwright pngjs pixelmatch
+npx playwright install chromium
+node scripts/visual_walk_parity.mjs
+```
+
+Отчёт: `webapp/parity_out/walk_*/compare.html` (prod | cloudpub | diff).
+
+- Один экран: `ONLY=working-documentation`
+- Один стенд: `SITE=prod` или `SITE=dev`
+- Уже есть дымовой паритет без кликов: `node scripts/e2e_prod_cloudpub_parity.mjs`

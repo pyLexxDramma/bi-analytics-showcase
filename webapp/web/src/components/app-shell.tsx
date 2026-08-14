@@ -77,8 +77,10 @@ export function AppShell({
           setAccessDenied(false);
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
+        const status = Number((err as { status?: number })?.status || 0);
+        if (status !== 401) return;
         logout();
         window.location.assign("/login?reason=session");
       });

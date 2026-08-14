@@ -8,3 +8,4 @@ web/out/
 web/.env.local
 web/.env*.local
 **/__pycache__/
+parity_out/
