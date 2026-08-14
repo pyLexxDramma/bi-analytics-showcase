@@ -22,7 +22,7 @@ from app.services.report_cache import cache_get, cache_set
 from app.services.users_bridge import import_auth
 
 CACHE_ID = "bdds_plan_fact"
-CACHE_VERSION = "v3"
+CACHE_VERSION = "v4-1c-overlay"
 CACHE_MAX_AGE_SEC = 3600
 
 GROUP_TO_EN = {"month": "Month", "quarter": "Quarter", "year": "Year"}

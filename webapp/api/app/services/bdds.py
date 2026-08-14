@@ -34,7 +34,7 @@ from app.services.finance_1c import (
 from app.services.report_cache import cache_get, cache_set
 
 CACHE_ID = "bdds"
-CACHE_VERSION = "v4"
+CACHE_VERSION = "v5"
 CACHE_MAX_AGE_SEC = 3600
 
 GRANULARITY: dict[str, str] = {"month": "по месяцам", "quarter": "по кварталам", "year": "по годам"}

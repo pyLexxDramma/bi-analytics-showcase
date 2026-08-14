@@ -41658,39 +41658,71 @@ def _forecast_overlay_turnover_on_monthly(
     mf: pd.DataFrame,
     turnover: dict,
 ) -> pd.DataFrame:
-    """Дополняет помесячный ряд месяцами из оборотов 1С, не подменяя план/факт MSP.
+    """Сводит помесячный ряд MSP/лотов с оборотами 1С.
 
-    План/факт/прогноз на этом экране считаются из таблицы лотов (равномерно или % A/B/C).
-    Раньше обороты 1С затирали MSP-план/факт → после смены условия лота «прогноз»
-    визуально «не пересчитывался» относительно чужих цифр 1С, а ожидаемые доли A%
-    (напр. 34% от суммы лотов с началом в месяце) не сходились с таблицей.
-    1С здесь только добавляет месяцы, которых нет в MSP-ряде (план/факт/прогноз = 0).
+    Если в MSP уже есть ненулевой план/факт (редактор лотов / merge по ЛОТ_ID) —
+    обороты 1С не затирают эти суммы (иначе «прогноз» визуально «не пересчитывается»).
+    Если же MSP-ряд пустой (типично для FTP/web_data без budget в project),
+    подставляем план/факт из оборотов 1С и прогноз = план, иначе экран нулевой.
+    Месяцы, которых нет в MSP, добавляются из 1С с теми же суммами.
     """
     if mf is None or getattr(mf, "empty", True):
         return mf
     out = mf.copy()
     if not turnover:
         return out
-    existing = {
-        _forecast_norm_month_period(m)
-        for m in out["month"].tolist()
+
+    pl0 = pd.to_numeric(out.get("bdds_plan_msp"), errors="coerce").fillna(0.0)
+    fc0 = pd.to_numeric(out.get("bdds_fact"), errors="coerce").fillna(0.0)
+    fr0 = pd.to_numeric(out.get("bdds_forecast"), errors="coerce").fillna(0.0)
+    msp_empty = float(pl0.abs().sum() + fc0.abs().sum()) <= 50_000.0
+
+    by_month = {
+        _forecast_norm_month_period(m): (float(pl), float(fc))
+        for m, (pl, fc) in turnover.items()
     }
+    existing = {_forecast_norm_month_period(m) for m in out["month"].tolist()}
+
+    if msp_empty:
+        for idx in out.index:
+            mk = _forecast_norm_month_period(out.at[idx, "month"])
+            if mk is pd.NaT or (isinstance(mk, float) and pd.isna(mk)):
+                continue
+            pair = by_month.get(mk)
+            if not pair:
+                continue
+            pl, fc = pair
+            out.at[idx, "bdds_plan_msp"] = pl
+            out.at[idx, "bdds_fact"] = fc
+            # прогноз из лотов тоже 0 — берём план 1С как базовый прогноз
+            if abs(float(fr0.get(idx, 0.0) or 0.0)) <= 50_000.0:
+                out.at[idx, "bdds_forecast"] = pl
+
     extra_rows: list[dict] = []
-    for m, (_pl, _fc) in turnover.items():
-        mk = _forecast_norm_month_period(m)
+    for mk, (pl, fc) in by_month.items():
         if mk is pd.NaT or (isinstance(mk, float) and pd.isna(mk)):
             continue
         if mk in existing:
             continue
-        # Месяц есть только в оборотах — оставляем нули, чтобы не смешивать источники.
-        extra_rows.append(
-            {
-                "month": mk,
-                "bdds_plan_msp": 0.0,
-                "bdds_fact": 0.0,
-                "bdds_forecast": 0.0,
-            }
-        )
+        if msp_empty:
+            extra_rows.append(
+                {
+                    "month": mk,
+                    "bdds_plan_msp": pl,
+                    "bdds_fact": fc,
+                    "bdds_forecast": pl,
+                }
+            )
+        else:
+            # Месяц только в оборотах — не смешиваем с MSP-редактором.
+            extra_rows.append(
+                {
+                    "month": mk,
+                    "bdds_plan_msp": 0.0,
+                    "bdds_fact": 0.0,
+                    "bdds_forecast": 0.0,
+                }
+            )
     if not extra_rows:
         return out
     return (

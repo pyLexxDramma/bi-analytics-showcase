@@ -1,6 +1,7 @@
 # Local Playwright / UI audit
 _visual_check_playwright.py
 _visual_check_out/
+webapp/parity_out/
 
 # Local work logs
 PRAVKI_HOD_RABOT.md

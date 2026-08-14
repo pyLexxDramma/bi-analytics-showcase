@@ -19,7 +19,7 @@ from app.services.finance_1c import (
 from app.services.report_cache import cache_get, cache_set
 
 CACHE_ID = "approved_budget"
-CACHE_VERSION = "v5"
+CACHE_VERSION = "v6"
 CACHE_MAX_AGE_SEC = 3600
 
 
