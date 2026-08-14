@@ -983,7 +983,8 @@ def build_working_documentation_payload(
             month_df["_rd_plan_n"] = 1.0
             month_df["_plan_end_dt"] = pd.to_datetime(month_df["_plan_dt"], errors="coerce")
 
-            # Факт: статус/дата «Выдано в производство работ»
+            # Факт: дата TESSA, иначе статус «выдано» (на prod даты tasks часто пустые —
+            # без этого стек рисует жёлтый план и fact=0, хотя KPI/пирог уже 319).
             if "_tessa_production_dt" in month_df.columns:
                 _fact_dt = pd.to_datetime(month_df["_tessa_production_dt"], errors="coerce")
             elif "_fact_dt" in month_df.columns:
@@ -991,17 +992,16 @@ def build_working_documentation_payload(
             else:
                 _fact_dt = pd.Series(pd.NaT, index=month_df.index)
 
+            issued_mask = pd.Series(False, index=month_df.index)
             try:
                 _prod_mask = mod._rd_in_production_mask(month_df)
-                if isinstance(_prod_mask, pd.Series) and _prod_mask.reindex(month_df.index).fillna(False).any():
-                    # Если есть только флаг без даты — считаем выданным «с даты плана» (не раньше).
-                    _fact_dt = _fact_dt.where(
-                        _fact_dt.notna(),
-                        month_df["_plan_end_dt"].where(_prod_mask.reindex(month_df.index).fillna(False)),
-                    )
+                if isinstance(_prod_mask, pd.Series):
+                    issued_mask = issued_mask | _prod_mask.reindex(month_df.index).fillna(False)
             except Exception:
                 pass
-
+            if "_tessa_kr_state" in month_df.columns:
+                _kr = month_df["_tessa_kr_state"].astype(str)
+                issued_mask = issued_mask | _kr.str.contains("производств", case=False, na=False)
             if not detail_tbl.empty and "Статус" in detail_tbl.columns:
                 try:
                     month_df["_bucket"] = mod._rd_plan_map_buckets_from_detail(
@@ -1012,15 +1012,16 @@ def build_working_documentation_payload(
                         name_col=name_col,
                         full_cipher_col=pc.get("full_cipher"),
                     )
-                    _iss_bucket = month_df["_bucket"].astype(str).str.strip().eq(
+                    issued_mask = issued_mask | month_df["_bucket"].astype(str).str.strip().eq(
                         "Выдано в производство работ"
                     ) | month_df["_bucket"].isin(["Принято", "Передано подрядчику"])
-                    _fact_dt = _fact_dt.where(
-                        _fact_dt.notna(),
-                        month_df["_plan_end_dt"].where(_iss_bucket),
-                    )
                 except Exception:
                     pass
+            if issued_mask.any():
+                _fact_dt = _fact_dt.where(
+                    _fact_dt.notna(),
+                    month_df["_plan_end_dt"].where(issued_mask),
+                )
 
             _plan_n = month_df["_plan_end_dt"].dt.normalize()
             _fact_n = _fact_dt.dt.normalize()

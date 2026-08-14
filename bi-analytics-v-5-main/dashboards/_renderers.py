@@ -31717,6 +31717,11 @@ def _rd_in_production_mask(
             s.astype(str).str.replace(",", ".", regex=False), errors="coerce"
         ).fillna(0)
         return num > 0
+    if "_tessa_kr_state" in df.columns:
+        kr = df["_tessa_kr_state"].astype(str)
+        m = kr.str.contains("производств", case=False, na=False)
+        if m.any():
+            return m
     return pd.Series(False, index=df.index)
 
 
