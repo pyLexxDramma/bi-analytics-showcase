@@ -1,10 +1,8 @@
 # Manual deploy of Next webapp to ai.conall.ru (prod on iivm :3081).
 # Dev cloudpub stays on auto-deploy via webapp.yml → :3080.
 #
-# Secrets:
-#   PROD_VPS_HOST, PROD_VPS_USER, PROD_VPS_PASSWORD and/or PROD_VPS_SSH_KEY,
-#   PROD_VPS_PORT (2275), PROD_VPS_PATH (~/apps/bi-analytics-webapp-prod)
-#   XCA_ASK_SECRET, XCA_ASK_BASE_URL (same as cloudpub)
+# Uses same host secrets as cloudpub (WEBAPP_VPS_*), different path.
+# Optional override: PROD_VPS_PATH (default ~/apps/bi-analytics-webapp-prod)
 name: Deploy ai.conall.ru prod
 
 on:
@@ -21,11 +19,11 @@ jobs:
       - name: Deploy prod over SSH (iivm)
         uses: appleboy/ssh-action@v1.2.4
         with:
-          host: ${{ secrets.PROD_VPS_HOST }}
-          username: ${{ secrets.PROD_VPS_USER }}
-          password: ${{ secrets.PROD_VPS_PASSWORD }}
-          key: ${{ secrets.PROD_VPS_SSH_KEY }}
-          port: ${{ secrets.PROD_VPS_PORT || 2275 }}
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
           command_timeout: 45m
           script_stop: true
           envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL
@@ -41,7 +39,7 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
-            # Seed .env from cloudpub once if missing
+            chmod +x webapp/scripts/server_deploy_prod.sh webapp/scripts/ftp_daily_ingest_prod.sh webapp/scripts/sync_prod_web_data_to_opencode.sh webapp/scripts/set_admin_password_prod.sh || true
             if [[ ! -f webapp/.env ]] && [[ -f "$HOME/apps/bi-analytics-showcase/webapp/.env" ]]; then
               cp "$HOME/apps/bi-analytics-showcase/webapp/.env" webapp/.env
               echo "Seeded webapp/.env from cloudpub showcase"
@@ -49,7 +47,12 @@ jobs:
             export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
             export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
             export WEBAPP_CORS_ORIGINS="https://ai.conall.ru"
+            # First boot admin if users.db empty
+            if ! grep -qE '^BI_BOOTSTRAP_ADMIN_PASSWORD=.+' webapp/.env 2>/dev/null; then
+              echo "BI_BOOTSTRAP_ADMIN_PASSWORD=adminAIcon!2026X" >> webapp/.env
+            fi
             bash webapp/scripts/server_deploy_prod.sh
+            BI_NEW_ADMIN_PASSWORD='adminAIcon!2026X' bash webapp/scripts/set_admin_password_prod.sh || true
             echo "Prod deployed $(git rev-parse --short HEAD) edge :3081"
         env:
           XCA_ASK_SECRET: ${{ secrets.XCA_ASK_SECRET }}
