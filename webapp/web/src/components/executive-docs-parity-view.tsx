@@ -138,11 +138,14 @@ export function ExecutiveDocsParityView() {
       !filters.date_from &&
       !filters.date_to
     ) {
-      setFilters((current) => ({
-        ...current,
-        date_from: data.filters.date_min!,
-        date_to: data.filters.date_max!,
-      }));
+      setFilters((current) => {
+        if (current.date_from || current.date_to) return current;
+        return {
+          ...current,
+          date_from: data.filters.date_min!,
+          date_to: data.filters.date_max!,
+        };
+      });
     }
   }, [data?.filters.date_max, data?.filters.date_min, filters.date_from, filters.date_to]);
 

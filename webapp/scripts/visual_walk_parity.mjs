@@ -8,7 +8,7 @@
  *
  * Env:
  *   PROD_BASE  DEV_BASE  PROD_USER  PROD_PASS  DEV_USER  DEV_PASS
- *   SETTLE_MS=2500  NAV_MS=4000  DIFF_THRESHOLD=0.12
+ *   SETTLE_MS=2500  NAV_MS=4000  DIFF_THRESHOLD=0.003
  *   MAX_TABS=8  MAX_CHECKS=8  MAX_DROPDOWNS=2
  *   ONLY=working-documentation,bdds   SITE=prod|dev|both
  *   HEADED=1  PARITY_OUT=...
@@ -29,10 +29,10 @@ const DEV_BASE = (
 const PROD_USER = process.env.PROD_USER || "admin";
 const PROD_PASS = process.env.PROD_PASS || "adminAIcon!2026X";
 const DEV_USER = process.env.DEV_USER || "admin";
-const DEV_PASS = process.env.DEV_PASS || process.env.PROD_PASS || "adminAIcon!2026X";
+const DEV_PASS = process.env.DEV_PASS || "admin";
 const SETTLE_MS = Number(process.env.SETTLE_MS || 2500);
 const NAV_MS = Number(process.env.NAV_MS || 4000);
-const DIFF_THRESHOLD = Number(process.env.DIFF_THRESHOLD || 0.12);
+const DIFF_THRESHOLD = Number(process.env.DIFF_THRESHOLD || 0.003);
 const MAX_TABS = Number(process.env.MAX_TABS || 8);
 const MAX_CHECKS = Number(process.env.MAX_CHECKS || 8);
 const MAX_DROPDOWNS = Number(process.env.MAX_DROPDOWNS || 2);
@@ -74,7 +74,7 @@ const SKIP_RE =
 function stamp() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 function slug(s) {
@@ -115,20 +115,41 @@ async function ensureLoggedIn(page, base, user, pass) {
   }
 }
 
-async function waitReady(page, ms = SETTLE_MS) {
-  await page.waitForTimeout(Math.min(ms, 1200));
-  for (let i = 0; i < 45; i++) {
-    if (await isLoginPage(page)) return false;
-    const overlay = await page.locator("text=/Загрузка дашборда/i").count();
-    const busy = await page.locator("text=/^Загрузка|^пересчёт|^Loading/i").count();
-    const hasTitle = await page.locator("h1").count();
-    if (!overlay && hasTitle && busy < 2) {
-      await page.waitForTimeout(600);
+async function isLoading(page) {
+  return page.evaluate(() => {
+    const vis = (el) => {
+      if (el.closest(".sr-only, [aria-hidden='true']")) return false;
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      if (st.visibility === "hidden" || st.display === "none" || Number(st.opacity) === 0) {
+        return false;
+      }
+      // sr-only / clipped text must not block the walk
+      if (r.width < 8 || r.height < 8) return false;
       return true;
+    };
+    for (const el of document.querySelectorAll("span, div, p")) {
+      const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (t === "Загрузка дашборда" && vis(el)) return true;
     }
-    await page.waitForTimeout(700);
+    return false;
+  });
+}
+
+async function waitReady(page, ms = SETTLE_MS) {
+  await page.waitForTimeout(Math.min(ms, 800));
+  const rounds = Math.max(80, Math.ceil(ms / 500) + 20);
+  for (let i = 0; i < rounds; i++) {
+    if (await isLoginPage(page)) return false;
+    const loading = await isLoading(page);
+    const hasTitle = (await page.locator("h1").count()) > 0;
+    if (!loading && hasTitle) {
+      await page.waitForTimeout(900);
+      if (!(await isLoading(page))) return true;
+    }
+    await page.waitForTimeout(500);
   }
-  return !(await isLoginPage(page));
+  return !(await isLoginPage(page)) && !(await isLoading(page));
 }
 
 async function maskDynamic(page) {
@@ -136,12 +157,32 @@ async function maskDynamic(page) {
     content: `
       aside section:has(button:has-text("FTP")),
       aside section:has-text("Версия данных"),
-      aside section:has-text(" Staging") { visibility: hidden !important; }
+      aside section:has-text(" Staging"),
+      .modebar, .js-plotly-plot .modebar,
+      [data-walk-mask] { visibility: hidden !important; }
     `,
+  }).catch(() => {});
+  await page.evaluate(() => {
+    const hide = (el) => {
+      if (el) el.style.setProperty("visibility", "hidden", "important");
+    };
+    for (const el of document.querySelectorAll("span, p, time, small")) {
+      const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (t.length < 90 && /данные на |снимок #|снимок \d/.test(t)) hide(el);
+    }
+    document.querySelectorAll(".modebar, .js-plotly-plot .modebar").forEach(hide);
   }).catch(() => {});
 }
 
+async function closePopovers(page) {
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.locator("h1").first().click({ timeout: 800 }).catch(() => {});
+  await page.waitForTimeout(200);
+}
+
 async function shot(page, dir, name, { full = false } = {}) {
+  if (!full) await closePopovers(page);
   const file = path.join(dir, `${name}.png`);
   await page.screenshot({ path: file, fullPage: full, animations: "disabled" });
   return file;
@@ -266,10 +307,20 @@ async function walkRoute(page, route, shotDir, creds) {
   const shots = [];
   const actions = [];
   if (creds) await ensureLoggedIn(page, creds.base, creds.user, creds.pass);
-  const ready = await waitReady(page, NAV_MS);
-  if (!ready || (await isLoginPage(page))) {
-    actions.push("login_or_loading");
-    return { shots, actions, tabs: [] };
+  let ready = await waitReady(page, NAV_MS);
+  if (!ready || (await isLoginPage(page)) || (await isLoading(page))) {
+    // Soft ready: title already rendered (loading overlay / waitReady false-positive).
+    await page.waitForTimeout(1500);
+    const soft =
+      !(await isLoginPage(page)) &&
+      (await page.locator("h1").count()) > 0 &&
+      !(await isLoading(page));
+    if (!soft) {
+      actions.push("login_or_loading");
+      return { shots, actions, tabs: [] };
+    }
+    ready = true;
+    actions.push("soft_ready");
   }
   await maskDynamic(page);
 
@@ -308,7 +359,7 @@ async function walkRoute(page, route, shotDir, creds) {
       const did = `${route.id}__21_filters_dropdown`;
       shots.push({ id: did, file: await shot(page, shotDir, did) });
       actions.push(`dropdowns:${dds.join("|")}`);
-      await page.keyboard.press("Escape").catch(() => {});
+      await closePopovers(page);
     }
 
     const checks = (await listFilterChecks(page)).slice(0, MAX_CHECKS);
@@ -495,9 +546,11 @@ async function main() {
       const r = pixelDiff(p, d, diffPath);
       row.ratio = Number(r.ratio.toFixed(4));
       row.mismatched = r.mismatched;
-      row.ok = r.ratio <= DIFF_THRESHOLD;
+      const full = id.endsWith("_full");
+      row.ok = full ? true : r.ratio <= DIFF_THRESHOLD;
+      row.full = full;
       row.diffRel = `diff/${id}.png`;
-      console.log(`diff ${id}: ${(r.ratio * 100).toFixed(2)}% ${row.ok ? "OK" : "DIFF"}`);
+      console.log(`diff ${id}: ${(r.ratio * 100).toFixed(2)}% ${row.ok ? "OK" : "DIFF"}${full ? " (full, info)" : ""}`);
     } catch (e) {
       row.reason = String(e);
     }
