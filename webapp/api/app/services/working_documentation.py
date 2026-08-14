@@ -180,16 +180,16 @@ def _issued_mask_from_tessa_status(
     plan_df: pd.DataFrame,
     proj_col: str | None,
     code_col: str | None,
+    *,
+    full_cipher_col: str | None = None,
 ) -> pd.Series:
     """Выдано = TESSA Status как на пироге (не даты tasks и не KrState).
 
-    Join плана к карточкам — тот же толерантный матч проектов, что у круговой.
-    Иначе на prod (пустые даты tasks) стек остаётся с fact=0 при KPI 319.
+    Сначала (проект, шифр). На prod в плане проект = UUID, в TESSA — имя,
+    этот join даёт 0 при KPI 319 — тогда матч только по шифру / полному шифру.
     """
     mask = pd.Series(False, index=plan_df.index)
-    if plan_df.empty or not proj_col or not code_col:
-        return mask
-    if proj_col not in plan_df.columns or code_col not in plan_df.columns:
+    if plan_df.empty or not code_col or code_col not in plan_df.columns:
         return mask
     try:
         import streamlit as st  # type: ignore
@@ -205,7 +205,8 @@ def _issued_mask_from_tessa_status(
         project_col = mod._tessa_find_column(t, ["ObjectProjectName", "ProjectName", "ObjectName"])
         cipher_col = mod._tessa_find_column(t, ["DivisionCipher", "Cipher"])
         status_col = mod._tessa_find_column(t, ["Status", "Статус"])
-        if not project_col or not cipher_col or not status_col:
+        internal_col = mod._tessa_find_column(t, ["InternalID", "Internal Id", "InternalId"])
+        if not cipher_col or not status_col:
             return mask
         t = t[t[cipher_col].map(mod._tessa_cell_has_value).fillna(False)]
         t = mod._tessa_rd_dedupe_cards_latest(t)
@@ -213,37 +214,63 @@ def _issued_mask_from_tessa_status(
         t = t.loc[t[status_col].map(mod._rd_canonical_tessa_rd_status).eq(prod)]
         if t.empty:
             return mask
-        issued: list[tuple[str, str]] = []
-        for _, r in t.iterrows():
-            pk = str(mod._tessa_norm_project_key(r.get(project_col, "")) or "")
-            ck = str(mod._tessa_norm_cipher_key(r.get(cipher_col, "")) or "")
-            if pk and ck:
-                issued.append((pk, ck))
-        if not issued:
-            return mask
+        issued_ck: set[str] = set()
+        issued_internal: set[str] = set()
         by_ciph: dict[str, set[str]] = {}
-        for pk, ck in issued:
-            by_ciph.setdefault(ck, set()).add(pk)
-        plan_pk = plan_df[proj_col].map(mod._tessa_norm_project_key).fillna("").astype(str)
+        for _, r in t.iterrows():
+            ck = str(mod._tessa_norm_cipher_key(r.get(cipher_col, "")) or "")
+            pk = (
+                str(mod._tessa_norm_project_key(r.get(project_col, "")) or "")
+                if project_col
+                else ""
+            )
+            if ck:
+                issued_ck.add(ck)
+                if pk:
+                    by_ciph.setdefault(ck, set()).add(pk)
+            if internal_col:
+                iid = str(mod._tessa_norm_cipher_key(r.get(internal_col, "")) or "")
+                if iid:
+                    issued_internal.add(iid)
+        if not issued_ck and not issued_internal:
+            return mask
         plan_ck = plan_df[code_col].map(mod._tessa_norm_cipher_key).fillna("").astype(str)
-        hits: list[bool] = []
-        match_fn = getattr(mod, "_project_norm_key_matches_msp_keys", None)
-        for p, c in zip(plan_pk.tolist(), plan_ck.tolist()):
-            tessa_pks = by_ciph.get(c) or set()
-            if not tessa_pks:
-                hits.append(False)
-                continue
-            if p in tessa_pks:
-                hits.append(True)
-                continue
-            ok = False
-            if callable(match_fn) and p:
-                for tpk in tessa_pks:
-                    if match_fn(tpk, {p}) or match_fn(p, {tpk}):
-                        ok = True
-                        break
-            hits.append(ok)
-        return pd.Series(hits, index=plan_df.index)
+        plan_fc = (
+            plan_df[full_cipher_col].map(mod._tessa_norm_cipher_key).fillna("").astype(str)
+            if full_cipher_col and full_cipher_col in plan_df.columns
+            else pd.Series("", index=plan_df.index)
+        )
+        if proj_col and proj_col in plan_df.columns and by_ciph:
+            plan_pk = plan_df[proj_col].map(mod._tessa_norm_project_key).fillna("").astype(str)
+            match_fn = getattr(mod, "_project_norm_key_matches_msp_keys", None)
+            hits: list[bool] = []
+            for p, c in zip(plan_pk.tolist(), plan_ck.tolist()):
+                tessa_pks = by_ciph.get(c) or set()
+                if not tessa_pks:
+                    hits.append(False)
+                    continue
+                if p in tessa_pks:
+                    hits.append(True)
+                    continue
+                ok = False
+                if callable(match_fn) and p:
+                    for tpk in tessa_pks:
+                        if match_fn(tpk, {p}) or match_fn(p, {tpk}):
+                            ok = True
+                            break
+                hits.append(ok)
+            proj_hits = pd.Series(hits, index=plan_df.index)
+            if proj_hits.any():
+                return proj_hits
+        cipher_hits = plan_ck.isin(issued_ck) | plan_fc.isin(issued_ck) | plan_fc.isin(
+            issued_internal
+        )
+        if issued_ck:
+            for ck in issued_ck:
+                if len(ck) < 4:
+                    continue
+                cipher_hits = cipher_hits | plan_fc.str.endswith(ck, na=False)
+        return cipher_hits.fillna(False)
     except Exception:
         return mask
 
@@ -828,7 +855,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v17-rd-monthly-tessa-status-join",
+            "v18-rd-monthly-cipher-fallback",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1088,7 +1115,11 @@ def build_working_documentation_payload(
                         str
                     ).str.contains("производств", case=False, na=False)
             issued_mask = issued_mask | _issued_mask_from_tessa_status(
-                mod, month_df, proj_col, code_col
+                mod,
+                month_df,
+                proj_col,
+                code_col,
+                full_cipher_col=pc.get("full_cipher"),
             )
             if "_tessa_kr_state" in month_df.columns:
                 _kr = month_df["_tessa_kr_state"].astype(str)
