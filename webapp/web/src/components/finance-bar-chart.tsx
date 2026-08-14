@@ -86,13 +86,17 @@ function formatBarLabel(
 
 const DEV_BAR_RED = "#e74c3c";
 const DEV_BAR_GREEN = "#27ae60";
-const DEV_LABEL_RED = "hsl(348,100%,63%)";
-const DEV_LABEL_GREEN = "hsl(148,100%,63%)";
+/** Подписи отклонения: на светлой теме тёмнее, на тёмной — ярче (контраст к фону). */
+const DEV_LABEL_RED_LIGHT = "#b91c1c";
+const DEV_LABEL_RED_DARK = "hsl(348,100%,68%)";
+const DEV_LABEL_GREEN_LIGHT = "#166534";
+const DEV_LABEL_GREEN_DARK = "hsl(148,70%,55%)";
 
 /** Как main: <0 красный (ниже оси), >0 зелёный (выше оси). */
 function deviationLabelColor(value: number, dark: boolean): string {
   if (Math.abs(value) < 0.005) return dark ? "#e2e8f0" : "#111827";
-  return value > 0 ? DEV_LABEL_GREEN : DEV_LABEL_RED;
+  if (value > 0) return dark ? DEV_LABEL_GREEN_DARK : DEV_LABEL_GREEN_LIGHT;
+  return dark ? DEV_LABEL_RED_DARK : DEV_LABEL_RED_LIGHT;
 }
 
 export function FinanceBarChart({

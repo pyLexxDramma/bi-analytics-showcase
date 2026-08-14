@@ -41036,7 +41036,11 @@ def _forecast_is_lot_value(s) -> bool:
     txt = _clean_display_str(s)
     if not txt:
         return False
-    if "лот" in txt.casefold():
+    low = txt.casefold().strip()
+    # Заголовок/пустышка колонки («ЛОТ») — не лот; иначе вся агрегация схлопывается в одну строку.
+    if low in {"лот", "lot", "—", "-", "–", "−", "nan", "none", "<na>"}:
+        return False
+    if "лот" in low:
         return True
     return bool(re.match(r"^\s*\d", txt))
 
@@ -41434,29 +41438,56 @@ def _forecast_aggregate_by_lot(pdf: pd.DataFrame) -> pd.DataFrame:
         else ""
     )
 
-    _lot_text_col = "ЛОТ" if "ЛОТ" in work.columns else ("lot" if "lot" in work.columns else None)
+    _lot_text_cols = [c for c in ("ЛОТ", "lot") if c in work.columns]
     _grouped_by_lot = False
-    if _lot_text_col is not None:
+    for _lot_text_col in _lot_text_cols:
         _lot_lbl = work[_lot_text_col].map(_clean_display_str)
         _is_lot = _lot_lbl.map(_forecast_is_lot_value)
         if bool(_is_lot.any()):
             work = work.loc[_is_lot].copy()
             work["_fc_lot"] = _lot_lbl.loc[_is_lot].astype(str).str.strip()
             _grouped_by_lot = True
+            break
+    # Фолбэк: имя задачи вида «Лот №…» / «8.5.…», если колонка ЛОТ пустая/битая.
+    if not _grouped_by_lot and "task name" in work.columns:
+        _tn = work["task name"].map(_clean_display_str)
+        _is_tn = _tn.map(_forecast_is_lot_value)
+        if bool(_is_tn.any()):
+            work = work.loc[_is_tn].copy()
+            work["_fc_lot"] = _tn.loc[_is_tn].astype(str).str.strip()
+            _grouped_by_lot = True
     if not _grouped_by_lot:
         work["_fc_lot"] = _forecast_lot_label_series(work).astype(str).str.strip()
+        # Не схлопывать весь проект в одну строку «—»: если метка пустая — по task name.
+        _blank = work["_fc_lot"].eq("") | work["_fc_lot"].isin({"—", "-", "–", "−"})
+        if bool(_blank.any()) and "task name" in work.columns:
+            _tn2 = work["task name"].map(_clean_display_str)
+            work.loc[_blank & _tn2.ne(""), "_fc_lot"] = _tn2[_blank & _tn2.ne("")]
+
+    # Даты проекта — запасной горизонт, если у лота все plan start/end пустые (иначе A/B/C невидимы).
+    _proj_ps = work["plan start"].min()
+    _proj_pe = work["plan end"].max()
 
     rows_out: List[dict] = []
     for _lot, g in work.groupby("_fc_lot", sort=False):
+        lot_name = str(_lot).strip() if _lot is not None else ""
+        if not lot_name or lot_name.casefold() in {"nan", "none", "<na>"}:
+            lot_name = "—"
+        ps = g["plan start"].min()
+        pe = g["plan end"].max()
+        if pd.isna(ps) and pd.notna(_proj_ps):
+            ps = _proj_ps
+        if pd.isna(pe) and pd.notna(_proj_pe):
+            pe = _proj_pe
         rows_out.append(
             {
                 "project name": (
                     g["project name"].iloc[0] if "project name" in g.columns else _proj
                 ),
-                "section": _lot,
-                "task name": _lot,
-                "plan start": g["plan start"].min(),
-                "plan end": g["plan end"].max(),
+                "section": lot_name,
+                "task name": lot_name,
+                "plan start": ps,
+                "plan end": pe,
                 "budget plan": float(g["budget plan"].sum()),
                 "budget fact": float(g["budget fact"].sum()),
             }
@@ -41501,10 +41532,14 @@ def _forecast_prepare_msp_slice(pdf_raw: pd.DataFrame, project_display_name: str
         pdf["section"] = ""
     if "Название" in pdf.columns and "task name" not in pdf.columns:
         pdf["task name"] = pdf["Название"]
-    if "lot" in pdf.columns:
+    if "lot" in pdf.columns or "ЛОТ" in pdf.columns:
         _sec_s = pdf["section"].astype(str).str.strip()
-        _lot_s = pdf["lot"].astype(str).str.strip()
-        pdf["section"] = _sec_s.mask(_sec_s.eq("") | _sec_s.str.lower().isin(("nan", "none", "")), _lot_s)
+        _lot_src = pdf["ЛОТ"] if "ЛОТ" in pdf.columns else pdf["lot"]
+        _lot_s = _lot_src.map(_clean_display_str)
+        pdf["section"] = _sec_s.mask(
+            _sec_s.eq("") | _sec_s.str.lower().isin(("nan", "none", "")),
+            _lot_s,
+        )
     pdf["section"] = pdf["section"].apply(_clean_display_str)
     if "task name" not in pdf.columns:
         pdf["task name"] = ""

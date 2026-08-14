@@ -169,10 +169,7 @@ export function BddsPlanFactEditor({
         if (seq !== previewSeq.current) return;
         onDataChange(payload);
         setLotRecalc(payload.lot_recalc ?? null);
-        const nextPeriod = payload.lot_recalc?.selected_period ?? "";
-        if (nextPeriod) {
-          setLotPeriod((prev) => (prev === nextPeriod ? prev : nextPeriod));
-        }
+        // Не перезаписывать выбор пользователя (иначе после A/B/C уезжает на первый месяц).
         if (payload.validation_errors?.length) {
           onPreviewError?.(payload.validation_errors.join("; "));
         }
