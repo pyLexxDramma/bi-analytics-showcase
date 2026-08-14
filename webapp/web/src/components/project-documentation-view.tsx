@@ -47,7 +47,6 @@ const TD =
   "whitespace-nowrap border border-[#cbd5e1] px-2.5 py-1.5 text-center align-middle dark:border-[#334155]";
 const AHEAD_BG = "bg-[rgba(46,204,113,0.22)] dark:bg-[rgba(70,214,138,0.18)]";
 const OVERDUE_BG = "bg-[rgba(231,76,60,0.22)] dark:bg-[rgba(255,84,84,0.18)]";
-const OK_BG = "bg-[rgba(46,204,113,0.22)] dark:bg-[rgba(70,214,138,0.18)]";
 
 type TabId = "main" | "delay";
 type SortState = { key: string; asc: boolean } | null;
