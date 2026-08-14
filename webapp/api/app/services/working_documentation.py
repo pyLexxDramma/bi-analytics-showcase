@@ -1054,19 +1054,20 @@ def build_working_documentation_payload(
                 # equivalent: done_v - (total_plan - rest_v) = done_v - plan_due
                 fact_inc = max(0.0, done_v - prev_green)
                 prev_green = done_v
-                plan_v = total_plan
-                if use_pct and plan_v > 0:
+                # План на дату месяца (накопительно): due = выдано + ещё не выдано, но уже должно.
+                plan_as_of = done_v + overdue_v
+                if use_pct and total_plan > 0:
                     rows_m.append(
                         {
                             "month": str(p),
                             "month_label": _month_label(p),
-                            "plan": plan_v,
-                            "done": round(done_v / plan_v * 100, 1),
-                            "overdue": round(overdue_v / plan_v * 100, 1),
-                            "rest": round(rest_v / plan_v * 100, 1),
-                            "fact": round(done_v / plan_v * 100, 1),
-                            "fact_inc": round(fact_inc / plan_v * 100, 1),
-                            "delta": round(delta_v / plan_v * 100, 1),
+                            "plan": round(plan_as_of / total_plan * 100, 1),
+                            "done": round(done_v / total_plan * 100, 1),
+                            "overdue": round(overdue_v / total_plan * 100, 1),
+                            "rest": round(rest_v / total_plan * 100, 1),
+                            "fact": round(done_v / total_plan * 100, 1),
+                            "fact_inc": round(fact_inc / total_plan * 100, 1),
+                            "delta": round(delta_v / total_plan * 100, 1),
                         }
                     )
                 else:
@@ -1074,7 +1075,7 @@ def build_working_documentation_payload(
                         {
                             "month": str(p),
                             "month_label": _month_label(p),
-                            "plan": plan_v,
+                            "plan": plan_as_of,
                             "done": done_v,
                             "overdue": overdue_v,
                             "rest": rest_v,

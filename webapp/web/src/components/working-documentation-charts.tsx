@@ -23,7 +23,6 @@ const RD_FACT = "#F39C12";
 const RD_FCST = "#9B59B6";
 const RD_MONTH_PLAN = "#F39C12";
 const RD_MONTH_FACT = "#27AE60";
-const RD_MONTH_OVERDUE = "#C0392B";
 
 const RD_PIE_COLORS: Record<string, string> = {
   "Выдано в производство работ": "#27AE60",
@@ -328,7 +327,8 @@ export function RdDynamicsLineChart({
   );
 }
 
-/** Накопительный стек «Динамика по месяцам»: выполнено / просрочено / остаток плана. */
+/** Накопительный overlay «Динамика по месяцам»: жёлтый план / зелёный факт / «+N» за месяц.
+ * Порядок: ранний месяц снизу, последний сверху (Plotly y=0 снизу). */
 export function RdMonthlyCumulativeChart({
   rows,
   fullscreen = false,
@@ -342,28 +342,26 @@ export function RdMonthlyCumulativeChart({
   const figure = useMemo(() => {
     const chronological = [...rows].sort((a, b) => a.month.localeCompare(b.month));
     const labels = chronological.map((r) => r.month_label);
-    const plan = chronological.map((r) => Number(r.plan) || 0);
-    const overdue = chronological.map((r) => Math.max(0, Number(r.overdue) || 0));
-    const done = chronological.map((r, i) => {
-      if (r.done != null) return Math.max(0, Number(r.done) || 0);
-      const fact = Math.max(0, Number(r.fact) || 0);
-      return Math.max(0, fact - overdue[i]);
+    const plan = chronological.map((r) => Math.max(0, Number(r.plan) || 0));
+    const fact = chronological.map((r) => {
+      if (r.fact != null) return Math.max(0, Number(r.fact) || 0);
+      return Math.max(0, Number(r.done) || 0);
     });
-    const rest = chronological.map((r, i) => {
-      if (r.rest != null) return Math.max(0, Number(r.rest) || 0);
-      return Math.max(0, plan[i] - done[i] - overdue[i]);
-    });
-    // delta: выдано − план_к_дате (≥0 зелёный / <0 красный просрок)
-    const deltas = chronological.map((r, i) => {
-      if (r.delta != null && Number.isFinite(Number(r.delta))) return Number(r.delta);
-      return -overdue[i];
+    const factInc = chronological.map((r, i) => {
+      if (r.fact_inc != null) return Math.max(0, Number(r.fact_inc) || 0);
+      if (i === 0) return fact[i];
+      return Math.max(0, fact[i] - fact[i - 1]);
     });
     const yIdx = chronological.map((_, i) => i);
-    const totals = done.map((d, i) => d + overdue[i] + rest[i]);
-    const xMax = Math.max(1, ...plan, ...totals);
+    const xMax = Math.max(1, ...plan, ...fact);
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
       : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
+
+    const incTxt = factInc.map((v) => (v > 0 ? `+${Math.round(v)}` : ""));
+    const planLonger = plan.map((p, i) => p >= fact[i]);
+    const tipFont = compact ? 13 : 15;
+    const tipColor = theme.dark ? "#bbf7d0" : "#14532d";
 
     const barBase = {
       type: "bar" as const,
@@ -371,65 +369,42 @@ export function RdMonthlyCumulativeChart({
       y: yIdx,
       cliponaxis: false,
       constraintext: "none" as const,
-      hovertemplate: "<b>%{customdata}</b><br>%{fullData.name}: %{x}<extra></extra>",
-      textposition: "none" as const,
+      hovertemplate:
+        "<b>%{customdata}</b><br>%{fullData.name} (накопительно): %{x}<extra></extra>",
     };
-
-    const annotations = chronological
-      .map((_, i) => {
-        const d = Math.round(deltas[i]);
-        const total = totals[i];
-        if (total <= 0) return null;
-        const label = d > 0 ? `+${d}` : `${d}`;
-        return {
-          x: total,
-          y: i,
-          xref: "x" as const,
-          yref: "y" as const,
-          text: `<b>${label}</b>`,
-          showarrow: false,
-          xanchor: "left" as const,
-          yanchor: "middle" as const,
-          xshift: compact ? 4 : 8,
-          font: {
-            size: compact ? 11 : 14,
-            color: d < 0 ? RD_MONTH_OVERDUE : "#15803d",
-          },
-        };
-      })
-      .filter(Boolean);
 
     return {
       data: [
         {
           ...barBase,
-          name: "Выполнено",
-          x: done,
-          marker: { color: RD_MONTH_FACT, opacity: 0.95 },
-          customdata: labels,
-        },
-        {
-          ...barBase,
-          name: CHART_RU.overdue,
-          x: overdue,
-          marker: { color: RD_MONTH_OVERDUE, opacity: 0.95 },
-          customdata: labels,
-        },
-        {
-          ...barBase,
-          name: "План (остаток)",
-          x: rest,
+          name: CHART_RU.plan,
+          x: plan,
           marker: { color: RD_MONTH_PLAN, opacity: 0.92 },
           customdata: labels,
+          text: incTxt.map((t, i) => (planLonger[i] ? t : "")),
+          textposition: "outside" as const,
+          texttemplate: "%{text}",
+          textfont: { size: tipFont, color: tipColor },
+        },
+        {
+          ...barBase,
+          name: CHART_RU.fact,
+          x: fact,
+          marker: { color: RD_MONTH_FACT, opacity: 0.95 },
+          customdata: labels,
+          text: incTxt.map((t, i) => (planLonger[i] ? "" : t)),
+          textposition: "outside" as const,
+          texttemplate: "%{text}",
+          textfont: { size: tipFont, color: tipColor },
         },
       ],
       layout: {
         height,
-        barmode: "stack" as const,
+        barmode: "overlay" as const,
         bargap: 0.28,
         margin: compact
-          ? { l: 8, r: 52, t: 12, b: 96 }
-          : { l: 16, r: 64, t: 48, b: 96 },
+          ? { l: 8, r: 72, t: 12, b: 96 }
+          : { l: 16, r: 80, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         legend: plotlyLegendUnderLeft({
@@ -437,13 +412,12 @@ export function RdMonthlyCumulativeChart({
           labelColor: theme.axis,
           y: compact ? -0.28 : -0.12,
         }),
-        annotations,
         xaxis: {
           title: {
             text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * (compact ? 1.28 : 1.16)],
+          range: [0, xMax * (compact ? 1.32 : 1.14)],
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,

@@ -686,8 +686,8 @@ export function WorkingDocumentationView() {
                   <Card className="rounded-xl">
                     <Title>Динамика по месяцам</Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      Накопительно: зелёный — выдано, красный — просрок, жёлтый — план впереди.
-                      Справа то же отклонение, что «факт − план» (как KPI).
+                      Накопительно: жёлтый — план на дату месяца, зелёный — факт.
+                      Справа «+N» — разделы, выданные в производство за этот месяц.
                     </Text>
                     <div className="mt-3">
                       <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
@@ -792,8 +792,8 @@ export function WorkingDocumentationView() {
                   <Card className="rounded-xl">
                     <Title>Динамика по месяцам</Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      Накопительно: зелёный — выдано, красный — просрок, жёлтый — план впереди.
-                      Справа то же отклонение, что «факт − план» (как KPI).
+                      Накопительно: жёлтый — план на дату месяца, зелёный — факт.
+                      Справа «+N» — разделы, выданные в производство за этот месяц.
                     </Text>
                     <div className="mt-3">
                       <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
