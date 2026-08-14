@@ -612,6 +612,12 @@ MSP_PROJECT_NAME_MAP: Dict[str, str] = {
     "l1": "Ленинский",
 }
 
+
+def get_msp_project_name_map() -> Dict[str, str]:
+    """Карта ключей MSP (лат./короткие) → русское имя проекта для web_loader."""
+    return dict(MSP_PROJECT_NAME_MAP)
+
+
 # Выгрузка файлов на FTP (1С / MSP / TESSA) — согласованное расписание заказчика.
 FTP_EXPORT_HOUR_MSK: int = int(os.environ.get("BI_FTP_EXPORT_HOUR_MSK", "7") or 7)
 FTP_EXPORT_MINUTE_MSK: int = int(os.environ.get("BI_FTP_EXPORT_MINUTE_MSK", "0") or 0)
