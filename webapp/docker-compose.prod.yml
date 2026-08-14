@@ -1,0 +1,13 @@
+# Prod override for ai.conall.ru (iivm).
+# Usage: COMPOSE_PROJECT_NAME=webapp-prod docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Host edge :3081 → container Caddy :3080. No CloudPub.
+services:
+  edge:
+    ports:
+      - "3081:3080"
+
+  api:
+    environment:
+      WEBAPP_DATA_MODE: ftp
+      WEBAPP_CORS_ORIGINS: ${WEBAPP_CORS_ORIGINS:-https://ai.conall.ru,https://insipidly-carefree-husky.cloudpub.ru}
+      SHOWCASE_AI_ENABLED: "1"

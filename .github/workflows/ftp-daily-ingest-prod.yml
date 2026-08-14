@@ -1,0 +1,37 @@
+# Daily FTP ingest for ai.conall.ru prod (iivm webapp-prod).
+# Same schedule as cloudpub showcase ingest.
+name: FTP daily ingest prod
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ftp-daily-ingest-prod
+  cancel-in-progress: false
+
+jobs:
+  ingest-prod:
+    runs-on: ubuntu-latest
+    steps:
+      - name: FTP sync and ingest on prod VPS
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.PROD_VPS_HOST }}
+          username: ${{ secrets.PROD_VPS_USER }}
+          key: ${{ secrets.PROD_VPS_SSH_KEY }}
+          password: ${{ secrets.PROD_VPS_PASSWORD }}
+          port: ${{ secrets.PROD_VPS_PORT || 2275 }}
+          command_timeout: 45m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.PROD_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
+            if [[ ! -d "$APP_DIR" ]]; then
+              echo "ERROR: PROD_VPS_PATH not found: $APP_DIR"
+              exit 1
+            fi
+            cd "$APP_DIR"
+            bash webapp/scripts/ftp_daily_ingest_prod.sh

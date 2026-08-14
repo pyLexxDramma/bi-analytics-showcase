@@ -8,7 +8,8 @@
 |---|---|
 | Репозиторий | `pyLexxDramma/bi-analytics-showcase` |
 | Назначение | Демо + пилот нового UI (не путать с prod `bi-analytics` / ai.conall.ru) |
-| Публичный URL (сейчас) | https://insipidly-carefree-husky.cloudpub.ru |
+| Публичный URL (dev) | https://insipidly-carefree-husky.cloudpub.ru |
+| Prod URL | https://ai.conall.ru (Next, edge `:3081` на iivm; nginx на dash-ai) |
 | Streamlit-демо (старое) | https://bi-analytics-demo.streamlit.app · локально `:8502` |
 
 ## Архитектура webapp
@@ -86,17 +87,22 @@ FastAPI (:8000)
 | **CloudPub** | публичный HTTPS-туннель на VPS |
 | **VPS (Linux)** | рантайм Docker |
 
-Секреты Actions: `WEBAPP_VPS_HOST`, `WEBAPP_VPS_PORT`, `WEBAPP_VPS_USER`, `WEBAPP_VPS_PASSWORD` / `WEBAPP_VPS_SSH_KEY`, `WEBAPP_VPS_PATH`.
+Секреты Actions (dev/cloudpub): `WEBAPP_VPS_*`.
 
-Ежедневные данные (режим `ftp`): workflow `.github/workflows/ftp-daily-ingest.yml`
-(`FTP daily ingest`, cron `0 8 * * *` UTC ≈ 11:00 МСК, после client/main ingest) →
-SSH → `webapp/scripts/ftp_daily_ingest.sh` → `run_ftp_then_db_ingest` в контейнере api.
-Ручной запуск: Actions → FTP daily ingest → Run workflow.
+**Prod ai.conall.ru** (только вручную):
+- Workflow `deploy-ai-conall-prod.yml` (`workflow_dispatch`) → iivm `~/apps/bi-analytics-webapp-prod`, edge `:3081`
+- Секреты: `PROD_VPS_HOST/USER/PASSWORD|SSH_KEY/PORT/PATH` (порт SSH обычно `2275`, user `iiuser`)
+- FTP daily: `ftp-daily-ingest-prod.yml` → `ftp_daily_ingest_prod.sh` (+ sync БД в `opencode_only/workspace`)
+- nginx на dash-ai-01: `location /` → `http://10.35.15.75:3081` (OpenCode locations без изменений)
 
-### Что остаётся на Streamlit (пока)
+Ежедневные данные cloudpub (режим `ftp`): workflow `.github/workflows/ftp-daily-ingest.yml`
+(`FTP daily ingest`, cron `0 8 * * *` UTC ≈ 11:00 МСК) →
+SSH → `webapp/scripts/ftp_daily_ingest.sh`.
 
-- Основной клиентский дашборд: **Streamlit + Plotly + pandas + SQLite** (`bi-analytics`, ai.conall.ru)
-- Showcase Streamlit: тот же стек, порт **8502**, данные только synthetic
+### Что остаётся на Streamlit
+
+- Демо/клиент на Streamlit Cloud: `bi-analytics-dev` / `bi-analytics-client` / showcase demo
+- VPS Streamlit на ai.conall.ru **снят** (юнит можно оставить для аварийного `workflow_dispatch`)
 
 ## Локальный запуск (с FTP)
 
