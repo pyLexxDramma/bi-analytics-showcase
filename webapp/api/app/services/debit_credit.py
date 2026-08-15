@@ -13,6 +13,7 @@ from app.services.core_bridge import (
     load_version_df,
     prepare_web_db,
 )
+from app.services.project_scope import applied_project_label, resolve_selected_projects
 
 _KS2_ARTICLES = {
     "поступление товаров и услуг",
@@ -448,8 +449,10 @@ def build_debit_credit_payload(
         contract_nos.append(text)
     contract_nos.sort(key=str.casefold)
     view = frame.copy()
-    if project and project != "Все":
-        view = view[view.project.eq(project)]
+    selected_projects = resolve_selected_projects(project, projects)
+    applied_project = applied_project_label(selected_projects)
+    if selected_projects:
+        view = view[view.project.isin(selected_projects)]
     if contractor and contractor != "Все":
         view = view[view.contractor.eq(contractor)]
     if contract_q:
@@ -472,7 +475,7 @@ def build_debit_credit_payload(
     # → агрегация только по типу суммы. Но «С группировкой» остаётся
     # прежним режимом стека по подрядчику.
     all_open = (
-        (not project or project == "Все")
+        (not selected_projects)
         and (not contractor or contractor == "Все")
         and not (contract_q and str(contract_q).strip())
     )
@@ -629,7 +632,7 @@ def build_debit_credit_payload(
                 else None
             ),
             "applied": {
-                "project": project or "Все",
+                "project": applied_project,
                 "contractor": contractor or "Все",
                 "contract_q": contract_q or "",
                 "date_from": date_from.isoformat() if date_from else None,

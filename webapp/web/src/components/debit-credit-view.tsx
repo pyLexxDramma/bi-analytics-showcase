@@ -16,6 +16,7 @@ import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
 import {
   ContractNoSuggest,
   FilterField,
+  FilterChipMulti,
   FilterChipSelect,
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
@@ -27,7 +28,7 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
-  project: string;
+  projects: string[];
   contractor: string;
   contract_q: string;
   date_from: string;
@@ -36,7 +37,7 @@ type Filters = {
 };
 
 const initial: Filters = {
-  project: "Все",
+  projects: [],
   contractor: "Все",
   contract_q: "",
   date_from: "",
@@ -128,7 +129,7 @@ export function DebitCreditView() {
     setError(null);
     try {
       const payload = await fetchDebitCredit({
-        project: next.project !== "Все" ? next.project : undefined,
+        projects: next.projects,
         contractor: next.contractor !== "Все" ? next.contractor : undefined,
         contract_q: next.contract_q || undefined,
         date_from: next.date_from || undefined,
@@ -218,7 +219,7 @@ export function DebitCreditView() {
     filters,
     initial,
     [
-      { key: "project", name: "Проект" },
+      { key: "projects", name: "Проект" },
       { key: "contractor", name: "Подрядчик" },
       { key: "contract_q", name: "№ договора" },
       { key: "date_from", name: "С", kind: "date" },
@@ -241,7 +242,7 @@ export function DebitCreditView() {
       >
         <FiltersReset onClick={() => setFilters(initial)} />
         <FilterFieldsRow cols={5}>
-          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />
+          <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
           <FilterChipSelect label="Подрядчик" value={filters.contractor} options={data?.filters.contractors ?? ["Все"]} onChange={(contractor) => setFilters((s) => ({ ...s, contractor }))} />
           <FilterField label="№ договора (частичный поиск)">
             <ContractNoSuggest

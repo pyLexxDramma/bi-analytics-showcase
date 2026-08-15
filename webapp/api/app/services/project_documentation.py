@@ -11,6 +11,7 @@ import pandas as pd
 from app.config import DATA_MODE, WEB_DB_PATH
 from app.services.core_bridge import import_dashboard_module, load_msp_frame, prepare_web_db
 from app.services.db_ingest import db_status
+from app.services.project_scope import applied_project_label, resolve_selected_projects
 from app.services.report_cache import cache_get, cache_set
 
 _BLANK = frozenset({"", "nan", "none", "null", "<na>", "-", "—", "нд", "nd", "nat"})
@@ -836,7 +837,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v11-pd-gantt-arrow|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v12-pd-gantt-arrow|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -893,12 +894,13 @@ def build_project_documentation_payload(
         available_projects = ["Все"]
         if proj_col and proj_col in work.columns:
             available_projects += labels_mod.project_labels_for_filter(work[proj_col])
-        applied_project = project if project in available_projects else "Все"
+        selected_projects = resolve_selected_projects(project, available_projects)
+        applied_project = applied_project_label(selected_projects)
 
         scoped = work
-        if applied_project != "Все" and proj_col and proj_col in scoped.columns:
+        if selected_projects and proj_col and proj_col in scoped.columns:
             scoped = labels_mod.filter_dataframe_by_project_labels(
-                scoped, [applied_project], col=proj_col
+                scoped, selected_projects, col=proj_col
             )
 
         masks = _section_masks(scoped)
@@ -1168,7 +1170,7 @@ def build_project_documentation_payload(
                         lbl = _clean(row.get(cipher_col))
                     if not lbl and name_col:
                         lbl = _clean(row.get(name_col))
-                    if proj_col and applied_project == "Все":
+                    if proj_col and len(selected_projects) != 1:
                         # При «Все»/нескольких — «Проект | раздел»; при одном проекте — только шифр/раздел.
                         lbl = f"{_clean(row.get(proj_col))} | {lbl or '—'}"
                     elif not lbl:

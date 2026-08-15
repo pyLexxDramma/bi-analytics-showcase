@@ -17,6 +17,7 @@ from app.services.core_bridge import (
     prepare_web_db,
 )
 from app.services.db_ingest import db_status
+from app.services.project_scope import applied_project_label, resolve_selected_projects
 from app.services.report_cache import cache_get, cache_set
 
 GANTT_CAP = 600
@@ -546,7 +547,7 @@ def build_project_schedule_payload(
     label_pct: bool = False,
 ) -> dict[str, Any]:
     cache_key = (
-        f"v5|p={project or 'Все'}|l={level}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v6|p={project or 'Все'}|l={level}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|hc={int(hide_completed)}|od={int(only_delay)}|sr={int(show_reasons)}"
         f"|sl={int(show_lots)}|lp={int(label_pct)}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -612,10 +613,12 @@ def build_project_schedule_payload(
         available_projects = ["Все"]
         if proj_col:
             available_projects += labels_mod.project_labels_for_filter(plot_df[proj_col])
-        applied_project = project if project in available_projects else "Все"
-        if applied_project != "Все" and proj_col:
+        selected_projects = resolve_selected_projects(project, available_projects)
+        applied_project = applied_project_label(selected_projects)
+        multi_project = len(selected_projects) != 1
+        if selected_projects and proj_col:
             plot_df = labels_mod.filter_dataframe_by_project_labels(
-                plot_df, [applied_project], col=proj_col
+                plot_df, selected_projects, col=proj_col
             )
 
         after_project = plot_df.copy()
@@ -735,7 +738,7 @@ def build_project_schedule_payload(
                 "hide_completed": hide_completed,
                 "only_delay": only_delay,
                 "level_skipped": level_skipped,
-                "multi_project": applied_project == "Все",
+                "multi_project": multi_project,
                 "covenant_mode": bool(covenant),
             }
             cache_set("project-schedule", cache_key, payload)
@@ -743,7 +746,7 @@ def build_project_schedule_payload(
 
         sort_cols: list[str] = []
         sort_asc: list[bool] = []
-        if applied_project == "Все" and proj_col and proj_col in plot_df.columns:
+        if multi_project and proj_col and proj_col in plot_df.columns:
             sort_cols.append(proj_col)
             sort_asc.append(True)
         if level_col and level_col in plot_df.columns and not show_lots:
@@ -776,7 +779,6 @@ def build_project_schedule_payload(
         total_rows = len(table_df)
         gantt_df = table_df.head(GANTT_CAP)
         capped = total_rows > GANTT_CAP
-        multi_project = applied_project == "Все"
         banner = None
         if multi_project and proj_col:
             banner = (

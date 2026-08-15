@@ -9,7 +9,7 @@ import {
   PLAN_FACT_DEVIATION_CATEGORIES,
   withRuPlanFactDeviation,
 } from "@/lib/chart-ru";
-import { FilterChipSelect } from "@/components/dashboard-filters";
+import { FilterChipMulti, FilterChipSelect } from "@/components/dashboard-filters";
 import {
   MobileCardStack,
   MobileEntityCard,
@@ -17,11 +17,16 @@ import {
 } from "@/components/mobile-entity-card";
 
 type Filters = {
-  project: string;
+  projects: string[];
   date_from: string;
   date_to: string;
   view: "monthly" | "cumulative";
 };
+
+function joinMulti(values: string[], allToken = "Все"): string | undefined {
+  if (!values.length || (values.length === 1 && values[0] === allToken)) return undefined;
+  return values.filter((v) => v !== allToken).join("|") || undefined;
+}
 
 const tableCell =
   "px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong";
@@ -38,7 +43,7 @@ export function FinancePeriodView({
   ) => Promise<FinancePeriodPayload>;
 }) {
   const [filters, setFilters] = useState<Filters>({
-    project: "Все",
+    projects: [],
     date_from: "",
     date_to: "",
     view: "monthly",
@@ -52,7 +57,14 @@ export function FinancePeriodView({
       setLoading(true);
       setError(null);
       try {
-        setData(await fetchPayload(nextFilters));
+        setData(
+          await fetchPayload({
+            project: joinMulti(nextFilters.projects),
+            date_from: nextFilters.date_from || undefined,
+            date_to: nextFilters.date_to || undefined,
+            view: nextFilters.view,
+          }),
+        );
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
         setData(null);
@@ -79,7 +91,12 @@ export function FinancePeriodView({
     <AppShell title={title} subtitle={subtitle} loading={loading}>
       <Card className="mb-6 rounded-xl">
         <div className="grid gap-3 md:grid-cols-4">
-          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((state) => ({ ...state, project }))} />
+          <FilterChipMulti
+            label="Проект"
+            values={filters.projects}
+            options={data?.filters.projects ?? []}
+            onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
+          />
           <label className="block text-sm">
             <Text>Дата с</Text>
             <input

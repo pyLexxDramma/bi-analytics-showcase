@@ -15,6 +15,7 @@ from app.services.core_bridge import (
     prepare_web_db,
     session_state,
 )
+from app.services.project_scope import applied_project_label, resolve_selected_projects
 
 GRANULARITIES = {
     "day": ("День", "D"),
@@ -295,8 +296,18 @@ def build_executive_docs_payload(
 
         catalog = renderer._EXEC_DOC_KINDS_DEFAULT.copy()
         view = work.copy()
-        if project and project != "Все":
-            view = view[view[obj].astype(str).str.strip().eq(project)]
+        projects_opts = sorted(
+            {
+                str(v).strip()
+                for v in (work[obj].tolist() if obj else [])
+                if str(v).strip() and str(v).strip().casefold() not in {"nan", "none", ""}
+            },
+            key=str.casefold,
+        ) if obj else []
+        selected_projects = resolve_selected_projects(project, ["Все", *projects_opts])
+        applied_project = applied_project_label(selected_projects)
+        if selected_projects and obj:
+            view = view[view[obj].astype(str).str.strip().isin(selected_projects)]
         if contractor and contractor != "Все" and contr:
             view = view[view[contr].astype(str).str.strip().eq(contractor)]
         if doc_kind and doc_kind != "Все":
@@ -472,7 +483,7 @@ def build_executive_docs_payload(
                     for key, (label, _) in GRANULARITIES.items()
                 ],
                 "applied": {
-                    "project": project or "Все",
+                    "project": applied_project,
                     "contractor": contractor or "Все",
                     "doc_kind": doc_kind or "Все",
                     "date_from": date_from.isoformat() if date_from else None,

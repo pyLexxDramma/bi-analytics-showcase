@@ -12,6 +12,7 @@ import pandas as pd
 from app.config import DATA_MODE, WEB_DB_PATH
 from app.services.core_bridge import import_dashboard_module, load_msp_frame, prepare_web_db
 from app.services.db_ingest import db_status
+from app.services.project_scope import applied_project_label, resolve_selected_projects
 from app.services.report_cache import cache_get, cache_set
 
 CHART_CAP = 400
@@ -614,7 +615,7 @@ def build_baseline_deviation_payload(
     label_mode: str | None = "name",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v4|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v5|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
@@ -697,12 +698,13 @@ def build_baseline_deviation_payload(
         available_projects = ["Все"]
         if "project name" in work.columns:
             available_projects += labels_mod.project_labels_for_filter(work["project name"])
-        applied_project = project if project in available_projects else "Все"
+        selected_projects = resolve_selected_projects(project, available_projects)
+        applied_project = applied_project_label(selected_projects)
 
         scoped = work
-        if applied_project != "Все" and "project name" in scoped.columns:
+        if selected_projects and "project name" in scoped.columns:
             scoped = labels_mod.filter_dataframe_by_project_labels(
-                scoped, [applied_project], col="project name"
+                scoped, selected_projects, col="project name"
             )
 
         available_blocks = ["Все"] + _block_values(scoped, block_col)
@@ -717,14 +719,14 @@ def build_baseline_deviation_payload(
             or (applied_block != "Все" and _is_covenant_text(applied_block))
         )
         after_block = scoped.copy()
-        bld_source = work if (covenant_block and applied_project == "Все") else (
-            work if (covenant_block and applied_project != "Все") else after_block
+        bld_source = work if (covenant_block and not selected_projects) else (
+            work if (covenant_block and selected_projects) else after_block
         )
-        if covenant_block and applied_project != "Все" and "project name" in work.columns:
+        if covenant_block and selected_projects and "project name" in work.columns:
             bld_source = labels_mod.filter_dataframe_by_project_labels(
-                work, [applied_project], col="project name"
+                work, selected_projects, col="project name"
             )
-        elif covenant_block and applied_project == "Все":
+        elif covenant_block and not selected_projects:
             bld_source = work
 
         available_buildings = ["Все"] + _building_values(bld_source, level_col, task_col)
@@ -826,11 +828,12 @@ def build_baseline_deviation_payload(
         # KPI plates
         plates: list[dict[str, Any]] = []
         max_abs_global = 0
+        multi_project = len(selected_projects) != 1
         plate_projects: list[str]
-        if applied_project == "Все" and "project name" in zos_scope.columns:
+        if multi_project and "project name" in zos_scope.columns:
             plate_projects = labels_mod.project_labels_for_filter(zos_scope["project name"])
         else:
-            plate_projects = [applied_project] if applied_project != "Все" else []
+            plate_projects = list(selected_projects)
 
         def _plate_for(scope: pd.DataFrame, pname: str | None) -> dict[str, Any]:
             nonlocal max_abs_global
@@ -865,14 +868,19 @@ def build_baseline_deviation_payload(
                 "task": _clean(zrow.get(task_col)) if zrow is not None else None,
             }
 
-        if applied_project == "Все" and plate_projects:
+        if multi_project and plate_projects:
             for pn in plate_projects:
                 sub = labels_mod.filter_dataframe_by_project_labels(
                     zos_scope, [pn], col="project name"
                 ) if "project name" in zos_scope.columns else zos_scope
                 plates.append(_plate_for(sub, pn))
         else:
-            plates.append(_plate_for(zos_scope, None if applied_project == "Все" else applied_project))
+            plates.append(
+                _plate_for(
+                    zos_scope,
+                    selected_projects[0] if selected_projects else None,
+                )
+            )
 
         mode = "covenant" if covenant_block else ("reasons" if show_reasons else "dates")
 
@@ -943,7 +951,7 @@ def build_baseline_deviation_payload(
                 if "project name" in chart_source.columns
                 else ""
             )
-            if applied_project != "Все":
+            if not multi_project:
                 label = task
             else:
                 label = f"{task} ({pname})" if pname else task
@@ -999,7 +1007,7 @@ def build_baseline_deviation_payload(
         if covenant_block:
             cov_cols = (
                 ["Проект", "Задача", "ID задачи", "Базовое окончание", "Окончание", "Отклонение окончания (дней)"]
-                if applied_project == "Все"
+                if multi_project
                 else ["Задача", "ID задачи", "Базовое окончание", "Окончание", "Отклонение окончания (дней)"]
             )
             cov_rows: list[dict[str, Any]] = []
@@ -1033,7 +1041,7 @@ def build_baseline_deviation_payload(
                     "dev_end_days": ped_n,
                     "dev_end": _fmt_int_days(ped_n),
                 }
-                if applied_project == "Все":
+                if multi_project:
                     item["project"] = _clean(crow.get("project name")) if "project name" in cov_src.columns else ""
                 cov_rows.append(item)
             covenant_table = {"columns": cov_cols, "rows": cov_rows}
@@ -1104,7 +1112,7 @@ def build_baseline_deviation_payload(
                 )
         else:
             columns = []
-            if applied_project == "Все":
+            if multi_project:
                 columns.append("Проект")
             columns.extend(
                 [

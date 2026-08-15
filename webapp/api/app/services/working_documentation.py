@@ -847,6 +847,8 @@ def build_working_documentation_payload(
     tab_id = "delay" if str(tab or "").casefold() == "delay" else "main"
 
     sel_projects = _parse_multi(project)
+    if project is not None and str(project).strip() in ("__no_access__", "__none__"):
+        sel_projects = ["__no_access__"]
     sel_sections = _parse_multi(section)
     sel_statuses = _parse_multi(status, all_token="")
 
@@ -919,6 +921,10 @@ def build_working_documentation_payload(
 
         applied_projects = sel_projects
         if applied_projects:
+            if applied_projects == ["__no_access__"]:
+                out = _empty_payload(error="Нет доступных проектов")
+                out["filters"]["projects"] = projects
+                return out
             applied_projects = [p for p in applied_projects if p in projects]
             if not applied_projects:
                 applied_projects = None

@@ -24,6 +24,7 @@ import {
 import { ProjectScheduleGantt } from "@/components/project-schedule-gantt";
 import {
   FilterCheck,
+  FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
   FilterFieldsRow,
@@ -35,7 +36,7 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
-  project: "Все",
+  projects: [] as string[],
   block: "Все",
   building: "Все",
   level: "Верхний уровень",
@@ -212,7 +213,7 @@ export function ProjectScheduleView() {
     try {
       setData(
         await fetchProjectSchedule({
-          project: filters.project,
+          projects: filters.projects,
           level: filters.level,
           block: filters.block,
           building: filters.building,
@@ -247,7 +248,7 @@ export function ProjectScheduleView() {
   const showLots = data?.filters.applied.show_lots ?? filters.showLots;
   const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
   const multiProject = Boolean(
-    data?.filters.applied.multi_project ?? filters.project === "Все",
+    data?.filters.applied.multi_project ?? filters.projects.length !== 1,
   );
 
   const columnLabels = useMemo(() => {
@@ -288,9 +289,9 @@ export function ProjectScheduleView() {
     INITIAL,
     [
       {
-        key: "project",
+        key: "projects",
         name: "Проект",
-        clear: { project: "Все", building: "Все" },
+        clear: { projects: [], building: "Все" },
       },
       {
         key: "block",
@@ -318,7 +319,7 @@ export function ProjectScheduleView() {
       >
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
-          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, building: "Все" }))} />
+          <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((prev) => ({ ...prev, projects, building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
           <FilterChipSelect label="Строение" value={filters.building} options={data?.filters.buildings ?? ["Все"]} onChange={(building) => setFilters((prev) => ({ ...prev, building }))} />
           <FilterChipSelect label="Уровень отображения задач" value={filters.level} options={(data?.filters.levels ?? [{ id: "Верхний уровень", label: "Верхний уровень" }, { id: "Детальный уровень", label: "Детальный уровень" }]).map((item) => ({ value: item.id, label: item.label }))} disabled={Boolean(data?.filters.applied.level_skipped) || filters.showReasons || filters.showLots} onChange={(level) => setFilters((prev) => ({ ...prev, level }))} />

@@ -429,10 +429,25 @@ export type DebitCreditPayload = {
   };
 };
 
+export type DebitCreditQuery = {
+  project?: string;
+  projects?: string[];
+  contractor?: string;
+  contract_q?: string;
+  date_from?: string;
+  date_to?: string;
+  display_view?: string;
+};
+
 export async function fetchDebitCredit(
-  params: QueryParams = {},
+  query: DebitCreditQuery = {},
 ): Promise<DebitCreditPayload> {
-  return apiGet<DebitCreditPayload>("/api/debit-credit", params);
+  const { project: _legacy, projects, ...rest } = query;
+  return apiGet<DebitCreditPayload>("/api/debit-credit", {
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    project: !projects?.length && _legacy ? _legacy : undefined,
+  });
 }
 
 /** Упрощённый финансовый payload (`services/finance_period.py`) — БДР до фазы 2.3. */
@@ -820,6 +835,7 @@ export type BddsPlanFactEditBody = {
 
 export type BddsPlanFactQuery = {
   project?: string;
+  projects?: string[];
   date_from?: string;
   date_to?: string;
   group?: "month" | "quarter" | "year";
@@ -833,15 +849,14 @@ export async function fetchBddsPlanFact(
   query: BddsPlanFactQuery = {},
   signal?: AbortSignal,
 ): Promise<BddsPlanFactPayload> {
-  const params: QueryParams = {};
-  if (query.project) params.project = query.project;
-  if (query.date_from) params.date_from = query.date_from;
-  if (query.date_to) params.date_to = query.date_to;
-  if (query.group) params.group = query.group;
-  if (query.view) params.view = query.view;
-  if (query.dev_base) params.dev_base = query.dev_base;
-  if (query.hide_deviation) params.hide_deviation = true;
-  if (query.hide_zero !== undefined) params.hide_zero = query.hide_zero;
+  const { project: _legacy, projects, hide_deviation, hide_zero, ...rest } = query;
+  const params: QueryParams = {
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    project: !projects?.length && _legacy ? _legacy : undefined,
+  };
+  if (hide_deviation) params.hide_deviation = true;
+  if (hide_zero !== undefined) params.hide_zero = hide_zero;
   return apiGet<BddsPlanFactPayload>("/api/bdds-plan-fact", params, {
     headers: authHeaders(),
     signal,
@@ -1104,6 +1119,7 @@ export type ProjectSchedulePayload = {
 
 export type ProjectScheduleQuery = {
   project?: string;
+  projects?: string[];
   level?: string;
   block?: string;
   building?: string;
@@ -1117,7 +1133,13 @@ export type ProjectScheduleQuery = {
 export async function fetchProjectSchedule(
   query: ProjectScheduleQuery = {},
 ): Promise<ProjectSchedulePayload> {
-  return apiGet<ProjectSchedulePayload>("/api/project-schedule", { ...query });
+  const { project: _legacy, projects, ...rest } = query;
+  return apiGet<ProjectSchedulePayload>("/api/project-schedule", {
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    // fallback for callers still passing a single project string
+    project: !projects?.length && _legacy ? _legacy : undefined,
+  });
 }
 
 export type DeviationReasonsPayload = {
@@ -1208,6 +1230,7 @@ export type DeviationReasonsPayload = {
 
 export type DeviationReasonsQuery = {
   project?: string;
+  projects?: string[];
   block?: string;
   building?: string;
   reason?: string;
@@ -1219,13 +1242,11 @@ export type DeviationReasonsQuery = {
 export async function fetchDeviationReasons(
   query: DeviationReasonsQuery = {},
 ): Promise<DeviationReasonsPayload> {
-  const params: Record<string, string | undefined> = {
-    project: query.project,
-    block: query.block,
-    building: query.building,
-    reason: query.reason,
-    date_from: query.date_from,
-    date_to: query.date_to,
+  const { project: _legacy, projects, ...rest } = query;
+  const params: QueryParams = {
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    project: !projects?.length && _legacy ? _legacy : undefined,
   };
   if (query.top5 !== undefined) {
     params.top5 = String(query.top5);
@@ -1345,6 +1366,7 @@ export type BaselineDeviationPayload = {
 
 export type BaselineDeviationQuery = {
   project?: string;
+  projects?: string[];
   block?: string;
   building?: string;
   level?: string;
@@ -1360,13 +1382,11 @@ export type BaselineDeviationQuery = {
 export async function fetchBaselineDeviation(
   query: BaselineDeviationQuery = {},
 ): Promise<BaselineDeviationPayload> {
-  const params: Record<string, string | undefined> = {
-    project: query.project,
-    block: query.block,
-    building: query.building,
-    level: query.level,
-    reason: query.reason,
-    label_mode: query.label_mode,
+  const { project: _legacy, projects, ...rest } = query;
+  const params: QueryParams = {
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    project: !projects?.length && _legacy ? _legacy : undefined,
   };
   if (query.show_reasons !== undefined) params.show_reasons = String(query.show_reasons);
   if (query.hide_completed !== undefined) {
@@ -1507,6 +1527,7 @@ export type ProjectDocumentationPayload = {
 
 export type ProjectDocumentationQuery = {
   project?: string;
+  projects?: string[];
   section?: string;
   period?: string;
   granularity?: string;
@@ -1518,8 +1539,11 @@ export type ProjectDocumentationQuery = {
 export async function fetchProjectDocumentation(
   query: ProjectDocumentationQuery = {},
 ): Promise<ProjectDocumentationPayload> {
+  const { project: _legacy, projects, ...rest } = query;
   return apiGet<ProjectDocumentationPayload>("/api/project-documentation", {
-    ...query,
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    project: !projects?.length && _legacy ? _legacy : undefined,
   });
 }
 
@@ -1626,6 +1650,7 @@ export type WorkingDocumentationPayload = {
 
 export type WorkingDocumentationQuery = {
   project?: string;
+  projects?: string[];
   section?: string;
   status?: string;
   period_mode?: string;
@@ -1640,8 +1665,11 @@ export type WorkingDocumentationQuery = {
 export async function fetchWorkingDocumentation(
   query: WorkingDocumentationQuery = {},
 ): Promise<WorkingDocumentationPayload> {
+  const { project: _legacy, projects, ...rest } = query;
   return apiGet<WorkingDocumentationPayload>("/api/working-documentation", {
-    ...query,
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    project: !projects?.length && _legacy ? _legacy : undefined,
   });
 }
 
@@ -1946,10 +1974,26 @@ export type ExecutiveDocsPayload = {
   }>;
 };
 
+export type ExecutiveDocsQuery = {
+  project?: string;
+  projects?: string[];
+  contractor?: string;
+  doc_kind?: string;
+  date_from?: string;
+  date_to?: string;
+  granularity?: string;
+  hide_overdue_if_signed?: string | boolean;
+};
+
 export async function fetchExecutiveDocs(
-  params: QueryParams = {},
+  query: ExecutiveDocsQuery = {},
 ): Promise<ExecutiveDocsPayload> {
-  return apiGet<ExecutiveDocsPayload>("/api/executive-docs", params);
+  const { project: _legacy, projects, ...rest } = query;
+  return apiGet<ExecutiveDocsPayload>("/api/executive-docs", {
+    ...rest,
+    projects: projects?.length ? projects : undefined,
+    project: !projects?.length && _legacy ? _legacy : undefined,
+  });
 }
 
 export type AdminDbStatus = {

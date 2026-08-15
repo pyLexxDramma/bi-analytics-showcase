@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import {
+  FilterChipMulti,
   FilterChipSelect,
   FilterField,
   FilterFieldsRow,
@@ -52,7 +53,7 @@ type TabId = "main" | "delay";
 type SortState = { key: string; asc: boolean } | null;
 
 const INITIAL = {
-  project: "Все",
+  projects: [] as string[],
   section: "Все",
   period: "Все месяцы",
   granularity: "week",
@@ -155,7 +156,7 @@ function ProjectDocumentationScreen({
     setError(null);
     try {
       const payload = await fetchPayload({
-        project: filters.project,
+        projects: filters.projects,
         section: filters.section,
         period: filters.period === "Все месяцы" ? undefined : filters.period,
         granularity: filters.granularity,
@@ -207,7 +208,7 @@ function ProjectDocumentationScreen({
     filters,
     { ...INITIAL, reportDate: appliedReportDate },
     [
-      { key: "project", name: "Проект", clear: { project: "Все", section: "Все" } },
+      { key: "projects", name: "Проект", clear: { projects: [], section: "Все" } },
       { key: "period", name: "Период" },
       { key: "section", name: "Вид раздела" },
       { key: "viewMode", name: "Отображение", label: viewModeLabel },
@@ -373,13 +374,13 @@ function ProjectDocumentationScreen({
         <FiltersReset onClick={resetFilters} />
         {tab === "main" ? (
           <FilterFieldsRow cols={3}>
-            <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((f) => ({ ...f, project, section: "Все" }))} />
+            <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects, section: "Все" }))} />
             <FilterChipSelect label="Период" value={filters.period} options={["Все месяцы", ...(data?.filters.periods ?? [])]} onChange={(period) => setFilters((f) => ({ ...f, period }))} />
             <FilterChipSelect label="Вид раздела" value={filters.section} options={data?.filters.sections ?? ["Все"]} onChange={(section) => setFilters((f) => ({ ...f, section }))} />
           </FilterFieldsRow>
         ) : (
           <FilterFieldsRow cols={5}>
-            <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((f) => ({ ...f, project, section: "Все" }))} />
+            <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects, section: "Все" }))} />
             <FilterChipSelect label="Отображение" value={filters.viewMode} options={(data?.filters.view_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(viewMode) => setFilters((f) => ({ ...f, viewMode }))} />
             <FilterChipSelect label="Вид раздела" value={filters.section} options={data?.filters.sections ?? ["Все"]} onChange={(section) => setFilters((f) => ({ ...f, section }))} />
             <FilterField label="Статус">
@@ -699,7 +700,7 @@ function ProjectDocumentationScreen({
                     rangeStart={data?.delay.gantt.range_start ?? null}
                     rangeEnd={data?.delay.gantt.range_end ?? null}
                     fullscreen={zoomed}
-                    hideProjectPrefix={isSingleProjectSelection(filters.project)}
+                    hideProjectPrefix={isSingleProjectSelection(filters.projects)}
                   />
                 </div>
               </Card>

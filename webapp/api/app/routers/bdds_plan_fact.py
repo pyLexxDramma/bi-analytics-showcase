@@ -5,7 +5,11 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Depends
 from app.services.auth_context import require_report_access
-from app.services.project_scope import clamp_project_pipe, clamp_projects_list
+from app.services.project_scope import (
+    allowed_projects_for_user,
+    clamp_projects_list,
+    parse_project_pipe,
+)
 from pydantic import BaseModel, Field
 
 from app.services.auth_context import optional_active_user, require_finance_editor
@@ -55,7 +59,8 @@ def _username(authorization: str | None) -> str | None:
 @router.get("")
 def bdds_plan_fact_report(
     user: dict = Depends(require_report_access("bdds-plan-fact")),
-    project: Optional[str] = Query(None),
+    project: Optional[str] = Query(None, description="Legacy: один проект или A|B"),
+    projects: Optional[list[str]] = Query(None, description="Multiselect; пусто = все"),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
     group: str = Query("month", pattern="^(month|quarter|year)$"),
@@ -66,14 +71,17 @@ def bdds_plan_fact_report(
     lot_recalc_period: Optional[str] = Query(None),
     authorization: str | None = Header(default=None),
 ):
-    if project and str(project).strip() and str(project).strip() != "Все":
-        scoped = clamp_projects_list(user, [str(project).strip()])
-        project = scoped[0] if scoped else "__no_access__"
+    selected = [item for item in (projects or []) if item and item.strip() and item.strip() != "Все"]
+    if not selected and project and project.strip() and project.strip() != "Все":
+        selected = parse_project_pipe(project) or [project.strip()]
+    selected = clamp_projects_list(user, selected)
+    allowed = allowed_projects_for_user(user)
+    if allowed is not None and not selected and not allowed:
+        project_arg = "__no_access__"
     else:
-        scoped = clamp_projects_list(user, [])
-        project = "|".join(scoped) if scoped else project
+        project_arg = "|".join(selected) if selected else None
     return build_bdds_plan_fact_payload(
-        project=project,
+        project=project_arg,
         date_from=date_from,
         date_to=date_to,
         group=group,

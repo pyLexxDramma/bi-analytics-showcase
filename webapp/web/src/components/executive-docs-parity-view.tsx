@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import {
   FilterCheck,
+  FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
   FilterField,
@@ -39,7 +40,7 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type Filters = {
-  project: string;
+  projects: string[];
   contractor: string;
   doc_kind: string;
   date_from: string;
@@ -49,7 +50,7 @@ type Filters = {
 };
 
 const INITIAL: Filters = {
-  project: "Все",
+  projects: [],
   contractor: "Все",
   doc_kind: "Все",
   date_from: "",
@@ -110,7 +111,7 @@ export function ExecutiveDocsParityView() {
     try {
       setData(
         await fetchExecutiveDocs({
-          project: next.project !== "Все" ? next.project : undefined,
+          projects: next.projects,
           contractor: next.contractor !== "Все" ? next.contractor : undefined,
           doc_kind: next.doc_kind !== "Все" ? next.doc_kind : undefined,
           date_from: next.date_from || undefined,
@@ -168,7 +169,7 @@ export function ExecutiveDocsParityView() {
       date_to: data?.filters.date_max ?? "",
     },
     [
-      { key: "project", name: "Объект" },
+      { key: "projects", name: "Объект" },
       { key: "contractor", name: "Контрагент" },
       { key: "doc_kind", name: "Вид документа" },
       { key: "date_from", name: "С", kind: "date" },
@@ -230,9 +231,14 @@ export function ExecutiveDocsParityView() {
       >
         <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={5}>
+          <FilterChipMulti
+            label="Проект"
+            values={filters.projects}
+            options={data?.filters.projects ?? []}
+            onChange={(projects) => setFilters((s) => ({ ...s, projects }))}
+          />
           {(
             [
-              ["Проект", "project", data?.filters.projects ?? ["Все"]],
               ["Контрагент", "contractor", data?.filters.contractors ?? ["Все"]],
               ["Вид документа", "doc_kind", data?.filters.doc_kinds ?? ["Все"]],
             ] as const

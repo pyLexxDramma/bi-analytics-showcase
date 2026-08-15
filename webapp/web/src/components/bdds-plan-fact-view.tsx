@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import {
   FilterCheck,
+  FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
   FilterField,
@@ -28,7 +29,7 @@ import { BddsPlanFactEditor } from "@/components/bdds-plan-fact-editor";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
-  project: string;
+  projects: string[];
   date_from: string;
   date_to: string;
   group: "month" | "quarter" | "year";
@@ -39,7 +40,7 @@ type Filters = {
 };
 
 const INITIAL: Filters = {
-  project: "Все",
+  projects: [],
   date_from: "",
   date_to: "",
   group: "month",
@@ -119,11 +120,12 @@ export function BddsPlanFactView() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const singleProject = filters.project !== "Все";
+  const singleProject = filters.projects.length === 1;
+  const editorProject = singleProject ? filters.projects[0] : null;
 
   const editorFilters = useMemo(
     () => ({
-      project: filters.project,
+      project: editorProject ?? undefined,
       date_from: filters.date_from || undefined,
       date_to: filters.date_to || undefined,
       group: filters.group,
@@ -133,7 +135,7 @@ export function BddsPlanFactView() {
       hide_zero: filters.hide_zero,
     }),
     [
-      filters.project,
+      editorProject,
       filters.date_from,
       filters.date_to,
       filters.group,
@@ -159,7 +161,7 @@ export function BddsPlanFactView() {
     setError(null);
     try {
       const query: BddsPlanFactQuery = {
-        project: next.project,
+        projects: next.projects,
         group: next.group,
         view: next.view,
         dev_base: next.dev_base,
@@ -287,7 +289,7 @@ export function BddsPlanFactView() {
     filters,
     INITIAL,
     [
-      { key: "project", name: "Проект" },
+      { key: "projects", name: "Проект" },
       {
         key: "group",
         name: "Группировка",
@@ -323,8 +325,13 @@ export function BddsPlanFactView() {
         onReset={activeFilters.length ? () => setFilters(INITIAL) : undefined}
       >
         <FiltersReset onClick={() => setFilters(INITIAL)} />
-        <FilterFieldsRow cols={5}>
-          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((s) => ({ ...s, project }))} />
+        <FilterChipMulti
+          label="Проект"
+          values={filters.projects}
+          options={data?.filters.projects ?? []}
+          onChange={(projects) => setFilters((s) => ({ ...s, projects }))}
+        />
+        <FilterFieldsRow cols={4}>
           <FilterChipSelect label="Группировать по" value={filters.group} options={(data?.filters.groups ?? [{ id: "month", label: "Месяц" }]).map((item) => ({ value: item.id, label: item.label }))} onChange={(group) => setFilters((s) => ({ ...s, group: group as Filters["group"] }))} />
           <FilterChipSelect label="Представление" value={filters.view} options={(data?.filters.views ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(view) => setFilters((s) => ({ ...s, view: view as Filters["view"] }))} />
           <FilterField label="Дата с">
@@ -387,9 +394,9 @@ export function BddsPlanFactView() {
         </Text>
       </FiltersCard>
 
-      {singleProject ? (
+      {editorProject ? (
         <BddsPlanFactEditor
-          project={filters.project}
+          project={editorProject}
           filters={editorFilters}
           onDataChange={onEditorDataChange}
           onPreviewError={onEditorPreviewError}

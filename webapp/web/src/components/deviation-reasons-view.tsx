@@ -24,6 +24,7 @@ import {
 } from "@/components/deviation-reasons-share-charts";
 import {
   FilterCheck,
+  FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
   FilterField,
@@ -35,13 +36,14 @@ import {
 import {
   filterChip,
   formatDateChip,
+  multiFilterChips,
   type ActiveFilter,
 } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
-  project: "Все",
+  projects: [] as string[],
   block: "Все",
   building: "Все",
   reason: "Все",
@@ -248,7 +250,7 @@ export function DeviationReasonsView() {
     setError(null);
     try {
       const payload = await fetchDeviationReasons({
-        project: filters.project,
+        projects: filters.projects,
         block: filters.block,
         building: filters.building,
         reason: filters.reason,
@@ -291,7 +293,7 @@ export function DeviationReasonsView() {
   );
 
   const dirty =
-    filters.project !== INITIAL.project ||
+    filters.projects.length > 0 ||
     filters.block !== INITIAL.block ||
     filters.building !== INITIAL.building ||
     filters.reason !== INITIAL.reason ||
@@ -409,18 +411,14 @@ export function DeviationReasonsView() {
   const periodMin = data?.filters.period.min ?? "";
   const periodMax = data?.filters.period.max ?? "";
   const activeFilters: ActiveFilter[] = [
-    ...(filters.project !== "Все"
-      ? [
-          filterChip("project", "Проект", filters.project, () =>
-            setFilters((prev) => ({
-              ...prev,
-              project: "Все",
-              block: "Все",
-              building: "Все",
-            })),
-          ),
-        ]
-      : []),
+    ...multiFilterChips("projects", "Проект", filters.projects, (projects) =>
+      setFilters((prev) => ({
+        ...prev,
+        projects,
+        block: "Все",
+        building: "Все",
+      })),
+    ),
     ...(filters.block !== "Все"
       ? [
           filterChip("block", "Блок", filters.block, () =>
@@ -475,7 +473,7 @@ export function DeviationReasonsView() {
       >
         <FiltersReset disabled={!dirty} onClick={resetFilters} />
         <FilterFieldsRow cols={5}>
-          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, block: "Все", building: "Все" }))} />
+          <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((prev) => ({ ...prev, projects, block: "Все", building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
           <FilterChipSelect label="Строение" value={filters.building} options={data?.filters.buildings ?? ["Все"]} onChange={(building) => setFilters((prev) => ({ ...prev, building }))} />
           <FilterField label="Период">
@@ -580,9 +578,9 @@ export function DeviationReasonsView() {
             </div>
           </div>
 
-          {filters.project !== "Все" ? (
+          {filters.projects.length === 1 ? (
             <p className="text-right text-lg font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
-              {filters.project}
+              {filters.projects[0]}
             </p>
           ) : null}
 

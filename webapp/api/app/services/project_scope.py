@@ -27,6 +27,34 @@ def parse_project_pipe(raw: Optional[str]) -> list[str]:
     return [p.strip() for p in str(raw).split("|") if p.strip() and p.strip() != "Все"]
 
 
+def resolve_selected_projects(
+    raw: Optional[str],
+    available: list[Any] | None = None,
+) -> list[str]:
+    """Выбранные проекты. [] = все. Поддерживает «A» и «A|B».
+
+    Sentinel ``__no_access__`` / ``__none__`` → непустой список-заглушка
+    (не совпадёт с реальными лейблами → пустой датафрейм, не «все»).
+    """
+    if raw is not None and str(raw).strip() in ("__no_access__", "__none__"):
+        return ["__no_access__"]
+    selected = parse_project_pipe(raw)
+    if not selected:
+        return []
+    if available is None:
+        return selected
+    allow = {
+        str(p).strip()
+        for p in available
+        if p is not None and str(p).strip() and str(p).strip() != "Все"
+    }
+    return [p for p in selected if p in allow]
+
+
+def applied_project_label(selected: list[str]) -> str:
+    return "|".join(selected) if selected else "Все"
+
+
 def clamp_project_pipe(user: dict, raw: Optional[str]) -> Optional[str]:
     """Для эндпоинтов с project='A|B'. Unrestricted + пусто → None/как было."""
     auth = import_auth()

@@ -10,6 +10,7 @@ import { AppShell } from "@/components/app-shell";
 import { BaselineDeviationChart } from "@/components/baseline-deviation-chart";
 import {
   FilterCheck,
+  FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
   FilterFieldsRow,
@@ -28,7 +29,7 @@ import {
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 const INITIAL = {
-  project: "Все",
+  projects: [] as string[],
   block: "Все",
   building: "Все",
   level: "4",
@@ -245,7 +246,7 @@ export function BaselineDeviationView() {
     try {
       setData(
         await fetchBaselineDeviation({
-          project: filters.project,
+          projects: filters.projects,
           block: filters.block,
           building: filters.building,
           level: filters.level,
@@ -371,9 +372,9 @@ export function BaselineDeviationView() {
     INITIAL,
     [
       {
-        key: "project",
+        key: "projects",
         name: "Проект",
-        clear: { project: "Все", building: "Все" },
+        clear: { projects: [], building: "Все" },
       },
       { key: "block", name: "Блок", clear: { block: "Все", building: "Все" } },
       { key: "building", name: "Строение" },
@@ -399,7 +400,7 @@ export function BaselineDeviationView() {
       >
         <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
-          <FilterChipSelect label="Проект" value={filters.project} options={data?.filters.projects ?? ["Все"]} onChange={(project) => setFilters((prev) => ({ ...prev, project, building: "Все" }))} />
+          <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((prev) => ({ ...prev, projects, building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
           <FilterChipSelect label="Строение" value={filters.building} options={data?.filters.buildings ?? ["Все"]} onChange={(building) => setFilters((prev) => ({ ...prev, building }))} />
           <FilterChipSelect label="Детализация" value={filters.level} options={(data?.filters.levels ?? []).map((item) => ({ value: item.id, label: item.label }))} disabled={Boolean(data?.filters.applied.level_skipped) || filters.showReasons || filters.onlyCovenants} onChange={(level) => setFilters((prev) => ({ ...prev, level }))} />

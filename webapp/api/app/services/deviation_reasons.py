@@ -11,6 +11,7 @@ import pandas as pd
 from app.config import DATA_MODE, WEB_DB_PATH
 from app.services.core_bridge import import_dashboard_module, load_msp_frame, prepare_web_db
 from app.services.db_ingest import db_status
+from app.services.project_scope import applied_project_label, resolve_selected_projects
 from app.services.report_cache import cache_get, cache_set
 
 REASON_BUCKET_ORDER: tuple[str, ...] = (
@@ -450,7 +451,7 @@ def build_deviation_reasons_payload(
     top5: bool = False,
 ) -> dict[str, Any]:
     cache_key = (
-        f"v3|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v4|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|r={reason or 'Все'}|df={date_from or ''}|dt={date_to or ''}"
         f"|t5={int(bool(top5))}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -506,11 +507,12 @@ def build_deviation_reasons_payload(
         if "project name" in work.columns:
             available_projects += labels_mod.project_labels_for_filter(work["project name"])
 
-        applied_project = project if project in available_projects else "Все"
+        selected_projects = resolve_selected_projects(project, available_projects)
+        applied_project = applied_project_label(selected_projects)
         scoped = work
-        if applied_project != "Все" and "project name" in scoped.columns:
+        if selected_projects and "project name" in scoped.columns:
             scoped = labels_mod.filter_dataframe_by_project_labels(
-                scoped, [applied_project], col="project name"
+                scoped, selected_projects, col="project name"
             )
 
         available_blocks = ["Все"] + _block_values(scoped, block_col)

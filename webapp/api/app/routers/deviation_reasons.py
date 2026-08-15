@@ -4,7 +4,11 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Depends
 from app.services.auth_context import require_report_access
-from app.services.project_scope import clamp_project_pipe, clamp_projects_list
+from app.services.project_scope import (
+    allowed_projects_for_user,
+    clamp_projects_list,
+    parse_project_pipe,
+)
 
 from app.services.deviation_reasons import build_deviation_reasons_payload
 
@@ -14,7 +18,8 @@ router = APIRouter(prefix="/api/deviation-reasons", tags=["deviation-reasons"], 
 @router.get("")
 def deviation_reasons_report(
     user: dict = Depends(require_report_access("deviation-reasons")),
-    project: Optional[str] = Query(None, description="Фильтр проекта"),
+    project: Optional[str] = Query(None, description="Legacy: один проект или A|B"),
+    projects: Optional[list[str]] = Query(None, description="Multiselect; пусто = все"),
     block: Optional[str] = Query(None, description="Функциональный блок"),
     building: Optional[str] = Query(None, description="Строение"),
     reason: Optional[str] = Query(None, description="Причина отклонения"),
@@ -22,11 +27,17 @@ def deviation_reasons_report(
     date_to: Optional[str] = Query(None, description="Конец периода (YYYY-MM-DD)"),
     top5: bool = Query(False, description="ТОП 5 причин на диаграммах"),
 ):
-    project = clamp_project_pipe(user, project)
-    if project == "__none__":
-        project = "__no_access__"
+    selected = [item for item in (projects or []) if item and item.strip() and item.strip() != "Все"]
+    if not selected and project and project.strip() and project.strip() != "Все":
+        selected = parse_project_pipe(project) or [project.strip()]
+    selected = clamp_projects_list(user, selected)
+    allowed = allowed_projects_for_user(user)
+    if allowed is not None and not selected and not allowed:
+        project_arg = "__no_access__"
+    else:
+        project_arg = "|".join(selected) if selected else None
     return build_deviation_reasons_payload(
-        project=project,
+        project=project_arg,
         block=block,
         building=building,
         reason=reason,

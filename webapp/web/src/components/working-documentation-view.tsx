@@ -398,7 +398,7 @@ export function WorkingDocumentationView() {
         ? filters.statuses.join("|")
         : undefined;
     const q: WorkingDocumentationQuery = {
-      project: joinMulti(filters.projects),
+      projects: filters.projects,
       section: joinMulti(filters.sections),
       status: statusParam,
       period_mode: filters.periodMode,

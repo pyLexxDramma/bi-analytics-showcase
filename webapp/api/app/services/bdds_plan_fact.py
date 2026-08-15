@@ -18,6 +18,7 @@ from app.services.core_bridge import (
 )
 from app.services.db_ingest import db_status
 from app.services.finance_1c import GROUP_LABELS, GROUPS, VIEW_LABELS, _clamp, main_project_labels
+from app.services.project_scope import resolve_selected_projects
 from app.services.report_cache import cache_get, cache_set
 from app.services.users_bridge import import_auth
 
@@ -707,10 +708,11 @@ def build_bdds_plan_fact_payload(
         )
     df_work = labels_mod.apply_unified_project_column(df_work, project_col)
     project_options = ["Все"] + main_project_labels(df_work[project_col])
+    selected_labels = resolve_selected_projects(selected_project, project_options)
     scope = df_work.copy()
-    if selected_project != "Все":
+    if selected_labels:
         scope = labels_mod.filter_dataframe_by_project_labels(
-            scope, [selected_project], col=project_col
+            scope, selected_labels, col=project_col
         )
 
     cal_start, cal_end, min_all, max_all = _resolve_calendar(
@@ -738,19 +740,20 @@ def build_bdds_plan_fact_payload(
         empty["filters"]["applied"] = applied
         return empty
 
-    many_projects = selected_project == "Все"
+    many_projects = len(selected_labels) != 1
+    single_project = selected_labels[0] if len(selected_labels) == 1 else "Все"
     project_df: pd.DataFrame | None = None
     edit_frame: pd.DataFrame | None = None
     edit_errors: list[str] = []
     if not many_projects:
-        project_df, prep_err = _prepare_single_project_df(filtered_scope, selected_project)
+        project_df, prep_err = _prepare_single_project_df(filtered_scope, single_project)
         if project_df is None or prep_err:
             empty = _empty_payload(applied=applied, error=prep_err)
             empty["filters"]["projects"] = project_options
             empty["meta"]["version_id"] = vid
             return empty
         edit_frame = _build_forecast_edit_frame(project_df, ren)
-        proj_norm = _project_norm(selected_project, ren)
+        proj_norm = _project_norm(single_project, ren)
         effective_rows = edit_rows
         if effective_rows is None and username:
             saved = edit_store.get_saved_rows(username, proj_norm)
@@ -767,7 +770,7 @@ def build_bdds_plan_fact_payload(
     forecast_df, calc_error, project_df, updated_data, row_modes, abc_src = _compute_monthly(
         scope=filtered_scope,
         project_col=project_col,
-        selected_project=selected_project,
+        selected_project=single_project if not many_projects else "Все",
         cal_start=cal_start,
         cal_end=cal_end,
         project_df=project_df,
@@ -782,7 +785,6 @@ def build_bdds_plan_fact_payload(
         empty["meta"]["version_id"] = vid
         return empty
 
-    many_projects = selected_project == "Все"
     if many_projects:
         turn_labels = sorted(
             {
@@ -793,7 +795,7 @@ def build_bdds_plan_fact_payload(
             key=lambda s: str(s).casefold(),
         )
     else:
-        turn_labels = [selected_project]
+        turn_labels = [single_project]
 
     turnover = ren._forecast_turnover_monthly_plan_fact_scope(
         turn_labels, date_from=cal_start, date_to=cal_end
@@ -941,7 +943,7 @@ def build_bdds_plan_fact_payload(
         filtered_scope=filtered_scope,
         project_col=project_col,
         all_projects=many_projects,
-        selected_project_label=None if many_projects else selected_project,
+        selected_project_label=None if many_projects else single_project,
         period_type_en=period_type_en,
         date_from=cal_start,
         date_to=cal_end,
