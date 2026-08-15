@@ -20,13 +20,16 @@ import {
 import { getAdminToken } from "@/lib/admin-token";
 import { loadDataStatus } from "@/lib/data-status-store";
 import {
+  ApiError,
   downloadSnapshotExport,
   fetchAdminJob,
   fetchDataVersions,
   postActivateVersion,
+  postAdminIngest,
   postAdminSync,
   postAskAiLink,
   postEnsureFresh,
+  type AdminSyncResult,
   type DataFreshness,
   type DataVersion,
 } from "@/lib/api";
@@ -279,11 +282,35 @@ export function AppSidebar({
     setSyncBusy(true);
     setSyncNote(null);
     try {
-      const r = await postAdminSync(token || null, false);
+      const status = await loadDataStatus(true);
+      const mode = String(status?.data_mode || "").toLowerCase();
+      // Ручной клик: всегда force FTP; в synthetic/local без FTP — ingest web/→БД.
+      let r: AdminSyncResult;
+      let viaIngest = false;
+      if (mode && mode !== "ftp") {
+        viaIngest = true;
+        setSyncNote(`Режим ${mode}: пересборка БД из web/…`);
+        r = await postAdminIngest(token || null);
+      } else {
+        try {
+          // force=true — иначе FTP может «тихо» ничего не скачать и кажется, что кнопка мёртвая.
+          r = await postAdminSync(token || null, true);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const noFtp =
+            e instanceof ApiError &&
+            (e.status === 400 || /WEBAPP_DATA_MODE|не ftp|synthetic/i.test(msg));
+          if (!noFtp) throw e;
+          viaIngest = true;
+          setSyncNote("FTP недоступен — пересборка БД из web/…");
+          r = await postAdminIngest(token || null);
+        }
+      }
+
       if (r.async && r.job_id) {
         setSyncNote(`job ${r.job_id}: queued`);
         const job = await waitAdminJob(token || null, r.job_id, (s) =>
-          setSyncNote(`Синхронизация… ${s}`),
+          setSyncNote(viaIngest ? `Пересборка БД… ${s}` : `Синхронизация… ${s}`),
         );
         if (job.status !== "ok") {
           const detail =
@@ -292,7 +319,7 @@ export function AppSidebar({
             job.result &&
             Array.isArray((job.result as { errors?: string[] }).errors) &&
             (job.result as { errors: string[] }).errors[0]) ||
-            "Ошибка FTP/БД";
+            (viaIngest ? "Ошибка ingest" : "Ошибка FTP/БД");
           setSyncNote(String(detail));
           return;
         }
@@ -300,21 +327,34 @@ export function AppSidebar({
           typeof job.result === "object" && job.result
             ? (job.result as Record<string, unknown>)
             : {};
+        const vid =
+          result.version_id ??
+          result.active_version_id ??
+          (result.db as { active_version_id?: unknown } | undefined)
+            ?.active_version_id;
         setSyncNote(
-          `OK · файлов ${String(result.files ?? "—")} · активная версия обновлена`,
+          viaIngest
+            ? `OK · БД пересобрана · версия ${String(vid ?? "—")}`
+            : `OK · файлов ${String(result.files ?? "—")} · версия ${String(vid ?? "—")}`,
         );
       } else {
         setSyncNote(
           r.ok
-            ? `OK · файлов ${r.files ?? "—"} · скачано ${r.downloaded ?? 0}`
-            : `Ошибка: ${(r.errors || []).join("; ") || "см. админку"}`,
+            ? viaIngest
+              ? `OK · БД пересобрана · версия ${String(r.version_id ?? r.active_version_id ?? "—")}`
+              : `OK · файлов ${r.files ?? "—"} · скачано ${r.downloaded ?? 0}`
+            : `Ошибка: ${(r.errors || []).join("; ") || r.detail || "см. админку"}`,
         );
+        if (!r.ok) return;
       }
       const st = await loadDataStatus(true);
       setFileCount(st?.files ?? null);
       setFreshness(st?.freshness ?? null);
       await loadVersions();
-      router.refresh();
+      // Client-компоненты дашбордов держат state — refresh App Router мало; полный reload.
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 400);
     } catch (e) {
       setSyncNote(e instanceof Error ? e.message : String(e));
     } finally {

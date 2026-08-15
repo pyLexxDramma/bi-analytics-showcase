@@ -144,7 +144,8 @@ export function FullscreenPanel({
           active
             ? fill
               ? "h-full w-full"
-              : "min-h-0 min-w-0 flex-1 overflow-hidden p-4"
+              : // Таблица короче экрана — по центру по вертикали; высокая — скролл внутри .bi-table-scroll
+                "flex min-h-0 min-w-0 flex-1 flex-col justify-center overflow-hidden p-4"
             : inlineBar
               ? `min-w-0 max-w-full ${scroll ? "overflow-x-auto" : "overflow-x-hidden"}`
               : ""

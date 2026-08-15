@@ -420,7 +420,7 @@ export function DeveloperProjectsView() {
             Матрица контрольных точек
           </Title>
         </div>
-        <FullscreenPanel disabled={!hasRows}>
+        <FullscreenPanel disabled={!hasRows} scroll={false}>
           <div className="p-1 pt-3 lg:pt-1">
             {!hasRows ? (
               <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">

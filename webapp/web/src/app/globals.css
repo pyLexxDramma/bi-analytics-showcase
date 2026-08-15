@@ -398,7 +398,9 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   }
 
   /* Fullscreen: скролл остаётся на .bi-table-scroll (не на хосте), иначе
-     sticky left (Проект/Подрядчик/Договор) и sticky head не работают. */
+     sticky left (Проект/Подрядчик/Договор) и sticky head не работают.
+     Не задаём фиксированную height — иначе короткая матрица липнет к верху
+     с пустотой снизу; max-height + justify-center на обёртке центрируют. */
   .bi-fs-active.bi-fs-table {
     overflow: hidden;
   }
@@ -407,7 +409,7 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
-    height: calc(100vh - 2rem);
+    height: auto;
     max-height: calc(100vh - 2rem);
     overflow: auto;
   }

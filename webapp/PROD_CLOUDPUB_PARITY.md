@@ -22,7 +22,7 @@
 
 | # | id | Экран | Walk | Статус | Заметки |
 |---|-----|--------|------|--------|---------|
-| 1 | developer-projects | Девелоперские проекты | `walk_20260814_1802` | 🔄 walk clean | 5 кадров, 0% |
+| 1 | developer-projects | Девелоперские проекты | `walk_20260815_101710` | ✅ принято | 15.08: fullscreen по центру; FTP-кнопка force+ingest fallback; принят на ai.conall после deploy |
 | 2 | bdds | БДДС | `walk_20260814_1806` | 🔄 walk clean | 7 кадров, 0% |
 | 3 | bdr | БДР | `walk_20260814_1808` | 🔄 walk clean | 7 кадров, 0% |
 | 4 | approved-budget | Утверждённый бюджет | `walk_20260814_1810` | 🔄 walk clean | 7 кадров, 0% |
