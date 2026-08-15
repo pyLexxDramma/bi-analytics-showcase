@@ -154,18 +154,24 @@ export function FinanceBarChart({
     2 +
     (hasNegDev ? 1 : 0) +
     (hasPosDev ? 1 : 0);
+  // Прогноз: 3 столбца + подписи «N млн. руб.» — шире слот, иначе цифры наезжают.
   const slotPx = compact
     ? showForecast
-      ? 40
+      ? 72
       : 48
     : fullscreen
-      ? 130
+      ? showForecast
+        ? 168
+        : 130
       : categoryKey === "project"
         ? 100
-        : 88;
+        : showForecast
+          ? 132
+          : 88;
   const chartWidth = Math.max(
     fullscreen ? viewport.width - 48 : 0,
-    rows.length * slotPx * Math.min(seriesCount, 3) + (compact ? 56 : 96),
+    rows.length * slotPx * Math.max(seriesCount, showForecast ? 3 : 2) +
+      (compact ? 56 : 96),
   );
   // При отклонении ось уходит в минус — выше блок, иначе мелкие суммы
   // (десятки млн при шкале до тысяч) сливаются с линией нуля.
@@ -226,9 +232,8 @@ export function FinanceBarChart({
     ],
   );
 
-  /** Ось Y при отклонении часто «перепрыгивает» 0 (937 / −563) — явно включаем 0. */
-  const yTicks = useMemo(() => {
-    if (!showDeviation) return undefined;
+  /** Числовой домен и деления Y — общие для графика и sticky-оси. */
+  const { yDomain, yTicks } = useMemo(() => {
     let lo = 0;
     let hi = 0;
     for (const row of rows) {
@@ -243,11 +248,13 @@ export function FinanceBarChart({
         if (v > hi) hi = v;
       }
     }
-    const min = lo < 0 ? Math.floor(lo * (showUnitOnBars ? 1.28 : 1.18)) : 0;
+    const padLo = showUnitOnBars ? 1.28 : 1.18;
+    const min =
+      showDeviation && lo < 0 ? Math.floor(lo * padLo) : 0;
     const max = Math.ceil(Math.max(hi, 1) * 1.32);
     const span = Math.max(max - min, 1);
     const rough = span / 4;
-    const pow = 10 ** Math.floor(Math.log10(rough));
+    const pow = 10 ** Math.max(0, Math.floor(Math.log10(rough)));
     const step = Math.max(pow * Math.ceil(rough / pow), 1);
     const ticks: number[] = [];
     let t = Math.floor(min / step) * step;
@@ -255,8 +262,14 @@ export function FinanceBarChart({
       ticks.push(Math.round(t));
       t += step;
     }
-    if (!ticks.some((v) => Math.abs(v) < 1e-9)) ticks.push(0);
-    return [...new Set(ticks)].sort((a, b) => a - b);
+    if (showDeviation && !ticks.some((v) => Math.abs(v) < 1e-9)) {
+      ticks.push(0);
+    }
+    const sorted = [...new Set(ticks)].sort((a, b) => a - b);
+    return {
+      yDomain: [min, max] as [number, number],
+      yTicks: sorted,
+    };
   }, [rows, showDeviation, showUnitOnBars]);
 
   const labelFont = compact ? 9 : fullscreen ? 12 : 10;
@@ -362,6 +375,32 @@ export function FinanceBarChart({
       : []),
   ];
 
+  const yAxisWidth = compact ? 48 : 72;
+  const chartMargin = {
+    top: compact ? 28 : 72,
+    right: 12,
+    left: 8,
+    bottom:
+      (angled ? 64 : 28) + (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
+  };
+  const yTickFmt = (v: number) =>
+    Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
+  const yAxisLabel =
+    yAxisTitle && showUnitOnBars
+      ? {
+          value: yAxisTitle,
+          angle: -90,
+          position: "insideLeft" as const,
+          style: {
+            textAnchor: "middle" as const,
+            fontSize: 12,
+            fill: dark ? "#94a3b8" : "#64748b",
+          },
+        }
+      : undefined;
+  /** Ширина закреплённой оси Y (подписи + «млн. руб.»). */
+  const stickyAxisPx = yAxisWidth + (showUnitOnBars ? 22 : 10) + chartMargin.left;
+
   return (
     <div
       className={
@@ -373,209 +412,233 @@ export function FinanceBarChart({
       <Text className="mb-2 text-tremor-content dark:text-dark-tremor-content">
         {xAxisTitle}
       </Text>
-      <div className="min-w-0 max-w-full overflow-x-auto">
-        <div
-          className="min-w-0"
-          style={{ width: chartWidth, minWidth: "100%", height }}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{
-                top: compact ? 28 : 72,
-                right: 12,
-                left: 8,
-                bottom:
-                  (angled ? 64 : 28) +
-                  (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
-              }}
-              barCategoryGap={compact ? "12%" : "18%"}
-              barGap={showDeviation ? 6 : 2}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="category"
-                tick={{ fontSize: compact ? 10 : 12 }}
-                interval={0}
-                angle={angled ? -35 : 0}
-                textAnchor={angled ? "end" : "middle"}
-                height={angled ? (hasNegDev ? 96 : 80) : hasNegDev ? 56 : 40}
-                dy={hasNegDev ? 8 : 0}
-              />
-              <YAxis
-                width={compact ? 48 : 72}
-                tick={{ fontSize: compact ? 10 : 12 }}
-                ticks={yTicks}
-                label={
-                  yAxisTitle && showUnitOnBars
-                    ? {
-                        value: yAxisTitle,
-                        angle: -90,
-                        position: "insideLeft",
-                        style: {
-                          textAnchor: "middle",
-                          fontSize: 12,
-                          fill: dark ? "#94a3b8" : "#64748b",
-                        },
-                      }
-                    : undefined
+      <div className="relative min-w-0 max-w-full">
+        <div className="min-w-0 max-w-full overflow-x-auto">
+          <div
+            className="min-w-0"
+            style={{ width: chartWidth, minWidth: "100%", height }}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={chartMargin}
+                barCategoryGap={
+                  compact ? "10%" : showForecast ? "12%" : "18%"
                 }
-                tickFormatter={(v) =>
-                  Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 })
-                }
-                domain={
-                  showDeviation
-                    ? [
-                        (dataMin: number) =>
-                          dataMin < 0
-                            ? Math.floor(dataMin * (showUnitOnBars ? 1.28 : 1.18))
-                            : 0,
-                        (dataMax: number) => Math.ceil(dataMax * 1.32),
-                      ]
-                    : [0, (dataMax: number) => Math.ceil(dataMax * 1.32)]
-                }
-              />
-              {showDeviation ? (
-                <ReferenceLine
-                  y={0}
-                  stroke={dark ? "#e2e8f0" : "#0f172a"}
-                  strokeWidth={2.5}
-                  strokeOpacity={1}
-                  ifOverflow="extendDomain"
-                />
-              ) : null}
-              <Scatter
-                dataKey="zeroMark"
-                fill="transparent"
-                legendType="none"
-                isAnimationActive={false}
+                barGap={showForecast ? 4 : showDeviation ? 6 : 2}
               >
-                <LabelList
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke={dark ? "#334155" : "#cbd5e1"}
+                />
+                <XAxis
+                  dataKey="category"
+                  tick={{ fontSize: compact ? 10 : 12 }}
+                  interval={0}
+                  angle={angled ? -35 : 0}
+                  textAnchor={angled ? "end" : "middle"}
+                  height={angled ? (hasNegDev ? 96 : 80) : hasNegDev ? 56 : 40}
+                  dy={hasNegDev ? 8 : 0}
+                />
+                {/* Деления невидимы (их рисует sticky), но нужны для сетки. */}
+                <YAxis
+                  width={yAxisWidth}
+                  ticks={yTicks}
+                  domain={yDomain}
+                  tickFormatter={yTickFmt}
+                  tick={{ fill: "transparent", fontSize: compact ? 10 : 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                {showDeviation ? (
+                  <ReferenceLine
+                    y={0}
+                    stroke={dark ? "#e2e8f0" : "#0f172a"}
+                    strokeWidth={2.5}
+                    strokeOpacity={1}
+                    ifOverflow="extendDomain"
+                  />
+                ) : null}
+                <Scatter
                   dataKey="zeroMark"
-                  content={(props) => {
-                    const v = Number(props.value);
-                    if (!Number.isFinite(v) || props.value === null || props.value === undefined) {
-                      return null;
-                    }
-                    const x = Number(props.x);
-                    const y = Number(props.y);
-                    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-                    const fill = dark ? "#cbd5e1" : "#475569";
-                    const stroke = dark ? "rgba(15,23,42,0.9)" : "rgba(255,255,255,0.95)";
-                    const fontSize = compact ? 10 : 11;
-                    const lineGap = Math.round(fontSize * 1.2);
-                    const textProps = {
-                      x,
-                      fill,
-                      stroke,
-                      strokeWidth: 3,
-                      paintOrder: "stroke" as const,
-                      fontSize,
-                      textAnchor: "middle" as const,
-                      style: { fontWeight: 700 },
-                    };
-                    if (!showUnitOnBars) {
-                      return (
-                        <text {...textProps} y={y - 8} dominantBaseline="auto">
-                          0
-                        </text>
-                      );
-                    }
-                    return (
-                      <g>
-                        <text {...textProps} y={y - 8 - lineGap} dominantBaseline="auto">
-                          0
-                        </text>
-                        <text
-                          {...textProps}
-                          y={y - 8}
-                          fontSize={Math.max(8, fontSize - 1)}
-                          dominantBaseline="auto"
-                        >
-                          млн. руб.
-                        </text>
-                      </g>
-                    );
-                  }}
-                />
-              </Scatter>
-              <Bar
-                dataKey={planName}
-                fill={planColor}
-                radius={[3, 3, 0, 0]}
-                minPointSize={0}
-                isAnimationActive={false}
-              >
-                <LabelList
-                  dataKey={planName}
-                  content={(props) => renderValueLabel(props as never) as never}
-                />
-              </Bar>
-              <Bar
-                dataKey={factName}
-                fill={factColor}
-                radius={[3, 3, 0, 0]}
-                minPointSize={0}
-                isAnimationActive={false}
-              >
-                <LabelList
-                  dataKey={factName}
-                  content={(props) => renderValueLabel(props as never) as never}
-                />
-              </Bar>
-              {showForecast ? (
-                <Bar
-                  dataKey={forecastName}
-                  fill={forecastColor}
-                  radius={[3, 3, 0, 0]}
+                  fill="transparent"
+                  legendType="none"
                   isAnimationActive={false}
                 >
                   <LabelList
-                    dataKey={forecastName}
+                    dataKey="zeroMark"
+                    content={(props) => {
+                      const v = Number(props.value);
+                      if (
+                        !Number.isFinite(v) ||
+                        props.value === null ||
+                        props.value === undefined
+                      ) {
+                        return null;
+                      }
+                      const x = Number(props.x);
+                      const y = Number(props.y);
+                      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+                      const fill = dark ? "#cbd5e1" : "#475569";
+                      const stroke = dark
+                        ? "rgba(15,23,42,0.9)"
+                        : "rgba(255,255,255,0.95)";
+                      const fontSize = compact ? 10 : 11;
+                      const lineGap = Math.round(fontSize * 1.2);
+                      const textProps = {
+                        x,
+                        fill,
+                        stroke,
+                        strokeWidth: 3,
+                        paintOrder: "stroke" as const,
+                        fontSize,
+                        textAnchor: "middle" as const,
+                        style: { fontWeight: 700 },
+                      };
+                      if (!showUnitOnBars) {
+                        return (
+                          <text {...textProps} y={y - 8} dominantBaseline="auto">
+                            0
+                          </text>
+                        );
+                      }
+                      return (
+                        <g>
+                          <text
+                            {...textProps}
+                            y={y - 8 - lineGap}
+                            dominantBaseline="auto"
+                          >
+                            0
+                          </text>
+                          <text
+                            {...textProps}
+                            y={y - 8}
+                            fontSize={Math.max(8, fontSize - 1)}
+                            dominantBaseline="auto"
+                          >
+                            млн. руб.
+                          </text>
+                        </g>
+                      );
+                    }}
+                  />
+                </Scatter>
+                <Bar
+                  dataKey={planName}
+                  fill={planColor}
+                  radius={[3, 3, 0, 0]}
+                  minPointSize={0}
+                  isAnimationActive={false}
+                >
+                  <LabelList
+                    dataKey={planName}
                     content={(props) => renderValueLabel(props as never) as never}
                   />
                 </Bar>
-              ) : null}
-              {hasNegDev ? (
                 <Bar
-                  dataKey={DEV_NEG_NAME}
-                  name={DEV_NEG_NAME}
-                  fill={DEV_BAR_NEG}
-                  radius={[3, 3, 3, 3]}
-                  isAnimationActive={false}
-                >
-                  <LabelList
-                    dataKey={DEV_NEG_NAME}
-                    content={
-                      ((props: Record<string, unknown>) =>
-                        renderValueLabel(props, {
-                          signed: true,
-                          colorBySign: true,
-                        })) as never
-                    }
-                  />
-                </Bar>
-              ) : null}
-              {hasPosDev ? (
-                <Bar
-                  dataKey={DEV_POS_NAME}
-                  name={DEV_POS_NAME}
-                  fill={DEV_BAR_POS}
+                  dataKey={factName}
+                  fill={factColor}
                   radius={[3, 3, 0, 0]}
+                  minPointSize={0}
                   isAnimationActive={false}
                 >
                   <LabelList
-                    dataKey={DEV_POS_NAME}
-                    content={
-                      ((props: Record<string, unknown>) =>
-                        renderValueLabel(props, {
-                          signed: true,
-                          colorBySign: true,
-                        })) as never
-                    }
+                    dataKey={factName}
+                    content={(props) => renderValueLabel(props as never) as never}
                   />
                 </Bar>
-              ) : null}
+                {showForecast ? (
+                  <Bar
+                    dataKey={forecastName}
+                    fill={forecastColor}
+                    radius={[3, 3, 0, 0]}
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      dataKey={forecastName}
+                      content={(props) =>
+                        renderValueLabel(props as never) as never
+                      }
+                    />
+                  </Bar>
+                ) : null}
+                {hasNegDev ? (
+                  <Bar
+                    dataKey={DEV_NEG_NAME}
+                    name={DEV_NEG_NAME}
+                    fill={DEV_BAR_NEG}
+                    radius={[3, 3, 3, 3]}
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      dataKey={DEV_NEG_NAME}
+                      content={
+                        ((props: Record<string, unknown>) =>
+                          renderValueLabel(props, {
+                            signed: true,
+                            colorBySign: true,
+                          })) as never
+                      }
+                    />
+                  </Bar>
+                ) : null}
+                {hasPosDev ? (
+                  <Bar
+                    dataKey={DEV_POS_NAME}
+                    name={DEV_POS_NAME}
+                    fill={DEV_BAR_POS}
+                    radius={[3, 3, 0, 0]}
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      dataKey={DEV_POS_NAME}
+                      content={
+                        ((props: Record<string, unknown>) =>
+                          renderValueLabel(props, {
+                            signed: true,
+                            colorBySign: true,
+                          })) as never
+                      }
+                    />
+                  </Bar>
+                ) : null}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 z-10 bg-white dark:bg-slate-950"
+          style={{
+            width: stickyAxisPx,
+            height,
+            boxShadow: dark
+              ? "6px 0 10px -6px rgba(0,0,0,0.55)"
+              : "6px 0 10px -6px rgba(15,23,42,0.18)",
+          }}
+          aria-hidden
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={chartMargin}>
+              <YAxis
+                width={yAxisWidth}
+                tick={{
+                  fontSize: compact ? 10 : 12,
+                  fill: dark ? "#e2e8f0" : "#334155",
+                }}
+                ticks={yTicks}
+                domain={yDomain}
+                label={yAxisLabel}
+                tickFormatter={yTickFmt}
+              />
+              {/* Невидимый ряд — иначе Recharts не строит шкалу без Bar. */}
+              <Bar
+                dataKey={planName}
+                fill="transparent"
+                isAnimationActive={false}
+                legendType="none"
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
