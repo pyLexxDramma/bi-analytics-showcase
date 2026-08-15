@@ -383,7 +383,7 @@ export function ApprovedBudgetView() {
           </Text>
         </div>
       </div></div></Card>
-      <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} colors={{ plan: "#2E86AB", fact: "#A23B72" }} />}</FullscreenPanel></Card>
+      <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} colors={{ plan: "#2E86AB", fact: "#0d9488" }} />}</FullscreenPanel></Card>
       <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <Title>

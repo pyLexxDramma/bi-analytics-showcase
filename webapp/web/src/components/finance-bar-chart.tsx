@@ -6,6 +6,7 @@ import {
   BarChart,
   CartesianGrid,
   LabelList,
+  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -22,11 +23,12 @@ export type FinanceBarPoint = {
 };
 
 const DEFAULT_PLAN = "#3b82f6";
-const DEFAULT_FACT = "#f43f5e";
+/** Факт не красный: красный зарезервирован под отклонение (как цифры в таблице). */
+const DEFAULT_FACT = "#0d9488";
 const DEFAULT_FORECAST = "#f59e0b";
 
 const FORECAST_PLAN = "#2E86AB";
-const FORECAST_FACT = "#A23B72";
+const FORECAST_FACT = "#0f766e";
 const FORECAST_SERIES = "#F18F01";
 
 const DEV_NEG_NAME = "Отклонение (факт < план)";
@@ -84,19 +86,20 @@ function formatBarLabel(
   return { line1: num, line2: "млн. руб." };
 }
 
-const DEV_BAR_RED = "#e74c3c";
-const DEV_BAR_GREEN = "#27ae60";
+/** Отклонение как в таблице: <0 красный, >0 зелёный. Факт — бирюзовый. */
+const DEV_BAR_NEG = "#dc2626";
+const DEV_BAR_POS = "#16a34a";
 /** Подписи отклонения: на светлой теме тёмнее, на тёмной — ярче (контраст к фону). */
-const DEV_LABEL_RED_LIGHT = "#b91c1c";
-const DEV_LABEL_RED_DARK = "hsl(348,100%,68%)";
-const DEV_LABEL_GREEN_LIGHT = "#166534";
-const DEV_LABEL_GREEN_DARK = "hsl(148,70%,55%)";
+const DEV_LABEL_NEG_LIGHT = "#b91c1c";
+const DEV_LABEL_NEG_DARK = "#fb7185";
+const DEV_LABEL_POS_LIGHT = "#166534";
+const DEV_LABEL_POS_DARK = "#4ade80";
 
-/** Как main: <0 красный (ниже оси), >0 зелёный (выше оси). */
+/** Как таблица: <0 красный (ниже оси), >0 зелёный (выше оси). */
 function deviationLabelColor(value: number, dark: boolean): string {
   if (Math.abs(value) < 0.005) return dark ? "#e2e8f0" : "#111827";
-  if (value > 0) return dark ? DEV_LABEL_GREEN_DARK : DEV_LABEL_GREEN_LIGHT;
-  return dark ? DEV_LABEL_RED_DARK : DEV_LABEL_RED_LIGHT;
+  if (value > 0) return dark ? DEV_LABEL_POS_DARK : DEV_LABEL_POS_LIGHT;
+  return dark ? DEV_LABEL_NEG_DARK : DEV_LABEL_NEG_LIGHT;
 }
 
 export function FinanceBarChart({
@@ -162,11 +165,17 @@ export function FinanceBarChart({
     fullscreen ? viewport.width - 48 : 0,
     rows.length * slotPx * Math.min(seriesCount, 3) + (compact ? 56 : 96),
   );
+  // При отклонении ось уходит в минус — выше блок, иначе мелкие суммы
+  // (десятки млн при шкале до тысяч) сливаются с линией нуля.
   const height = fullscreen
-    ? Math.max(560, viewport.height - 96)
+    ? Math.max(showDeviation ? 640 : 560, viewport.height - 72)
     : compact
-      ? 320
-      : 460;
+      ? showDeviation
+        ? 420
+        : 340
+      : showDeviation
+        ? 640
+        : 520;
 
   const planColor =
     colors?.plan ?? (forecastMode ? FORECAST_PLAN : DEFAULT_PLAN);
@@ -302,10 +311,10 @@ export function FinanceBarChart({
       ? [{ name: forecastName, color: forecastColor, short: "Прогноз" }]
       : []),
     ...(hasNegDev
-      ? [{ name: DEV_NEG_NAME, color: DEV_BAR_RED, short: "Факт < план" }]
+      ? [{ name: DEV_NEG_NAME, color: DEV_BAR_NEG, short: "Факт < план" }]
       : []),
     ...(hasPosDev
-      ? [{ name: DEV_POS_NAME, color: DEV_BAR_GREEN, short: "Факт > план" }]
+      ? [{ name: DEV_POS_NAME, color: DEV_BAR_POS, short: "Факт > план" }]
       : []),
   ];
 
@@ -381,10 +390,27 @@ export function FinanceBarChart({
                     : [0, (dataMax: number) => Math.ceil(dataMax * 1.32)]
                 }
               />
+              {showDeviation ? (
+                <ReferenceLine
+                  y={0}
+                  stroke={dark ? "#e2e8f0" : "#0f172a"}
+                  strokeWidth={2}
+                  strokeOpacity={0.9}
+                  ifOverflow="extendDomain"
+                  label={{
+                    value: "0",
+                    position: "insideTopRight",
+                    fill: dark ? "#e2e8f0" : "#0f172a",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                />
+              ) : null}
               <Bar
                 dataKey={planName}
                 fill={planColor}
                 radius={[3, 3, 0, 0]}
+                minPointSize={showDeviation ? 5 : 2}
                 isAnimationActive={false}
               >
                 <LabelList
@@ -396,6 +422,7 @@ export function FinanceBarChart({
                 dataKey={factName}
                 fill={factColor}
                 radius={[3, 3, 0, 0]}
+                minPointSize={showDeviation ? 5 : 2}
                 isAnimationActive={false}
               >
                 <LabelList
@@ -420,7 +447,7 @@ export function FinanceBarChart({
                 <Bar
                   dataKey={DEV_NEG_NAME}
                   name={DEV_NEG_NAME}
-                  fill={DEV_BAR_RED}
+                  fill={DEV_BAR_NEG}
                   radius={[3, 3, 3, 3]}
                   isAnimationActive={false}
                 >
@@ -440,7 +467,7 @@ export function FinanceBarChart({
                 <Bar
                   dataKey={DEV_POS_NAME}
                   name={DEV_POS_NAME}
-                  fill={DEV_BAR_GREEN}
+                  fill={DEV_BAR_POS}
                   radius={[3, 3, 0, 0]}
                   isAnimationActive={false}
                 >
@@ -461,11 +488,6 @@ export function FinanceBarChart({
         </div>
       </div>
       <ChartHtmlLegend items={legendItems} compact={compact} />
-      <p className="mt-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
-        {compact
-          ? "Подписи на столбцах — млн ₽ (кратко). Прокрутите график вправо при длинном периоде."
-          : "Подписи на столбцах — число и «млн. руб.»."}
-      </p>
     </div>
   );
 }
