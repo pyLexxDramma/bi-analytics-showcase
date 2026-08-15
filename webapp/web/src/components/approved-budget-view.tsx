@@ -263,7 +263,16 @@ export function ApprovedBudgetView() {
   const [projectSort, setProjectSort] = useState<SortState>(null);
   const load = useCallback(async (next: Filters) => {
     setLoading(true); setError(null);
-    try { setData(await fetchApprovedBudget({ ...next, hide_zero: next.hide_zero ?? undefined })); }
+    const hideZeroEffective =
+      next.hide_zero ?? (next.projects.length === 0 && next.fiz === "Все");
+    try {
+      setData(
+        await fetchApprovedBudget({
+          ...next,
+          hide_zero: hideZeroEffective,
+        }),
+      );
+    }
     catch (cause) { setData(null); setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setLoading(false); }
   }, []);
@@ -351,7 +360,7 @@ export function ApprovedBudgetView() {
     </FiltersCard>
     {error || data?.meta.error ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || data?.meta.error}</Text></Card> : null}
     <div className="space-y-6">
-      <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className="grid gap-4 sm:grid-cols-3">
+      <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className={`grid gap-4 ${filters.show_deviation ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div>
           <Text className="text-rose-700 dark:text-rose-300">План</Text>
           <div className="mt-1 text-xl font-bold tabular-nums">{Number(gauge.plan_mlrd).toFixed(2)} млрд</div>
@@ -364,24 +373,28 @@ export function ApprovedBudgetView() {
           <Text>{(gauge.fact / 1e6).toFixed(1)} млн. руб.</Text>
           <Text className={kpiShareClass(gauge.fact_pct, "fact_vs_plan")}>{pctOfPlan(gauge.fact_pct)}</Text>
         </div>
-        <div>
-          <Text className={kpiShareClass(gauge.deviation, "deviation")}>Отклонение</Text>
-          <div className={`mt-1 text-xl font-bold tabular-nums ${kpiShareClass(gauge.deviation, "deviation")}`}>
-            {gauge.deviation_mlrd >= 0
-              ? `+${Number(gauge.deviation_mlrd).toFixed(2)}`
-              : `−${Math.abs(Number(gauge.deviation_mlrd)).toFixed(2)}`}{" "}
-            млрд
+        {filters.show_deviation ? (
+          <div>
+            <Text>Отклонение</Text>
+            <div
+              className={`mt-1 text-xl font-bold tabular-nums ${kpiShareClass(gauge.deviation, "deviation")}`}
+            >
+              {gauge.deviation_mlrd >= 0
+                ? `+${Number(gauge.deviation_mlrd).toFixed(2)}`
+                : `−${Math.abs(Number(gauge.deviation_mlrd)).toFixed(2)}`}{" "}
+              млрд
+            </div>
+            <Text>
+              {(gauge.deviation / 1e6) >= 0
+                ? `+${(gauge.deviation / 1e6).toFixed(1)}`
+                : `−${Math.abs(gauge.deviation / 1e6).toFixed(1)}`}{" "}
+              млн. руб.
+            </Text>
+            <Text className={kpiShareClass(gauge.deviation_pct, "deviation")}>
+              {pctOfPlan(gauge.deviation_pct, { signed: true })}
+            </Text>
           </div>
-          <Text className={kpiShareClass(gauge.deviation, "deviation")}>
-            {(gauge.deviation / 1e6) >= 0
-              ? `+${(gauge.deviation / 1e6).toFixed(1)}`
-              : `−${Math.abs(gauge.deviation / 1e6).toFixed(1)}`}{" "}
-            млн. руб.
-          </Text>
-          <Text className={kpiShareClass(gauge.deviation_pct, "deviation")}>
-            {pctOfPlan(gauge.deviation_pct, { signed: true })}
-          </Text>
-        </div>
+        ) : null}
       </div></div></Card>
       <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} colors={{ plan: "#2E86AB", fact: "#0d9488" }} />}</FullscreenPanel></Card>
       <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">

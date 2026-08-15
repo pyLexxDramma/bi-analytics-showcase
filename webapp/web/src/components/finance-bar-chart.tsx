@@ -8,6 +8,7 @@ import {
   LabelList,
   ReferenceLine,
   ResponsiveContainer,
+  Scatter,
   XAxis,
   YAxis,
 } from "recharts";
@@ -63,7 +64,8 @@ function useViewportSize(enabled: boolean): { width: number; height: number } {
   return size;
 }
 
-/** Как main `_finance_bar_text_mln_rub`: число + « млн. руб.» (compact — без суффикса). */
+/** Как main `_finance_bar_text_mln_rub`: число + « млн. руб.» (compact — без суффикса).
+ *  Полные нули по месяцу рисует отдельная подпись `zeroMark` — здесь ноль пропускаем. */
 function formatBarLabel(
   value: unknown,
   compact: boolean,
@@ -187,7 +189,14 @@ export function FinanceBarChart({
   const chartData = useMemo(
     () =>
       rows.map((row) => {
+        const plan = Number(row.plan) || 0;
+        const fact = Number(row.fact) || 0;
+        const forecast = Number(row.forecast) || 0;
         const dev = Number(row.deviation) || 0;
+        const monthEmpty =
+          Math.abs(plan) < 1e-9 &&
+          Math.abs(fact) < 1e-9 &&
+          (!showForecast || Math.abs(forecast) < 1e-9);
         return {
           category: row.period,
           [planName]: row.plan,
@@ -202,6 +211,8 @@ export function FinanceBarChart({
                 [deviationLabel]: dev,
               }
             : {}),
+          /** Точка на y=0 для подписи «0 млн. руб.» над пустым месяцем. */
+          zeroMark: monthEmpty ? 0 : null,
         };
       }),
     [
@@ -214,6 +225,39 @@ export function FinanceBarChart({
       deviationLabel,
     ],
   );
+
+  /** Ось Y при отклонении часто «перепрыгивает» 0 (937 / −563) — явно включаем 0. */
+  const yTicks = useMemo(() => {
+    if (!showDeviation) return undefined;
+    let lo = 0;
+    let hi = 0;
+    for (const row of rows) {
+      const vals = [
+        Number(row.plan) || 0,
+        Number(row.fact) || 0,
+        Number(row.deviation) || 0,
+        Number(row.forecast) || 0,
+      ];
+      for (const v of vals) {
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+    const min = lo < 0 ? Math.floor(lo * (showUnitOnBars ? 1.28 : 1.18)) : 0;
+    const max = Math.ceil(Math.max(hi, 1) * 1.32);
+    const span = Math.max(max - min, 1);
+    const rough = span / 4;
+    const pow = 10 ** Math.floor(Math.log10(rough));
+    const step = Math.max(pow * Math.ceil(rough / pow), 1);
+    const ticks: number[] = [];
+    let t = Math.floor(min / step) * step;
+    while (t <= max + step * 0.001) {
+      ticks.push(Math.round(t));
+      t += step;
+    }
+    if (!ticks.some((v) => Math.abs(v) < 1e-9)) ticks.push(0);
+    return [...new Set(ticks)].sort((a, b) => a - b);
+  }, [rows, showDeviation, showUnitOnBars]);
 
   const labelFont = compact ? 9 : fullscreen ? 12 : 10;
   const [dark, setDark] = useState(false);
@@ -361,6 +405,7 @@ export function FinanceBarChart({
               <YAxis
                 width={compact ? 48 : 72}
                 tick={{ fontSize: compact ? 10 : 12 }}
+                ticks={yTicks}
                 label={
                   yAxisTitle && showUnitOnBars
                     ? {
@@ -394,23 +439,71 @@ export function FinanceBarChart({
                 <ReferenceLine
                   y={0}
                   stroke={dark ? "#e2e8f0" : "#0f172a"}
-                  strokeWidth={2}
-                  strokeOpacity={0.9}
+                  strokeWidth={2.5}
+                  strokeOpacity={1}
                   ifOverflow="extendDomain"
-                  label={{
-                    value: "0",
-                    position: "insideTopRight",
-                    fill: dark ? "#e2e8f0" : "#0f172a",
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}
                 />
               ) : null}
+              <Scatter
+                dataKey="zeroMark"
+                fill="transparent"
+                legendType="none"
+                isAnimationActive={false}
+              >
+                <LabelList
+                  dataKey="zeroMark"
+                  content={(props) => {
+                    const v = Number(props.value);
+                    if (!Number.isFinite(v) || props.value === null || props.value === undefined) {
+                      return null;
+                    }
+                    const x = Number(props.x);
+                    const y = Number(props.y);
+                    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+                    const fill = dark ? "#cbd5e1" : "#475569";
+                    const stroke = dark ? "rgba(15,23,42,0.9)" : "rgba(255,255,255,0.95)";
+                    const fontSize = compact ? 10 : 11;
+                    const lineGap = Math.round(fontSize * 1.2);
+                    const textProps = {
+                      x,
+                      fill,
+                      stroke,
+                      strokeWidth: 3,
+                      paintOrder: "stroke" as const,
+                      fontSize,
+                      textAnchor: "middle" as const,
+                      style: { fontWeight: 700 },
+                    };
+                    if (!showUnitOnBars) {
+                      return (
+                        <text {...textProps} y={y - 8} dominantBaseline="auto">
+                          0
+                        </text>
+                      );
+                    }
+                    return (
+                      <g>
+                        <text {...textProps} y={y - 8 - lineGap} dominantBaseline="auto">
+                          0
+                        </text>
+                        <text
+                          {...textProps}
+                          y={y - 8}
+                          fontSize={Math.max(8, fontSize - 1)}
+                          dominantBaseline="auto"
+                        >
+                          млн. руб.
+                        </text>
+                      </g>
+                    );
+                  }}
+                />
+              </Scatter>
               <Bar
                 dataKey={planName}
                 fill={planColor}
                 radius={[3, 3, 0, 0]}
-                minPointSize={showDeviation ? 6 : 2}
+                minPointSize={0}
                 isAnimationActive={false}
               >
                 <LabelList
@@ -422,7 +515,7 @@ export function FinanceBarChart({
                 dataKey={factName}
                 fill={factColor}
                 radius={[3, 3, 0, 0]}
-                minPointSize={showDeviation ? 6 : 2}
+                minPointSize={0}
                 isAnimationActive={false}
               >
                 <LabelList

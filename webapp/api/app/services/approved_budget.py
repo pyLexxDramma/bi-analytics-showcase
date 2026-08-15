@@ -95,7 +95,10 @@ def build_approved_budget_payload(
 ) -> dict[str, Any]:
     """Полный путь «Утверждённый бюджет» = накопительный срез БДДС экрана [main]."""
     selected = [str(item).strip() for item in (projects or []) if str(item).strip() and str(item).strip() != "Все"]
-    hide_zero_effective = (not selected and not fiz) if hide_zero is None else bool(hide_zero)
+    fiz_sel = str(fiz or "").strip()
+    fiz_active = bool(fiz_sel) and fiz_sel != "Все"
+    # Как UI: по умолчанию скрывать нулевые месяцы, пока не выбран проект/ФИЗ.
+    hide_zero_effective = (not selected and not fiz_active) if hide_zero is None else bool(hide_zero)
     cache_key = "|".join([
         CACHE_VERSION,
         f"projects={','.join(sorted(selected))}",
