@@ -27,7 +27,7 @@
 | 3 | bdr | БДР | `walk_20260815_112814` | ✅ принято | 15.08: выше график; +откл. оранжевый; принят на ai.conall после deploy |
 | 4 | approved-budget | Утверждённый бюджет | `walk_20260815_114633` | ✅ принято | 15.08: hide_zero+ФИЗ; KPI откл. по галочке; подписи 0; принят на ai.conall после deploy |
 | 5 | bdds-plan-fact | БДДС план/факт | `walk_20260815_122633` | ✅ принято | 15.08: шире колонки; sticky Y + сетка; принят на ai.conall после deploy |
-| 6 | control-points | Контрольные точки | `walk_20260815_130149` | 🔄 деплой | multiselect проектов + фильтр строк; локально OK — ждём ai.conall |
+| 6 | control-points | Контрольные точки | `walk_20260815_130149` | ✅ принято | 15.08: multiselect проектов + фильтр строк; принят на ai.conall после deploy |
 | 7 | project-schedule | График проекта | `walk_20260814_1815` | 🔄 walk clean | 9 кадров, 0% |
 | 8 | deviation-reasons | Причины отклонений | `walk_20260814_1818` | 🔄 walk clean | 0% |
 | 9 | baseline-deviation | Отклонение от БП | batch 1818+ | 🔄 walk clean | 0% |
