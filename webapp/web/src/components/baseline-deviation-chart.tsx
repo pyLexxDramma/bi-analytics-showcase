@@ -69,6 +69,27 @@ function wrapTaskLabelLines(name: string, widthChars = 30, maxLines = 2): string
   return lines.slice(0, maxLines);
 }
 
+function taskLabelOnly(
+  label: string,
+  project: string | null | undefined,
+): string {
+  const raw = String(label || "").trim();
+  const proj = String(project || "").trim();
+  if (!proj) {
+    // legacy "task (project)" or "project: task"
+    const mColon = raw.match(/^[^:]+:\s*(.+)$/);
+    if (mColon) return mColon[1].trim();
+    const mParen = raw.match(/^(.*?)\s*\([^)]+\)\s*$/);
+    if (mParen) return mParen[1].trim();
+    return raw;
+  }
+  if (raw.startsWith(`${proj}:`)) return raw.slice(proj.length + 1).trim() || raw;
+  if (raw.endsWith(`(${proj})`)) {
+    return raw.slice(0, raw.length - proj.length - 2).trim() || raw;
+  }
+  return raw;
+}
+
 function chartLegend(fullscreen: boolean) {
   return plotlyLegendUnderLeft({
     fontSize: fullscreen ? 13 : 12,
@@ -97,12 +118,24 @@ export function BaselineDeviationChart({
     if (!rows.length) return null;
     const isCovenant = data.chart.kind === "covenant_points";
     const n = rows.length;
+    const distinctProjects = new Set(
+      rows.map((row) => String(row.project || "").trim()).filter(Boolean),
+    );
+    const showProjectPrefix = distinctProjects.size > 1;
     const labelLines = rows.map((row) =>
-      wrapTaskLabelLines(row.label, fullscreen ? 36 : 30, 2),
+      wrapTaskLabelLines(
+        taskLabelOnly(row.label, row.project),
+        fullscreen ? 36 : 28,
+        showProjectPrefix ? 2 : 2,
+      ),
     );
     const labelFont = fullscreen ? 12 : 10;
     const taskFont = fullscreen ? 13 : 11;
-    const rowPx = isCovenant ? Math.max(ROW_PX, 52) : ROW_PX;
+    const rowPx = isCovenant
+      ? Math.max(ROW_PX, showProjectPrefix ? 58 : 52)
+      : showProjectPrefix
+        ? Math.max(ROW_PX, 52)
+        : ROW_PX;
 
     if (isCovenant) {
       const y = rows.map((_, i) => i);
@@ -176,11 +209,14 @@ export function BaselineDeviationChart({
         });
       }
       const plotHeight = Math.max(320, n * rowPx);
+      const labelRowH = plotHeight / n;
       const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
       return {
         labelLines,
         taskFont,
         rowPx,
+        labelRowH,
+        showProjectPrefix,
         data: traces,
         layout: {
           height: chartHeight,
@@ -224,7 +260,11 @@ export function BaselineDeviationChart({
       if (pe != null) origins.push(pe);
     });
     if (!origins.length) return null;
-    const originMs = Math.min(...origins);
+    // Сдвиг начала шкалы влево: иначе самый ранний срок даёт длину 0 и столбец
+    // пропадает при фильтре одного проекта (при «Все» origin обычно раньше).
+    const minBarMs = DAY_MS;
+    const originPadMs = 14 * DAY_MS;
+    const originMs = Math.min(...origins) - originPadMs;
 
     const hasPlan = rows.some((row) => toMs(row.plan_end) != null);
 
@@ -233,24 +273,23 @@ export function BaselineDeviationChart({
 
     const baseLen = rows.map((row) => {
       const end = toMs(row.base_end);
-      return end == null ? Number.NaN : Math.max(end - originMs, 0);
+      if (end == null) return Number.NaN;
+      return Math.max(end - originMs, minBarMs);
     });
     const planLen = rows.map((row) => {
       const end = toMs(row.plan_end);
-      return end == null ? Number.NaN : Math.max(end - originMs, 0);
+      if (end == null) return Number.NaN;
+      return Math.max(end - originMs, minBarMs);
     });
     const baseBase = rows.map((row) => (toMs(row.base_end) == null ? Number.NaN : originMs));
     const planBase = rows.map((row) => (toMs(row.plan_end) == null ? Number.NaN : originMs));
 
-    const minBarMs = 0.5 * DAY_MS;
-    const baseTxt = rows.map((row, i) => {
-      const len = baseLen[i];
-      if (!Number.isFinite(len) || len < minBarMs) return "";
+    const baseTxt = rows.map((row) => {
+      if (toMs(row.base_end) == null) return "";
       return fmtLabel(row.base_end, row.base_end_label);
     });
-    const planTxt = rows.map((row, i) => {
-      const len = planLen[i];
-      if (!Number.isFinite(len) || len < minBarMs) return "";
+    const planTxt = rows.map((row) => {
+      if (toMs(row.plan_end) == null) return "";
       return fmtLabel(row.plan_end, row.plan_end_label);
     });
 
@@ -325,12 +364,15 @@ export function BaselineDeviationChart({
     }
 
     const plotHeight = Math.max(280, n * rowPx);
+    const labelRowH = plotHeight / n;
     const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
 
     return {
       labelLines,
       taskFont,
       rowPx,
+      labelRowH,
+      showProjectPrefix,
       data: traces,
       layout: {
         barmode: "overlay",
@@ -409,16 +451,27 @@ export function BaselineDeviationChart({
             {built.labelLines.map((lines, i) => (
               <div
                 key={`${rows[i]?.label}-${i}`}
-                className="flex items-center"
-                style={{ height: built.rowPx ?? ROW_PX }}
+                className="flex items-center border-b border-dashed border-slate-200/80 dark:border-slate-600/50"
+                style={{ height: built.labelRowH ?? built.rowPx ?? ROW_PX }}
               >
-                <span
-                  className="line-clamp-2 text-tremor-content-strong dark:text-dark-tremor-content-strong"
-                  style={{ fontSize: built.taskFont, lineHeight: 1.25 }}
-                  title={rows[i]?.label}
-                >
-                  {lines.join(" ")}
-                </span>
+                <div className="min-w-0 py-0.5">
+                  {built.showProjectPrefix && rows[i]?.project ? (
+                    <div className="mb-0.5 truncate text-[10px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-300">
+                      {rows[i].project}
+                    </div>
+                  ) : null}
+                  <span
+                    className="line-clamp-2 text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                    style={{ fontSize: built.taskFont, lineHeight: 1.25 }}
+                    title={
+                      rows[i]?.project
+                        ? `${rows[i].project}: ${taskLabelOnly(rows[i].label, rows[i].project)}`
+                        : rows[i]?.label
+                    }
+                  >
+                    {lines.join(" ")}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

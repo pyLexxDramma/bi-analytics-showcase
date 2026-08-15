@@ -615,7 +615,7 @@ def build_baseline_deviation_payload(
     label_mode: str | None = "name",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v5|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v7|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
@@ -926,9 +926,21 @@ def build_baseline_deviation_payload(
                 ].copy()
 
         chart_source = chart_df.copy()
+        sort_by: list[str] = []
+        ascending: list[bool] = []
+        if multi_project and "project name" in chart_source.columns:
+            chart_source = chart_source.copy()
+            chart_source["_proj_sort"] = (
+                chart_source["project name"].map(_clean).astype(str).str.casefold()
+            )
+            sort_by.append("_proj_sort")
+            ascending.append(True)
         if "plan_end_diff" in chart_source.columns:
+            sort_by.append("plan_end_diff")
+            ascending.append(True)
+        if sort_by:
             chart_source = chart_source.sort_values(
-                "plan_end_diff", ascending=True, na_position="last"
+                sort_by, ascending=ascending, na_position="last"
             )
         chart_capped = len(chart_source) > CHART_CAP
         chart_source = chart_source.head(CHART_CAP)
@@ -954,7 +966,7 @@ def build_baseline_deviation_payload(
             if not multi_project:
                 label = task
             else:
-                label = f"{task} ({pname})" if pname else task
+                label = f"{pname}: {task}" if pname else task
             bs = row.get("base start") if "base start" in chart_source.columns else None
             ps = row.get("plan start") if "plan start" in chart_source.columns else None
             be = row.get("base end")
