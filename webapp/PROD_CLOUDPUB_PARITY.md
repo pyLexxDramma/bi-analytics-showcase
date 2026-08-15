@@ -30,7 +30,7 @@
 | 6 | control-points | Контрольные точки | `walk_20260815_130149` | ✅ принято | 15.08: multiselect проектов + фильтр строк; принят на ai.conall после deploy |
 | 7 | project-schedule | График проекта | `walk_20260815_131826` | ✅ принято | 15.08: 9 кадров, pixel 0%; принят на ai.conall / cloudpub |
 | 8 | deviation-reasons | Причины отклонений | `walk_20260815_132440` | ✅ принято | 15.08: 5 кадров, pixel 0%; принят на ai.conall / cloudpub |
-| 9 | baseline-deviation | Отклонение от БП | — | 🔄 walk | текущий экран |
+| 9 | baseline-deviation | Отклонение от БП | `walk_20260815_141841` | ✅ принято | 15.08: выравнивание баров; prefix проекта; sort по проекту; pad x-origin; принят на ai.conall после deploy |
 | 10 | project-documentation | Проектная документация | `walk_20260814_1834` | 🔄 walk clean | первый прогон — timeout prod (артефакт); re-walk 0% |
 | 11 | working-documentation | Рабочая документация | — | ❌ в работе | **Не принимать.** Причины: (1) prod `version_id=23` vs cloudpub `225` → KPI 722/403 vs 728/409; (2) prod «Проект»=UUID, cloudpub=имена; (3) monthly fact prod раздут cipher-fallback. Фикс UUID→имя + убран endswith; ждём deploy+визуальную приёмку |
 | 12 | gdrs-people | ГДРС люди | `walk_20260814_1825` | 🔄 walk clean | 6 кадров, 0% |
