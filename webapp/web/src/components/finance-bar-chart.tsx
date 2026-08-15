@@ -86,16 +86,16 @@ function formatBarLabel(
   return { line1: num, line2: "млн. руб." };
 }
 
-/** Отклонение как в таблице: <0 красный, >0 зелёный. Факт — бирюзовый. */
+/** Отклонение: <0 красный; >0 оранжевый (не зелёный — иначе сливается с бирюзовым фактом). */
 const DEV_BAR_NEG = "#dc2626";
-const DEV_BAR_POS = "#16a34a";
+const DEV_BAR_POS = "#ea580c";
 /** Подписи отклонения: на светлой теме тёмнее, на тёмной — ярче (контраст к фону). */
 const DEV_LABEL_NEG_LIGHT = "#b91c1c";
 const DEV_LABEL_NEG_DARK = "#fb7185";
-const DEV_LABEL_POS_LIGHT = "#166534";
-const DEV_LABEL_POS_DARK = "#4ade80";
+const DEV_LABEL_POS_LIGHT = "#c2410c";
+const DEV_LABEL_POS_DARK = "#fdba74";
 
-/** Как таблица: <0 красный (ниже оси), >0 зелёный (выше оси). */
+/** <0 красный (ниже оси), >0 оранжевый (выше оси). */
 function deviationLabelColor(value: number, dark: boolean): string {
   if (Math.abs(value) < 0.005) return dark ? "#e2e8f0" : "#111827";
   if (value > 0) return dark ? DEV_LABEL_POS_DARK : DEV_LABEL_POS_LIGHT;
@@ -168,14 +168,14 @@ export function FinanceBarChart({
   // При отклонении ось уходит в минус — выше блок, иначе мелкие суммы
   // (десятки млн при шкале до тысяч) сливаются с линией нуля.
   const height = fullscreen
-    ? Math.max(showDeviation ? 640 : 560, viewport.height - 72)
+    ? Math.max(showDeviation ? 780 : 600, viewport.height - 72)
     : compact
       ? showDeviation
-        ? 420
-        : 340
+        ? 480
+        : 360
       : showDeviation
-        ? 640
-        : 520;
+        ? 760
+        : 560;
 
   const planColor =
     colors?.plan ?? (forecastMode ? FORECAST_PLAN : DEFAULT_PLAN);
@@ -410,7 +410,7 @@ export function FinanceBarChart({
                 dataKey={planName}
                 fill={planColor}
                 radius={[3, 3, 0, 0]}
-                minPointSize={showDeviation ? 5 : 2}
+                minPointSize={showDeviation ? 6 : 2}
                 isAnimationActive={false}
               >
                 <LabelList
@@ -422,7 +422,7 @@ export function FinanceBarChart({
                 dataKey={factName}
                 fill={factColor}
                 radius={[3, 3, 0, 0]}
-                minPointSize={showDeviation ? 5 : 2}
+                minPointSize={showDeviation ? 6 : 2}
                 isAnimationActive={false}
               >
                 <LabelList
