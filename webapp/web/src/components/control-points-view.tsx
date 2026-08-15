@@ -8,17 +8,17 @@ import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { StatusPill } from "@/components/status-pill";
 import {
-  FilterChipSelect,
+  FilterChipMulti,
   FilterFieldsRow,
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
-import { filterChip } from "@/lib/filters-summary";
+import { multiFilterChips } from "@/lib/filters-summary";
 import { useStickyHead } from "@/lib/use-sticky-head";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
-const URL_INITIAL = { project: "Все" };
+const URL_INITIAL = { projects: [] as string[] };
 
 const CELL = "border border-[#cbd5e1] dark:border-[#5a6f82]";
 const EDGE_L = "border-l-[3px] border-l-[#94a3b8] dark:border-l-white";
@@ -278,17 +278,17 @@ function ControlPointsGroup({
 }
 
 export function ControlPointsView() {
-  const [project, setProject] = useState("Все");
+  const [selected, setSelected] = useState<string[]>([]);
   const [data, setData] = useState<ControlPointsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const load = useCallback(async (nextProject: string) => {
+  const load = useCallback(async (projects: string[]) => {
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchControlPoints(nextProject));
+      setData(await fetchControlPoints(projects));
     } catch (cause) {
       setData(null);
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -298,33 +298,40 @@ export function ControlPointsView() {
   }, []);
 
   useEffect(() => {
-    void load(project);
-  }, [load, project]);
+    void load(selected);
+  }, [load, selected]);
 
-  const urlState = useMemo(() => ({ project }), [project]);
+  const urlState = useMemo(() => ({ projects: selected }), [selected]);
   useUrlFilterState(urlState, URL_INITIAL, (patch) => {
-    if (patch.project) setProject(patch.project);
+    if (patch.projects) setSelected(patch.projects);
   }, { navId: "control-points" });
 
-  const projects = data?.projects ?? [];
+  const projects = useMemo(() => {
+    const rows = data?.projects ?? [];
+    if (!selected.length) return rows;
+    const allow = new Set(selected);
+    return rows.filter((row) => allow.has(row.project));
+  }, [data?.projects, selected]);
   const groups = data?.groups ?? [];
   const metaError = data?.meta.error;
+  const dirty = selected.length > 0;
 
   return (
     <AppShell title="Контрольные точки" loading={loading}>
       <FiltersCard
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
-        activeFilters={
-          project !== "Все"
-            ? [filterChip("project", "Проект", project, () => setProject("Все"))]
-            : []
-        }
-        onReset={project !== "Все" ? () => setProject("Все") : undefined}
+        activeFilters={multiFilterChips("projects", "Проект", selected, setSelected)}
+        onReset={dirty ? () => setSelected([]) : undefined}
       >
-        <FiltersReset disabled={project === "Все"} onClick={() => setProject("Все")} />
+        <FiltersReset disabled={!dirty} onClick={() => setSelected([])} />
         <FilterFieldsRow cols={2}>
-          <FilterChipSelect label="Проект" value={project} options={data?.filters.projects ?? ["Все"]} onChange={setProject} />
+          <FilterChipMulti
+            label="Проект"
+            values={selected}
+            options={data?.filters.projects ?? []}
+            onChange={setSelected}
+          />
           <div />
         </FilterFieldsRow>
       </FiltersCard>

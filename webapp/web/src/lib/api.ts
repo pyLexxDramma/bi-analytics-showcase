@@ -991,7 +991,9 @@ export type ControlPointsPayload = {
   };
   filters: {
     projects: string[];
-    applied: { project: string };
+    mode?: string;
+    empty_means_all?: boolean;
+    applied: { projects?: string[]; project?: string };
   };
   groups: Array<{
     id: string;
@@ -1014,9 +1016,11 @@ export type ControlPointsPayload = {
 };
 
 export async function fetchControlPoints(
-  project?: string,
+  projects: string[] = [],
 ): Promise<ControlPointsPayload> {
-  return apiGet<ControlPointsPayload>("/api/control-points", { project });
+  return apiGet<ControlPointsPayload>("/api/control-points", {
+    projects,
+  });
 }
 
 export type ProjectSchedulePayload = {
