@@ -1459,6 +1459,111 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   }
 }
 
+/* Активный пункт сайдбара — мягкий изумрудный перелив */
+@keyframes bi-nav-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes bi-nav-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.28),
+      0 0 10px rgba(16, 185, 129, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(20, 184, 166, 0.5),
+      0 0 16px rgba(45, 212, 191, 0.28);
+  }
+}
+
+.bi-nav-active {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: #6ee7b7 !important;
+  color: #064e3b !important;
+  font-weight: 600;
+  background: linear-gradient(
+    115deg,
+    #e8f5e9 0%,
+    #d1fae5 28%,
+    #a7f3d0 50%,
+    #bbf7d0 72%,
+    #e8f5e9 100%
+  );
+  background-size: 240% 240%;
+  animation:
+    bi-nav-flow 4.5s ease infinite,
+    bi-nav-glow 3.2s ease-in-out infinite;
+}
+
+.bi-nav-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.7) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+  animation: bi-nav-flow 2.6s linear infinite;
+  pointer-events: none;
+}
+
+html.dark .bi-nav-active {
+  border-color: rgba(52, 211, 153, 0.55) !important;
+  color: #d1fae5 !important;
+  background: linear-gradient(
+    115deg,
+    rgba(6, 78, 59, 0.55) 0%,
+    rgba(16, 185, 129, 0.35) 35%,
+    rgba(45, 212, 191, 0.4) 50%,
+    rgba(16, 185, 129, 0.32) 65%,
+    rgba(6, 78, 59, 0.55) 100%
+  );
+  background-size: 240% 240%;
+  box-shadow:
+    0 0 0 1px rgba(45, 212, 191, 0.25),
+    0 0 14px rgba(16, 185, 129, 0.2);
+}
+
+html.dark .bi-nav-active::before {
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(167, 243, 208, 0.28) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bi-nav-active,
+  .bi-nav-active::before {
+    animation: none;
+  }
+  .bi-nav-active {
+    background: #e8f5e9;
+    box-shadow: none;
+  }
+  html.dark .bi-nav-active {
+    background: rgba(6, 78, 59, 0.45);
+  }
+}
+
 /* «Спросить ИИ» — заметная переливающаяся кнопка в шапке дашборда */
 @keyframes ask-ai-flow {
   0% {

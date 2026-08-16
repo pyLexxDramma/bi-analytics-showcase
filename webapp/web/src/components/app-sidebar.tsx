@@ -509,7 +509,7 @@ export function AppSidebar({
                 {...navProps}
                 className={`rounded-md px-3 py-2.5 font-medium transition ${
                   isActive(visibleTop.href)
-                    ? "border border-emerald-300 bg-[#e8f5e9] text-emerald-900"
+                    ? "bi-nav-active border"
                     : "border border-transparent bg-white hover:bg-gray-100 dark:bg-dark-tremor-background-subtle"
                 }`}
               >
@@ -545,7 +545,7 @@ export function AppSidebar({
                             {...navProps}
                             className={`rounded-md border px-2.5 py-2 leading-snug transition ${
                               isActive(item.href)
-                                ? "border-emerald-300 bg-[#e8f5e9] font-medium text-emerald-900"
+                                ? "bi-nav-active"
                                 : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
                             }`}
                           >
@@ -566,7 +566,7 @@ export function AppSidebar({
                 {...navProps}
                 className={`rounded-md border px-3 py-2.5 leading-snug transition ${
                   isActive(item.href)
-                    ? "border-emerald-300 bg-[#e8f5e9] font-medium text-emerald-900"
+                    ? "bi-nav-active"
                     : "border-gray-200 bg-white hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
                 }`}
               >
@@ -584,7 +584,7 @@ export function AppSidebar({
               {...navProps}
               className={`rounded-md border px-3 py-2.5 ${
                 isActive("/settings/profile")
-                  ? "border-emerald-300 bg-[#e8f5e9] font-medium text-emerald-900"
+                  ? "bi-nav-active"
                   : "border-gray-200 bg-white hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
               }`}
             >
@@ -595,7 +595,7 @@ export function AppSidebar({
               {...navProps}
               className={`rounded-md border px-3 py-2.5 ${
                 isActive("/settings/admin")
-                  ? "border-emerald-300 bg-[#e8f5e9] font-medium text-emerald-900"
+                  ? "bi-nav-active"
                   : "border-gray-200 bg-white hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
               }`}
             >
