@@ -32,7 +32,7 @@
 | 8 | deviation-reasons | Причины отклонений | `walk_20260815_132440` | ✅ принято | 15.08: 5 кадров, pixel 0%; принят на ai.conall / cloudpub |
 | 9 | baseline-deviation | Отклонение от БП | `walk_20260815_141841` | ✅ принято | 15.08: выравнивание баров; prefix проекта; sort по проекту; pad x-origin; принят на ai.conall после deploy |
 | 10 | project-documentation | Проектная документация | `walk_20260816_102334` | ✅ принято | 16.08: 5 кадров 0%; sticky «Проект» opaque; принят на ai.conall после deploy |
-| 11 | working-documentation | Рабочая документация | — | ❌ в работе | **Не принимать.** Причины: (1) prod `version_id=23` vs cloudpub `225` → KPI 722/403 vs 728/409; (2) prod «Проект»=UUID, cloudpub=имена; (3) monthly fact prod раздут cipher-fallback. Фикс UUID→имя + убран endswith; ждём deploy+визуальную приёмку |
+| 11 | working-documentation | Рабочая документация | `walk_20260816_104631` | ✅ принято | 16.08: 6 кадров 0%; sticky «Проект» opaque; принят на ai.conall после deploy |
 | 12 | gdrs-people | ГДРС люди | `walk_20260814_1825` | 🔄 walk clean | 6 кадров, 0% |
 | 13 | gdrs-equipment | ГДРС техника | `walk_20260814_1827` | 🔄 walk clean | 6 кадров, ≤0.12% |
 | 14 | prescriptions | Предписания | `walk_20260814_1828` | 🔄 walk clean | 6 кадров, 0% |
