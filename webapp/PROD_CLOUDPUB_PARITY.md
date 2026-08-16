@@ -36,8 +36,8 @@
 | 12 | gdrs-people | ГДРС люди | `walk_20260816_110017` | ✅ принято | 16.08: 6 кадров 0%; недели План/СКУД = с фактом (как Streamlit); принят на ai.conall |
 | 13 | gdrs-equipment | ГДРС техника | `walk_20260816_111541` | ✅ принято | 16.08: ≤0.06%; fullscreen графиков + shimmer ⛶; принят на ai.conall после deploy |
 | 14 | prescriptions | Предписания | `walk_20260816_113829` | ✅ принято | 16.08: 0%; sticky 3 кол.; выноски мелких сегментов; принят на ai.conall после deploy |
-| 15 | executive-docs | Исполнительная документация | `walk_20260814_184614` | 🔄 walk clean | после soft-ready + DEV_PASS=admin; 5 кадров, 0% |
-| 16 | debit-credit | ДЗ/КЗ | `walk_20260814_1831` | 🔄 walk clean | 4 кадров, ≤0.04% |
+| 15 | executive-docs | Исполнительная документация | `walk_20260816_121954` | ✅ принято | 16.08: 6 кадров, ≤0.01%; принят на ai.conall после deploy |
+| 16 | debit-credit | ДЗ/КЗ | — | 🔄 в работе | свежий walk prod ↔ cloudpub |
 | 17 | settings-profile | Профиль | — | ⏭ позже | |
 | 18 | settings-admin | Админка | — | ⏭ позже | |
 
