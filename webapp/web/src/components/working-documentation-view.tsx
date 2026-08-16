@@ -292,9 +292,8 @@ function DetailTable({
             </MobileCardStack>
             <div className="hidden max-h-[32rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto lg:block">
               <table
-                className="bi-sticky-head bi-sticky-col w-max min-w-full text-sm"
+                className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-sm"
                 style={{
-                  borderCollapse: "collapse",
                   width: "100%",
                   border: dark ? "1px solid #334155" : "1px solid #d1d5db",
                 }}
@@ -335,6 +334,14 @@ function DetailTable({
                                 stickyCol || isId ? { opaque: true } : undefined,
                               )
                             : { className: "", style: undefined as CSSProperties | undefined };
+                        const stickyTone =
+                          stickyCol && num != null && !Number.isNaN(num)
+                            ? num > 0
+                              ? "bi-row-ahead"
+                              : num < 0
+                                ? "bi-row-overdue"
+                                : ""
+                            : "";
                         const cellBorder = dark
                           ? "1px solid #334155"
                           : "1px solid #e5e7eb";
@@ -347,17 +354,36 @@ function DetailTable({
                             : dark
                               ? "#0f172a"
                               : "#fafafa");
+                        const solidBg =
+                          (tint.style?.backgroundColor as string | undefined) ||
+                          zebra ||
+                          (dark ? "#111827" : "#ffffff");
                         return (
                           <td
                             key={c}
-                            className={`${TD} ${tint.className} ${
+                            className={`${TD} ${tint.className} ${stickyTone} ${
                               isDev && !tint.style ? deviationClass(num) : ""
                             }`}
-                            style={{
-                              border: cellBorder,
-                              backgroundColor: zebra || undefined,
-                              ...(tint.style ?? {}),
-                            }}
+                            style={
+                              stickyCol
+                                ? {
+                                    border: cellBorder,
+                                    backgroundColor: solidBg,
+                                    color: tint.style?.color,
+                                    position: "sticky",
+                                    left: 0,
+                                    zIndex: 2,
+                                    backgroundClip: "padding-box",
+                                    boxShadow: dark
+                                      ? "6px 0 8px -6px rgba(0,0,0,0.55)"
+                                      : "6px 0 8px -6px rgba(15,23,42,0.28)",
+                                  }
+                                : {
+                                    border: cellBorder,
+                                    backgroundColor: zebra || undefined,
+                                    ...(tint.style ?? {}),
+                                  }
+                            }
                           >
                             {label}
                           </td>
