@@ -1,9 +1,47 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PLOTLY_AXIS_LINE, PLOTLY_CONFIG, PLOTLY_ZEROLINE } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
+
+/** Modebar при гориз. скролле широкого графика — всегда справа в viewport (как main `_finance_plotly_hscroll_modebar_pin_*`). */
+function usePinnedHScrollModebar(enabled: boolean, rev: string) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const pin = () => {
+      const mb = wrap.querySelector(".modebar") as HTMLElement | null;
+      const inner = wrap.querySelector(
+        ".js-plotly-plot, .plotly-graph-div",
+      ) as HTMLElement | null;
+      if (!mb || !inner) return;
+      const tx = wrap.scrollLeft + wrap.clientWidth - inner.offsetWidth;
+      mb.style.setProperty("transform", `translateX(${tx}px)`, "important");
+      mb.style.setProperty("z-index", "1001", "important");
+    };
+    wrap.addEventListener("scroll", pin, { passive: true });
+    window.addEventListener("resize", pin);
+    const mo = new MutationObserver(pin);
+    mo.observe(wrap, { childList: true, subtree: true });
+    const t1 = window.setTimeout(pin, 120);
+    const t2 = window.setTimeout(pin, 600);
+    const t3 = window.setTimeout(pin, 1500);
+    return () => {
+      wrap.removeEventListener("scroll", pin);
+      window.removeEventListener("resize", pin);
+      mo.disconnect();
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      const mb = wrap.querySelector(".modebar") as HTMLElement | null;
+      mb?.style.removeProperty("transform");
+    };
+  }, [enabled, rev]);
+  return wrapRef;
+}
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -221,7 +259,7 @@ export function DebitCreditChart({
             ...PLOTLY_ZEROLINE,
           },
           modebar: {
-            orientation: "v" as const,
+            orientation: "h" as const,
             bgcolor: "rgba(0,0,0,0)",
             color: theme.axis,
             activecolor: "#0f766e",
@@ -258,6 +296,7 @@ export function DebitCreditChart({
 
     const traces: Array<Record<string, unknown>> = seriesOrder.map((series) => {
       const values = contractorRows.map((row) => row[series.key]);
+      // Стек: цифры только сверху (итог scatter) — без подписей внутри сегментов.
       return {
         type: "bar" as const,
         x: labels,
@@ -265,15 +304,14 @@ export function DebitCreditChart({
         name: series.name,
         marker: { color: series.color },
         width: barWidth,
-        text: values.map(valueLabel),
-        textposition: stacked ? ("inside" as const) : ("outside" as const),
-        insidetextanchor: stacked ? ("middle" as const) : undefined,
+        text: stacked ? values.map(() => "") : values.map(valueLabel),
+        textposition: stacked ? ("none" as const) : ("outside" as const),
         textangle: 0,
         cliponaxis: false,
         constraintext: "none" as const,
         textfont: {
-          size: compact ? 9 : stacked ? 11 : 11,
-          color: stacked ? "#111827" : theme.label,
+          size: compact ? 9 : 11,
+          color: theme.label,
         },
         hovertemplate: `<b>%{x}</b><br>${series.name}: %{y:.1f} млн руб.<extra></extra>`,
         showlegend: true,
@@ -370,7 +408,7 @@ export function DebitCreditChart({
           ...PLOTLY_ZEROLINE,
         },
         modebar: {
-          orientation: "v" as const,
+          orientation: "h" as const,
           bgcolor: "rgba(0,0,0,0)",
           color: theme.axis,
           activecolor: "#0f766e",
@@ -383,6 +421,13 @@ export function DebitCreditChart({
     };
   }, [aggregation, compact, rows, stacked, theme]);
 
+  const pinRev = useMemo(
+    () =>
+      `${aggregation}|${stacked}|${compact}|${rows.length}|${figure.width ?? 0}|${figure.layout.height}`,
+    [aggregation, compact, figure.layout.height, figure.width, rows.length, stacked],
+  );
+  const scrollWrapRef = usePinnedHScrollModebar(!!figure.scroll && !compact, pinRev);
+
   if (!rows.length) {
     return (
       <div className="flex h-72 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
@@ -392,7 +437,10 @@ export function DebitCreditChart({
   }
 
   return (
-    <div className={figure.scroll ? "overflow-x-auto" : undefined}>
+    <div
+      ref={scrollWrapRef}
+      className={figure.scroll ? "relative overflow-x-auto" : undefined}
+    >
       <PlotlyFigure
         data={figure.data}
         layout={figure.layout}
