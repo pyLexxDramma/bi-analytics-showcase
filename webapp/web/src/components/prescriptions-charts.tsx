@@ -325,6 +325,9 @@ export function PrescriptionsObjectsChart({
     const ymax = Math.max(...rows.map((row) => Number(row.total) || 0), 0);
     const axisUpper = ymax > 0 ? axisUpperBound(ymax) : 5;
 
+    const isSmallSegment = (v: number, total: number) =>
+      v > 0 && (v < 5 || (total > 0 && v / total < 0.08));
+
     const data = statusKeys.map((status) => {
       const vals = rows.map((row) => Number(row[status] ?? 0) || 0);
       return {
@@ -333,12 +336,10 @@ export function PrescriptionsObjectsChart({
         y: vals,
         name: status,
         marker: { color: PRED_OBJECT_STATUS_COLOR[status] ?? "#94a3b8" },
-        // Мелкие сегменты без цифры внутри — читается сумма над столбцом.
+        // Крупные сегменты — цифра внутри; мелкие — выноска (см. annotations).
         text: vals.map((v, i) => {
           const total = Number(rows[i]?.total) || 0;
-          if (v <= 0) return "";
-          if (v < 5) return "";
-          if (total > 0 && v / total < 0.08) return "";
+          if (!v || isSmallSegment(v, total)) return "";
           return String(v);
         }),
         texttemplate: "%{text}",
@@ -351,7 +352,7 @@ export function PrescriptionsObjectsChart({
       };
     });
 
-    const annotations = rows
+    const totalAnnotations = rows
       .filter((row) => Number(row.total) > 0)
       .map((row) => ({
         x: String(row.object),
@@ -365,6 +366,58 @@ export function PrescriptionsObjectsChart({
         yshift: 14,
         font: { color: theme.label, size: compact ? 12 : 16 },
       }));
+
+    const calloutAnnotations: Array<Record<string, unknown>> = [];
+    rows.forEach((row) => {
+      const total = Number(row.total) || 0;
+      if (total <= 0) return;
+      let yBase = 0;
+      let side = 1;
+      let calloutIdx = 0;
+      for (const status of statusKeys) {
+        const v = Number(row[status] ?? 0) || 0;
+        if (v <= 0) continue;
+        if (isSmallSegment(v, total)) {
+          // Остриё стрелки — на верхнем внешнем крае сегмента.
+          const yEdge = yBase + v;
+          const ax = side * (compact ? 36 : 52);
+          // Текст выше и сбоку (как красная «3» на скрине).
+          const ay = compact ? -22 - calloutIdx * 10 : -32 - calloutIdx * 12;
+          calloutAnnotations.push({
+            x: String(row.object),
+            y: yEdge,
+            text: `<b>${v}</b>`,
+            showarrow: true,
+            arrowhead: 2,
+            arrowsize: 0.9,
+            arrowwidth: 1.2,
+            arrowcolor: theme.label,
+            ax,
+            ay,
+            xref: "x",
+            yref: "y",
+            // Смещаем точку привязки к внешнему краю столбца.
+            xshift: side * (compact ? 14 : 22),
+            xanchor: side > 0 ? "left" : "right",
+            yanchor: "bottom",
+            font: {
+              color: theme.label,
+              size: compact ? 11 : 13,
+              family: "Inter, system-ui, sans-serif",
+            },
+            bgcolor: "rgba(0,0,0,0)",
+            borderwidth: 0,
+            borderpad: 0,
+            opacity: 1,
+          });
+          side *= -1;
+          calloutIdx += 1;
+        }
+        yBase += v;
+      }
+    });
+
+    const annotations = [...totalAnnotations, ...calloutAnnotations];
 
     return {
       data,
@@ -393,7 +446,9 @@ export function PrescriptionsObjectsChart({
           y: -0.18,
         }),
         annotations,
-        margin: compact ? { l: 40, r: 16, t: 40, b: 56 } : { l: 56, r: 36, t: 64, b: 72 },
+        margin: compact
+          ? { l: 48, r: 40, t: 40, b: 56 }
+          : { l: 64, r: 64, t: 64, b: 72 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
