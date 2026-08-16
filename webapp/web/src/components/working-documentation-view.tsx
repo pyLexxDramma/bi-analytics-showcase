@@ -316,9 +316,10 @@ function DetailTable({
                 <tbody>
                   {sortedRows.map((row, i) => (
                     <tr key={i}>
-                      {columns.map((c) => {
+                      {columns.map((c, colIdx) => {
                         const isDev = isDeviationCol(c);
                         const isId = isIdentityCol(c);
+                        const stickyCol = colIdx === 0;
                         const num = isDev
                           ? parseSortableNumber(row[c] ?? row[`${c}__label`])
                           : isId && badgeCol
@@ -331,6 +332,7 @@ function DetailTable({
                                 num,
                                 vmaxByCol[isDev ? c : badgeCol] ?? 1,
                                 dark,
+                                stickyCol || isId ? { opaque: true } : undefined,
                               )
                             : { className: "", style: undefined as CSSProperties | undefined };
                         const cellBorder = dark
@@ -340,10 +342,10 @@ function DetailTable({
                           !tint.style &&
                           (i % 2 === 0
                             ? dark
-                              ? "rgba(255,255,255,0.02)"
+                              ? "#111827"
                               : "#ffffff"
                             : dark
-                              ? "transparent"
+                              ? "#0f172a"
                               : "#fafafa");
                         return (
                           <td

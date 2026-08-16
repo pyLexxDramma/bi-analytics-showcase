@@ -637,6 +637,12 @@ function ProjectDocumentationScreen({
                     <tbody>
                       {mainRows.map((row, index) => {
                         const tint = deviationCellStyle(row.dev_end_days, mainVmax, dark);
+                        const stickyTint = deviationCellStyle(
+                          row.dev_end_days,
+                          mainVmax,
+                          dark,
+                          { opaque: true },
+                        );
                         const stickyTone =
                           (row.dev_end_days ?? 0) > 0
                             ? "bi-row-ahead"
@@ -646,7 +652,10 @@ function ProjectDocumentationScreen({
                         const cell = `${TD} ${tint.className} ${stickyTone}`;
                         return (
                           <tr key={`${row.project}-${row.section}-${index}`}>
-                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                            <td
+                              className={`${cell} tabular-nums`}
+                              style={stickyTint.style}
+                            >
                               {row.n ?? index + 1}
                             </td>
                             <td className={cell} style={tint.style}>
@@ -833,6 +842,12 @@ function ProjectDocumentationScreen({
                     <tbody>
                       {detailRows.map((row, i) => {
                         const tint = deviationCellStyle(row.dev_end_days, detailVmax, dark);
+                        const stickyTint = deviationCellStyle(
+                          row.dev_end_days,
+                          detailVmax,
+                          dark,
+                          { opaque: true },
+                        );
                         const stickyTone =
                           (row.dev_end_days ?? 0) > 0
                             ? "bi-row-ahead"
@@ -842,7 +857,7 @@ function ProjectDocumentationScreen({
                         const cell = `${TD} ${tint.className} ${stickyTone}`;
                         return (
                           <tr key={`${row.project}-${row.section}-${i}`}>
-                            <td className={cell} style={tint.style}>
+                            <td className={cell} style={stickyTint.style}>
                               {row.project}
                             </td>
                             <td className={`${cell} max-w-xs truncate text-left`} style={tint.style}>
@@ -956,6 +971,9 @@ function ProjectDocumentationScreen({
                   <tbody>
                     {summaryRows.map((row) => {
                       const tint = deviationCellStyle(row.overdue, sumVmax, dark);
+                      const stickyTint = deviationCellStyle(row.overdue, sumVmax, dark, {
+                        opaque: true,
+                      });
                       const stickyTone =
                         row.overdue > 0
                           ? "bi-row-ahead"
@@ -965,7 +983,7 @@ function ProjectDocumentationScreen({
                       const cell = `${TD} ${tint.className} ${stickyTone}`;
                       return (
                       <tr key={row.project}>
-                        <td className={cell} style={tint.style}>
+                        <td className={cell} style={stickyTint.style}>
                           {row.project}
                         </td>
                         <td className={`${cell} tabular-nums`} style={tint.style}>
