@@ -30,6 +30,8 @@ import {
 import { buildFilterChips } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 type Filters = {
   projects: string[];
@@ -430,11 +432,26 @@ export function PrescriptionsView() {
       ) : null}
 
       <div className="space-y-6">
+        <DashboardInsight
+          text={
+            kpis?.overdue_unresolved != null && kpis?.non_overdue != null
+              ? `Просроченных неустранённых ${kpis.overdue_unresolved} · непросроченных ${kpis.non_overdue}`
+              : kpis?.total != null
+                ? `Всего предписаний ${kpis.total}`
+                : null
+          }
+        />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
           {topMetrics.map((item) => (
             <div
               key={item.label}
-              className="rounded-xl border border-tremor-border bg-tremor-background px-4 py-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              className={`rounded-xl border border-tremor-border bg-tremor-background px-4 py-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background ${
+                item.tone === "ok"
+                  ? "bi-kpi-ok"
+                  : item.tone === "warn"
+                    ? "bi-kpi-warn"
+                    : "bi-kpi-neutral"
+              }`}
             >
               <Text className="text-sm text-tremor-content dark:text-dark-tremor-content">
                 {item.label}
@@ -552,9 +569,10 @@ export function PrescriptionsView() {
           <FullscreenPanel disabled={!rows.length} scroll={false}>
             <div className="bi-table-scroll">
               {!rows.length ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content">
-                  Нет строк по фильтрам.
-                </div>
+                <DashboardEmptyState
+                  message="Нет строк по фильтрам."
+                  onReset={activeFilters.length ? reset : undefined}
+                />
               ) : (
                 /* shrink-wrap: иначе table width:auto = 100% карточки и колонки раздуваются */
                 <div className="w-max max-w-none">
@@ -629,6 +647,8 @@ export function PrescriptionsView() {
                                         ? "max-w-[16rem] truncate align-middle"
                                         : "whitespace-nowrap align-middle"
                                 } ${
+                                  key === "overdue_days" ? "bi-num" : ""
+                                } ${
                                   key === "overdue_days" && row.overdue_days > 0
                                     ? "font-semibold text-rose-600 dark:text-rose-400"
                                     : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
@@ -696,7 +716,10 @@ export function PrescriptionsView() {
             Детальная таблица по предписаниям
           </Title>
           {!rows.length ? (
-            <Text className="px-2 py-6 text-center">Нет строк по фильтрам.</Text>
+            <DashboardEmptyState
+              message="Нет строк по фильтрам."
+              onReset={activeFilters.length ? reset : undefined}
+            />
           ) : (
             <MobileCardStack compact>
               {rows.map((row, index) => (

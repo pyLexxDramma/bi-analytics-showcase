@@ -19,6 +19,8 @@ import { multiFilterChips } from "@/lib/filters-summary";
 import { useStickyHead } from "@/lib/use-sticky-head";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 const URL_INITIAL = { projects: [] as string[] };
 
@@ -183,7 +185,7 @@ function WideMatrixTable({
       </thead>
       <tbody>
         {projects.map((row) => (
-          <tr key={row.project}>
+          <tr key={row.project} className="bi-row-alt">
             <td
               className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-left font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
             >
@@ -191,7 +193,7 @@ function WideMatrixTable({
             </td>
             {columns.flatMap((col) => {
               const cell = row.cells[col.key];
-              const body = `${CELL} bg-white px-2 py-2 tabular-nums dark:bg-[#0c1219]`;
+              const body = `${CELL} bi-num bg-white px-2 py-2 tabular-nums dark:bg-[#0c1219]`;
               return [
                 <td
                   key={`${col.key}-plan`}
@@ -296,9 +298,9 @@ function MobileMilestoneSections({
               <tbody>
                 {projects.map((row) => {
                   const cell = row.cells[col.key];
-                  const body = `${CELL} whitespace-nowrap bg-white px-0.5 py-2 text-[11px] tabular-nums dark:bg-[#0c1219]`;
+                  const body = `${CELL} bi-num whitespace-nowrap bg-white px-0.5 py-2 text-[11px] tabular-nums dark:bg-[#0c1219]`;
                   return (
-                    <tr key={`${col.key}-${row.project}`}>
+                    <tr key={`${col.key}-${row.project}`} className="bi-row-alt">
                       <td
                         className={`${CELL} bg-[#f9fafb] px-1.5 py-2 text-left text-[11px] font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
                       >
@@ -414,6 +416,16 @@ export function DeveloperProjectsView() {
 
       {/* KPI и графики намеренно не выводим: в [main] экран — только матрица. */}
 
+      <DashboardInsight
+        text={
+          data?.kpis
+            ? `Проектов ${data.kpis.projects} · точек ${data.kpis.milestones_found} · выполнено ${Number(data.kpis.completed_pct).toFixed(0)}% · просрочено ${data.kpis.overdue}`
+            : data?.meta.rows != null
+              ? `Строк матрицы ${data.meta.rows}${data.meta.columns != null ? ` · колонок ${data.meta.columns}` : ""}`
+              : null
+        }
+      />
+
       <Card className="overflow-hidden rounded-xl p-0">
         <div className="flex items-center justify-between border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -423,11 +435,18 @@ export function DeveloperProjectsView() {
         <FullscreenPanel disabled={!hasRows} scroll={false}>
           <div className="p-1 pt-3 lg:pt-1">
             {!hasRows ? (
-              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                {loading
-                  ? "Загрузка…"
-                  : "Нет данных матрицы. Сделайте ingest в админке."}
-              </div>
+              <DashboardEmptyState
+                message={
+                  loading
+                    ? "Загрузка…"
+                    : selected.length
+                      ? "Нет данных матрицы по выбранным фильтрам."
+                      : "Нет данных матрицы. Сделайте ingest в админке."
+                }
+                onReset={
+                  !loading && selected.length ? () => setSelected([]) : undefined
+                }
+              />
             ) : (
               <>
                 <div className="lg:hidden">

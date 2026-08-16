@@ -43,6 +43,8 @@ import {
   parseSortableNumber,
 } from "@/lib/deviation-cell-style";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 const TH =
   "whitespace-nowrap px-2.5 py-2 text-center text-[13px] font-bold leading-tight text-[#111827] dark:text-[#fafafa]";
@@ -176,10 +178,12 @@ function DetailTable({
   columns,
   rows,
   fileStem,
+  onReset,
 }: {
   columns: string[];
   rows: Array<Record<string, string | number | null>>;
   fileStem: string;
+  onReset?: () => void;
 }) {
   const [sort, setSort] = useState<SortState>(null);
   const [dark, setDark] = useState(false);
@@ -252,9 +256,10 @@ function DetailTable({
     <FullscreenPanel disabled={!sortedRows.length}>
       <Card className="min-w-0 max-w-full rounded-xl p-0">
         {!sortedRows.length || !columns.length ? (
-          <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-            Нет строк по фильтрам.
-          </div>
+          <DashboardEmptyState
+            message="Нет строк по фильтрам."
+            onReset={onReset}
+          />
         ) : (
           <>
             <MobileCardStack>
@@ -314,7 +319,7 @@ function DetailTable({
                 </thead>
                 <tbody>
                   {sortedRows.map((row, i) => (
-                    <tr key={i}>
+                    <tr key={i} className="bi-row-alt">
                       {columns.map((c, colIdx) => {
                         const isDev = isDeviationCol(c);
                         const isId = isIdentityCol(c);
@@ -362,6 +367,8 @@ function DetailTable({
                           <td
                             key={c}
                             className={`${TD} ${tint.className} ${stickyTone} ${
+                              isDev || (isId && badgeCol) ? "bi-num" : ""
+                            } ${
                               isDev && !tint.style ? deviationClass(num) : ""
                             }`}
                             style={
@@ -610,6 +617,19 @@ export function WorkingDocumentationView() {
         <Text>Загрузка…</Text>
       ) : (
         <>
+          <DashboardInsight
+            text={
+              kpis?.total_sections != null
+                ? `Всего разделов ${fmtNum(kpis.total_sections)} · выдано ${fmtNum(issuedProduction)} · не выдано ${fmtNum(notIssued)}${
+                    kpis.overdue != null ? ` · просрочено ${fmtNum(kpis.overdue)}` : ""
+                  }${
+                    kpis.deviation_to_date != null
+                      ? ` · отклонение на дату ${fmtSigned(kpis.deviation_to_date)}`
+                      : ""
+                  }`
+                : null
+            }
+          />
           <Grid numItemsSm={1} numItemsMd={3} className="mb-6 gap-4">
             <Card className="rounded-xl">
               <Text className="leading-snug">Всего разделов</Text>
@@ -736,6 +756,7 @@ export function WorkingDocumentationView() {
                 columns={data?.detail_columns ?? []}
                 rows={data?.detail_rows ?? []}
                 fileStem="rd_detail"
+                onReset={activeFilters.length ? resetFilters : undefined}
               />
             </>
           ) : (
@@ -781,6 +802,7 @@ export function WorkingDocumentationView() {
                 columns={data?.delay.detail_columns ?? data?.detail_columns ?? []}
                 rows={data?.delay.detail_rows ?? data?.detail_rows ?? []}
                 fileStem="rd_delay_detail"
+                onReset={activeFilters.length ? resetFilters : undefined}
               />
             </>
           )}

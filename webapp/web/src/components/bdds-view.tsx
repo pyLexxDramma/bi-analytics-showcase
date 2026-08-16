@@ -25,6 +25,8 @@ import {
   FiltersCard,
   FiltersReset,
 } from "@/components/dashboard-filters";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 import {
   filterChip,
   formatDateChip,
@@ -680,6 +682,13 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
       ) : null}
 
       <div className="space-y-6">
+        <DashboardInsight
+          text={
+            data
+              ? `План ${mlnPlain(totals.plan)} · факт ${mlnPlain(totals.fact)} · откл. ${mlnPlain(totals.deviation, { signed: true })} млн ₽`
+              : null
+          }
+        />
         <Card className="rounded-xl">
           <FullscreenPanel disabled={!chartRows.length} fill>
             {(zoomed) => (
@@ -709,9 +718,16 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
           <FullscreenPanel disabled={!periodRows.length}>
             <div className="p-1 pt-3 lg:pt-1">
               {!periodRows.length ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  {loading ? "Загрузка…" : "Нет строк для сводной таблицы по выбранным фильтрам."}
-                </div>
+                <DashboardEmptyState
+                  message={
+                    loading
+                      ? "Загрузка…"
+                      : "Нет строк для сводной таблицы по выбранным фильтрам."
+                  }
+                  onReset={
+                    !loading && dirty ? () => setFilters(INITIAL) : undefined
+                  }
+                />
               ) : (
                 <>
                   <div className="lg:hidden">
@@ -767,19 +783,19 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                               </td>
                             </tr>
                           ) : (
-                            <tr key={`${row.project}-${row.period}-${index}`}>
+                            <tr key={`${row.project}-${row.period}-${index}`} className="bi-row-alt">
                               <td className={`${CELL} ${BODY_CELL}`}>{row.project}</td>
                               <td className={`${CELL} ${BODY_CELL} text-center`}>
                                 {row.period}
                               </td>
-                              <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
+                              <td className={`${CELL} ${BODY_CELL} bi-num text-center tabular-nums`}>
                                 {mlnCell(row.plan)}
                               </td>
-                              <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
+                              <td className={`${CELL} ${BODY_CELL} bi-num text-center tabular-nums`}>
                                 {mlnCell(row.fact)}
                               </td>
                               <td
-                                className={`${CELL} px-3 py-2 text-center tabular-nums ${deviationClass(
+                                className={`${CELL} bi-num px-3 py-2 text-center tabular-nums ${deviationClass(
                                   row.deviation,
                                 )}`}
                               >
@@ -793,14 +809,14 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                           <td className={`${CELL} px-3 py-2 text-center`}>
                             {data?.labels.total_period}
                           </td>
-                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
+                          <td className={`${CELL} bi-num px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.plan)}
                           </td>
-                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
+                          <td className={`${CELL} bi-num px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.fact)}
                           </td>
                           <td
-                            className={`${CELL} px-3 py-2 text-center tabular-nums ${deviationClass(
+                            className={`${CELL} bi-num px-3 py-2 text-center tabular-nums ${deviationClass(
                               totals.deviation,
                             )}`}
                           >
@@ -857,9 +873,14 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
           <FullscreenPanel disabled={!projectRows.length}>
             <div className="p-1 pt-3 lg:pt-1">
               {!projectRows.length ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  {loading ? "Загрузка…" : "Нет строк по выбранным фильтрам."}
-                </div>
+                <DashboardEmptyState
+                  message={
+                    loading ? "Загрузка…" : "Нет строк по выбранным фильтрам."
+                  }
+                  onReset={
+                    !loading && dirty ? () => setFilters(INITIAL) : undefined
+                  }
+                />
               ) : (
                 <>
                   <div className="lg:hidden">
@@ -897,16 +918,16 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                       </thead>
                       <tbody>
                         {projectVisible.map((row) => (
-                          <tr key={row.project}>
+                          <tr key={row.project} className="bi-row-alt">
                             <td className={`${CELL} ${BODY_CELL}`}>{row.project}</td>
-                            <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
+                            <td className={`${CELL} ${BODY_CELL} bi-num text-center tabular-nums`}>
                               {mlnCell(row.plan)}
                             </td>
-                            <td className={`${CELL} ${BODY_CELL} text-center tabular-nums`}>
+                            <td className={`${CELL} ${BODY_CELL} bi-num text-center tabular-nums`}>
                               {mlnCell(row.fact)}
                             </td>
                             <td
-                              className={`${CELL} px-3 py-2 text-center tabular-nums ${deviationClass(
+                              className={`${CELL} bi-num px-3 py-2 text-center tabular-nums ${deviationClass(
                                 row.deviation,
                               )}`}
                             >
@@ -916,10 +937,10 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                         ))}
                         <tr className={TOTAL_ROW}>
                           <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
-                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
+                          <td className={`${CELL} bi-num px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.plan)}
                           </td>
-                          <td className={`${CELL} px-3 py-2 text-center tabular-nums`}>
+                          <td className={`${CELL} bi-num px-3 py-2 text-center tabular-nums`}>
                             {mlnCell(totals.fact)}
                           </td>
                           <td

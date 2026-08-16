@@ -26,6 +26,8 @@ import {
 import { buildFilterChips } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { BddsPlanFactEditor } from "@/components/bdds-plan-fact-editor";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -416,6 +418,15 @@ export function BddsPlanFactView() {
       ) : null}
 
       <div className="min-w-0 max-w-full space-y-6">
+        <DashboardInsight
+          text={
+            totalRow
+              ? `План ${periodMln(totalRow.plan)} · факт ${periodMln(totalRow.fact)} · прогноз ${periodMln(totalRow.forecast)} млн ₽`
+              : data?.meta.rows != null
+                ? `${data.meta.rows} периодов`
+                : null
+          }
+        />
         <Card className="min-w-0 max-w-full overflow-hidden rounded-xl">
           <div className="border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
             <Title className="!break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
@@ -462,9 +473,18 @@ export function BddsPlanFactView() {
           <FullscreenPanel disabled={!periodRows.length} className="min-w-0">
             <div className="min-w-0 p-1 pt-3 lg:pt-1">
               {!periodRows.length ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  {loading ? "Загрузка…" : "Нет строк для таблицы по выбранным фильтрам."}
-                </div>
+                <DashboardEmptyState
+                  message={
+                    loading
+                      ? "Загрузка…"
+                      : "Нет строк для таблицы по выбранным фильтрам."
+                  }
+                  onReset={
+                    !loading && activeFilters.length
+                      ? () => setFilters(INITIAL)
+                      : undefined
+                  }
+                />
               ) : (
                 <>
                   <div className="lg:hidden">
@@ -546,20 +566,20 @@ export function BddsPlanFactView() {
                       </thead>
                       <tbody>
                         {dataRows.map((row) => (
-                          <tr key={row.period}>
+                          <tr key={row.period} className="bi-row-alt">
                             <td className={`${CELL} ${BODY} text-center`}>{row.period}</td>
-                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                            <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>
                               {periodMln(row.plan)}
                             </td>
-                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                            <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>
                               {periodMln(row.fact)}
                             </td>
-                            <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                            <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>
                               {periodMln(row.forecast)}
                             </td>
                             {!filters.hide_deviation ? (
                               <td
-                                className={`${CELL} ${BODY} text-center tabular-nums ${periodDeviationClass(row.deviation)}`}
+                                className={`${CELL} ${BODY} bi-num text-center tabular-nums ${periodDeviationClass(row.deviation)}`}
                               >
                                 {periodMln(row.deviation)}
                               </td>
@@ -610,9 +630,16 @@ export function BddsPlanFactView() {
           <FullscreenPanel disabled={!(data?.status_rows.length ?? 0)} className="min-w-0">
             <div className="min-w-0 p-1">
               {!(data?.status_rows.length ?? 0) ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  {loading ? "Загрузка…" : "Нет данных для статуса."}
-                </div>
+                <DashboardEmptyState
+                  message={
+                    loading ? "Загрузка…" : "Нет данных для статуса."
+                  }
+                  onReset={
+                    !loading && activeFilters.length
+                      ? () => setFilters(INITIAL)
+                      : undefined
+                  }
+                />
               ) : (
                 <>
                   <div className="lg:hidden">
@@ -672,20 +699,20 @@ export function BddsPlanFactView() {
                     </thead>
                     <tbody>
                       {(data?.status_rows ?? []).map((row, index) => (
-                        <tr key={`${row.month}-${row.project}-${index}`}>
+                        <tr key={`${row.month}-${row.project}-${index}`} className="bi-row-alt">
                           <td className={`${CELL} ${BODY} text-center`}>{row.month}</td>
                           <td className={`${CELL} ${BODY}`}>{row.project}</td>
-                          <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                          <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>
                             {row.plan_mln.toFixed(2)}
                           </td>
-                          <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                          <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>
                             {row.fact_mln.toFixed(2)}
                           </td>
-                          <td className={`${CELL} ${BODY} text-center tabular-nums`}>
+                          <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>
                             {row.forecast_mln.toFixed(2)}
                           </td>
                           <td
-                            className={`${CELL} ${BODY} text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
+                            className={`${CELL} ${BODY} bi-num text-center tabular-nums ${statusDeviationClass(row.deviation_mln)}`}
                           >
                             {statusSignedMln(row.deviation_mln, 2)}
                           </td>

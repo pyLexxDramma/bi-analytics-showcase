@@ -22,6 +22,7 @@ import {
   DeviationReasonsBarChart,
   DeviationReasonsPieChart,
 } from "@/components/deviation-reasons-share-charts";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import {
   FilterCheck,
   FilterChipMulti,
@@ -637,9 +638,10 @@ export function DeviationReasonsView() {
               scroll={false}
             >
               {sortedPmRows.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  Нет данных по периодам.
-                </div>
+                <DashboardEmptyState
+                  message="Нет данных по периодам."
+                  onReset={dirty ? resetFilters : undefined}
+                />
               ) : (
                 <>
                   <MobileCardStack>

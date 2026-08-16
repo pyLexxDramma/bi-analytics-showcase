@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { Text } from "@tremor/react";
 import type { BaselineDeviationPayload } from "@/lib/api";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 
@@ -416,11 +417,7 @@ export function BaselineDeviationChart({
   }, [rows, baseColor, planColor, fullscreen, data.chart.kind]);
 
   if (!built) {
-    return (
-      <div className="py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет задач для графика.
-      </div>
-    );
+    return <DashboardEmptyState message="Нет задач для графика." />;
   }
 
   const visibleH = Math.min(

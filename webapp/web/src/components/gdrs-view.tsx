@@ -28,6 +28,7 @@ import { buildFilterChips, filterChip } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { tapFeedback } from "@/lib/haptics";
 import { AppShell } from "@/components/app-shell";
+import { DashboardInsight } from "@/components/dashboard-insight";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -747,6 +748,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       ) : null}
 
       <div className="space-y-6">
+        <DashboardInsight
+          text={
+            data?.kpis
+              ? `План ${fmtInt(data.kpis.plan)} · факт ${fmtInt(data.kpis.fact)} · откл. ${fmtSigned(data.kpis.deviation)}`
+              : null
+          }
+        />
         <Card className="rounded-xl">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
             ГДРС по выбранным проектам
@@ -827,15 +835,16 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 </thead>
                 <tbody>
                   {projectRows.map((r) => (
-                    <tr key={r.project}>
+                    <tr key={r.project} className="bi-row-alt">
                       <td style={td({ textAlign: "left" })}>{r.project}</td>
-                      <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
                       </td>
-                      <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
                         {fmtInt(r.fact)}
                       </td>
                       <td
+                        className="bi-num"
                         style={td({
                           textAlign: "right",
                           ...dev(r.deviation),
@@ -844,6 +853,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                         {fmtSigned(r.deviation)}
                       </td>
                       <td
+                        className="bi-num"
                         style={td({
                           textAlign: "right",
                           ...dev(r.delta_pct),
@@ -1401,15 +1411,16 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 </thead>
                 <tbody>
                   {dynamicsRows.map((r) => (
-                    <tr key={r.period}>
+                    <tr key={r.period} className="bi-row-alt">
                       <td style={td({ textAlign: "left" })}>{r.period}</td>
-                      <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
                       </td>
-                      <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
                         {fmtInt(r.fact)}
                       </td>
                       <td
+                        className="bi-num"
                         style={td({
                           textAlign: "right",
                           ...dev(r.deviation),
@@ -1418,6 +1429,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                         {fmtSigned(r.deviation)}
                       </td>
                       <td
+                        className="bi-num"
                         style={td({
                           textAlign: "right",
                           ...dev(r.delta_pct),
@@ -1492,15 +1504,16 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 </thead>
                 <tbody>
                   {contractorRows.map((r) => (
-                    <tr key={r.contractor}>
+                    <tr key={r.contractor} className="bi-row-alt">
                       <td style={td({ textAlign: "left" })}>{r.contractor}</td>
-                      <td style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
                       </td>
-                      <td style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
                         {fmtInt(r.fact)}
                       </td>
                       <td
+                        className="bi-num"
                         style={td({
                           textAlign: "right",
                           ...dev(r.deviation),
@@ -1508,7 +1521,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       >
                         {fmtSigned(r.deviation)}
                       </td>
-                      <td style={td({ textAlign: "right" })}>
+                      <td className="bi-num" style={td({ textAlign: "right" })}>
                         {fmtPct(r.share_pct)}
                       </td>
                     </tr>

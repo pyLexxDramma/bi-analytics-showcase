@@ -7,11 +7,35 @@
 :root {
   color-scheme: light;
   color: #111827;
+  --bi-status-ok: #15803d;
+  --bi-status-warn: #b45309;
+  --bi-status-risk: #b91c1c;
+  --bi-status-neutral: #475569;
+  --bi-status-ok-bg: #ecfdf5;
+  --bi-status-warn-bg: #fffbeb;
+  --bi-status-risk-bg: #fef2f2;
+  --bi-status-neutral-bg: #f8fafc;
+  --bi-status-ok-border: #6ee7b7;
+  --bi-status-warn-border: #fcd34d;
+  --bi-status-risk-border: #fca5a5;
+  --bi-status-neutral-border: #cbd5e1;
 }
 
 html.dark {
   color-scheme: dark;
   color: #f9fafb;
+  --bi-status-ok: #6ee7b7;
+  --bi-status-warn: #fbbf24;
+  --bi-status-risk: #fca5a5;
+  --bi-status-neutral: #94a3b8;
+  --bi-status-ok-bg: rgba(6, 78, 59, 0.35);
+  --bi-status-warn-bg: rgba(120, 53, 15, 0.35);
+  --bi-status-risk-bg: rgba(127, 29, 29, 0.35);
+  --bi-status-neutral-bg: rgba(30, 41, 59, 0.45);
+  --bi-status-ok-border: rgba(52, 211, 153, 0.45);
+  --bi-status-warn-border: rgba(251, 191, 36, 0.45);
+  --bi-status-risk-border: rgba(248, 113, 113, 0.45);
+  --bi-status-neutral-border: rgba(100, 116, 139, 0.55);
 }
 
 html,
@@ -47,6 +71,52 @@ html.dark textarea:focus-visible,
 html.dark summary:focus-visible,
 html.dark [tabindex]:focus-visible {
   outline-color: #60a5fa;
+}
+
+/* Числа в таблицах / KPI */
+.bi-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.bi-row-alt:nth-child(even) > td,
+tr.bi-row-alt:nth-child(even) > td {
+  background-color: rgba(248, 250, 252, 0.85);
+}
+
+html.dark .bi-row-alt:nth-child(even) > td,
+html.dark tr.bi-row-alt:nth-child(even) > td {
+  background-color: rgba(30, 41, 59, 0.35);
+}
+
+.bi-status-ok {
+  color: var(--bi-status-ok);
+}
+.bi-status-warn {
+  color: var(--bi-status-warn);
+}
+.bi-status-risk {
+  color: var(--bi-status-risk);
+}
+.bi-status-neutral {
+  color: var(--bi-status-neutral);
+}
+
+.bi-kpi-ok {
+  border-color: var(--bi-status-ok-border);
+  background: var(--bi-status-ok-bg);
+}
+.bi-kpi-warn {
+  border-color: var(--bi-status-warn-border);
+  background: var(--bi-status-warn-bg);
+}
+.bi-kpi-risk {
+  border-color: var(--bi-status-risk-border);
+  background: var(--bi-status-risk-bg);
+}
+.bi-kpi-neutral {
+  border-color: var(--bi-status-neutral-border);
+  background: var(--bi-status-neutral-bg);
 }
 
 /* Tremor Card/table: force readable text in both themes */
@@ -830,15 +900,11 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     0%,
     100% {
       color: #0f766e;
-      filter: drop-shadow(0 0 2px rgba(13, 148, 136, 0.4));
+      filter: drop-shadow(0 0 1px rgba(13, 148, 136, 0.25));
     }
-    33% {
-      color: #0284c7;
-      filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.7));
-    }
-    66% {
-      color: #7c3aed;
-      filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.65));
+    50% {
+      color: #0d9488;
+      filter: drop-shadow(0 0 3px rgba(20, 184, 166, 0.4));
     }
   }
 
@@ -874,7 +940,7 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   .bi-fs-toggle-icon {
     display: block;
     color: #0f766e;
-    animation: bi-fs-shimmer 2.4s ease-in-out infinite;
+    animation: bi-fs-shimmer 4.5s ease-in-out infinite;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1143,64 +1209,6 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     width: 100%;
     min-height: 11rem;
     border-radius: 0.75rem;
-  }
-
-  /* ===== Чипы выбранных фильтров под кнопкой «Фильтры» (только mobile) ===== */
-  .bi-active-chips {
-    display: flex;
-    gap: 0.375rem;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    padding-bottom: 0.125rem;
-    scrollbar-width: none;
-  }
-
-  .bi-active-chips::-webkit-scrollbar {
-    display: none;
-  }
-
-  .bi-active-chip {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 0.375rem;
-    min-height: 2rem;
-    max-width: 15rem;
-    padding: 0 0.625rem;
-    border-radius: 999px;
-    border: 1px solid rgb(167 243 208);
-    background: rgb(236 253 245);
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: rgb(6 95 70);
-  }
-
-  html.dark .bi-active-chip {
-    border-color: rgb(6 95 70);
-    background: rgb(6 78 59 / 0.35);
-    color: rgb(167 243 208);
-  }
-
-  .bi-active-chip-text {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .bi-active-chip-reset {
-    border-color: rgb(226 232 240);
-    background: rgb(248 250 252);
-    color: rgb(51 65 85);
-  }
-
-  html.dark .bi-active-chip-reset {
-    border-color: rgb(51 65 85);
-    background: rgb(17 24 39);
-    color: rgb(203 213 225);
-  }
-
-  .bi-active-chip:active {
-    transform: scale(0.97);
   }
 
   /* ===== Нижняя навигация (только mobile) ===== */
@@ -1475,14 +1483,10 @@ html.dark .js-plotly-plot .modebar-btn.active path {
 @keyframes bi-nav-glow {
   0%,
   100% {
-    box-shadow:
-      0 0 0 1px rgba(16, 185, 129, 0.28),
-      0 0 10px rgba(16, 185, 129, 0.12);
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.22);
   }
   50% {
-    box-shadow:
-      0 0 0 1px rgba(20, 184, 166, 0.5),
-      0 0 16px rgba(45, 212, 191, 0.28);
+    box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.38);
   }
 }
 
@@ -1496,15 +1500,14 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   background: linear-gradient(
     115deg,
     #e8f5e9 0%,
-    #d1fae5 28%,
-    #a7f3d0 50%,
-    #bbf7d0 72%,
+    #d1fae5 40%,
+    #bbf7d0 55%,
     #e8f5e9 100%
   );
-  background-size: 240% 240%;
+  background-size: 200% 200%;
   animation:
-    bi-nav-flow 4.5s ease infinite,
-    bi-nav-glow 3.2s ease-in-out infinite;
+    bi-nav-flow 7s ease infinite,
+    bi-nav-glow 5s ease-in-out infinite;
 }
 
 .bi-nav-active::before {
@@ -1514,13 +1517,268 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   z-index: -1;
   background: linear-gradient(
     105deg,
-    transparent 38%,
-    rgba(255, 255, 255, 0.7) 50%,
-    transparent 62%
+    transparent 42%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 58%
   );
   background-size: 220% 100%;
-  animation: bi-nav-flow 2.6s linear infinite;
+  animation: bi-nav-flow 4.5s linear infinite;
   pointer-events: none;
+}
+
+/* Выбраны фильтры — тот же изумрудный перелив, что у активного пункта сайдбара */
+.bi-active-filters {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.45rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.55rem;
+  border: 1px solid #6ee7b7;
+  color: #064e3b;
+  background: linear-gradient(
+    115deg,
+    #e8f5e9 0%,
+    #d1fae5 40%,
+    #bbf7d0 55%,
+    #e8f5e9 100%
+  );
+  background-size: 200% 200%;
+  animation:
+    bi-nav-flow 7s ease infinite,
+    bi-nav-glow 5s ease-in-out infinite;
+}
+
+.bi-active-filters::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    105deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 58%
+  );
+  background-size: 220% 100%;
+  animation: bi-nav-flow 4.5s linear infinite;
+  pointer-events: none;
+}
+
+.bi-active-filters-label {
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  color: #065f46;
+}
+
+.bi-active-chips {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.bi-active-chip {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.28rem;
+  min-height: 1.35rem;
+  max-width: 16rem;
+  padding: 0.08rem 0.35rem 0.08rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #064e3b;
+  box-shadow: 0 1px 2px rgba(6, 78, 59, 0.08);
+}
+
+.bi-active-chip-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bi-active-chip-x {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  background: linear-gradient(160deg, #f87171 0%, #dc2626 48%, #991b1b 100%);
+  box-shadow:
+    0 1px 2px rgba(127, 29, 29, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(127, 29, 29, 0.35);
+  text-shadow: 0 1px 0 rgba(127, 29, 29, 0.35);
+}
+
+.bi-active-chip:hover .bi-active-chip-x {
+  background: linear-gradient(160deg, #fca5a5 0%, #ef4444 45%, #b91c1c 100%);
+  transform: scale(1.06);
+}
+
+.bi-active-chip-reset {
+  border-color: rgba(148, 163, 184, 0.55);
+  background: rgba(248, 250, 252, 0.85);
+  color: #334155;
+  font-weight: 600;
+}
+
+.bi-active-chip:active {
+  transform: scale(0.97);
+}
+
+html.dark .bi-active-filters {
+  border-color: rgba(52, 211, 153, 0.55);
+  color: #d1fae5;
+  background: linear-gradient(
+    115deg,
+    rgba(6, 78, 59, 0.55) 0%,
+    rgba(16, 185, 129, 0.35) 35%,
+    rgba(45, 212, 191, 0.4) 50%,
+    rgba(16, 185, 129, 0.32) 65%,
+    rgba(6, 78, 59, 0.55) 100%
+  );
+  background-size: 200% 200%;
+}
+
+html.dark .bi-active-filters-label {
+  color: #a7f3d0;
+}
+
+html.dark .bi-active-chip {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(15, 23, 42, 0.35);
+  color: #d1fae5;
+}
+
+html.dark .bi-active-chip-x {
+  background: linear-gradient(160deg, #f87171 0%, #ef4444 50%, #b91c1c 100%);
+}
+
+html.dark .bi-active-chip-reset {
+  border-color: rgba(71, 85, 105, 0.7);
+  background: rgba(15, 23, 42, 0.55);
+  color: #cbd5e1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bi-active-filters,
+  .bi-active-filters::before {
+    animation: none;
+  }
+  .bi-active-filters {
+    background: #e8f5e9;
+    box-shadow: none;
+  }
+  html.dark .bi-active-filters {
+    background: rgba(6, 78, 59, 0.45);
+  }
+}
+
+/* Итоговая строка insight — серый перелив, мелкий шрифт, без крестика */
+@keyframes bi-insight-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(100, 116, 139, 0.5);
+  }
+}
+
+.bi-dashboard-insight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.55rem;
+  border: 1px solid #cbd5e1;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: #334155;
+  background: linear-gradient(
+    115deg,
+    #f8fafc 0%,
+    #e2e8f0 38%,
+    #cbd5e1 55%,
+    #e2e8f0 72%,
+    #f8fafc 100%
+  );
+  background-size: 200% 200%;
+  animation:
+    bi-nav-flow 7s ease infinite,
+    bi-insight-glow 5s ease-in-out infinite;
+}
+
+.bi-dashboard-insight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    105deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 58%
+  );
+  background-size: 220% 100%;
+  animation: bi-nav-flow 4.5s linear infinite;
+  pointer-events: none;
+}
+
+html.dark .bi-dashboard-insight {
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+  background: linear-gradient(
+    115deg,
+    rgba(30, 41, 59, 0.75) 0%,
+    rgba(71, 85, 105, 0.45) 35%,
+    rgba(100, 116, 139, 0.4) 50%,
+    rgba(71, 85, 105, 0.45) 65%,
+    rgba(30, 41, 59, 0.75) 100%
+  );
+  background-size: 200% 200%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bi-dashboard-insight,
+  .bi-dashboard-insight::before {
+    animation: none;
+  }
+  .bi-dashboard-insight {
+    background: #f1f5f9;
+    box-shadow: none;
+  }
+  html.dark .bi-dashboard-insight {
+    background: rgba(30, 41, 59, 0.65);
+  }
 }
 
 html.dark .bi-nav-active {

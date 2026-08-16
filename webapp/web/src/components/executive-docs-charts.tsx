@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { PLOTLY_CONFIG } from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
@@ -69,7 +70,7 @@ function useChartOptions() {
 }
 
 function EmptyChart() {
-  return <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">Нет данных для диаграммы.</div>;
+  return <DashboardEmptyState message="Нет данных для диаграммы." className="h-64" />;
 }
 
 function Chart({ data, xTitle, color, rows, horizontal = false }: { data: CountRow[]; xTitle: string; color: string | string[]; rows: CountRow[]; horizontal?: boolean }) {

@@ -17,6 +17,7 @@ import { multiFilterChips } from "@/lib/filters-summary";
 import { useStickyHead } from "@/lib/use-sticky-head";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 
 const URL_INITIAL = { projects: [] as string[] };
 
@@ -202,7 +203,7 @@ function ControlPointsDesktopTable({
         </thead>
         <tbody>
           {projects.map((project) => (
-            <tr key={project.project}>
+            <tr key={project.project} className="bi-row-alt">
               <td
                 className={`sticky left-0 z-10 bg-[#f9fafb] px-0.5 py-1 text-left font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8] ${
                   dense
@@ -214,7 +215,7 @@ function ControlPointsDesktopTable({
               </td>
               {group.milestones.flatMap((milestone) => {
                 const milestoneCell = project.cells[milestone.slug];
-                const body = `${cell} bg-white px-0 py-1 tabular-nums dark:bg-[#0c1219]`;
+                const body = `${cell} bi-num bg-white px-0 py-1 tabular-nums dark:bg-[#0c1219]`;
                 const dateTone = milestoneCell?.pct_complete_100
                   ? "text-orange-600 dark:text-[#f09355]"
                   : "";
@@ -337,7 +338,18 @@ export function ControlPointsView() {
       </FiltersCard>
 
       {error || metaError ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || metaError}</Text></Card> : null}
-      {!projects.length ? <Card className="rounded-xl"><Text>{loading ? "Загрузка…" : "Нет данных контрольных точек. Сделайте ingest в админке."}</Text></Card> : (
+      {!projects.length ? (
+        <DashboardEmptyState
+          message={
+            loading
+              ? "Загрузка…"
+              : dirty
+                ? "Нет данных контрольных точек по выбранным фильтрам."
+                : "Нет данных контрольных точек. Сделайте ingest в админке."
+          }
+          onReset={!loading && dirty ? () => setSelected([]) : undefined}
+        />
+      ) : (
         <div className="space-y-6">
           <FullscreenPanel disabled={!projects.length || !groups.length} scroll={false}>
             {(zoomed) => (

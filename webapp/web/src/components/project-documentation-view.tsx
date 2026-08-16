@@ -41,6 +41,7 @@ import {
 } from "@/components/project-documentation-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { deviationCellStyle } from "@/lib/deviation-cell-style";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 
 const TH =
   "whitespace-nowrap border border-[#cbd5e1] bg-[#f3f4f6] px-2.5 py-2 text-center font-bold text-[#111827] dark:border-[#334155] dark:bg-[hsl(209,72%,6%)] dark:text-[#fafafa]";
@@ -653,7 +654,7 @@ function ProjectDocumentationScreen({
                         return (
                           <tr key={`${row.project}-${row.section}-${index}`}>
                             <td
-                              className={`${cell} tabular-nums`}
+                              className={`${cell} bi-num tabular-nums`}
                               style={stickyTint.style}
                             >
                               {row.n ?? index + 1}
@@ -664,14 +665,14 @@ function ProjectDocumentationScreen({
                             <td className={cell} style={tint.style}>
                               {row.section}
                             </td>
-                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                            <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                               {row.base_end ?? "—"}
                             </td>
-                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                            <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                               {row.plan_end ?? "—"}
                             </td>
                             <td
-                              className={`${cell} tabular-nums ${deviationClass(row.dev_end_days)}`}
+                              className={`${cell} bi-num tabular-nums ${deviationClass(row.dev_end_days)}`}
                               style={tint.style}
                             >
                               {row.dev_end || "—"}
@@ -751,7 +752,10 @@ function ProjectDocumentationScreen({
                 <Title>Детальная таблица</Title>
               </div>
               {!detailRows.length ? (
-                <div className="px-4 py-10 text-center text-sm">Нет данных.</div>
+                <DashboardEmptyState
+                  message="Нет данных."
+                  onReset={activeFilters.length ? resetFilters : undefined}
+                />
               ) : (
                 <>
                   <MobileCardStack>
@@ -869,26 +873,26 @@ function ProjectDocumentationScreen({
                             <td className={cell} style={tint.style}>
                               {row.status}
                             </td>
-                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                            <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                               {row.start}
                             </td>
-                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                            <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                               {row.base_start}
                             </td>
-                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                            <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                               {row.finish}
                             </td>
-                            <td className={`${cell} tabular-nums`} style={tint.style}>
+                            <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                               {row.base_finish}
                             </td>
                             <td
-                              className={`${cell} tabular-nums ${deviationClass(row.dev_start_days)}`}
+                              className={`${cell} bi-num tabular-nums ${deviationClass(row.dev_start_days)}`}
                               style={tint.style}
                             >
                               {row.dev_start || "—"}
                             </td>
                             <td
-                              className={`${cell} tabular-nums ${deviationClass(row.dev_end_days)}`}
+                              className={`${cell} bi-num tabular-nums ${deviationClass(row.dev_end_days)}`}
                               style={tint.style}
                             >
                               {row.dev_end || "—"}
@@ -918,7 +922,10 @@ function ProjectDocumentationScreen({
                 <Title>Таблица Сводка по просрочке выдачи документации</Title>
               </div>
               {!summaryRows.length ? (
-                <div className="px-4 py-10 text-center text-sm">Нет данных.</div>
+                <DashboardEmptyState
+                  message="Нет данных."
+                  onReset={activeFilters.length ? resetFilters : undefined}
+                />
               ) : (
                 <>
                   <MobileCardStack>
@@ -986,14 +993,14 @@ function ProjectDocumentationScreen({
                         <td className={cell} style={stickyTint.style}>
                           {row.project}
                         </td>
-                        <td className={`${cell} tabular-nums`} style={tint.style}>
+                        <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                           {row.plan}
                         </td>
-                        <td className={`${cell} tabular-nums`} style={tint.style}>
+                        <td className={`${cell} bi-num tabular-nums`} style={tint.style}>
                           {row.fact}
                         </td>
                         <td
-                          className={`${cell} tabular-nums ${deviationClass(row.overdue)}`}
+                          className={`${cell} bi-num tabular-nums ${deviationClass(row.overdue)}`}
                           style={tint.style}
                         >
                           {row.overdue_label}

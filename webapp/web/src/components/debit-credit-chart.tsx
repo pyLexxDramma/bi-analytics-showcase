@@ -1,47 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PLOTLY_AXIS_LINE, PLOTLY_CONFIG, PLOTLY_ZEROLINE } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
-
-/** Modebar при гориз. скролле широкого графика — всегда справа в viewport (как main `_finance_plotly_hscroll_modebar_pin_*`). */
-function usePinnedHScrollModebar(enabled: boolean, rev: string) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const pin = () => {
-      const mb = wrap.querySelector(".modebar") as HTMLElement | null;
-      const inner = wrap.querySelector(
-        ".js-plotly-plot, .plotly-graph-div",
-      ) as HTMLElement | null;
-      if (!mb || !inner) return;
-      const tx = wrap.scrollLeft + wrap.clientWidth - inner.offsetWidth;
-      mb.style.setProperty("transform", `translateX(${tx}px)`, "important");
-      mb.style.setProperty("z-index", "1001", "important");
-    };
-    wrap.addEventListener("scroll", pin, { passive: true });
-    window.addEventListener("resize", pin);
-    const mo = new MutationObserver(pin);
-    mo.observe(wrap, { childList: true, subtree: true });
-    const t1 = window.setTimeout(pin, 120);
-    const t2 = window.setTimeout(pin, 600);
-    const t3 = window.setTimeout(pin, 1500);
-    return () => {
-      wrap.removeEventListener("scroll", pin);
-      window.removeEventListener("resize", pin);
-      mo.disconnect();
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
-      const mb = wrap.querySelector(".modebar") as HTMLElement | null;
-      mb?.style.removeProperty("transform");
-    };
-  }, [enabled, rev]);
-  return wrapRef;
-}
+import { usePinnedHScrollModebar } from "@/lib/use-pinned-hscroll-modebar";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -440,11 +404,7 @@ export function DebitCreditChart({
   const scrollWrapRef = usePinnedHScrollModebar(!!figure.scroll && !compact, pinRev);
 
   if (!rows.length) {
-    return (
-      <div className="flex h-72 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных для диаграммы.
-      </div>
-    );
+    return <DashboardEmptyState message="Нет данных для диаграммы." className="h-72" />;
   }
 
   return (

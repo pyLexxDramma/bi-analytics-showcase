@@ -3,7 +3,9 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
+import { usePinnedHScrollModebar } from "@/lib/use-pinned-hscroll-modebar";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -62,11 +64,7 @@ function signed(value: number): string {
 }
 
 function empty(message: string) {
-  return (
-    <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-      {message}
-    </div>
-  );
+  return <DashboardEmptyState message={message} className="h-64" />;
 }
 
 export function GdrsGroupedBarChart({
@@ -221,15 +219,26 @@ export function GdrsGroupedBarChart({
     };
   }, [compact, contractors, fullscreen, rows, theme]);
 
+  const scrollEnabled = !!contractors;
+  const pinRev = useMemo(
+    () =>
+      `${contractors}|${compact}|${fullscreen}|${rows.length}|${figure.layout.width ?? 0}|${figure.layout.height}`,
+    [compact, contractors, figure.layout.height, figure.layout.width, fullscreen, rows.length],
+  );
+  const scrollWrapRef = usePinnedHScrollModebar(scrollEnabled && !compact, pinRev);
+
   if (!rows.length) return empty("Нет данных для графика.");
   return (
     <div>
-      <div className={contractors ? "overflow-x-auto" : ""}>
+      <div
+        ref={scrollWrapRef}
+        className={scrollEnabled ? "relative overflow-x-auto" : undefined}
+      >
         <PlotlyFigure
           data={figure.data}
           layout={figure.layout}
           config={figure.config}
-          useResizeHandler
+          useResizeHandler={!scrollEnabled}
           style={{ width: contractors ? "max-content" : "100%", height: "100%" }}
         />
       </div>
@@ -523,17 +532,28 @@ export function GdrsDynamicsLineChart({
     };
   }, [compact, fullscreen, rows, theme]);
 
+  const scrollEnabled = !!(compact && rows.length > 12);
+  const pinRev = useMemo(
+    () =>
+      `${compact}|${fullscreen}|${rows.length}|${figure.layout.width ?? 0}|${figure.layout.height}`,
+    [compact, figure.layout.height, figure.layout.width, fullscreen, rows.length],
+  );
+  const scrollWrapRef = usePinnedHScrollModebar(scrollEnabled, pinRev);
+
   if (!rows.length) return empty("Нет точек динамики.");
   return (
     <div>
-      <div className={compact && rows.length > 12 ? "overflow-x-auto" : ""}>
+      <div
+        ref={scrollWrapRef}
+        className={scrollEnabled ? "relative overflow-x-auto" : undefined}
+      >
         <PlotlyFigure
           data={figure.data}
           layout={figure.layout}
           config={figure.config}
-          useResizeHandler
+          useResizeHandler={!scrollEnabled}
           style={{
-            width: compact && rows.length > 12 ? "max-content" : "100%",
+            width: scrollEnabled ? "max-content" : "100%",
             height: "100%",
           }}
         />

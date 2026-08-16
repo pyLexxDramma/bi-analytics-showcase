@@ -38,6 +38,8 @@ import {
 import { buildFilterChips } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 type Filters = {
   projects: string[];
@@ -381,6 +383,15 @@ export function ExecutiveDocsParityView() {
         <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
           Таблица Исполнительная документация накопительно
         </Title>
+        <DashboardInsight
+          text={
+            kpis?.overdue_total != null &&
+            kpis?.on_rework != null &&
+            kpis?.on_agree != null
+              ? `Просрочек ${kpis.overdue_total} · у подрядчика ${kpis.on_rework} · на согласовании ${kpis.on_agree}`
+              : null
+          }
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
           {(
             [
@@ -389,42 +400,48 @@ export function ExecutiveDocsParityView() {
                 kpis?.total_docs,
                 "Уникальные документы в текущей выборке",
                 "bg-slate-100 border-slate-300 text-slate-800 dark:bg-slate-800/80 dark:border-slate-600 dark:text-slate-100",
+                "bi-kpi-neutral",
               ],
               [
                 "Отказы",
                 kpis?.declined,
                 "Документы со статусом отказа",
                 "bg-rose-50 border-rose-300 text-rose-950 dark:bg-rose-950/40 dark:border-rose-500/50 dark:text-rose-100",
+                "bi-kpi-risk",
               ],
               [
                 "На согласовании",
                 kpis?.on_agree,
                 "Документы у заказчика",
                 "bg-amber-50 border-amber-300 text-amber-950 dark:bg-amber-950/40 dark:border-amber-500/50 dark:text-amber-100",
+                "bi-kpi-warn",
               ],
               [
                 "Принято",
                 kpis?.signed,
                 "Только статус «Подписан»",
                 "bg-emerald-50 border-emerald-300 text-emerald-950 dark:bg-emerald-950/40 dark:border-emerald-500/50 dark:text-emerald-100",
+                "bi-kpi-ok",
               ],
               [
                 "У подрядчика",
                 kpis?.on_rework,
                 "Документы на доработке",
                 "bg-slate-100 border-slate-300 text-slate-800 dark:bg-slate-800/80 dark:border-slate-600 dark:text-slate-100",
+                "bi-kpi-neutral",
               ],
               [
                 "Всего просрочек",
                 kpis?.overdue_total,
                 "Подрядчик + заказчик",
                 "bg-rose-50 border-rose-300 text-rose-950 dark:bg-rose-950/40 dark:border-rose-500/50 dark:text-rose-100",
+                "bi-kpi-risk",
               ],
             ] as const
-          ).map(([title, value, subtitle, color]) => (
+          ).map(([title, value, subtitle, color, kpiClass]) => (
             <div
               key={title}
-              className={`rounded-[14px] border px-4 py-3.5 shadow-sm ${color}`}
+              className={`rounded-[14px] border px-4 py-3.5 shadow-sm ${color} ${kpiClass}`}
             >
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 {title}
@@ -441,7 +458,7 @@ export function ExecutiveDocsParityView() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <FullscreenPanel fill>
-            <Card className="rounded-xl">
+            <Card className="rounded-xl bi-kpi-risk">
               <Title>Просрочка подрядчика (сдача ИД)</Title>
               <Text className="mt-1">Документов на доработке у подрядчика</Text>
               <div className="mt-1 text-3xl font-bold text-rose-600 dark:text-rose-400">{kpis?.contractor_overdue.count ?? 0}</div>
@@ -463,7 +480,7 @@ export function ExecutiveDocsParityView() {
             </Card>
           </FullscreenPanel>
           <FullscreenPanel fill>
-            <Card className="rounded-xl">
+            <Card className="rounded-xl bi-kpi-warn">
               <Title>Просрочка заказчика (согласование)</Title>
               <Text className="mt-1">Документов на согласовании у заказчика</Text>
               <div className="mt-1 text-3xl font-bold text-amber-600 dark:text-amber-400">{kpis?.customer_overdue.count ?? 0}</div>
@@ -536,7 +553,10 @@ export function ExecutiveDocsParityView() {
             <FullscreenPanel disabled={!data?.rows?.length} scroll={false}>
               <div className="bi-table-scroll">
                 {!data?.rows?.length ? (
-                  <div className="px-4 py-10 text-center text-sm">Нет строк</div>
+                  <DashboardEmptyState
+                    message="Нет строк"
+                    onReset={activeFilters.length ? reset : undefined}
+                  />
                 ) : (
                   <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
                     <thead>
@@ -555,12 +575,16 @@ export function ExecutiveDocsParityView() {
                       {(data?.rows ?? []).map((row, index) => (
                         <tr
                           key={`${row.doc_number}-${index}`}
-                          className="border-t border-tremor-border dark:border-dark-tremor-border"
+                          className="bi-row-alt border-t border-tremor-border dark:border-dark-tremor-border"
                         >
                           {DETAIL_COLS.map(([key]) => (
                             <td
                               key={key}
-                              className="whitespace-nowrap px-3 py-2 align-middle"
+                              className={`whitespace-nowrap px-3 py-2 align-middle${
+                                key === "submit_late_days" || key === "agree_late_days"
+                                  ? " bi-num"
+                                  : ""
+                              }`}
                             >
                               {key === "status_display" ? (
                                 <span
@@ -598,7 +622,10 @@ export function ExecutiveDocsParityView() {
               Детальный отчёт по сдаче и согласованию ИД
             </Title>
             {!data?.rows?.length ? (
-              <Text className="px-2 py-6 text-center">Нет строк</Text>
+              <DashboardEmptyState
+                message="Нет строк"
+                onReset={activeFilters.length ? reset : undefined}
+              />
             ) : (
               <MobileCardStack compact>
                 {data.rows.map((row, index) => (

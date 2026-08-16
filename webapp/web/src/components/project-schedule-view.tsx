@@ -34,6 +34,8 @@ import {
 import { buildFilterChips } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 const INITIAL = {
   projects: [] as string[],
@@ -382,6 +384,19 @@ export function ProjectScheduleView() {
         </Card>
       ) : (
         <div className="space-y-6">
+          <DashboardInsight
+            text={
+              data?.meta.rows != null
+                ? `Задач в таблице ${data.meta.rows}${
+                    data.meta.gantt_rows != null
+                      ? ` · на графике ${data.meta.gantt_rows}${
+                          data.gantt?.capped ? ` (лимит ${data.meta.gantt_cap})` : ""
+                        }`
+                      : ""
+                  }`
+                : null
+            }
+          />
           <Card className="rounded-xl">
             <div className="mb-3 flex justify-end lg:hidden">
               <button
@@ -409,6 +424,13 @@ export function ProjectScheduleView() {
                 </Title>
               </div>
               <FullscreenPanel disabled={!rows.length} scroll={false}>
+              {rows.length === 0 ? (
+                <DashboardEmptyState
+                  message={loading ? "Загрузка…" : "Нет строк по выбранным фильтрам."}
+                  onReset={!loading && dirty ? () => setFilters(INITIAL) : undefined}
+                />
+              ) : (
+                <>
               <MobileCardStack>
                 {sortedRows.map((row, index) => {
                   const title = showLots
@@ -477,11 +499,6 @@ export function ProjectScheduleView() {
               </MobileCardStack>
               <div className="hidden p-1 lg:block">
                 <div className="max-h-[32rem] overflow-auto">
-                {rows.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                    Нет строк по выбранным фильтрам.
-                  </div>
-                ) : (
                   <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-left text-[13px]">
                     <thead>
                       <tr>
@@ -513,7 +530,7 @@ export function ProjectScheduleView() {
                         return (
                         <tr
                           key={`${row.project}-${row.task_id ?? row.task}-${index}`}
-                          className="odd:bg-[#fcfcfd] hover:bg-[#f3f4f6] dark:odd:bg-white/[0.02] dark:hover:bg-slate-800/40"
+                          className="bi-row-alt hover:bg-[#f3f4f6] dark:hover:bg-slate-800/40"
                         >
                           <td className={`${TD} text-left font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
                             {row.project}
@@ -522,36 +539,36 @@ export function ProjectScheduleView() {
                             <td className={`${TD} max-w-xs truncate text-left`}>{row.task}</td>
                           ) : (
                             <>
-                              <td className={`${TD} tabular-nums`}>{row.task_id ?? ""}</td>
-                              <td className={`${TD} tabular-nums`}>{row.level ?? ""}</td>
+                              <td className={`${TD} bi-num tabular-nums`}>{row.task_id ?? ""}</td>
+                              <td className={`${TD} bi-num tabular-nums`}>{row.level ?? ""}</td>
                               <td className={`${TD} max-w-xs truncate text-left text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
                                 {row.task}
                               </td>
                             </>
                           )}
-                          <td className={`${TD} tabular-nums`}>
+                          <td className={`${TD} bi-num tabular-nums`}>
                             {row.pct_complete == null ? "" : `${row.pct_complete}%`}
                           </td>
-                          <td className={`${TD} tabular-nums`} style={startTint}>
+                          <td className={`${TD} bi-num tabular-nums`} style={startTint}>
                             {row.plan_start ?? ""}
                           </td>
-                          <td className={`${TD} tabular-nums`} style={startTint}>
+                          <td className={`${TD} bi-num tabular-nums`} style={startTint}>
                             {row.base_start ?? ""}
                           </td>
                           <td
-                            className={`${TD} tabular-nums ${deviationClass(row.dev_start_days)}`}
+                            className={`${TD} bi-num tabular-nums ${deviationClass(row.dev_start_days)}`}
                             style={startTint}
                           >
                             {row.dev_start}
                           </td>
-                          <td className={`${TD} tabular-nums`} style={endTint}>
+                          <td className={`${TD} bi-num tabular-nums`} style={endTint}>
                             {row.plan_end ?? ""}
                           </td>
-                          <td className={`${TD} tabular-nums`} style={endTint}>
+                          <td className={`${TD} bi-num tabular-nums`} style={endTint}>
                             {row.base_end ?? ""}
                           </td>
                           <td
-                            className={`${TD} tabular-nums ${deviationClass(row.dev_end_days)}`}
+                            className={`${TD} bi-num tabular-nums ${deviationClass(row.dev_end_days)}`}
                             style={endTint}
                           >
                             {row.dev_end}
@@ -567,9 +584,10 @@ export function ProjectScheduleView() {
                       })}
                     </tbody>
                   </table>
-                )}
                 </div>
               </div>
+                </>
+              )}
               </FullscreenPanel>
             </Card>
           </div>

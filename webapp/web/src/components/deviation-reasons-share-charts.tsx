@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { DeviationReasonsPayload } from "@/lib/api";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import {
   PLOTLY_AXIS_LINE,
   PLOTLY_CONFIG,
@@ -192,11 +193,7 @@ export function DeviationReasonsBarChart({
   }, [rows, fullscreen, theme, compact, narrow]);
 
   if (!rows.length) {
-    return (
-      <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных по причинам.
-      </div>
-    );
+    return <DashboardEmptyState message="Нет данных по причинам." className="h-64" />;
   }
 
   return (
@@ -290,11 +287,7 @@ export function DeviationReasonsPieChart({
   }, [rows, fullscreen, theme]);
 
   if (!rows.length) {
-    return (
-      <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных по долям.
-      </div>
-    );
+    return <DashboardEmptyState message="Нет данных по долям." className="h-64" />;
   }
 
   return (

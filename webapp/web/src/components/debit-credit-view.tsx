@@ -26,6 +26,8 @@ import {
 import { buildFilterChips } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 type Filters = {
   projects: string[];
@@ -110,7 +112,7 @@ const DC_WRAP =
   "whitespace-normal [overflow-wrap:break-word] [word-break:normal] hyphens-manual";
 const DC_STICKY_SHADOW =
   "shadow-[7px_0_10px_-6px_rgba(15,23,42,0.4)] dark:shadow-[7px_0_10px_-6px_rgba(0,0,0,0.7)]";
-const DC_NUM = `${DC_BORDER} whitespace-nowrap px-2 py-2 text-right text-[1.125rem] tabular-nums`;
+const DC_NUM = `${DC_BORDER} bi-num whitespace-nowrap px-2 py-2 text-right text-[1.125rem] tabular-nums`;
 const DC_FOOT =
   `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-[1.125rem] font-semibold dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
 
@@ -305,6 +307,18 @@ export function DebitCreditView() {
           <Text className="text-rose-700 dark:text-rose-300">{error}</Text>
         </Card>
       ) : null}
+
+      <DashboardInsight
+        text={
+          data?.meta.rows != null
+            ? `${data.meta.rows} договоров${
+                data.meta.version_id != null
+                  ? ` · version_id=${data.meta.version_id}`
+                  : ""
+              }`
+            : null
+        }
+      />
 
       <FullscreenPanel fill>
         <Card className="mb-6 overflow-visible rounded-xl">
@@ -542,7 +556,10 @@ export function DebitCreditView() {
           Таблица по подрядчику и договору
         </Title>
         {!data?.rows.length ? (
-          <Text className="px-2 py-6 text-center">Нет строк</Text>
+          <DashboardEmptyState
+            message="Нет строк"
+            onReset={activeFilters.length ? () => setFilters(initial) : undefined}
+          />
         ) : (
           <>
             <MobileSortControl

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectDocumentationPayload } from "@/lib/api";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { stripProjectPrefixIfSingle, uniquePlotCategories, wrapAxisLabel } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
@@ -132,11 +133,7 @@ export function PdExecutionPieChart({
   }, [rows, fullscreen, theme]);
 
   if (!rows.length) {
-    return (
-      <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных по исполнению.
-      </div>
-    );
+    return <DashboardEmptyState message="Нет данных по исполнению." className="h-64" />;
   }
 
   return (
@@ -758,11 +755,7 @@ export function PdDelayGanttChart({
   }, [rows, rangeStart, rangeEnd, fullscreen, theme, compact, hideProjectPrefix]);
 
   if (!rows.length) {
-    return (
-      <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        Нет данных для графика просрочки.
-      </div>
-    );
+    return <DashboardEmptyState message="Нет данных для графика просрочки." className="h-64" />;
   }
 
   return (

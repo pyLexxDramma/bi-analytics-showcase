@@ -3,7 +3,9 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
+import { usePinnedHScrollModebar } from "@/lib/use-pinned-hscroll-modebar";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -54,11 +56,7 @@ function useChartTheme() {
 }
 
 function empty(message: string) {
-  return (
-    <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-      {message}
-    </div>
-  );
+  return <DashboardEmptyState message={message} className="h-64" />;
 }
 
 function axisUpperBound(xmax: number): number {
@@ -463,16 +461,27 @@ export function PrescriptionsObjectsChart({
     };
   }, [compact, fullscreen, rows, statusKeys, theme]);
 
+  const scrollEnabled = !!(compact && rows.length > 6);
+  const pinRev = useMemo(
+    () =>
+      `${compact}|${fullscreen}|${rows.length}|${statusKeys.join(",")}|${figure.layout.height}`,
+    [compact, figure.layout.height, fullscreen, rows.length, statusKeys],
+  );
+  const scrollWrapRef = usePinnedHScrollModebar(scrollEnabled, pinRev);
+
   if (!rows.length) return empty("Нет данных для диаграммы по объектам.");
   return (
     <div>
-      <div className={compact && rows.length > 6 ? "overflow-x-auto" : ""}>
+      <div
+        ref={scrollWrapRef}
+        className={scrollEnabled ? "relative overflow-x-auto" : undefined}
+      >
         <PlotlyFigure
           data={figure.data}
           layout={figure.layout}
           config={figure.config}
-          useResizeHandler
-          style={{ width: compact && rows.length > 6 ? "max-content" : "100%", height: "100%" }}
+          useResizeHandler={!scrollEnabled}
+          style={{ width: scrollEnabled ? "max-content" : "100%", height: "100%" }}
         />
       </div>
       <ChartHtmlLegend

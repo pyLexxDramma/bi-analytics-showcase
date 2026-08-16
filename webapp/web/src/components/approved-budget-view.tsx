@@ -20,6 +20,8 @@ import {
 import { buildFilterChips } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 type SortKey = "period" | "project" | "plan" | "fact" | "remainder" | "deviation" | "completion_pct" | "contract_coverage_pct";
 type SortState = { key: SortKey; asc: boolean } | null;
@@ -360,6 +362,15 @@ export function ApprovedBudgetView() {
     </FiltersCard>
     {error || data?.meta.error ? <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30"><Text className="text-rose-700 dark:text-rose-300">{error || data?.meta.error}</Text></Card> : null}
     <div className="space-y-6">
+      <DashboardInsight
+        text={
+          data?.totals
+            ? `План ${mlnNum(data.totals.plan)} · факт ${mlnNum(data.totals.fact)} · отклонение ${mlnDeviation(data.totals.deviation)} · выполнение ${Number(gauge.fact_pct).toFixed(1)}%`
+            : data?.kpis
+              ? `План ${Number(data.kpis.plan_mln).toFixed(1)} · факт ${Number(data.kpis.fact_mln).toFixed(1)} млн ₽`
+              : null
+        }
+      />
       <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className={`grid gap-4 ${filters.show_deviation ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div>
           <Text className="text-rose-700 dark:text-rose-300">План</Text>
@@ -404,6 +415,13 @@ export function ApprovedBudgetView() {
           </Title>
         </div>
         <FullscreenPanel disabled={!periodRows.length} scroll={false}>
+          {!periodRows.length ? (
+            <DashboardEmptyState
+              message={loading ? "Загрузка…" : "Нет строк по месяцам для выбранных фильтров."}
+              onReset={!loading && dirty ? () => setFilters(INITIAL) : undefined}
+            />
+          ) : (
+            <>
           <MobileCardStack
             pinned={
               <MobileEntityCard className="bi-card-pinned" title="ИТОГО">
@@ -451,20 +469,20 @@ export function ApprovedBudgetView() {
               </thead>
               <tbody>
                 {periodRows.map((row) => (
-                  <tr key={row.period} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20">
+                  <tr key={row.period} className="bi-row-alt">
                     <td className={`${CELL} ${BODY} text-center`}>{row.period}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(row.plan)}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(row.fact)}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(row.deviation)}`}>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnNum(row.plan)}</td>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnNum(row.fact)}</td>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums ${deviationClass(row.deviation)}`}>
                       {mlnDeviation(row.deviation)}
                     </td>
                   </tr>
                 ))}
                 <tr className={TOTAL}>
                   <td className={`${CELL} px-3 py-2 text-center`}>ИТОГО</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(data?.totals.plan ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnNum(data?.totals.fact ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnNum(data?.totals.plan ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnNum(data?.totals.fact ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>
                     {mlnDeviation(data?.totals.deviation ?? 0)}
                   </td>
                 </tr>
@@ -472,6 +490,8 @@ export function ApprovedBudgetView() {
             </table>
             </div>
           </div>
+            </>
+          )}
         </FullscreenPanel>
       </Card>
       <DownloadTableButton getTable={periodExport} fileStem="utverzhdennyy_byudzhet_po_mesyacam" disabled={!periodRows.length} />
@@ -480,6 +500,13 @@ export function ApprovedBudgetView() {
           <Title>{data?.labels.project_table_title ?? "Таблица утверждённого бюджет план/факт по проектам"}</Title>
         </div>
         <FullscreenPanel disabled={!projectRows.length} scroll={false}>
+          {!projectRows.length ? (
+            <DashboardEmptyState
+              message={loading ? "Загрузка…" : "Нет строк по проектам для выбранных фильтров."}
+              onReset={!loading && dirty ? () => setFilters(INITIAL) : undefined}
+            />
+          ) : (
+            <>
           <MobileCardStack
             pinned={
               <MobileEntityCard
@@ -553,33 +580,35 @@ export function ApprovedBudgetView() {
               </thead>
               <tbody>
                 {projectRows.map((row) => (
-                  <tr key={row.project} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20">
+                  <tr key={row.project} className="bi-row-alt">
                     <td className={`${CELL} ${BODY}`}>{row.project}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(row.plan)}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(row.fact)}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(row.remainder)}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(row.deviation)}`}>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnPlain(row.plan)}</td>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnPlain(row.fact)}</td>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnPlain(row.remainder)}</td>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums ${deviationClass(row.deviation)}`}>
                       {mlnDeviation(row.deviation)}
                     </td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(row.completion_pct)}</td>
-                    <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(row.contract_coverage_pct)}</td>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{pct(row.completion_pct)}</td>
+                    <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{pct(row.contract_coverage_pct)}</td>
                   </tr>
                 ))}
                 <tr className={TOTAL}>
                   <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(data?.totals.plan ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(data?.totals.fact ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{mlnPlain(data?.totals.remainder ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnPlain(data?.totals.plan ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnPlain(data?.totals.fact ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{mlnPlain(data?.totals.remainder ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums ${deviationClass(data?.totals.deviation ?? 0)}`}>
                     {mlnDeviation(data?.totals.deviation ?? 0)}
                   </td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(data?.gauge.fact_pct ?? 0)}</td>
-                  <td className={`${CELL} ${BODY} text-center tabular-nums`}>{pct(0)}</td>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{pct(data?.gauge.fact_pct ?? 0)}</td>
+                  <td className={`${CELL} ${BODY} bi-num text-center tabular-nums`}>{pct(0)}</td>
                 </tr>
               </tbody>
             </table>
             </div>
           </div>
+            </>
+          )}
         </FullscreenPanel>
       </Card>
       <DownloadTableButton getTable={projectExport} fileStem="utverzhdennyy_byudzhet_po_proektam" disabled={!projectRows.length} />

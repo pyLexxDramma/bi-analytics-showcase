@@ -29,7 +29,7 @@ function joinMulti(values: string[], allToken = "Все"): string | undefined {
 }
 
 const tableCell =
-  "px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong";
+  "bi-num px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong";
 
 export function FinancePeriodView({
   title,
@@ -241,7 +241,7 @@ function PeriodTable({
             {rows.map((row, index) => (
               <tr
                 key={`${row[label]}-${index}`}
-                className="border-t border-tremor-border dark:border-dark-tremor-border"
+                className="bi-row-alt border-t border-tremor-border dark:border-dark-tremor-border"
               >
                 <td className="px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong">
                   {row[label]}

@@ -910,7 +910,7 @@ export function FiltersCard({
   onToggle: () => void;
   title?: string;
   activeCount?: number;
-  /** Чипы выбранных значений — рендерятся только на мобильном вьюпорте. */
+  /** Чипы выбранных значений — mobile всегда; desktop — под заголовком панели. */
   activeFilters?: ActiveFilter[];
   onReset?: () => void;
   children: ReactNode;
@@ -920,8 +920,55 @@ export function FiltersCard({
   // (например «Дебиторка») иначе открывали бы его при загрузке страницы.
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  const chips = activeFilters ?? [];
+  const chipsRow =
+    chips.length > 0 ? (
+      <div
+        className={`bi-active-filters ${mobile ? "mb-4" : "mt-3"}`}
+        aria-label="Выбраны фильтры"
+      >
+        <span className="bi-active-filters-label">Выбраны фильтры:</span>
+        <div className="bi-active-chips">
+          {chips.map((chip) =>
+            chip.onClear ? (
+              <button
+                key={chip.key}
+                type="button"
+                className="bi-active-chip"
+                onClick={() => {
+                  tapFeedback();
+                  chip.onClear?.();
+                }}
+                title={`Снять фильтр: ${chip.label}`}
+              >
+                <span className="bi-active-chip-text">{chip.label}</span>
+                <span className="bi-active-chip-x" aria-hidden>
+                  ✕
+                </span>
+              </button>
+            ) : (
+              <span key={chip.key} className="bi-active-chip">
+                <span className="bi-active-chip-text">{chip.label}</span>
+              </span>
+            ),
+          )}
+          {onReset && chips.length > 1 ? (
+            <button
+              type="button"
+              className="bi-active-chip bi-active-chip-reset"
+              onClick={() => {
+                confirmFeedback();
+                onReset();
+              }}
+            >
+              Сбросить всё
+            </button>
+          ) : null}
+        </div>
+      </div>
+    ) : null;
+
   if (mobile) {
-    const chips = activeFilters ?? [];
     const count = activeCount ?? chips.length;
     return (
       <>
@@ -943,43 +990,7 @@ export function FiltersCard({
           ) : null}
           <span aria-hidden>▾</span>
         </button>
-        {chips.length ? (
-          <div className="bi-active-chips mb-4" aria-label="Выбранные фильтры">
-            {chips.map((chip) =>
-              chip.onClear ? (
-                <button
-                  key={chip.key}
-                  type="button"
-                  className="bi-active-chip"
-                  onClick={() => {
-                    tapFeedback();
-                    chip.onClear?.();
-                  }}
-                  title={`Снять фильтр: ${chip.label}`}
-                >
-                  <span className="bi-active-chip-text">{chip.label}</span>
-                  <span aria-hidden>✕</span>
-                </button>
-              ) : (
-                <span key={chip.key} className="bi-active-chip">
-                  <span className="bi-active-chip-text">{chip.label}</span>
-                </span>
-              ),
-            )}
-            {onReset && chips.length > 1 ? (
-              <button
-                type="button"
-                className="bi-active-chip bi-active-chip-reset"
-                onClick={() => {
-                  confirmFeedback();
-                  onReset();
-                }}
-              >
-                Сбросить всё
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        {chipsRow}
         <FiltersSheet
           open={sheetOpen}
           onClose={() => setSheetOpen(false)}
@@ -1002,8 +1013,15 @@ export function FiltersCard({
       >
         <span className="text-xs">{open ? "▾" : "▸"}</span>
         {title}
+        {!open && chips.length ? (
+          <span className="ml-auto rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+            {chips.length}
+          </span>
+        ) : null}
       </button>
+      {!open ? chipsRow : null}
       {open ? <div className="bi-filters-body mt-3 space-y-3">{children}</div> : null}
+      {open && chips.length ? <div className="mt-3">{chipsRow}</div> : null}
     </div>
   );
 }

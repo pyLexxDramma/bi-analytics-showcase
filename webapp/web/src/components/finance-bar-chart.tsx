@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { Text } from "@tremor/react";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 
 export type FinanceBarPoint = {
   period: string;
@@ -284,11 +285,7 @@ export function FinanceBarChart({
   }, []);
 
   if (!rows.length) {
-    return (
-      <div className="flex h-80 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
-        {emptyText}
-      </div>
-    );
+    return <DashboardEmptyState message={emptyText} className="h-80" />;
   }
 
   const renderValueLabel = (

@@ -27,6 +27,8 @@ import {
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { DashboardInsight } from "@/components/dashboard-insight";
 
 const INITIAL = {
   projects: [] as string[],
@@ -459,6 +461,21 @@ export function BaselineDeviationView() {
       ) : null}
 
       <div className="space-y-6">
+        <DashboardInsight
+          text={
+            data?.kpis
+              ? `${data.kpis.metric_task || "ЗОС"}${
+                  data.kpis.max_abs_dev_days != null
+                    ? ` · макс. |откл.| ${data.kpis.max_abs_dev_days} дн.`
+                    : ""
+                }${
+                  data.meta.rows != null ? ` · задач ${data.meta.rows}` : ""
+                }`
+              : data?.meta.rows != null
+                ? `Задач ${data.meta.rows}`
+                : null
+          }
+        />
         <div>
           <Title className="mb-3 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
             {data?.kpis.metric_task ?? "ЗОС"}
@@ -466,7 +483,7 @@ export function BaselineDeviationView() {
           {loading && !data ? (
             <Text>загрузка…</Text>
           ) : plates.length === 0 ? (
-            <Text>Нет данных для плашек KPI.</Text>
+            <DashboardEmptyState message="Нет данных для плашек KPI." />
           ) : (
             <>
               <MobileCardStack>
@@ -574,9 +591,10 @@ export function BaselineDeviationView() {
             </div>
             <FullscreenPanel disabled={!covenantRows.length} scroll={false}>
               {covenantRows.length === 0 ? (
-                <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                  Нет строк для таблицы ковенантов.
-                </div>
+                <DashboardEmptyState
+                  message="Нет строк для таблицы ковенантов."
+                  onReset={dirty ? () => setFilters(INITIAL) : undefined}
+                />
               ) : (
                 <>
                   <MobileCardStack>
@@ -649,6 +667,7 @@ export function BaselineDeviationView() {
                         {covenantRows.map((row, index) => (
                           <tr
                             key={`cov-${row.project ?? ""}-${row.task_id ?? row.task}-${index}`}
+                            className="bi-row-alt"
                           >
                             {covenantColumns.map((col) => {
                               const tint =
@@ -675,7 +694,7 @@ export function BaselineDeviationView() {
                                   key={col}
                                   className={`${TD} ${tint ? DATE_BG : ""} ${
                                     isDev ? deviationClass(row.dev_end_days) : ""
-                                  } tabular-nums`}
+                                  } bi-num tabular-nums`}
                                 >
                                   {value === "" || value == null ? "" : value}
                                 </td>
@@ -741,9 +760,10 @@ export function BaselineDeviationView() {
             scroll={false}
           >
             {rows.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
-                Нет строк по выбранным фильтрам.
-              </div>
+              <DashboardEmptyState
+                message="Нет строк по выбранным фильтрам."
+                onReset={dirty ? () => setFilters(INITIAL) : undefined}
+              />
             ) : (
               <>
                 <MobileCardStack>
@@ -907,6 +927,7 @@ export function BaselineDeviationView() {
                       {sortedRows.map((row) => (
                         <tr
                           key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}
+                          className="bi-row-alt"
                         >
                           {columns.map((col) => {
                             const tint = DATE_COLS.has(col);
@@ -926,7 +947,7 @@ export function BaselineDeviationView() {
                                 key={col}
                                 className={`${TD} ${tint ? DATE_BG : ""} ${
                                   isDev ? deviationClass(days) : ""
-                                } tabular-nums`}
+                                } bi-num tabular-nums`}
                               >
                                 {displayDev(row, col)}
                               </td>
