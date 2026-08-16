@@ -823,32 +823,78 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   }
 
   /*
-   * Кнопка разворота на телефоне — компактная иконка в углу: подпись перекрывала
-   * заголовок и шапку таблицы. Приглушена, пока панель не развёрнута.
+   * Кнопка fullscreen: только иконка, переливающийся акцент — заметнее
+   * серой chrome, без подписи «На весь экран».
    */
+  @keyframes bi-fs-shimmer {
+    0%,
+    100% {
+      color: #0f766e;
+      filter: drop-shadow(0 0 2px rgba(13, 148, 136, 0.4));
+    }
+    33% {
+      color: #0284c7;
+      filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.7));
+    }
+    66% {
+      color: #7c3aed;
+      filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.65));
+    }
+  }
+
   .bi-fs-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
+    width: 2.25rem;
+    height: 2.25rem;
     min-height: 0;
     padding: 0;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
+    border-radius: 0.55rem;
+    font-size: 1.05rem;
     line-height: 1;
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    box-shadow: none;
-    opacity: 0.65;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(20, 184, 166, 0.45);
+    box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.12), 0 1px 4px rgba(15, 23, 42, 0.1);
+    opacity: 1;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .bi-fs-toggle:hover:not(:disabled) {
+    transform: scale(1.08);
+    border-color: rgba(13, 148, 136, 0.75);
+    box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.25), 0 2px 8px rgba(15, 23, 42, 0.14);
+  }
+
+  .bi-fs-toggle:disabled {
+    opacity: 0.4;
+    animation: none;
+  }
+
+  .bi-fs-toggle-icon {
+    display: block;
+    color: #0f766e;
+    animation: bi-fs-shimmer 2.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bi-fs-toggle-icon {
+      animation: none;
+      filter: drop-shadow(0 0 4px rgba(20, 184, 166, 0.55));
+    }
   }
 
   html.dark .bi-fs-toggle {
-    background: rgba(17, 24, 39, 0.72);
-    border-color: rgba(148, 163, 184, 0.3);
+    background: rgba(17, 24, 39, 0.92);
+    border-color: rgba(45, 212, 191, 0.4);
+    box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.15), 0 1px 4px rgba(0, 0, 0, 0.45);
   }
 
-  /* В развёрнутом виде ✕ должен быть крупным и заметным */
+  html.dark .bi-fs-toggle-icon {
+    color: #5eead4;
+  }
+
+  /* В развёрнутом виде ✕ крупнее и спокойнее (без пульса) */
   .bi-fs-toggle.bi-fs-toggle-active {
     width: 2.75rem;
     height: 2.75rem;
@@ -856,12 +902,23 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     font-size: 1.125rem;
     opacity: 1;
     background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(148, 163, 184, 0.45);
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
+  }
+
+  .bi-fs-toggle.bi-fs-toggle-active .bi-fs-toggle-icon {
+    animation: none;
+    color: #0f766e;
+    filter: none;
   }
 
   html.dark .bi-fs-toggle.bi-fs-toggle-active {
     background: rgba(17, 24, 39, 0.95);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+
+  html.dark .bi-fs-toggle.bi-fs-toggle-active .bi-fs-toggle-icon {
+    color: #5eead4;
   }
 
   /*

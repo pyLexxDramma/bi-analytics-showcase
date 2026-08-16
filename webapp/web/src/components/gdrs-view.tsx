@@ -747,20 +747,31 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       ) : null}
 
       <div className="space-y-6">
-        <FullscreenPanel fill>
-          {(zoomed) => <Card className="rounded-xl">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              ГДРС по выбранным проектам
-            </Title>
-            <Text className="mt-1">{copy.unitDay}</Text>
-            <div className="mt-4 hidden lg:block">
-              <GdrsGroupedBarChart rows={data?.tremor.by_project ?? []} fullscreen={zoomed} />
-            </div>
-            <div className="mt-4 lg:hidden">
-              <GdrsGroupedBarChart rows={data?.tremor.by_project ?? []} compact />
-            </div>
-          </Card>}
-        </FullscreenPanel>
+        <Card className="rounded-xl">
+          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            ГДРС по выбранным проектам
+          </Title>
+          <Text className="mt-1">{copy.unitDay}</Text>
+          <FullscreenPanel
+            className="mt-2"
+            disabled={!(data?.tremor.by_project?.length ?? 0)}
+            scroll={false}
+          >
+            {(zoomed) => (
+              <>
+                <div className="hidden lg:block">
+                  <GdrsGroupedBarChart
+                    rows={data?.tremor.by_project ?? []}
+                    fullscreen={zoomed}
+                  />
+                </div>
+                <div className="lg:hidden">
+                  <GdrsGroupedBarChart rows={data?.tremor.by_project ?? []} compact />
+                </div>
+              </>
+            )}
+          </FullscreenPanel>
+        </Card>
 
         <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -1268,20 +1279,36 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           </div>
         </Card>
 
-        <FullscreenPanel fill>
-          {(zoomed) => <Card className="rounded-xl">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              ГДРС по выбранным контрагентам
-            </Title>
-            <Text className="mt-1">План, факт и отклонение по всем контрагентам</Text>
-            <div className="mt-4 hidden lg:block">
-              <GdrsGroupedBarChart rows={data?.tremor.by_contractor ?? []} contractors fullscreen={zoomed} />
-            </div>
-            <div className="mt-4 lg:hidden">
-              <GdrsGroupedBarChart rows={data?.tremor.by_contractor ?? []} contractors compact />
-            </div>
-          </Card>}
-        </FullscreenPanel>
+        <Card className="rounded-xl">
+          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            ГДРС по выбранным контрагентам
+          </Title>
+          <Text className="mt-1">План, факт и отклонение по всем контрагентам</Text>
+          <FullscreenPanel
+            className="mt-2"
+            disabled={!(data?.tremor.by_contractor?.length ?? 0)}
+            scroll={false}
+          >
+            {(zoomed) => (
+              <>
+                <div className="hidden lg:block">
+                  <GdrsGroupedBarChart
+                    rows={data?.tremor.by_contractor ?? []}
+                    contractors
+                    fullscreen={zoomed}
+                  />
+                </div>
+                <div className="lg:hidden">
+                  <GdrsGroupedBarChart
+                    rows={data?.tremor.by_contractor ?? []}
+                    contractors
+                    compact
+                  />
+                </div>
+              </>
+            )}
+          </FullscreenPanel>
+        </Card>
 
         <FullscreenPanel fill>
           {(zoomed) => <Card className="rounded-xl">

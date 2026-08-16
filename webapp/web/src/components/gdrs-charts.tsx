@@ -119,12 +119,10 @@ export function GdrsGroupedBarChart({
         : 340
       : contractors
         ? fullscreen
-          ? Math.max(680, Math.min(window.innerHeight - 32, 1500))
-          : light
-            ? 1500
-            : 1320
+          ? Math.max(560, Math.min(typeof window !== "undefined" ? window.innerHeight - 120 : 720, 900))
+          : 640
         : fullscreen
-          ? Math.max(560, Math.min(window.innerHeight - 32, 760))
+          ? Math.max(560, Math.min(typeof window !== "undefined" ? window.innerHeight - 120 : 720, 760))
           : 560;
     return {
       data: [
