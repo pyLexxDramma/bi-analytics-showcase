@@ -84,6 +84,19 @@ const TRUNCATE_COLS = new Set(["issue_block", "contractor", "contract_no"]);
 const WRAP_COLS = new Set(["name"]);
 const DATE_COLS = new Set(["issue_date", "due_date", "completion_date"]);
 
+/** Закреп при горизонтальном скролле: Статус / Подрядчик / Проект. */
+const PRED_STICKY: Record<
+  string,
+  { left: string; width: string; shadow?: boolean }
+> = {
+  status: { left: "0", width: "9.75rem" },
+  contractor: { left: "9.75rem", width: "13.5rem" },
+  project: { left: "23.25rem", width: "8.5rem", shadow: true },
+};
+
+const PRED_STICKY_SHADOW =
+  "shadow-[7px_0_10px_-6px_rgba(15,23,42,0.4)] dark:shadow-[7px_0_10px_-6px_rgba(0,0,0,0.7)]";
+
 function compare(a: unknown, b: unknown) {
   const an = Number(a);
   const bn = Number(b);
@@ -551,10 +564,26 @@ export function PrescriptionsView() {
                   >
                     <thead>
                       <tr>
-                        {tableColumns.map(([key, label]) => (
+                        {tableColumns.map(([key, label]) => {
+                          const sticky = PRED_STICKY[key];
+                          return (
                           <th
                             key={key}
-                            className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content"
+                            className={`whitespace-nowrap border-b border-tremor-border bg-[#e8eef5] px-3 py-3 text-xs font-semibold uppercase tracking-wide text-tremor-content dark:border-dark-tremor-border dark:bg-[hsl(209,55%,14%)] dark:text-dark-tremor-content ${
+                              sticky
+                                ? `bi-sticky-x sticky z-[6] ${sticky.shadow ? PRED_STICKY_SHADOW : ""}`
+                                : ""
+                            }`}
+                            style={
+                              sticky
+                                ? {
+                                    left: sticky.left,
+                                    width: sticky.width,
+                                    minWidth: sticky.width,
+                                    maxWidth: sticky.width,
+                                  }
+                                : undefined
+                            }
                           >
                             <button
                               type="button"
@@ -567,20 +596,23 @@ export function PrescriptionsView() {
                               </span>
                             </button>
                           </th>
-                        ))}
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((row, index) => {
                         const toneBg =
                           row.row_tone === "overdue"
-                            ? "bg-rose-50 dark:bg-rose-950/40"
+                            ? "bg-[#fff1f2] dark:bg-[#3d1a1a]"
                             : row.row_tone === "resolved"
-                              ? "bg-emerald-50 dark:bg-emerald-950/30"
-                              : "bg-tremor-background dark:bg-dark-tremor-background";
+                              ? "bg-[#ecfdf5] dark:bg-[#14532d]"
+                              : "bg-white dark:bg-[#111827]";
                         return (
                           <tr key={`${row.pred_number}-${index}`}>
-                            {tableColumns.map(([key]) => (
+                            {tableColumns.map(([key]) => {
+                              const sticky = PRED_STICKY[key];
+                              return (
                               <td
                                 key={key}
                                 title={
@@ -600,7 +632,22 @@ export function PrescriptionsView() {
                                   key === "overdue_days" && row.overdue_days > 0
                                     ? "font-semibold text-rose-600 dark:text-rose-400"
                                     : "text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                                } ${
+                                  sticky
+                                    ? `sticky z-[2] ${sticky.shadow ? PRED_STICKY_SHADOW : ""}`
+                                    : ""
                                 }`}
+                                style={
+                                  sticky
+                                    ? {
+                                        left: sticky.left,
+                                        width: sticky.width,
+                                        minWidth: sticky.width,
+                                        maxWidth: sticky.width,
+                                        backgroundClip: "padding-box",
+                                      }
+                                    : undefined
+                                }
                               >
                                 {key === "status" ? (
                                   <span
@@ -624,7 +671,8 @@ export function PrescriptionsView() {
                                   String(row[key as keyof typeof row] ?? "—")
                                 )}
                               </td>
-                            ))}
+                              );
+                            })}
                           </tr>
                         );
                       })}

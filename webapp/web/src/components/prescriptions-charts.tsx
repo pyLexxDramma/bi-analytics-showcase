@@ -333,12 +333,20 @@ export function PrescriptionsObjectsChart({
         y: vals,
         name: status,
         marker: { color: PRED_OBJECT_STATUS_COLOR[status] ?? "#94a3b8" },
-        text: vals.map((v) => (v > 0 ? String(v) : "")),
+        // Мелкие сегменты без цифры внутри — читается сумма над столбцом.
+        text: vals.map((v, i) => {
+          const total = Number(rows[i]?.total) || 0;
+          if (v <= 0) return "";
+          if (v < 5) return "";
+          if (total > 0 && v / total < 0.08) return "";
+          return String(v);
+        }),
         texttemplate: "%{text}",
         textposition: "inside" as const,
         insidetextanchor: "middle" as const,
+        constraintext: "none" as const,
         textangle: 0,
-        textfont: { color: "#ffffff", size: compact ? 10 : 13 },
+        textfont: { color: "#ffffff", size: compact ? 11 : 14 },
         hovertemplate: `<b>%{x}</b><br>${status}: %{y}<extra></extra>`,
       };
     });
@@ -389,7 +397,7 @@ export function PrescriptionsObjectsChart({
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        uniformtext: { minsize: 9, mode: "show" as const },
+        uniformtext: { minsize: 12, mode: "hide" as const },
         modebar: { bgcolor: "rgba(0,0,0,0)", color: theme.axis, activecolor: "#0f766e" },
         ...sparseBargap(n),
       },
