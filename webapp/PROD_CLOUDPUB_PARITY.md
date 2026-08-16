@@ -33,7 +33,7 @@
 | 9 | baseline-deviation | Отклонение от БП | `walk_20260815_141841` | ✅ принято | 15.08: выравнивание баров; prefix проекта; sort по проекту; pad x-origin; принят на ai.conall после deploy |
 | 10 | project-documentation | Проектная документация | `walk_20260816_102334` | ✅ принято | 16.08: 5 кадров 0%; sticky «Проект» opaque; принят на ai.conall после deploy |
 | 11 | working-documentation | Рабочая документация | `walk_20260816_104631` | ✅ принято | 16.08: 6 кадров 0%; sticky «Проект» opaque; принят на ai.conall после deploy |
-| 12 | gdrs-people | ГДРС люди | `walk_20260814_1825` | 🔄 walk clean | 6 кадров, 0% |
+| 12 | gdrs-people | ГДРС люди | `walk_20260816_110017` | ✅ принято | 16.08: 6 кадров 0%; недели План/СКУД = с фактом (как Streamlit); принят на ai.conall |
 | 13 | gdrs-equipment | ГДРС техника | `walk_20260814_1827` | 🔄 walk clean | 6 кадров, ≤0.12% |
 | 14 | prescriptions | Предписания | `walk_20260814_1828` | 🔄 walk clean | 6 кадров, 0% |
 | 15 | executive-docs | Исполнительная документация | `walk_20260814_184614` | 🔄 walk clean | после soft-ready + DEV_PASS=admin; 5 кадров, 0% |
