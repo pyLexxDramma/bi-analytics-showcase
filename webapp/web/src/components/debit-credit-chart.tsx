@@ -294,9 +294,19 @@ export function DebitCreditChart({
       barWidth = n === 1 ? 0.14 : 0.82;
     }
 
+    const stackSegmentCount = contractorRows.map((row) =>
+      [row["Отклонение ≥0"], row["КС-2"], row.Аванс].filter((v) => Math.abs(v) >= 0.05)
+        .length,
+    );
+
     const traces: Array<Record<string, unknown>> = seriesOrder.map((series) => {
       const values = contractorRows.map((row) => row[series.key]);
-      // Стек: цифры только сверху (итог scatter) — без подписей внутри сегментов.
+      // Стек: внутри сегментов — только если в столбце ≥2 частей; иначе дубль с итогом сверху.
+      const text = stacked
+        ? values.map((v, i) =>
+            stackSegmentCount[i] >= 2 ? valueLabel(v) : "",
+          )
+        : values.map(valueLabel);
       return {
         type: "bar" as const,
         x: labels,
@@ -304,14 +314,15 @@ export function DebitCreditChart({
         name: series.name,
         marker: { color: series.color },
         width: barWidth,
-        text: stacked ? values.map(() => "") : values.map(valueLabel),
-        textposition: stacked ? ("none" as const) : ("outside" as const),
+        text,
+        textposition: stacked ? ("inside" as const) : ("outside" as const),
+        insidetextanchor: stacked ? ("middle" as const) : undefined,
         textangle: 0,
         cliponaxis: false,
         constraintext: "none" as const,
         textfont: {
-          size: compact ? 9 : 11,
-          color: theme.label,
+          size: compact ? 9 : stacked ? 11 : 11,
+          color: stacked ? "#111827" : theme.label,
         },
         hovertemplate: `<b>%{x}</b><br>${series.name}: %{y:.1f} млн руб.<extra></extra>`,
         showlegend: true,
