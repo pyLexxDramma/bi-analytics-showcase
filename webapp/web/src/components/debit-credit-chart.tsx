@@ -479,6 +479,9 @@ export function DebitCreditChartLegend({
           <span className="min-w-0 break-words">{mobile ? item.short : item.name}</span>
         </span>
       ))}
+      {mobile ? (
+        <span className="w-full pt-0.5 font-medium">Единица измерения: млн. руб.</span>
+      ) : null}
     </div>
   );
 }

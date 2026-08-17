@@ -376,7 +376,7 @@ export function DebitCreditView() {
           </div>
           <Text className="mt-3">
             <span className="font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
-              Единица измерения: млн руб.
+              Единица измерения: млн. руб.
             </span>{" "}
             {chartAggregation === "by_metric"
               ? "Сводка по типам сумм (все проекты, подрядчики и договоры): Договор стоимость (син.), обязательства (сер.), КС-2 (тёмн. жёлт.), Аванс (светл. жёлт.), КС-2 − Аванс (сер./красн. ниже 0). Для стека по подрядчикам выберите «С группировкой»."

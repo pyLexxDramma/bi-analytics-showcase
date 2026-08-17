@@ -641,6 +641,11 @@ export function FinanceBarChart({
         </div>
       </div>
       <ChartHtmlLegend items={legendItems} compact={compact} />
+      {compact ? (
+        <p className="mt-2 text-center text-xs font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
+          Единица измерения: млн. руб.
+        </p>
+      ) : null}
     </div>
   );
 }
