@@ -62,6 +62,39 @@ def _cmp_key(value: Any) -> str:
     return _normalize(value)
 
 
+def _unique_ci_labels(values: list[str]) -> list[str]:
+    """Уникальные подписи без учёта регистра (КОВЕНАНТЫ / Ковенанты → одна)."""
+    best: dict[str, str] = {}
+    freq: dict[str, dict[str, int]] = {}
+    for raw in values:
+        v = _clean(raw)
+        if not v:
+            continue
+        k = v.casefold()
+        bucket = freq.setdefault(k, {})
+        bucket[v] = bucket.get(v, 0) + 1
+    for k, bucket in freq.items():
+        def _rank(s: str) -> tuple[int, int, str]:
+            # чаще → с строчными (не ALL CAPS) → стабильный tie-break
+            has_lower = 1 if any(ch.islower() for ch in s) else 0
+            return (bucket[s], has_lower, s)
+
+        best[k] = max(bucket.keys(), key=_rank)
+    return sorted(best.values(), key=str.casefold)
+
+
+def _pick_label(requested: str | None, available: list[str], *, default: str = "Все") -> str:
+    if not requested or requested == default:
+        return default
+    if requested in available:
+        return requested
+    key = _cmp_key(requested)
+    for opt in available:
+        if opt != default and _cmp_key(opt) == key:
+            return opt
+    return default
+
+
 def _col(frame: pd.DataFrame, candidates: list[str]) -> str | None:
     cols = {_normalize(c): str(c) for c in frame.columns}
     for name in candidates:
@@ -211,7 +244,7 @@ def _block_values(frame: pd.DataFrame, block_col: str | None) -> list[str]:
         for v in frame[block_col].dropna().astype(str).tolist()
         if not _is_generic_block(v)
     ]
-    return sorted({v for v in vals if v}, key=str.casefold)
+    return _unique_ci_labels(vals)
 
 
 def _building_values(frame: pd.DataFrame, level_col: str | None, task_col: str | None) -> list[str]:
@@ -221,7 +254,7 @@ def _building_values(frame: pd.DataFrame, level_col: str | None, task_col: str |
         return []
     ln = pd.to_numeric(frame[level_col], errors="coerce")
     names = [_clean(x) for x in frame.loc[ln == 3.0, task_col].dropna().astype(str).tolist()]
-    return sorted({n for n in names if n}, key=str.casefold)
+    return _unique_ci_labels(names)
 
 
 def _apply_building_slice(
@@ -628,7 +661,7 @@ def build_baseline_deviation_payload(
     label_mode: str | None = "name",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v8|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v9|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
@@ -721,7 +754,7 @@ def build_baseline_deviation_payload(
             )
 
         available_blocks = ["Все"] + _block_values(scoped, block_col)
-        applied_block = block if block in available_blocks else "Все"
+        applied_block = _pick_label(block, available_blocks)
         if applied_block != "Все" and block_col and block_col in scoped.columns:
             scoped = scoped[
                 scoped[block_col].astype(str).map(_cmp_key) == _cmp_key(applied_block)
@@ -743,7 +776,7 @@ def build_baseline_deviation_payload(
             bld_source = work
 
         available_buildings = ["Все"] + _building_values(bld_source, level_col, task_col)
-        applied_building = building if building in available_buildings else "Все"
+        applied_building = _pick_label(building, available_buildings)
         if (
             applied_building != "Все"
             and level_col
