@@ -103,12 +103,23 @@ function laneOffset(
   return (idx - 0.5) * (barWidth + laneGap) * 2;
 }
 
-function sameDay(
-  a: string | null | undefined,
-  b: string | null | undefined,
-): boolean {
-  if (!a || !b) return false;
-  return a.slice(0, 10) === b.slice(0, 10);
+function formatTimelineDate(ms: number): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(new Date(ms));
+}
+
+/** Подпись у края полосы: API-label или формат из ISO (как main `_fmt_bar_date`). */
+function edgeDateText(
+  iso: string | null | undefined,
+  label: string | null | undefined,
+): string {
+  const raw = String(label || "").trim();
+  if (raw && raw !== "—" && raw.toLowerCase() !== "nan") return raw;
+  const ms = toMs(iso);
+  return ms != null ? formatTimelineDate(ms) : "";
 }
 
 /** Одна строка дат под задачей на обычном мобильном виде. */
@@ -127,14 +138,6 @@ function rowDateSummary(row: GanttRow, covenantMode: boolean): string {
 
 function clampPct(value: number): number {
   return Math.max(0, Math.min(100, value));
-}
-
-function formatTimelineDate(ms: number): string {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  }).format(new Date(ms));
 }
 
 function MobileTimelineLane({
@@ -591,7 +594,7 @@ export function ProjectScheduleGantt({
           width: barWidth,
           textposition: "none",
           showlegend: false,
-          cliponaxis: true,
+          cliponaxis: false,
           hovertemplate:
             "%{customdata[2]}<br>План: %{customdata[0]} — %{customdata[1]}<extra></extra>",
           customdata: rows.map((row) => [
@@ -613,7 +616,7 @@ export function ProjectScheduleGantt({
         width: barWidth,
         textposition: "none",
         showlegend: false,
-        cliponaxis: true,
+        cliponaxis: false,
         hovertemplate: labelPct
           ? "%{customdata[2]}<br>Факт: %{customdata[0]} — %{customdata[1]}<br>%{customdata[3]}%<extra></extra>"
           : "%{customdata[2]}<br>Факт: %{customdata[0]} — %{customdata[1]}<extra></extra>",
@@ -678,52 +681,55 @@ export function ProjectScheduleGantt({
               "plan|start",
               ps,
               py + startYShift,
-              row.baseline.start_label || "",
+              edgeDateText(row.baseline.start, row.baseline.start_label),
               startPos,
             );
             pushEdge(
               "plan|end",
               pe,
               py + endYShift,
-              row.baseline.end_label || "",
+              edgeDateText(row.baseline.end, row.baseline.end_label),
               endPos,
             );
-            if (!sameDay(row.current.start, row.baseline.start)) {
-              pushEdge(
-                "fact|start",
-                fs,
-                fy + startYShift,
-                row.current.start_label || "",
-                startPos,
-              );
-            }
-            if (!sameDay(row.current.end, row.baseline.end)) {
-              pushEdge(
-                "fact|end",
-                fe,
-                fy + endYShift,
-                row.current.end_label || "",
-                endPos,
-              );
-            }
+            // Факт: даты на обоих краях всегда (раньше скрывали при совпадении с планом —
+            // из‑за этого оранжевые полосы часто оставались без подписей).
+            pushEdge(
+              "fact|start",
+              fs,
+              fy + startYShift,
+              edgeDateText(row.current.start, row.current.start_label),
+              startPos,
+            );
+            pushEdge(
+              "fact|end",
+              fe,
+              fy + endYShift,
+              edgeDateText(row.current.end, row.current.end_label),
+              endPos,
+            );
           }
         });
 
+        // Как main: даты снаружи полосы + cliponaxis=false (иначе края обрезаются).
+        const edgeGap = "\u00a0\u00a0\u00a0\u00a0";
         (Object.entries(buckets) as Array<[string, EdgeBucket]>).forEach(
           ([key, bucket]) => {
             if (!bucket.x.length) return;
             const color = key.startsWith("fact") ? factColor : planColor;
+            const isEnd = key.endsWith("|end") || key.endsWith("|pct");
             traces.push({
               type: "scatter",
               mode: "text",
               x: bucket.x,
               y: bucket.y,
-              text: bucket.text,
+              text: bucket.text.map((t) =>
+                expandedWide ? t : isEnd ? `${edgeGap}${t}` : `${t}${edgeGap}`,
+              ),
               textposition: bucket.position,
               textfont: { size: labelFont, color, family: "Arial" },
               hoverinfo: "skip",
               showlegend: false,
-              cliponaxis: !expandedWide,
+              cliponaxis: false,
             });
           },
         );
