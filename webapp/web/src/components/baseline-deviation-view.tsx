@@ -29,7 +29,13 @@ import {
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
-import { MobileFilterChips, MobilePaneTabs, MobileSearchField } from "@/components/mobile-ux";
+import {
+  DashboardTableActions,
+  DashboardTableTitle,
+  MobileFilterChips,
+  MobilePaneTabs,
+  MobileSearchField,
+} from "@/components/mobile-ux";
 
 const INITIAL = {
   projects: [] as string[],
@@ -630,10 +636,10 @@ export function BaselineDeviationView() {
         >
         {covenantMode ? (
           <Card className="overflow-hidden rounded-xl p-0">
-            <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            <div className="border-b border-tremor-border px-3 py-3 text-center dark:border-dark-tremor-border sm:px-4 lg:text-left">
+              <h2 className="break-words text-base font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong sm:text-lg">
                 Ковенанты (таблица)
-              </Title>
+              </h2>
               <Text className="mt-1">
                 {loading ? "загрузка…" : `Записей: ${covenantRows.length}`}
               </Text>
@@ -758,12 +764,12 @@ export function BaselineDeviationView() {
                 </>
               )}
             </FullscreenPanel>
-            <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+            <DashboardTableActions>
               <DownloadTableButton
                 getTable={() => covenantExport}
                 fileStem="covenants_baseline_deviation"
               />
-            </div>
+            </DashboardTableActions>
           </Card>
         ) : null}
 
@@ -773,13 +779,13 @@ export function BaselineDeviationView() {
             onClick={() => {
               if (covenantMode) setFullTableOpen((v) => !v);
             }}
-            className={`flex w-full flex-wrap items-center justify-between gap-3 border-b border-tremor-border px-4 py-3 text-left dark:border-dark-tremor-border ${
+            className={`w-full border-b border-tremor-border px-4 py-3 text-left dark:border-dark-tremor-border ${
               covenantMode ? "cursor-pointer" : "cursor-default"
             }`}
             aria-expanded={covenantMode ? fullTableOpen : true}
           >
-            <div>
-              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+            <div className="text-center lg:text-left">
+              <Title className="!text-center !text-tremor-content-strong dark:!text-dark-tremor-content-strong lg:!text-left">
                 {covenantMode ? (
                   <span className="inline-flex items-center gap-2">
                     <span className="text-xs">{fullTableOpen ? "▾" : "▸"}</span>
@@ -1029,9 +1035,9 @@ export function BaselineDeviationView() {
               </>
             )}
           </FullscreenPanel>
-          <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+          <DashboardTableActions>
             <DownloadTableButton getTable={() => exportTable} fileStem="baseline_deviation" />
-          </div>
+          </DashboardTableActions>
             </>
           ) : null}
         </Card>

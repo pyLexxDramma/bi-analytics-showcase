@@ -33,6 +33,8 @@ import {
   MobileDetailSheet,
   MobilePaneTabs,
   MobileSearchField,
+  DashboardTableActions,
+  DashboardTableTitle,
 } from "@/components/mobile-ux";
 import { tapFeedback } from "@/lib/haptics";
 import {
@@ -182,11 +184,13 @@ function cellDisplay(
 }
 
 function DetailTable({
+  title,
   columns,
   rows,
   fileStem,
   onReset,
 }: {
+  title: string;
   columns: string[];
   rows: Array<Record<string, string | number | null>>;
   fileStem: string;
@@ -277,6 +281,7 @@ function DetailTable({
   return (
     <FullscreenPanel disabled={!sortedRows.length}>
       <Card className="min-w-0 max-w-full rounded-xl p-0">
+        <DashboardTableTitle>{title}</DashboardTableTitle>
         {!sortedRows.length || !columns.length ? (
           <DashboardEmptyState
             message="Нет строк по фильтрам."
@@ -475,13 +480,13 @@ function DetailTable({
             </div>
           </>
         )}
-        <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+        <DashboardTableActions>
           <DownloadTableButton
             getTable={exportTable}
             fileStem={fileStem}
             disabled={!sortedRows.length}
           />
-        </div>
+        </DashboardTableActions>
       </Card>
     </FullscreenPanel>
   );
@@ -848,8 +853,8 @@ export function WorkingDocumentationView() {
                   mobilePane === "tables" ? "block" : "hidden lg:block"
                 }`}
               >
-              <Title className="mb-3">Детальная таблица</Title>
               <DetailTable
+                title="Детальная таблица"
                 columns={data?.detail_columns ?? []}
                 rows={data?.detail_rows ?? []}
                 fileStem="rd_detail"
@@ -917,8 +922,8 @@ export function WorkingDocumentationView() {
                   mobilePane === "tables" ? "block" : "hidden lg:block"
                 }`}
               >
-              <Title className="mb-3">Детальная таблица</Title>
               <DetailTable
+                title="Детальная таблица"
                 columns={data?.delay.detail_columns ?? data?.detail_columns ?? []}
                 rows={data?.delay.detail_rows ?? data?.detail_rows ?? []}
                 fileStem="rd_delay_detail"

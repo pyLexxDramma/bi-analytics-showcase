@@ -248,3 +248,39 @@ export function scrollToRef(
 ) {
   ref.current?.scrollIntoView({ behavior: "smooth", block });
 }
+
+/** Заголовок таблицы/карточки: на мобилке по центру, на desktop слева. */
+export function DashboardTableTitle({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4 ${className}`}
+    >
+      <h2 className="break-words text-center text-base font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong sm:text-lg lg:text-left">
+        {children}
+      </h2>
+    </div>
+  );
+}
+
+/** «Скачать / Поделиться» под таблицей; на мобилке по центру. */
+export function DashboardTableActions({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-center gap-2 border-t border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4 lg:justify-start ${className}`}
+    >
+      {children}
+    </div>
+  );
+}

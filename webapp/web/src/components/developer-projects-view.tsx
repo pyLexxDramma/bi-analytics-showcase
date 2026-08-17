@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Text, Title } from "@tremor/react";
+import { Card, Text } from "@tremor/react";
 import {
   fetchDeveloperProjects,
   type DeveloperProjectsCell,
@@ -21,7 +21,11 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
-import { MobileFilterChips } from "@/components/mobile-ux";
+import {
+  DashboardTableActions,
+  DashboardTableTitle,
+  MobileFilterChips,
+} from "@/components/mobile-ux";
 
 const URL_INITIAL = { projects: [] as string[] };
 
@@ -449,11 +453,9 @@ export function DeveloperProjectsView() {
       />
 
       <Card className="overflow-hidden rounded-xl p-0">
-        <div className="flex items-center justify-between border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-            Матрица контрольных точек
-          </Title>
-        </div>
+        <DashboardTableTitle>
+          Матрица контрольных точек
+        </DashboardTableTitle>
         <FullscreenPanel disabled={!hasRows} scroll={false}>
           <div className="p-1 pt-3 lg:pt-1">
             {!hasRows ? (
@@ -502,15 +504,14 @@ export function DeveloperProjectsView() {
             )}
           </div>
         </FullscreenPanel>
+        <DashboardTableActions>
+          <DownloadTableButton
+            getTable={matrixExport}
+            fileStem="developer_projects_matrix"
+            disabled={!hasRows}
+          />
+        </DashboardTableActions>
       </Card>
-
-      <div className="mt-3">
-        <DownloadTableButton
-          getTable={matrixExport}
-          fileStem="developer_projects_matrix"
-          disabled={!hasRows}
-        />
-      </div>
 
       <div
         role="note"

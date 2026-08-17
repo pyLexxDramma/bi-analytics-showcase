@@ -8,7 +8,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { Card, Text, Title } from "@tremor/react";
+import { Card, Text } from "@tremor/react";
 import {
   fetchProjectSchedule,
   type ProjectSchedulePayload,
@@ -41,6 +41,8 @@ import {
   MobileFilterChips,
   MobilePaneTabs,
   MobileSearchField,
+  DashboardTableActions,
+  DashboardTableTitle,
 } from "@/components/mobile-ux";
 import { tapFeedback } from "@/lib/haptics";
 
@@ -452,11 +454,9 @@ export function ProjectScheduleView() {
             }`}
           >
             <Card className="overflow-hidden rounded-xl p-0">
-              <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-                <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                  Таблица задач
-                </Title>
-              </div>
+              <DashboardTableTitle>
+                Таблица задач
+              </DashboardTableTitle>
               <FullscreenPanel disabled={!rows.length} scroll={false}>
               {rows.length === 0 ? (
                 <DashboardEmptyState
@@ -705,14 +705,15 @@ export function ProjectScheduleView() {
                 </>
               )}
               </FullscreenPanel>
+              <DashboardTableActions>
+                <DownloadTableButton
+                  getTable={() => (data ? buildExport(data) : null)}
+                  fileStem="project_schedule_tasks"
+                  disabled={!rows.length}
+                />
+              </DashboardTableActions>
             </Card>
           </div>
-
-          <DownloadTableButton
-            getTable={() => (data ? buildExport(data) : null)}
-            fileStem="project_schedule_tasks"
-            disabled={!rows.length}
-          />
         </div>
       )}
     </AppShell>

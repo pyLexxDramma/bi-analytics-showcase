@@ -22,7 +22,11 @@ import {
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
-import { MobilePaneTabs } from "@/components/mobile-ux";
+import {
+  DashboardTableActions,
+  DashboardTableTitle,
+  MobilePaneTabs,
+} from "@/components/mobile-ux";
 import {
   PrescriptionsContractorChart,
   PrescriptionsObjectsChart,
@@ -583,11 +587,9 @@ export function PrescriptionsView() {
           }
         >
         <Card className="hidden overflow-hidden rounded-xl p-0 lg:block">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              Детальная таблица по предписаниям
-            </Title>
-          </div>
+          <DashboardTableTitle>
+            Детальная таблица по предписаниям
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!rows.length} scroll={false}>
             <div className="bi-table-scroll">
               {!rows.length ? (
@@ -724,19 +726,19 @@ export function PrescriptionsView() {
               )}
             </div>
           </FullscreenPanel>
-          <div className="border-t border-tremor-border p-4 dark:border-dark-tremor-border">
+          <DashboardTableActions>
             <DownloadTableButton
               getTable={exportTable}
               fileStem="predpisania"
               disabled={!rows.length}
             />
-          </div>
+          </DashboardTableActions>
         </Card>
 
         <div className="lg:hidden">
-          <Title className="mb-3 px-2 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+          <DashboardTableTitle className="mb-3 border-0 px-2 py-0">
             Детальная таблица по предписаниям
-          </Title>
+          </DashboardTableTitle>
           {!rows.length ? (
             <DashboardEmptyState
               message="Нет строк по фильтрам."
@@ -808,13 +810,13 @@ export function PrescriptionsView() {
               ))}
             </MobileCardStack>
           )}
-          <div className="mt-3 px-2">
+          <DashboardTableActions className="mt-3 border-0 px-2 py-0">
             <DownloadTableButton
               getTable={exportTable}
               fileStem="predpisania"
               disabled={!rows.length}
             />
-          </div>
+          </DashboardTableActions>
         </div>
         </div>
       </div>

@@ -45,6 +45,8 @@ import {
   MobileDetailSheet,
   MobilePaneTabs,
   MobileSearchField,
+  DashboardTableActions,
+  DashboardTableTitle,
 } from "@/components/mobile-ux";
 import {
   fetchGdrsEquipment,
@@ -840,11 +842,9 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         </Card>
 
         <Card className="hidden overflow-x-auto rounded-xl lg:block">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              ГДРС по выбранным проектам
-            </Title>
-          </div>
+          <DashboardTableTitle className="mb-0 border-0 px-0 py-0">
+            ГДРС по выбранным проектам
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!projectRows.length} scroll={false}>
             <div className="bi-table-scroll overflow-auto">
               <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
@@ -974,13 +974,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               </table>
             </div>
           </FullscreenPanel>
-          <div className="mt-3">
+          <DashboardTableActions className="mt-3 border-0 px-0 py-0">
             <DownloadTableButton
               getTable={exportProjectTable}
               fileStem={`${copy.fileStem}_projects`}
               disabled={!projectRows.length}
             />
-          </div>
+          </DashboardTableActions>
         </Card>
 
         <FullscreenPanel fill>
@@ -998,12 +998,10 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         </FullscreenPanel>
 
         <Card className="hidden rounded-xl lg:block">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              {matrixTitle}
-              {data?.meta.period_label ? `, ${data.meta.period_label}` : ""}
-            </Title>
-          </div>
+          <DashboardTableTitle className="mb-0 border-0 px-0 py-0">
+            {matrixTitle}
+            {data?.meta.period_label ? `, ${data.meta.period_label}` : ""}
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!matrixRows.length} scroll={false}>
             <div className="bi-table-scroll w-full min-w-0 overflow-auto overscroll-contain rounded-md border-2 border-slate-500 dark:border-slate-400">
               <table
@@ -1338,13 +1336,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             </table>
             </div>
           </FullscreenPanel>
-          <div className="mt-3">
+          <DashboardTableActions className="mt-3 border-0 px-0 py-0">
             <DownloadTableButton
               getTable={exportMatrixTable}
               fileStem={`${copy.fileStem}_matrix`}
               disabled={!matrixRows.length}
             />
-          </div>
+          </DashboardTableActions>
         </Card>
 
         <Card className="rounded-xl">
@@ -1418,9 +1416,9 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         </FullscreenPanel>
 
         <Card className="hidden overflow-x-auto rounded-xl lg:block">
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong mb-3">
+          <DashboardTableTitle className="mb-0 border-0 px-0 py-0">
             Детализация по периодам
-          </Title>
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!dynamicsRows.length} scroll={false}>
             <div className="bi-table-scroll overflow-auto">
               <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
@@ -1501,19 +1499,19 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               </table>
             </div>
           </FullscreenPanel>
-          <div className="mt-3">
+          <DashboardTableActions className="mt-3 border-0 px-0 py-0">
             <DownloadTableButton
               getTable={exportDynamicsTable}
               fileStem={`${copy.fileStem}_dynamics`}
               disabled={!dynamicsRows.length}
             />
-          </div>
+          </DashboardTableActions>
         </Card>
 
         <Card className="hidden overflow-x-auto rounded-xl lg:block">
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong mb-3">
+          <DashboardTableTitle className="mb-0 border-0 px-0 py-0">
             {pieTitle}
-          </Title>
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!contractorRows.length} scroll={false}>
             <div className="bi-table-scroll overflow-auto">
               <table className="min-w-full text-sm" style={{ borderCollapse: "collapse" }}>
@@ -1637,13 +1635,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               </table>
             </div>
           </FullscreenPanel>
-          <div className="mt-3">
+          <DashboardTableActions className="mt-3 border-0 px-0 py-0">
             <DownloadTableButton
               getTable={exportContractorTable}
               fileStem={`${copy.fileStem}_contractors`}
               disabled={!contractorRows.length}
             />
-          </div>
+          </DashboardTableActions>
         </Card>
         </div>
 

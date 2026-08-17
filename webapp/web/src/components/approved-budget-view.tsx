@@ -7,7 +7,11 @@ import { DownloadTableButton } from "@/components/download-table-button";
 import { FinanceBarChart } from "@/components/finance-bar-chart";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { MobileCardStack, MobileEntityCard, MobileMetricGrid } from "@/components/mobile-entity-card";
-import { MobilePaneTabs } from "@/components/mobile-ux";
+import {
+  DashboardTableActions,
+  DashboardTableTitle,
+  MobilePaneTabs,
+} from "@/components/mobile-ux";
 import { fetchApprovedBudget, type ApprovedBudgetPayload } from "@/lib/api";
 import {
   FilterCheck,
@@ -422,11 +426,9 @@ export function ApprovedBudgetView() {
       </div>
       <div className={mobilePane === "periods" ? "block space-y-6" : "hidden space-y-6 lg:block"}>
       <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
-        <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-          <Title>
-            {data?.labels.period_table_title ?? "Сводная таблица БДДС по месяцам"}
-          </Title>
-        </div>
+        <DashboardTableTitle>
+          {data?.labels.period_table_title ?? "Сводная таблица БДДС по месяцам"}
+        </DashboardTableTitle>
         <FullscreenPanel disabled={!periodRows.length} scroll={false}>
           {!periodRows.length ? (
             <DashboardEmptyState
@@ -506,12 +508,14 @@ export function ApprovedBudgetView() {
             </>
           )}
         </FullscreenPanel>
+        <DashboardTableActions>
+          <DownloadTableButton getTable={periodExport} fileStem="utverzhdennyy_byudzhet_po_mesyacam" disabled={!periodRows.length} />
+        </DashboardTableActions>
       </Card>
-      <DownloadTableButton getTable={periodExport} fileStem="utverzhdennyy_byudzhet_po_mesyacam" disabled={!periodRows.length} />
       <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
-        <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-          <Title>{data?.labels.project_table_title ?? "Таблица утверждённого бюджет план/факт по проектам"}</Title>
-        </div>
+        <DashboardTableTitle>
+          {data?.labels.project_table_title ?? "Таблица утверждённого бюджет план/факт по проектам"}
+        </DashboardTableTitle>
         <FullscreenPanel disabled={!projectRows.length} scroll={false}>
           {!projectRows.length ? (
             <DashboardEmptyState
@@ -623,8 +627,10 @@ export function ApprovedBudgetView() {
             </>
           )}
         </FullscreenPanel>
+        <DashboardTableActions>
+          <DownloadTableButton getTable={projectExport} fileStem="utverzhdennyy_byudzhet_po_proektam" disabled={!projectRows.length} />
+        </DashboardTableActions>
       </Card>
-      <DownloadTableButton getTable={projectExport} fileStem="utverzhdennyy_byudzhet_po_proektam" disabled={!projectRows.length} />
       </div>
       {data?.hints.length ? <Card className="hidden rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 lg:block"><Text className="font-medium text-amber-900 dark:text-amber-200">О данных для план-факта:</Text><ul className="mt-2 list-disc pl-5 text-sm text-amber-900 dark:text-amber-200">{data.hints.map((hint) => <li key={hint}>{hint}</li>)}</ul></Card> : null}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card, Text, Title } from "@tremor/react";
+import { Card, Text } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DebitCreditChart, DebitCreditChartLegend } from "@/components/debit-credit-chart";
 import { DownloadTableButton } from "@/components/download-table-button";
@@ -33,6 +33,8 @@ import {
   MobileFilterChips,
   MobilePaneTabs,
   MobileSearchField,
+  DashboardTableActions,
+  DashboardTableTitle,
 } from "@/components/mobile-ux";
 import { tapFeedback } from "@/lib/haptics";
 
@@ -389,11 +391,9 @@ export function DebitCreditView() {
       </div>
 
       <Card className="hidden overflow-hidden rounded-xl p-0 lg:block">
-        <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-            Таблица по подрядчику и договору
-          </Title>
-        </div>
+        <DashboardTableTitle>
+          Таблица по подрядчику и договору
+        </DashboardTableTitle>
         <FullscreenPanel disabled={!data?.rows?.length} scroll={false}>
           <div className="bi-table-scroll">
             <table className="bi-sticky-head min-w-max border-separate border-spacing-0 text-center">
@@ -562,18 +562,20 @@ export function DebitCreditView() {
               В колонке «Допущения по авансированию» — только индикатор; колонка «Аванс − КС-2» заливается по тем же порогам.
             </p>
           </div>
-          <DownloadTableButton
-            getTable={exportTable}
-            fileStem="debit_credit"
-            disabled={!data?.rows?.length}
-          />
+          <DashboardTableActions className="border-0 px-0 py-0">
+            <DownloadTableButton
+              getTable={exportTable}
+              fileStem="debit_credit"
+              disabled={!data?.rows?.length}
+            />
+          </DashboardTableActions>
         </div>
       </Card>
       <div className={`pb-24 lg:pb-0 ${mobilePane === "list" ? "block" : "hidden lg:block"}`}>
       <div className="lg:hidden">
-        <Title className="mb-3 px-2 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+        <DashboardTableTitle className="mb-3 border-0 px-2 py-0">
           Таблица по подрядчику и договору
-        </Title>
+        </DashboardTableTitle>
         {!data?.rows.length ? (
           <DashboardEmptyState
             message="Нет строк"
@@ -745,11 +747,13 @@ export function DebitCreditView() {
               <li className="block">🔴 ≥ 60% стоимости договора</li>
             </ul>
           </div>
-          <DownloadTableButton
-            getTable={exportTable}
-            fileStem="debit_credit"
-            disabled={!data?.rows?.length}
-          />
+          <DashboardTableActions className="border-0 px-0 py-0">
+            <DownloadTableButton
+              getTable={exportTable}
+              fileStem="debit_credit"
+              disabled={!data?.rows?.length}
+            />
+          </DashboardTableActions>
         </div>
       </div>
       {data?.totals ? (

@@ -28,7 +28,11 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { BddsPlanFactEditor } from "@/components/bdds-plan-fact-editor";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
-import { MobilePaneTabs } from "@/components/mobile-ux";
+import {
+  DashboardTableActions,
+  DashboardTableTitle,
+  MobilePaneTabs,
+} from "@/components/mobile-ux";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -490,16 +494,9 @@ export function BddsPlanFactView() {
           }
         >
         <Card className="min-w-0 max-w-full overflow-hidden rounded-xl p-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
-            <Title className="min-w-0 flex-1 !break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
-              {data?.labels.period_table_title ?? "Таблица Прогнозный бюджет"}
-            </Title>
-            <DownloadTableButton
-              getTable={periodExport}
-              fileStem="forecast_bddcs_summary"
-              disabled={!periodRows.length}
-            />
-          </div>
+          <DashboardTableTitle>
+            {data?.labels.period_table_title ?? "Таблица Прогнозный бюджет"}
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!periodRows.length} className="min-w-0">
             <div className="min-w-0 p-1 pt-3 lg:pt-1">
               {!periodRows.length ? (
@@ -644,19 +641,19 @@ export function BddsPlanFactView() {
               )}
             </div>
           </FullscreenPanel>
+          <DashboardTableActions>
+            <DownloadTableButton
+              getTable={periodExport}
+              fileStem="forecast_bddcs_summary"
+              disabled={!periodRows.length}
+            />
+          </DashboardTableActions>
         </Card>
 
         <Card className="min-w-0 max-w-full overflow-hidden rounded-xl p-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
-            <Title className="min-w-0 flex-1 !break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
-              {data?.labels.status_table_title ?? "Статус"}
-            </Title>
-            <DownloadTableButton
-              getTable={statusExport}
-              fileStem="forecast_bddcs_financier_status"
-              disabled={!(data?.status_rows.length ?? 0)}
-            />
-          </div>
+          <DashboardTableTitle>
+            {data?.labels.status_table_title ?? "Статус"}
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!(data?.status_rows.length ?? 0)} className="min-w-0">
             <div className="min-w-0 p-1">
               {!(data?.status_rows.length ?? 0) ? (
@@ -763,6 +760,13 @@ export function BddsPlanFactView() {
               )}
             </div>
           </FullscreenPanel>
+          <DashboardTableActions>
+            <DownloadTableButton
+              getTable={statusExport}
+              fileStem="forecast_bddcs_financier_status"
+              disabled={!(data?.status_rows.length ?? 0)}
+            />
+          </DashboardTableActions>
         </Card>
         </div>
       </div>

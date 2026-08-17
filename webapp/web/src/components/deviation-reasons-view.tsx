@@ -42,7 +42,13 @@ import {
 } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
-import { MobileFilterChips, MobilePaneTabs, MobileSearchField } from "@/components/mobile-ux";
+import {
+  DashboardTableActions,
+  DashboardTableTitle,
+  MobileFilterChips,
+  MobilePaneTabs,
+  MobileSearchField,
+} from "@/components/mobile-ux";
 
 const INITIAL = {
   projects: [] as string[],
@@ -680,11 +686,9 @@ export function DeviationReasonsView() {
             }
           >
           <Card className="overflow-hidden rounded-xl p-0">
-            <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                Число отклонений по проекту и месяцу
-              </Title>
-            </div>
+            <DashboardTableTitle>
+              Число отклонений по проекту и месяцу
+            </DashboardTableTitle>
             <FullscreenPanel
               disabled={!sortedPmRows.length}
               scroll={false}
@@ -780,13 +784,13 @@ export function DeviationReasonsView() {
                 </>
               )}
             </FullscreenPanel>
-            <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+            <DashboardTableActions>
               <DownloadTableButton
                 getTable={() => pmExport}
                 fileStem="deviation_reasons_project_month"
                 disabled={!dynamics.project_month_rows?.length}
               />
-            </div>
+            </DashboardTableActions>
           </Card>
           </div>
 
@@ -815,11 +819,9 @@ export function DeviationReasonsView() {
             }
           >
           <Card className="overflow-hidden rounded-xl p-0">
-            <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-              <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-                Сводная таблица (проект / причина)
-              </Title>
-            </div>
+            <DashboardTableTitle>
+              Сводная таблица (проект / причина)
+            </DashboardTableTitle>
             <FullscreenPanel
               disabled={!sortedSumRows.length}
               scroll={false}
@@ -927,13 +929,13 @@ export function DeviationReasonsView() {
                 </>
               )}
             </FullscreenPanel>
-            <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+            <DashboardTableActions>
               <DownloadTableButton
                 getTable={() => sumExport}
                 fileStem="deviation_reasons_summary"
                 disabled={!dynamics.summary_rows?.length}
               />
-            </div>
+            </DashboardTableActions>
           </Card>
           </div>
         </div>
@@ -946,10 +948,10 @@ export function DeviationReasonsView() {
           }
         >
         <Card className="overflow-hidden rounded-xl p-0">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+          <div className="border-b border-tremor-border px-3 py-3 text-center dark:border-dark-tremor-border sm:px-4 lg:text-left">
+            <h2 className="break-words text-base font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong sm:text-lg">
               Детальные данные
-            </Title>
+            </h2>
             <Text className="mt-1 text-sm">
               Записей (по макету): {rows.length}
             </Text>
@@ -1105,13 +1107,13 @@ export function DeviationReasonsView() {
               </>
             )}
           </FullscreenPanel>
-          <div className="border-t border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
+          <DashboardTableActions>
             <DownloadTableButton
               getTable={() => exportTable}
               fileStem="deviation_reasons_detail"
               disabled={!rows.length}
             />
-          </div>
+          </DashboardTableActions>
         </Card>
         </div>
       ) : null}

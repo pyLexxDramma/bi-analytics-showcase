@@ -15,7 +15,11 @@ import {
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
-import { MobileFilterChips, MobilePaneTabs } from "@/components/mobile-ux";
+import {
+  DashboardTableTitle,
+  MobileFilterChips,
+  MobilePaneTabs,
+} from "@/components/mobile-ux";
 
 type Filters = {
   projects: string[];
@@ -234,11 +238,7 @@ function PeriodTable({
 }) {
   return (
     <Card className="overflow-hidden rounded-xl p-0">
-      <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-        <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-          {title}
-        </Title>
-      </div>
+      <DashboardTableTitle>{title}</DashboardTableTitle>
       <MobileCardStack
         compact
         pinned={

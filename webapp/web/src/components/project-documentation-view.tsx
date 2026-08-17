@@ -37,6 +37,8 @@ import {
   MobileDetailSheet,
   MobilePaneTabs,
   MobileSearchField,
+  DashboardTableActions,
+  DashboardTableTitle,
 } from "@/components/mobile-ux";
 import { tapFeedback } from "@/lib/haptics";
 import {
@@ -579,9 +581,9 @@ function ProjectDocumentationScreen({
           >
           <FullscreenPanel disabled={!mainRows.length}>
             <Card className="min-w-0 max-w-full rounded-xl p-0">
-              <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-                <Title>Таблица Выдача проектной документации по проектам</Title>
-              </div>
+              <DashboardTableTitle>
+                Таблица Выдача проектной документации по проектам
+              </DashboardTableTitle>
               {!mainRows.length ? (
                 <div className="px-4 py-10 text-center text-sm">Нет строк по фильтрам.</div>
               ) : (
@@ -746,13 +748,13 @@ function ProjectDocumentationScreen({
                   </div>
                 </>
               )}
-              <div className="px-4 py-3">
+              <DashboardTableActions>
                 <DownloadTableButton
                   getTable={mainExport}
                   fileStem="pd_dynamics_table"
                   disabled={!mainRows.length}
                 />
-              </div>
+              </DashboardTableActions>
             </Card>
           </FullscreenPanel>
           </div>
@@ -831,9 +833,9 @@ function ProjectDocumentationScreen({
           >
           <FullscreenPanel disabled={!detailRows.length}>
             <Card className="min-w-0 max-w-full rounded-xl p-0">
-              <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-                <Title>Детальная таблица</Title>
-              </div>
+              <DashboardTableTitle>
+                Детальная таблица
+              </DashboardTableTitle>
               {!detailRows.length ? (
                 <DashboardEmptyState
                   message="Нет данных."
@@ -990,21 +992,21 @@ function ProjectDocumentationScreen({
                   </div>
                 </>
               )}
-              <div className="px-4 py-3">
+              <DashboardTableActions>
                 <DownloadTableButton
                   getTable={detailExport}
                   fileStem="pd_delay_detail"
                   disabled={!detailRows.length}
                 />
-              </div>
+              </DashboardTableActions>
             </Card>
           </FullscreenPanel>
 
           <FullscreenPanel disabled={!summaryRows.length}>
             <Card className="min-w-0 max-w-full rounded-xl p-0">
-              <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-                <Title>Таблица Сводка по просрочке выдачи документации</Title>
-              </div>
+              <DashboardTableTitle>
+                Таблица Сводка по просрочке выдачи документации
+              </DashboardTableTitle>
               {!summaryRows.length ? (
                 <DashboardEmptyState
                   message="Нет данных."
@@ -1114,13 +1116,13 @@ function ProjectDocumentationScreen({
                   </div>
                 </>
               )}
-              <div className="px-4 py-3">
+              <DashboardTableActions>
                 <DownloadTableButton
                   getTable={summaryExport}
                   fileStem="pd_delay_summary"
                   disabled={!summaryRows.length}
                 />
-              </div>
+              </DashboardTableActions>
             </Card>
           </FullscreenPanel>
           </div>

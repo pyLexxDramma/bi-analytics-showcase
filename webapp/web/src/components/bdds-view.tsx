@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Text, Title } from "@tremor/react";
+import { Card, Text } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FinanceBarChart } from "@/components/finance-bar-chart";
@@ -32,7 +32,12 @@ import {
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
-import { MobileFilterChips, MobilePaneTabs } from "@/components/mobile-ux";
+import {
+  DashboardTableActions,
+  DashboardTableTitle,
+  MobileFilterChips,
+  MobilePaneTabs,
+} from "@/components/mobile-ux";
 import {
   filterChip,
   formatDateChip,
@@ -729,11 +734,9 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
 
         <div className={mobilePane === "periods" ? "block space-y-6" : "hidden space-y-6 lg:block"}>
         <Card className="overflow-hidden rounded-xl p-0">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              {data?.labels.period_table_title ?? `Таблица ${config.sheetName} по месяцам`}
-            </Title>
-          </div>
+          <DashboardTableTitle>
+            {data?.labels.period_table_title ?? `Таблица ${config.sheetName} по месяцам`}
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!periodRows.length}>
             <div className="p-1 pt-3 lg:pt-1">
               {!periodRows.length ? (
@@ -849,15 +852,14 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               )}
             </div>
           </FullscreenPanel>
+          <DashboardTableActions>
+            <DownloadTableButton
+              getTable={periodExport}
+              fileStem={`${config.sheetName.toLowerCase()}_po_mesyacam`}
+              disabled={!periodRows.length}
+            />
+          </DashboardTableActions>
         </Card>
-
-        <div>
-          <DownloadTableButton
-            getTable={periodExport}
-            fileStem={`${config.sheetName.toLowerCase()}_po_mesyacam`}
-            disabled={!periodRows.length}
-          />
-        </div>
         </div>
 
         <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
@@ -888,11 +890,9 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
 
         <div className={mobilePane === "periods" ? "block space-y-6" : "hidden space-y-6 lg:block"}>
         <Card className="overflow-hidden rounded-xl p-0">
-          <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
-            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-              {data?.labels.project_table_title ?? `Таблица ${config.sheetName} по проектам`}
-            </Title>
-          </div>
+          <DashboardTableTitle>
+            {data?.labels.project_table_title ?? `Таблица ${config.sheetName} по проектам`}
+          </DashboardTableTitle>
           <FullscreenPanel disabled={!projectRows.length}>
             <div className="p-1 pt-3 lg:pt-1">
               {!projectRows.length ? (
@@ -981,15 +981,14 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               )}
             </div>
           </FullscreenPanel>
+          <DashboardTableActions>
+            <DownloadTableButton
+              getTable={projectExport}
+              fileStem={`${config.sheetName.toLowerCase()}_po_proektam`}
+              disabled={!projectRows.length}
+            />
+          </DashboardTableActions>
         </Card>
-
-        <div>
-          <DownloadTableButton
-            getTable={projectExport}
-            fileStem={`${config.sheetName.toLowerCase()}_po_proektam`}
-            disabled={!projectRows.length}
-          />
-        </div>
         </div>
 
         {hints.length ? (

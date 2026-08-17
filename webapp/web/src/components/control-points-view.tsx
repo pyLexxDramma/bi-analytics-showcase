@@ -18,7 +18,7 @@ import { useStickyHead } from "@/lib/use-sticky-head";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
-import { MobileFilterChips, MobilePaneTabs } from "@/components/mobile-ux";
+import { MobileFilterChips, MobilePaneTabs, DashboardTableActions } from "@/components/mobile-ux";
 
 const URL_INITIAL = { projects: [] as string[] };
 
@@ -420,7 +420,9 @@ export function ControlPointsView() {
               </div>
             )}
           </FullscreenPanel>
-          <DownloadTableButton getTable={() => (data ? buildExport(data) : null)} fileStem="control_points_matrix" />
+          <DashboardTableActions className="px-0">
+            <DownloadTableButton getTable={() => (data ? buildExport(data) : null)} fileStem="control_points_matrix" />
+          </DashboardTableActions>
         </div>
       )}
     </AppShell>
