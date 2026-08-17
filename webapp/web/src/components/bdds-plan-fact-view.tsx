@@ -121,6 +121,8 @@ export function BddsPlanFactView() {
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  /** Mobile: Обзор (график) | Редактирование. Desktop — оба блока подряд. */
+  const [mobilePane, setMobilePane] = useState<"overview" | "edit">("overview");
 
   const singleProject = filters.projects.length === 1;
   const editorProject = singleProject ? filters.projects[0] : null;
@@ -396,25 +398,68 @@ export function BddsPlanFactView() {
         </Text>
       </FiltersCard>
 
-      {editorProject ? (
-        <BddsPlanFactEditor
-          project={editorProject}
-          filters={editorFilters}
-          onDataChange={onEditorDataChange}
-          onPreviewError={onEditorPreviewError}
-        />
-      ) : null}
-
-      {showEditBanner ? (
-        <div className={`${BANNER} mb-4`}>{data?.labels.edit_banner}</div>
-      ) : null}
-
       {displayError ? (
         <Card className="mb-4 rounded-xl border-rose-300 bg-rose-50 dark:bg-rose-950/30">
           <Text className="text-rose-700 dark:text-rose-300">
             {displayError}
           </Text>
         </Card>
+      ) : null}
+
+      {editorProject ? (
+        <div
+          className="mb-3 flex gap-1 rounded-xl border border-tremor-border bg-tremor-background p-1 dark:border-dark-tremor-border dark:bg-dark-tremor-background lg:hidden"
+          role="tablist"
+          aria-label="Разделы экрана"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobilePane === "overview"}
+            className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-medium ${
+              mobilePane === "overview"
+                ? "bg-sky-600 text-white"
+                : "text-tremor-content dark:text-dark-tremor-content"
+            }`}
+            onClick={() => setMobilePane("overview")}
+          >
+            Обзор
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobilePane === "edit"}
+            className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-medium ${
+              mobilePane === "edit"
+                ? "bg-sky-600 text-white"
+                : "text-tremor-content dark:text-dark-tremor-content"
+            }`}
+            onClick={() => setMobilePane("edit")}
+          >
+            Редактирование
+          </button>
+        </div>
+      ) : null}
+
+      {editorProject ? (
+        <div className={mobilePane === "edit" ? "block" : "hidden lg:block"}>
+          <BddsPlanFactEditor
+            project={editorProject}
+            filters={editorFilters}
+            onDataChange={onEditorDataChange}
+            onPreviewError={onEditorPreviewError}
+            onGoToOverview={() => setMobilePane("overview")}
+          />
+        </div>
+      ) : null}
+
+      <div
+        className={
+          editorProject && mobilePane === "edit" ? "hidden lg:block" : "block"
+        }
+      >
+      {showEditBanner ? (
+        <div className={`${BANNER} mb-4`}>{data?.labels.edit_banner}</div>
       ) : null}
 
       <div className="min-w-0 max-w-full space-y-6">
@@ -734,6 +779,7 @@ export function BddsPlanFactView() {
             </div>
           </FullscreenPanel>
         </Card>
+      </div>
       </div>
     </AppShell>
   );
