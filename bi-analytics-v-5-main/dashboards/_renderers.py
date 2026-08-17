@@ -44986,6 +44986,59 @@ def _pred_crit_overdue_unresolved_mask(df: pd.DataFrame) -> pd.Series:
     return critical & overdue_open
 
 
+def _pred_is_name_stub(value) -> bool:
+    """Заглушки/пометки в TESSA Name («нарушения», опечатки) — не название задачи."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return True
+    s = str(value).strip()
+    if not s:
+        return True
+    sl = s.casefold()
+    if sl in {"nan", "none", "nat", "<na>", "—", "-"}:
+        return True
+    # Частые заглушки вместо темы предписания (и опечатки вроде «нрушения»).
+    if re.fullmatch(r"н+а?р+у?ш+ени[ея]?", sl):
+        return True
+    if sl in {"нарушения", "нрушения", "нарушение", "наррушения", "нарушене", "наруш"}:
+        return True
+    return False
+
+
+def _pred_resolve_display_name(
+    row,
+    name_col: str | None = None,
+    doc_desc_col: str | None = None,
+    comment_col: str | None = None,
+) -> str:
+    """
+    «Наименование» в таблице предписаний.
+
+    1) TESSA Name — если это тема предписания (не заглушка «нарушения» и не Comment)
+    2) DocDescription — подпись карточки/задачи (как в РД), если Name пустой/заглушка
+    Comment никогда не используем.
+    """
+    def _pick(col) -> str:
+        if not col:
+            return ""
+        try:
+            raw = row.get(col) if hasattr(row, "get") else row[col]
+        except Exception:
+            return ""
+        return _clean_display_str(raw, empty="")
+
+    name = _pick(name_col)
+    comment = _pick(comment_col)
+    if name and not _pred_is_name_stub(name):
+        if comment and name.casefold() == comment.casefold():
+            name = ""
+        else:
+            return name
+    title = _pick(doc_desc_col)
+    if title:
+        return title
+    return "—"
+
+
 def _pred_build_detail_table_df(
     show: pd.DataFrame,
     contr_col,
@@ -44998,9 +45051,15 @@ def _pred_build_detail_table_df(
     due_col,
     completion_col,
     name_col=None,
+    doc_desc_col=None,
+    comment_col=None,
 ) -> pd.DataFrame:
     if show is None or show.empty:
         return pd.DataFrame(columns=_PRED_DETAIL_TABLE_COLUMNS)
+    if not doc_desc_col:
+        doc_desc_col = _tessa_find_column(show, ["DocDescription", "DocDescr", "Description"])
+    if not comment_col:
+        comment_col = _tessa_find_column(show, ["Comment", "comment", "Комментарий", "Comments"])
     rows = []
     for _, row in show.iterrows():
         due_raw = row.get(due_col) if due_col and due_col in show.columns else None
@@ -45030,10 +45089,12 @@ def _pred_build_detail_table_df(
             overdue_num = 0
         crit_overdue_unresolved = is_crit and (not resolved_raw) and overdue_num > 0
         overdue_display = _pred_fmt_days_display(overdue_raw)
-        name_raw = row.get(name_col) if name_col and name_col in show.columns else None
-        name_s = _clean_display_str(name_raw, empty="—") if name_raw is not None else "—"
-        if not name_s:
-            name_s = "—"
+        name_s = _pred_resolve_display_name(
+            row,
+            name_col=name_col,
+            doc_desc_col=doc_desc_col,
+            comment_col=comment_col,
+        )
         if full_doc_col and full_doc_col in show.columns:
             doc_full_s = _pred_fmt_doc_full(row.get(full_doc_col))
         else:
@@ -47745,8 +47806,15 @@ def dashboard_predpisania(df):
     pred = _tessa_drop_project_state_rows(pred)
 
     contr_col = _tessa_find_column(pred, ["CONTR", "Контрагент", "contr"])
+    # Тема предписания (не Comment). Пустые/заглушки «нарушения» → DocDescription.
     name_col_pred = _tessa_find_column(
-        pred, ["Name", "name", "Наименование", "Title", "Заголовок"]
+        pred, ["Name", "name", "Наименование", "Title", "Subject", "Тема", "Заголовок"]
+    )
+    doc_desc_col_pred = _tessa_find_column(
+        pred, ["DocDescription", "DocDescr", "Description"]
+    )
+    comment_col_pred = _tessa_find_column(
+        pred, ["Comment", "comment", "Комментарий", "Comments"]
     )
     curator_col = _tessa_find_column(
         pred,
@@ -47910,17 +47978,17 @@ def dashboard_predpisania(df):
             pred[contract_col] = pred[contract_col].map(_resolve_contract_no)
 
     creation_col_pred = _tessa_find_column(pred, ["CreationDate", "creationdate", "Дата создания"])
+    # Блок выдачи: не Comment (там пометки вроде «не критично»).
     issue_block_col = _tessa_find_column(
         pred,
         [
-            "Comment",
-            "comment",
-            "Комментарий",
             "BlockName",
             "IssueBlock",
             "Блок выдачи предписания",
             "Блок выдачи",
             "Блок",
+            "SubDivisionVersionName",
+            "DivisionName",
             "Подразделение",
             "Department",
         ],
@@ -48623,6 +48691,8 @@ def dashboard_predpisania(df):
         due_col,
         "__completion_eff__",
         name_col_pred,
+        doc_desc_col_pred,
+        comment_col_pred,
     )
     table_df = table_df.sort_values(
         ["_crit_overdue_flag", "_overdue_num"],

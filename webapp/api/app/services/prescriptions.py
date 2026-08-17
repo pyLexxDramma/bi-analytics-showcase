@@ -1,4 +1,4 @@
-﻿"""Предписания по подрядчикам — паритет с dashboard_predpisania из web_data.db."""
+"""Предписания по подрядчикам — паритет с dashboard_predpisania из web_data.db."""
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -235,11 +235,18 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
             "Department",
         ],
     )
-    # Наименование предписания = TESSA Name (не Comment).
+    # Наименование: тема из Name; заглушки «нарушения» / пусто → DocDescription.
+    # Comment не используем (пометки вроде «не критично»).
     name_col = _column(
         renderer,
         pred,
         ["Name", "name", "Наименование", "Title", "Subject", "Тема", "Заголовок"],
+    )
+    doc_desc_col = _column(
+        renderer, pred, ["DocDescription", "DocDescr", "Description"]
+    )
+    comment_col = _column(
+        renderer, pred, ["Comment", "comment", "Комментарий", "Comments"]
     )
     doc_number_col = _column(
         renderer, pred, ["DocNumber", "DocumentNumber", "НомерДокумента"]
@@ -348,6 +355,8 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
     pred["_contract_col"] = contract_col
     pred["_issue_block_col"] = issue_block_col
     pred["_name_col"] = name_col
+    pred["_doc_desc_col"] = doc_desc_col
+    pred["_comment_col"] = comment_col
     pred["_doc_number_col"] = doc_number_col
     pred["_pred_number_col"] = pred_number_col
     return pred
@@ -394,6 +403,14 @@ def build_prescriptions_payload(
     )
     name_col_raw = pred["_name_col"].iloc[0]
     name_col = str(name_col_raw) if pd.notna(name_col_raw) and name_col_raw else ""
+    doc_desc_col_raw = pred["_doc_desc_col"].iloc[0]
+    doc_desc_col = (
+        str(doc_desc_col_raw) if pd.notna(doc_desc_col_raw) and doc_desc_col_raw else ""
+    )
+    comment_col_raw = pred["_comment_col"].iloc[0]
+    comment_col = (
+        str(comment_col_raw) if pd.notna(comment_col_raw) and comment_col_raw else ""
+    )
     doc_number_col_raw = pred["_doc_number_col"].iloc[0]
     doc_number_col = (
         str(doc_number_col_raw)
@@ -519,7 +536,12 @@ def build_prescriptions_payload(
                 "pred_number": renderer._pred_fmt_doc_full(
                     row.get(pred_number_col) if pred_number_col else None
                 ),
-                "name": _clean(row.get(name_col)) if name_col else "—",
+                "name": renderer._pred_resolve_display_name(
+                    row,
+                    name_col=name_col or None,
+                    doc_desc_col=doc_desc_col or None,
+                    comment_col=comment_col or None,
+                ),
                 "issue_date": _date_text(row["_issue_dt"]),
                 "issue_block": _clean(row.get(issue_block_col))
                 if issue_block_col

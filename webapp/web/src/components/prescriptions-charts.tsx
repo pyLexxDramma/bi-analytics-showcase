@@ -36,6 +36,11 @@ export const PRED_OBJECT_STATUS_COLOR: Record<string, string> = {
   "Устранено с просрочкой": "#f1c40f",
 };
 
+/** Контраст цифры внутри сегмента: на жёлтом белый не читается. */
+function predSegmentLabelColor(status: string): string {
+  return status === "Устранено с просрочкой" ? "#1e293b" : "#ffffff";
+}
+
 function useChartTheme() {
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -319,12 +324,18 @@ export function PrescriptionsObjectsChart({
     const x = rows.map((row) => String(row.object));
     const n = x.length;
     const chartWidth = compact && n > 6 ? Math.max(560, n * 96) : undefined;
-    const height = compact ? 320 : fullscreen ? Math.max(420, Math.min(window.innerHeight - 32, 720)) : 470;
+    // Выше график — сегменты выше в пикселях, цифры чаще помещаются внутрь.
+    const height = compact
+      ? 380
+      : fullscreen
+        ? Math.max(560, Math.min(window.innerHeight - 32, 820))
+        : 640;
     const ymax = Math.max(...rows.map((row) => Number(row.total) || 0), 0);
     const axisUpper = ymax > 0 ? axisUpperBound(ymax) : 5;
 
+    // 1–2 при total≈90 физически не влезают в сегмент даже на высоком графике.
     const isSmallSegment = (v: number, total: number) =>
-      v > 0 && (v < 5 || (total > 0 && v / total < 0.08));
+      v > 0 && (v < 4 || (total > 0 && v / total < 0.05));
 
     const data = statusKeys.map((status) => {
       const vals = rows.map((row) => Number(row[status] ?? 0) || 0);
@@ -334,7 +345,7 @@ export function PrescriptionsObjectsChart({
         y: vals,
         name: status,
         marker: { color: PRED_OBJECT_STATUS_COLOR[status] ?? "#94a3b8" },
-        // Крупные сегменты — цифра внутри; мелкие — выноска (см. annotations).
+        // Крупные — внутри (белый / тёмный на жёлтом); мелкие — сбоку как сумма.
         text: vals.map((v, i) => {
           const total = Number(rows[i]?.total) || 0;
           if (!v || isSmallSegment(v, total)) return "";
@@ -345,7 +356,10 @@ export function PrescriptionsObjectsChart({
         insidetextanchor: "middle" as const,
         constraintext: "none" as const,
         textangle: 0,
-        textfont: { color: "#ffffff", size: compact ? 11 : 14 },
+        textfont: {
+          color: predSegmentLabelColor(status),
+          size: compact ? 11 : 14,
+        },
         hovertemplate: `<b>%{x}</b><br>${status}: %{y}<extra></extra>`,
       };
     });
@@ -365,57 +379,38 @@ export function PrescriptionsObjectsChart({
         font: { color: theme.label, size: compact ? 12 : 16 },
       }));
 
-    const calloutAnnotations: Array<Record<string, unknown>> = [];
+    // Мелкие сегменты: те же жирные подписи без стрелок, что и сумма над столбцом
+    // (как в main `_pred_objects_by_status_figure` + totalAnnotations), сбоку от сегмента.
+    const smallAnnotations: Array<Record<string, unknown>> = [];
     rows.forEach((row) => {
       const total = Number(row.total) || 0;
       if (total <= 0) return;
       let yBase = 0;
       let side = 1;
-      let calloutIdx = 0;
       for (const status of statusKeys) {
         const v = Number(row[status] ?? 0) || 0;
         if (v <= 0) continue;
         if (isSmallSegment(v, total)) {
-          // Остриё стрелки — на верхнем внешнем крае сегмента.
-          const yEdge = yBase + v;
-          const ax = side * (compact ? 36 : 52);
-          // Текст выше и сбоку (как красная «3» на скрине).
-          const ay = compact ? -22 - calloutIdx * 10 : -32 - calloutIdx * 12;
-          calloutAnnotations.push({
+          const yMid = yBase + v / 2;
+          smallAnnotations.push({
             x: String(row.object),
-            y: yEdge,
+            y: yMid,
             text: `<b>${v}</b>`,
-            showarrow: true,
-            arrowhead: 2,
-            arrowsize: 0.9,
-            arrowwidth: 1.2,
-            arrowcolor: theme.label,
-            ax,
-            ay,
+            showarrow: false,
             xref: "x",
             yref: "y",
-            // Смещаем точку привязки к внешнему краю столбца.
-            xshift: side * (compact ? 14 : 22),
+            xshift: side * (compact ? 22 : 34),
             xanchor: side > 0 ? "left" : "right",
-            yanchor: "bottom",
-            font: {
-              color: theme.label,
-              size: compact ? 11 : 13,
-              family: "Inter, system-ui, sans-serif",
-            },
-            bgcolor: "rgba(0,0,0,0)",
-            borderwidth: 0,
-            borderpad: 0,
-            opacity: 1,
+            yanchor: "middle",
+            font: { color: theme.label, size: compact ? 12 : 16 },
           });
           side *= -1;
-          calloutIdx += 1;
         }
         yBase += v;
       }
     });
 
-    const annotations = [...totalAnnotations, ...calloutAnnotations];
+    const annotations = [...totalAnnotations, ...smallAnnotations];
 
     return {
       data,
@@ -433,7 +428,7 @@ export function PrescriptionsObjectsChart({
         },
         yaxis: {
           title: compact ? undefined : { text: "Количество", font: { color: theme.axis } },
-          range: [0, axisUpper * 1.12],
+          range: [0, axisUpper * 1.1],
           fixedrange: false,
           tickfont: { color: theme.axis },
         },
@@ -441,16 +436,16 @@ export function PrescriptionsObjectsChart({
         legend: plotlyLegendUnderLeft({
           fontSize: compact ? 10 : 12,
           labelColor: theme.label,
-          y: -0.18,
+          y: -0.14,
         }),
         annotations,
         margin: compact
-          ? { l: 48, r: 40, t: 40, b: 56 }
-          : { l: 64, r: 64, t: 64, b: 72 },
+          ? { l: 48, r: 48, t: 44, b: 64 }
+          : { l: 64, r: 72, t: 56, b: 88 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        uniformtext: { minsize: 12, mode: "hide" as const },
+        uniformtext: { minsize: 10, mode: "hide" as const },
         modebar: { bgcolor: "rgba(0,0,0,0)", color: theme.axis, activecolor: "#0f766e" },
         ...sparseBargap(n),
       },
