@@ -1436,9 +1436,10 @@ _ONE_C_STEM_RE = re.compile(
 )
 
 
-def _file_mtime(path: Path) -> float:
+def _file_mtime(path) -> float:
     try:
-        return float(path.stat().st_mtime)
+        p = path if isinstance(path, Path) else Path(str(path))
+        return float(p.stat().st_mtime)
     except OSError:
         return 0.0
 
@@ -1446,8 +1447,8 @@ def _file_mtime(path: Path) -> float:
 def _all_dates_in_stem(stem: str) -> List:
     """Извлекает все даты из стэма имени файла.
 
-    Используем lookbehind/lookahead на цифру вместо \b, потому что в стэмах
-    типа 'msp_dmitrovsky1_28-04-2026' символ '_' считается word-char, и \b
+    Используем lookbehind/lookahead на цифру вместо \\b, потому что в стэмах
+    типа 'msp_dmitrovsky1_28-04-2026' символ '_' считается word-char, и \\b
     между '_' и '2' не срабатывает — тогда даты вообще не находились,
     pick_latest_snapshot_files падал в фоллбэк по mtime и выбирал не самый
     свежий снимок (например 30-03 вместо 28-04).
@@ -1455,6 +1456,10 @@ def _all_dates_in_stem(stem: str) -> List:
     out = []
     for m in re.finditer(r"(?<!\d)(\d{2}-\d{2}-\d{4})(?!\d)", stem):
         d = _parse_snapshot_date(m.group(1))
+        if d is not None:
+            out.append(d)
+    for m in re.finditer(r"(?<!\d)(\d{2})\.(\d{2})\.(\d{4})(?!\d)", stem):
+        d = _parse_snapshot_date(f"{m.group(1)}-{m.group(2)}-{m.group(3)}")
         if d is not None:
             out.append(d)
     for m in re.finditer(r"(?<!\d)(\d{2})_(\d{2})_(\d{4})(?!\d)", stem):
@@ -1496,6 +1501,7 @@ def _one_c_file_family(stem: str) -> Optional[str]:
 def _generic_stem_family(stem: str) -> str:
     k = stem.lower()
     k = re.sub(r"\d{2}-\d{2}-\d{4}", "*", k)
+    k = re.sub(r"\d{2}\.\d{2}\.\d{4}", "*", k)
     k = re.sub(r"\d{2}_\d{2}_\d{4}", "*", k)
     k = re.sub(r"\d{4}-\d{2}-\d{2}", "*", k)
     return k
