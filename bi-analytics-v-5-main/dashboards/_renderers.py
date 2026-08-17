@@ -41386,6 +41386,34 @@ def _forecast_lot_label_series(cur: pd.DataFrame) -> pd.Series:
     return cur.apply(_forecast_row_lot_label, axis=1)
 
 
+def _forecast_pick_group_section(g: pd.DataFrame, lot_name: str) -> str:
+    """Раздел группы лота: частая подпись section/BLOCK, не совпадающая с лотом/проектом."""
+    skip = {str(lot_name or "").strip().casefold()}
+    if "project name" in g.columns:
+        for raw in g["project name"].tolist():
+            p = _clean_display_str(raw)
+            if p:
+                skip.add(p.casefold())
+    for col in ("section", "BLOCK", "block"):
+        if col not in g.columns:
+            continue
+        vals: list[str] = []
+        for raw in g[col].tolist():
+            s = _clean_display_str(raw)
+            if not s:
+                continue
+            if s.casefold() in skip:
+                continue
+            vals.append(s)
+        if vals:
+            try:
+                from collections import Counter
+
+                return str(Counter(vals).most_common(1)[0][0])
+            except Exception:
+                return vals[0]
+    return "—"
+
 
 def _forecast_editor_visible_mask(pdf: pd.DataFrame) -> pd.Series:
     """Какие строки показывать в UI редактора (расчёт — по всем строкам project_df).
@@ -41511,7 +41539,10 @@ def _forecast_aggregate_by_lot(pdf: pd.DataFrame) -> pd.DataFrame:
                 "project name": (
                     g["project name"].iloc[0] if "project name" in g.columns else _proj
                 ),
-                "section": lot_name,
+                # Не подменять раздел именем лота — иначе в редакторе Раздел≡Лот.
+                "section": _forecast_pick_group_section(g, lot_name),
+                "lot": lot_name,
+                "ЛОТ": lot_name,
                 "task name": lot_name,
                 "plan start": ps,
                 "plan end": pe,

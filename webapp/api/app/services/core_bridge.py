@@ -260,19 +260,32 @@ def session_state() -> Any:
 
 
 def import_renderers_module() -> ModuleType:
-    """Полный `dashboards._renderers` для прогнозного БДДС (обходит lightweight shim)."""
+    """Полный `dashboards._renderers` для прогнозного БДДС (обходит lightweight shim).
+
+    CORE лежит вне watch uvicorn --reload: при смене mtime файла перезагружаем модуль,
+    иначе правки Раздел/Лот в `_renderers.py` не видны до ручного рестарта API.
+    """
     ensure_streamlit_stub()
     ensure_core_path()
+    path = (CORE_APP_DIR / "dashboards" / "_renderers.py").resolve()
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = None
     existing = sys.modules.get("dashboards._renderers")
-    if existing is not None and not getattr(existing, "__bi_showcase_renderers_shim__", False):
+    if (
+        existing is not None
+        and not getattr(existing, "__bi_showcase_renderers_shim__", False)
+        and getattr(existing, "__bi_renderers_mtime__", None) == mtime
+    ):
         return existing
     sys.modules.pop("dashboards._renderers", None)
-    path = (CORE_APP_DIR / "dashboards" / "_renderers.py").resolve()
     full = "dashboards._renderers"
     spec = importlib.util.spec_from_file_location(full, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load {path}")
     module = importlib.util.module_from_spec(spec)
+    module.__bi_renderers_mtime__ = mtime  # type: ignore[attr-defined]
     sys.modules[full] = module
     spec.loader.exec_module(module)
     package = sys.modules.get("dashboards")

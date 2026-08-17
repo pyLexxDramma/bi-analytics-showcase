@@ -56,7 +56,7 @@ const STICKY_C =
 const STICKY_B = "sticky right-[3.75rem] z-20";
 const STICKY_A = "sticky right-[7.5rem] z-20";
 const STICKY_LOT =
-  "sticky left-0 z-10 max-w-[11rem] shadow-[6px_0_8px_-6px_rgba(15,23,42,0.25)]";
+  "sticky left-0 z-10 min-w-[10rem] max-w-[14rem] shadow-[6px_0_8px_-6px_rgba(15,23,42,0.25)]";
 
 function rowUsesAbc(dist: string): boolean {
   return dist.includes("%");
@@ -388,7 +388,7 @@ export function BddsPlanFactEditor({
                 key={rowIndex}
                 className="min-w-0 rounded-lg border-2 border-[#94a3b8] p-3 dark:border-[#7a9ec4]"
               >
-                <div className="mb-1 text-sm font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                <div className="mb-1 text-sm font-semibold leading-snug break-words text-tremor-content-strong dark:text-dark-tremor-content-strong">
                   {row[COL.lot] || "—"}
                 </div>
                 {row[COL.section] ? (
@@ -521,16 +521,16 @@ export function BddsPlanFactEditor({
                   return (
                     <tr key={rowIndex}>
                       <td
-                        className={`${CELL} max-w-[7rem] truncate`}
+                        className={`${CELL} min-w-[9rem] max-w-[14rem] whitespace-normal break-words align-top leading-snug`}
                         title={row[COL.section]}
                       >
-                        {row[COL.section]}
+                        {row[COL.section] || "—"}
                       </td>
                       <td
-                        className={`${CELL} ${STICKY_LOT} truncate`}
+                        className={`${CELL} ${STICKY_LOT} whitespace-normal break-words align-top leading-snug`}
                         title={row[COL.lot]}
                       >
-                        {row[COL.lot]}
+                        {row[COL.lot] || "—"}
                       </td>
                       <td className={`${CELL} min-w-[10rem]`}>
                         <select

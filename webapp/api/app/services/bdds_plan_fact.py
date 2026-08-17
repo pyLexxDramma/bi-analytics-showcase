@@ -321,14 +321,25 @@ def _build_forecast_edit_frame(pdf: pd.DataFrame, ren: Any) -> pd.DataFrame:
     plan_start_str = pd.to_datetime(ps, errors="coerce").dt.strftime("%Y-%m-%d").fillna("")
     plan_end_str = pd.to_datetime(pe, errors="coerce").dt.strftime("%Y-%m-%d").fillna("")
     n = len(cur)
-    block = cur["section"].astype(str)
+    block = cur["section"].astype(str) if "section" in cur.columns else pd.Series([""] * n)
     if "BLOCK" in cur.columns:
         blk = cur["BLOCK"].astype(str).str.strip()
-        block = block.mask(block.str.strip().eq(""), blk)
-    lot_lbl = ren._forecast_lot_label_series(cur)
+        block = block.mask(block.astype(str).str.strip().eq(""), blk)
+    # Лот: явная колонка после aggregate_by_lot; иначе прежняя эвристика.
+    if "lot" in cur.columns:
+        lot_lbl = cur["lot"].map(ren._clean_display_str)
+    elif "ЛОТ" in cur.columns:
+        lot_lbl = cur["ЛОТ"].map(ren._clean_display_str)
+    else:
+        lot_lbl = ren._forecast_lot_label_series(cur)
+    lot_lbl = lot_lbl.astype(str)
+    blank_lot = lot_lbl.str.strip().eq("") | lot_lbl.isin({"—", "-", "–", "−", "nan", "None"})
+    if bool(blank_lot.any()):
+        fallback = ren._forecast_lot_label_series(cur).astype(str)
+        lot_lbl = lot_lbl.where(~blank_lot, fallback)
     return pd.DataFrame(
         {
-            "Раздел": block,
+            "Раздел": block.astype(str),
             "Лот": lot_lbl.astype(str),
             "Условие распределения": ["Равномерно"] * n,
             "План. начало": plan_start_str,
@@ -350,6 +361,38 @@ def _rows_to_frame(rows: list[dict[str, Any]] | None) -> pd.DataFrame | None:
         if col not in frame.columns:
             frame[col] = "" if col not in {"A, %", "B, %", "C, %"} else 0.0
     return frame[list(EDITOR_COLUMNS)].copy()
+
+
+def _merge_saved_edit_rows(
+    baseline_rows: list[dict[str, Any]],
+    saved: list[dict[str, Any]] | None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Наложить сохранённые правки на baseline, всегда беря Раздел/Лот из baseline.
+
+    Старые сейвы писали Раздел≡Лот (баг aggregate); иначе редактор снова показывает дубли.
+    """
+    if not saved or len(saved) != len(baseline_rows):
+        return baseline_rows, False
+    by_lot: dict[str, dict[str, Any]] = {}
+    for row in saved:
+        key = str(row.get("Лот") or "").strip().casefold()
+        if key and key not in by_lot:
+            by_lot[key] = row
+    out: list[dict[str, Any]] = []
+    for base in baseline_rows:
+        key = str(base.get("Лот") or "").strip().casefold()
+        sav = by_lot.get(key)
+        if not sav:
+            out.append(dict(base))
+            continue
+        merged = dict(base)
+        for col in EDITOR_COLUMNS:
+            if col in {"Раздел", "Лот"}:
+                continue
+            if col in sav:
+                merged[col] = sav[col]
+        out.append(merged)
+    return out, True
 
 
 def _frame_to_rows(frame: pd.DataFrame) -> list[dict[str, Any]]:
@@ -757,8 +800,9 @@ def build_bdds_plan_fact_payload(
         effective_rows = edit_rows
         if effective_rows is None and username:
             saved = edit_store.get_saved_rows(username, proj_norm)
-            if saved and len(saved) == len(project_df):
-                effective_rows = saved
+            merged, used_saved = _merge_saved_edit_rows(_frame_to_rows(edit_frame), saved)
+            if used_saved:
+                effective_rows = merged
         edit_rows_df = _rows_to_frame(effective_rows)
         if edit_rows_df is not None:
             edit_errors = _validate_edit_rows(edit_rows_df, ren)
@@ -1123,9 +1167,7 @@ def build_editor_payload(
     applied = False
     if username:
         saved = edit_store.get_saved_rows(username, proj_norm)
-        if saved and len(saved) == len(project_df):
-            rows = saved
-            applied = True
+        rows, applied = _merge_saved_edit_rows(rows, saved)
 
     vis_mask = pd.Series(True, index=project_df.index)
     if not show_struct:
