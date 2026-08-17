@@ -105,16 +105,18 @@ const DC_W_CONTRACT = "9rem";
 const DC_LEFT_2 = `calc(${DC_W_PROJECT} + ${DC_W_CONTRACTOR})`;
 
 const DC_BORDER = "border border-[#64748b] dark:border-[#94a3b8]";
-const DC_TH = `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-[1rem] font-semibold leading-snug dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
-const DC_TD = `${DC_BORDER} bg-white px-2 py-2 text-[1.125rem] leading-snug text-[#0f172a] dark:bg-[#111827] dark:text-[#f1f5f9]`;
-const DC_TD_ALT = `${DC_BORDER} bg-[#eef2f7] px-2 py-2 text-[1.125rem] leading-snug text-[#0f172a] dark:bg-[#0b1220] dark:text-[#f1f5f9]`;
+const DC_TH = `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-center text-[1rem] font-semibold leading-snug align-middle dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
+const DC_TD = `${DC_BORDER} bg-white px-2 py-2 text-center text-[1.125rem] leading-snug align-middle text-[#0f172a] dark:bg-[#111827] dark:text-[#f1f5f9]`;
+const DC_TD_ALT = `${DC_BORDER} bg-[#eef2f7] px-2 py-2 text-center text-[1.125rem] leading-snug align-middle text-[#0f172a] dark:bg-[#0b1220] dark:text-[#f1f5f9]`;
 const DC_WRAP =
   "whitespace-normal [overflow-wrap:break-word] [word-break:normal] hyphens-manual";
 const DC_STICKY_SHADOW =
   "shadow-[7px_0_10px_-6px_rgba(15,23,42,0.4)] dark:shadow-[7px_0_10px_-6px_rgba(0,0,0,0.7)]";
-const DC_NUM = `${DC_BORDER} bi-num whitespace-nowrap px-2 py-2 text-right text-[1.125rem] tabular-nums`;
+const DC_NUM = `${DC_BORDER} whitespace-nowrap px-2 py-2 text-center text-[1.125rem] tabular-nums align-middle`;
 const DC_FOOT =
-  `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-[1.125rem] font-semibold dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
+  `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-center text-[1.125rem] font-semibold align-middle dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
+const DC_FOOT_W =
+  `calc(${DC_W_PROJECT} + ${DC_W_CONTRACTOR} + ${DC_W_CONTRACT})`;
 
 export function DebitCreditView() {
   const [filters, setFilters] = useState<Filters>(initial);
@@ -361,7 +363,7 @@ export function DebitCreditView() {
         </div>
         <FullscreenPanel disabled={!data?.rows?.length} scroll={false}>
           <div className="bi-table-scroll">
-            <table className="bi-sticky-head min-w-max border-separate border-spacing-0 text-left">
+            <table className="bi-sticky-head min-w-max border-separate border-spacing-0 text-center">
               <thead>
                 <tr>
                   <th
@@ -452,7 +454,7 @@ export function DebitCreditView() {
                       <td className={numStripe}>{mln(row.fulfilled)}</td>
                       <td className={numStripe}>{mln(row.advance)}</td>
                       <td
-                        className={`${DC_BORDER} px-2 py-2 text-center text-[1.25rem] ${toneCellClass(row.advance_tone)}`}
+                        className={`${DC_BORDER} px-2 py-2 text-center text-[1.25rem] align-middle ${toneCellClass(row.advance_tone)}`}
                         title="Допущения по авансированию"
                       >
                         {toneDot(row.advance_tone) || "—"}
@@ -460,7 +462,7 @@ export function DebitCreditView() {
                       <td className={numStripe}>{mln(row.ks2)}</td>
                       <td className={numStripe}>{mln(row.balance)}</td>
                       <td
-                        className={`${DC_BORDER} whitespace-nowrap px-2 py-2 text-left text-[1.125rem] tabular-nums ${toneCellClass(row.advance_tone)}`}
+                        className={`${DC_BORDER} whitespace-nowrap px-2 py-2 text-center text-[1.125rem] tabular-nums align-middle ${toneCellClass(row.advance_tone)}`}
                       >
                         {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
                       </td>
@@ -470,57 +472,40 @@ export function DebitCreditView() {
               </tbody>
               <tfoot>
                 <tr>
+                  {/* Одна sticky-ячейка на 3 колонки — пустые sticky bottom иначе рисуют «простыню». */}
                   <td
-                    className={`sticky bottom-0 left-0 z-[12] ${DC_FOOT}`}
+                    colSpan={3}
+                    className={`sticky bottom-0 left-0 z-[12] ${DC_FOOT} ${DC_STICKY_SHADOW}`}
                     style={{
-                      width: DC_W_PROJECT,
-                      minWidth: DC_W_PROJECT,
-                      maxWidth: DC_W_PROJECT,
+                      width: DC_FOOT_W,
+                      minWidth: DC_FOOT_W,
                     }}
                   >
                     ИТОГО
                   </td>
-                  <td
-                    className={`sticky bottom-0 z-[12] ${DC_FOOT}`}
-                    style={{
-                      left: DC_W_PROJECT,
-                      width: DC_W_CONTRACTOR,
-                      minWidth: DC_W_CONTRACTOR,
-                      maxWidth: DC_W_CONTRACTOR,
-                    }}
-                  />
-                  <td
-                    className={`sticky bottom-0 z-[12] ${DC_FOOT} ${DC_STICKY_SHADOW}`}
-                    style={{
-                      left: DC_LEFT_2,
-                      width: DC_W_CONTRACT,
-                      minWidth: DC_W_CONTRACT,
-                      maxWidth: DC_W_CONTRACT,
-                    }}
-                  />
-                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} tabular-nums`}>
                     {mln(data?.totals.contract_sum)}
                   </td>
-                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} tabular-nums`}>
                     {mln(data?.totals.fulfilled)}
                   </td>
-                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} tabular-nums`}>
                     {mln(data?.totals.advance)}
                   </td>
                   <td
-                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-center text-[1.25rem] ${toneCellSolid(data?.totals.advance_tone)}`}
+                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-center text-[1.25rem] align-middle ${toneCellSolid(data?.totals.advance_tone)}`}
                     title="Допущения по авансированию"
                   >
                     {toneDot(data?.totals.advance_tone) || "—"}
                   </td>
-                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} tabular-nums`}>
                     {mln(data?.totals.ks2)}
                   </td>
-                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} text-right tabular-nums`}>
+                  <td className={`sticky bottom-0 z-[11] ${DC_FOOT} tabular-nums`}>
                     {mln(data?.totals.balance)}
                   </td>
                   <td
-                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-left text-[1.125rem] tabular-nums ${toneCellSolid(data?.totals.advance_tone)}`}
+                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-center text-[1.125rem] tabular-nums align-middle ${toneCellSolid(data?.totals.advance_tone)}`}
                   >
                     {toneDot(data?.totals.advance_tone)}{" "}
                     {mln(data?.totals.advance_ks2)}
