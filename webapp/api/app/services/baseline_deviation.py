@@ -117,6 +117,19 @@ def _fmt_int_days(days: Any) -> str | None:
         return None
 
 
+def _fmt_task_id(raw: Any) -> str:
+    """MSP unique id → целое без «.0» (570, не 570.0)."""
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+    text = str(raw).strip()
+    if not text or text.casefold() in _BLANK:
+        return ""
+    try:
+        return str(int(float(text.replace(",", "."))))
+    except (TypeError, ValueError):
+        return text
+
+
 def _reason_bucket(raw: Any) -> str:
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return "Прочее"
@@ -615,7 +628,7 @@ def build_baseline_deviation_payload(
     label_mode: str | None = "name",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v7|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v8|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
@@ -1035,9 +1048,7 @@ def build_baseline_deviation_payload(
                     continue
                 tid = ""
                 if id_col and id_col in cov_src.columns:
-                    raw = crow.get(id_col)
-                    if pd.notna(raw) and str(raw).strip().casefold() not in _BLANK:
-                        tid = str(raw).strip()
+                    tid = _fmt_task_id(crow.get(id_col))
                 ped = crow.get("plan_end_diff")
                 try:
                     ped_n = int(round(float(ped))) if pd.notna(ped) else None
@@ -1078,9 +1089,7 @@ def build_baseline_deviation_payload(
             for _, row in table_df.iterrows():
                 tid = ""
                 if id_col and id_col in table_df.columns:
-                    raw = row.get(id_col)
-                    if pd.notna(raw) and str(raw).strip().casefold() not in _BLANK:
-                        tid = str(raw).strip()
+                    tid = _fmt_task_id(row.get(id_col))
                 fb = ""
                 if block_col and block_col in table_df.columns:
                     fb = _clean(row.get(block_col))
@@ -1153,9 +1162,7 @@ def build_baseline_deviation_payload(
                         task = lot_v if lot_v.casefold().startswith("лот") else f"Лот {lot_v}"
                 tid = ""
                 if id_col and id_col in table_df.columns:
-                    raw = row.get(id_col)
-                    if pd.notna(raw) and str(raw).strip().casefold() not in _BLANK:
-                        tid = str(raw).strip()
+                    tid = _fmt_task_id(row.get(id_col))
                 fb = _clean(row.get(block_col)) if block_col and block_col in table_df.columns else ""
                 if not fb and "_dt_lvl2_key" in table_df.columns:
                     fb = _clean(row.get("_dt_lvl2_key"))

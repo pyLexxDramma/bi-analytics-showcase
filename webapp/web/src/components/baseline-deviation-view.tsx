@@ -90,10 +90,20 @@ function highlightFromDays(
   return "ok";
 }
 
+/** MSP unique id → целое без «.0». */
+function fmtTaskId(raw: string | number | null | undefined): string {
+  if (raw == null || raw === "") return "";
+  const text = String(raw).trim();
+  if (!text) return "";
+  const n = Number(text.replace(",", "."));
+  if (Number.isFinite(n)) return String(Math.trunc(n));
+  return text;
+}
+
 function cellValue(row: Row, col: string): string | number {
   switch (col) {
     case "ID задачи":
-      return row.task_id ?? "";
+      return fmtTaskId(row.task_id);
     case "Проект":
       return row.project ?? "";
     case "Функциональный блок":
@@ -342,7 +352,7 @@ export function BaselineDeviationView() {
       cols.map((col) => {
         if (col === "Проект") return row.project ?? "";
         if (col === "Задача") return row.task ?? "";
-        if (col === "ID задачи") return row.task_id ?? "";
+        if (col === "ID задачи") return fmtTaskId(row.task_id);
         if (col === "Базовое окончание") return row.base_end ?? "";
         if (col === "Окончание") return row.plan_end ?? "";
         if (col === "Отклонение окончания (дней)") {
@@ -619,7 +629,7 @@ export function BaselineDeviationView() {
                             ...(row.project
                               ? [{ label: "Проект", value: row.project }]
                               : []),
-                            { label: "ID", value: row.task_id ?? "—" },
+                            { label: "ID", value: fmtTaskId(row.task_id) || "—" },
                             {
                               label: "Базовое оконч.",
                               value: row.base_end ?? "—",
@@ -681,7 +691,7 @@ export function BaselineDeviationView() {
                                   : col === "Задача"
                                     ? row.task
                                     : col === "ID задачи"
-                                      ? (row.task_id ?? "")
+                                      ? fmtTaskId(row.task_id) || ""
                                       : col === "Базовое окончание"
                                         ? (row.base_end ?? "")
                                         : col === "Окончание"
@@ -794,7 +804,7 @@ export function BaselineDeviationView() {
                           items={
                             showReasons
                               ? [
-                                  { label: "ID", value: row.task_id ?? "—" },
+                                  { label: "ID", value: fmtTaskId(row.task_id) || "—" },
                                   { label: "Блок", value: row.block ?? "—" },
                                   {
                                     label: "Строение",
@@ -829,7 +839,7 @@ export function BaselineDeviationView() {
                                   },
                                 ]
                               : [
-                                  { label: "ID", value: row.task_id ?? "—" },
+                                  { label: "ID", value: fmtTaskId(row.task_id) || "—" },
                                   {
                                     label: "Начало",
                                     value: row.plan_start ?? "—",
