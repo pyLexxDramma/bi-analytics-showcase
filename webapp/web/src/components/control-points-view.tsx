@@ -215,14 +215,14 @@ function ControlPointsDesktopTable({
               </td>
               {group.milestones.flatMap((milestone) => {
                 const milestoneCell = project.cells[milestone.slug];
-                const body = `${cell} bi-num bg-white px-0 py-1 tabular-nums dark:bg-[#0c1219]`;
+                const body = `${cell} bg-white px-0 py-1 text-center tabular-nums dark:bg-[#0c1219]`;
                 const dateTone = milestoneCell?.pct_complete_100
                   ? "text-orange-600 dark:text-[#f09355]"
                   : "";
                 return [
                   <td key={`${milestone.slug}-status`} className={`${body} ${edgeL}`}>
                     <span
-                      className={`inline-block rounded-full ${
+                      className={`mx-auto block rounded-full ${
                         dense ? "h-2 w-2" : "h-2.5 w-2.5"
                       } ${milestoneCell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`}
                       aria-label={milestoneCell?.status === "ok" ? "В срок" : "Просрочено"}
