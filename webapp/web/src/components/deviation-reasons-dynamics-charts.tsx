@@ -58,12 +58,6 @@ export function DeviationFacetChart({
     const periods = facet.rows.map((r) => String(r.period));
     const totals = facet.rows.map((r) => Number(r.total ?? 0));
     const hi = Math.max(...totals, 0);
-    const yTop = hi > 0 ? Math.max(hi * 1.45, hi + 0.85, 1) : 1;
-    const height = fullscreen
-      ? Math.max(420, Math.min(window.innerHeight * 0.55, 720))
-      : mobile
-        ? Math.max(340, 260 + Math.min(periods.length, 10) * 24)
-        : Math.max(400, 300 + Math.min(periods.length, 10) * 28);
     const nz = periods.map((_, i) => {
       let c = 0;
       for (const cat of facet.categories) {
@@ -71,6 +65,16 @@ export function DeviationFacetChart({
       }
       return c;
     });
+    const maxStack = Math.max(...nz, 1);
+    // Больше пикселей на единицу Y — горизонтальные цифры в тонких сегментах
+    const pxPerUnit = mobile ? 42 : 32;
+    const yPad = Math.max(1.2, maxStack * 0.35);
+    const yTop = hi > 0 ? hi + yPad : 1;
+    const height = fullscreen
+      ? Math.max(480, Math.min(window.innerHeight * 0.6, 780))
+      : mobile
+        ? Math.max(480, 220 + hi * pxPerUnit + maxStack * 18)
+        : Math.max(460, 280 + hi * pxPerUnit);
     const data = facet.categories.map((cat, ci) => {
       const ys = facet.rows.map((r) => Number(r[cat] ?? 0));
       const text = ys.map((v, i) => {
@@ -85,8 +89,11 @@ export function DeviationFacetChart({
         y: ys,
         text,
         textposition: "inside" as const,
+        textangle: 0,
         insidetextanchor: "middle" as const,
+        constraintext: "none" as const,
         cliponaxis: false,
+        insidetextfont: { size: mobile ? 12 : 13, color: "#0f172a" },
         marker: {
           color: facet.colors?.[cat] || FALLBACK[ci % FALLBACK.length],
         },
@@ -191,12 +198,6 @@ export function DeviationStackChart({
     const periods = rows.map((r) => String(r.period));
     const totals = rows.map((r) => Number(r.total ?? 0));
     const hi = Math.max(...totals, 0);
-    const yTop = hi > 0 ? Math.max(hi * 1.45, hi + 0.85, 1) : 1;
-    const height = fullscreen
-      ? Math.max(520, Math.min(window.innerHeight * 0.65, 860))
-      : mobile
-        ? Math.max(360, 280 + Math.min(periods.length, 14) * 20)
-        : Math.max(500, 360 + Math.min(periods.length, 14) * 24);
     const nz = periods.map((_, i) => {
       let c = 0;
       for (const p of projects) {
@@ -204,6 +205,15 @@ export function DeviationStackChart({
       }
       return c;
     });
+    const maxStack = Math.max(...nz, 1);
+    const pxPerUnit = mobile ? 44 : 34;
+    const yPad = Math.max(1.4, maxStack * 0.4);
+    const yTop = hi > 0 ? hi + yPad : 1;
+    const height = fullscreen
+      ? Math.max(560, Math.min(window.innerHeight * 0.7, 900))
+      : mobile
+        ? Math.max(560, 240 + hi * pxPerUnit + maxStack * 22)
+        : Math.max(540, 320 + hi * pxPerUnit);
     const data = projects.map((pname, i) => {
       const ys = rows.map((r) => Number(r[pname] ?? 0));
       const text = ys.map((v, idx) => {
@@ -218,8 +228,11 @@ export function DeviationStackChart({
         y: ys,
         text,
         textposition: "inside" as const,
+        textangle: 0,
         insidetextanchor: "middle" as const,
+        constraintext: "none" as const,
         cliponaxis: false,
+        insidetextfont: { size: mobile ? 12 : 13, color: "#0f172a" },
         marker: { color: colors[pname] || FALLBACK[i % FALLBACK.length] },
         hovertemplate: `<b>${pname}</b><br>Период: %{x}<br>Количество: %{y}<extra></extra>`,
       };

@@ -40,6 +40,7 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
+import { MobilePaneTabs } from "@/components/mobile-ux";
 
 type Filters = {
   projects: string[];
@@ -106,6 +107,7 @@ export function ExecutiveDocsParityView() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [tab, setTab] = useState<TabId>("sum");
+  const [mobilePane, setMobilePane] = useState<"overdue" | "reports">("overdue");
 
   const load = useCallback(async (next: Filters) => {
     setLoading(true);
@@ -456,7 +458,22 @@ export function ExecutiveDocsParityView() {
           ))}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <MobilePaneTabs
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { id: "overdue", label: "Просрочки" },
+            { id: "reports", label: "Отчёты" },
+          ]}
+        />
+
+        <div
+          className={
+            mobilePane === "overdue"
+              ? "grid gap-6 lg:grid-cols-2"
+              : "hidden gap-6 lg:grid lg:grid-cols-2"
+          }
+        >
           <FullscreenPanel fill>
             <Card className="rounded-xl bi-kpi-risk">
               <Title>Просрочка подрядчика (сдача ИД)</Title>
@@ -503,6 +520,11 @@ export function ExecutiveDocsParityView() {
           </FullscreenPanel>
         </div>
 
+        <div
+          className={
+            mobilePane === "reports" ? "block space-y-6" : "hidden space-y-6 lg:block"
+          }
+        >
         <div className="flex gap-6 border-b border-tremor-border dark:border-dark-tremor-border">
           {tabBtn("sum", "Накопительным итогом")}
           {tabBtn("detail", "Детальный отчёт")}
@@ -676,6 +698,7 @@ export function ExecutiveDocsParityView() {
             </div>
           </>
         ) : null}
+        </div>
       </div>
     </AppShell>
   );

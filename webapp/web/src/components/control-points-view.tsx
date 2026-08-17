@@ -18,6 +18,7 @@ import { useStickyHead } from "@/lib/use-sticky-head";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { MobileFilterChips, MobilePaneTabs } from "@/components/mobile-ux";
 
 const URL_INITIAL = { projects: [] as string[] };
 
@@ -260,9 +261,11 @@ function ControlPointsDesktopTable({
 function ControlPointsGroup({
   group,
   projects,
+  mobileProjects,
 }: {
   group: Group;
   projects: ProjectRow[];
+  mobileProjects: ProjectRow[];
 }) {
   const titles = group.milestones.map((m) => m.title).join(" · ");
   return (
@@ -272,7 +275,7 @@ function ControlPointsGroup({
           {titles}
         </Text>
       </div>
-      <ControlPointsMobileCards group={group} projects={projects} />
+      <ControlPointsMobileCards group={group} projects={mobileProjects} />
       <ControlPointsDesktopTable group={group} projects={projects} />
     </Card>
   );
@@ -284,6 +287,8 @@ export function ControlPointsView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
+  const [mobileGroup, setMobileGroup] = useState<string>("");
 
   const load = useCallback(async (projects: string[]) => {
     setLoading(true);
@@ -313,9 +318,26 @@ export function ControlPointsView() {
     const allow = new Set(selected);
     return rows.filter((row) => allow.has(row.project));
   }, [data?.projects, selected]);
+
+  const mobileProjects = useMemo(() => {
+    return projects.filter((row) => {
+      if (mobileTone === "overdue") {
+        const overdue = Object.values(row.cells).some(
+          (cell) => cell?.status === "bad" || (cell?.otkl_days != null && cell.otkl_days < 0),
+        );
+        if (!overdue) return false;
+      }
+      return true;
+    });
+  }, [projects, mobileTone]);
+
   const groups = data?.groups ?? [];
   const metaError = data?.meta.error;
   const dirty = selected.length > 0;
+  const activeGroupId =
+    mobileGroup && groups.some((g) => g.id === mobileGroup)
+      ? mobileGroup
+      : groups[0]?.id ?? "";
 
   return (
     <AppShell title="Контрольные точки" loading={loading}>
@@ -351,11 +373,49 @@ export function ControlPointsView() {
         />
       ) : (
         <div className="space-y-6">
+          <div className="space-y-2 px-0 lg:hidden">
+            <MobileFilterChips
+              value={mobileTone}
+              onChange={setMobileTone}
+              options={[
+                { id: "all", label: "Все" },
+                { id: "overdue", label: "Только просрочка" },
+              ]}
+            />
+            <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+              Показано {mobileProjects.length} из {projects.length}
+            </p>
+          </div>
+          {groups.length > 1 ? (
+            <MobilePaneTabs
+              value={activeGroupId}
+              onChange={setMobileGroup}
+              options={groups.map((group, index) => ({
+                id: group.id,
+                label:
+                  group.milestones[0]?.title?.slice(0, 18) ||
+                  `Блок ${index + 1}`,
+              }))}
+            />
+          ) : null}
           <FullscreenPanel disabled={!projects.length || !groups.length} scroll={false}>
             {(zoomed) => (
               <div className={`space-y-6 ${zoomed ? "w-full max-w-none p-2 pt-10" : ""}`}>
                 {groups.map((group) => (
-                  <ControlPointsGroup key={group.id} group={group} projects={projects} />
+                  <div
+                    key={group.id}
+                    className={
+                      groups.length <= 1 || group.id === activeGroupId
+                        ? "block"
+                        : "hidden lg:block"
+                    }
+                  >
+                    <ControlPointsGroup
+                      group={group}
+                      projects={projects}
+                      mobileProjects={mobileProjects}
+                    />
+                  </div>
                 ))}
               </div>
             )}

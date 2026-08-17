@@ -42,6 +42,11 @@ import {
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
 import {
+  MobileDetailSheet,
+  MobilePaneTabs,
+  MobileSearchField,
+} from "@/components/mobile-ux";
+import {
   fetchGdrsEquipment,
   fetchGdrsPeople,
   type GdrsPayload,
@@ -51,6 +56,12 @@ import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type ResourceKind = "people" | "equipment";
 type SortState = { key: string; asc: boolean } | null;
+type GdrsMobilePane = "charts" | "projects" | "matrix" | "detail";
+type GdrsDetail =
+  | { kind: "project"; project: string; plan: number; fact: number; deviation: number; delta_pct: number | null }
+  | { kind: "matrix"; label: string; vid_raboty: string; plan: number; skud: number; deviation: number; delta_pct: number | null }
+  | { kind: "dynamics"; period: string; plan: number; fact: number; deviation: number; delta_pct: number | null }
+  | { kind: "contractor"; contractor: string; plan: number; fact: number; deviation: number; share_pct: number | null };
 
 type Filters = {
   projects: string[];
@@ -390,6 +401,13 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const [mtxSort, setMtxSort] = useState<SortState>(null);
   const matrixGroupHdrRef = useRef<HTMLTableRowElement>(null);
   const [matrixGroupHdrH, setMatrixGroupHdrH] = useState(40);
+  const [mobilePane, setMobilePane] = useState<GdrsMobilePane>("charts");
+  const [tableQuery, setTableQuery] = useState("");
+  const [detail, setDetail] = useState<GdrsDetail | null>(null);
+  const chartsRef = useRef<HTMLDivElement>(null);
+  const projectsRef = useRef<HTMLDivElement>(null);
+  const matrixRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(
     async (next: Filters) => {
@@ -472,6 +490,28 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     (data?.matrix_rows ?? []).map((r) => ({ ...r })),
     mtxSort,
   );
+
+  const tableQueryNorm = tableQuery.trim().toLowerCase();
+  const mobileMatrixRows = useMemo(() => {
+    if (!tableQueryNorm) return matrixRows;
+    return matrixRows.filter(
+      (r) =>
+        String(r.label ?? "").toLowerCase().includes(tableQueryNorm) ||
+        String(r.vid_raboty ?? "").toLowerCase().includes(tableQueryNorm),
+    );
+  }, [matrixRows, tableQueryNorm]);
+  const mobileDynamicsRows = useMemo(() => {
+    if (!tableQueryNorm) return dynamicsRows;
+    return dynamicsRows.filter((r) =>
+      String(r.period ?? "").toLowerCase().includes(tableQueryNorm),
+    );
+  }, [dynamicsRows, tableQueryNorm]);
+  const mobileContractorRows = useMemo(() => {
+    if (!tableQueryNorm) return contractorRows;
+    return contractorRows.filter((r) =>
+      String(r.contractor ?? "").toLowerCase().includes(tableQueryNorm),
+    );
+  }, [contractorRows, tableQueryNorm]);
 
   const matrixMeta = data?.matrix_meta ?? {
     show_week_columns: false,
@@ -755,6 +795,24 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               : null
           }
         />
+
+        <MobilePaneTabs
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { id: "charts", label: "Графики" },
+            { id: "projects", label: "Проекты" },
+            { id: "matrix", label: "Матрица" },
+            { id: "detail", label: "Детали" },
+          ]}
+        />
+
+        <div
+          ref={chartsRef}
+          className={`scroll-mt-4 space-y-6 ${
+            mobilePane === "charts" ? "block" : "hidden lg:block"
+          }`}
+        >
         <Card className="rounded-xl">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
             ГДРС по выбранным проектам
@@ -1587,76 +1645,283 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             />
           </div>
         </Card>
-        <MobileCardStack>
-          <MobileEntityCard title="ГДРС по выбранным проектам">
-            <MobileRowList
-              rows={projectRows}
-              render={(row) => (
-                <MobileMetricGrid
-                  key={row.project}
-                  columns={4}
-                  items={[
-                    { label: "Проект", value: row.project },
-                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
-                    { label: "СКУД", value: fmtInt(row.fact) },
-                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
-                  ]}
-                />
-              )}
+        </div>
+
+        <div
+          ref={projectsRef}
+          className={`scroll-mt-4 ${
+            mobilePane === "projects" ? "block" : "hidden"
+          } lg:hidden`}
+        >
+          <div className="mb-2 space-y-2 px-2">
+            <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+              Проектов {projectRows.length}. Тап — детали. Список задаётся в
+              «Фильтрах».
+            </p>
+          </div>
+          <MobileCardStack>
+            {projectRows.map((row) => (
+              <button
+                key={row.project}
+                type="button"
+                className="w-full text-left"
+                onClick={() => {
+                  tapFeedback();
+                  setDetail({
+                    kind: "project",
+                    project: row.project,
+                    plan: row.plan,
+                    fact: row.fact,
+                    deviation: row.deviation,
+                    delta_pct: row.delta_pct,
+                  });
+                }}
+              >
+                <MobileEntityCard
+                  title={row.project}
+                  badge={fmtSigned(row.deviation)}
+                  badgeTone={row.deviation < 0 ? "bad" : "ok"}
+                >
+                  <MobileMetricGrid
+                    columns={2}
+                    items={[
+                      { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                      { label: "СКУД", value: fmtInt(row.fact) },
+                    ]}
+                  />
+                </MobileEntityCard>
+              </button>
+            ))}
+          </MobileCardStack>
+        </div>
+
+        <div
+          ref={matrixRef}
+          className={`scroll-mt-4 ${
+            mobilePane === "matrix" ? "block" : "hidden"
+          } lg:hidden`}
+        >
+          <div className="mb-2 space-y-2 px-2">
+            <MobileSearchField
+              value={tableQuery}
+              onChange={setTableQuery}
+              placeholder="Поиск контрагента / вида работ"
             />
-          </MobileEntityCard>
-          <MobileEntityCard title={matrixTitle}>
-            <MobileRowList
-              rows={matrixRows}
-              render={(row, index) => (
-                <MobileMetricGrid
-                  key={`${row.kind}-${row.label}-${index}`}
-                  columns={4}
-                  items={[
-                    { label: "Контрагент", value: row.label },
-                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
-                    { label: "СКУД", value: fmtInt(row.skud) },
-                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
-                  ]}
-                />
-              )}
+            <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+              Показано {mobileMatrixRows.length} из {matrixRows.length}. Тап — детали.
+            </p>
+          </div>
+          <MobileCardStack>
+            {mobileMatrixRows.map((row, index) => (
+              <button
+                key={`${row.kind}-${row.label}-${index}`}
+                type="button"
+                className="w-full text-left"
+                onClick={() => {
+                  tapFeedback();
+                  setDetail({
+                    kind: "matrix",
+                    label: row.label,
+                    vid_raboty: String(row.vid_raboty ?? ""),
+                    plan: row.plan,
+                    skud: row.skud,
+                    deviation: row.deviation,
+                    delta_pct: row.delta_pct,
+                  });
+                }}
+              >
+                <MobileEntityCard
+                  title={row.label}
+                  badge={fmtSigned(row.deviation)}
+                  badgeTone={row.deviation < 0 ? "bad" : "ok"}
+                >
+                  <MobileMetricGrid
+                    columns={2}
+                    items={[
+                      { label: "Вид работ", value: row.vid_raboty || "—" },
+                      { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                      { label: "СКУД", value: fmtInt(row.skud) },
+                      {
+                        label: "Откл.",
+                        value: fmtSigned(row.deviation),
+                        highlight: row.deviation < 0 ? "bad" : "ok",
+                      },
+                    ]}
+                  />
+                </MobileEntityCard>
+              </button>
+            ))}
+          </MobileCardStack>
+        </div>
+
+        <div
+          ref={detailRef}
+          className={`scroll-mt-4 space-y-4 ${
+            mobilePane === "detail" ? "block" : "hidden"
+          } lg:hidden`}
+        >
+          <div className="space-y-2 px-2">
+            <MobileSearchField
+              value={tableQuery}
+              onChange={setTableQuery}
+              placeholder="Поиск периода / контрагента"
             />
-          </MobileEntityCard>
-          <MobileEntityCard title="Детализация по периодам">
-            <MobileRowList
-              rows={dynamicsRows}
-              render={(row) => (
-                <MobileMetricGrid
-                  key={row.period}
-                  columns={4}
-                  items={[
-                    { label: "Период", value: row.period },
-                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
-                    { label: "Факт", value: fmtInt(row.fact) },
-                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
-                  ]}
-                />
-              )}
+          </div>
+          <MobileCardStack>
+            <MobileEntityCard title="Детализация по периодам">
+              <MobileRowList
+                rows={mobileDynamicsRows}
+                render={(row) => (
+                  <button
+                    key={row.period}
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => {
+                      tapFeedback();
+                      setDetail({
+                        kind: "dynamics",
+                        period: row.period,
+                        plan: row.plan,
+                        fact: row.fact,
+                        deviation: row.deviation,
+                        delta_pct: row.delta_pct,
+                      });
+                    }}
+                  >
+                    <MobileMetricGrid
+                      columns={4}
+                      items={[
+                        { label: "Период", value: row.period },
+                        { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                        { label: "Факт", value: fmtInt(row.fact) },
+                        {
+                          label: "Откл.",
+                          value: fmtSigned(row.deviation),
+                          highlight: row.deviation < 0 ? "bad" : "ok",
+                        },
+                      ]}
+                    />
+                  </button>
+                )}
+              />
+            </MobileEntityCard>
+            <MobileEntityCard title={pieTitle}>
+              <MobileRowList
+                rows={mobileContractorRows}
+                render={(row) => (
+                  <button
+                    key={row.contractor}
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => {
+                      tapFeedback();
+                      setDetail({
+                        kind: "contractor",
+                        contractor: row.contractor,
+                        plan: row.plan,
+                        fact: row.fact,
+                        deviation: row.deviation,
+                        share_pct: row.share_pct,
+                      });
+                    }}
+                  >
+                    <MobileMetricGrid
+                      columns={4}
+                      items={[
+                        { label: "Контрагент", value: row.contractor },
+                        { label: "План", value: fmtInt(row.plan), highlight: "ok" },
+                        { label: "Факт", value: fmtInt(row.fact) },
+                        {
+                          label: "Откл.",
+                          value: fmtSigned(row.deviation),
+                          highlight: row.deviation < 0 ? "bad" : "ok",
+                        },
+                      ]}
+                    />
+                  </button>
+                )}
+              />
+            </MobileEntityCard>
+          </MobileCardStack>
+        </div>
+
+        <MobileDetailSheet
+          open={detail != null}
+          onClose={() => setDetail(null)}
+          title={
+            detail?.kind === "project"
+              ? detail.project
+              : detail?.kind === "matrix"
+                ? detail.label
+                : detail?.kind === "dynamics"
+                  ? detail.period
+                  : detail?.kind === "contractor"
+                    ? detail.contractor
+                    : "Детали"
+          }
+        >
+          {detail?.kind === "project" ? (
+            <MobileMetricGrid
+              columns={2}
+              items={[
+                { label: "План", value: fmtInt(detail.plan), highlight: "ok" },
+                { label: "СКУД", value: fmtInt(detail.fact) },
+                {
+                  label: "Отклонение",
+                  value: fmtSigned(detail.deviation),
+                  highlight: detail.deviation < 0 ? "bad" : "ok",
+                },
+                { label: "Откл. %", value: fmtPct(detail.delta_pct) },
+              ]}
             />
-          </MobileEntityCard>
-          <MobileEntityCard title={pieTitle}>
-            <MobileRowList
-              rows={contractorRows}
-              render={(row) => (
-                <MobileMetricGrid
-                  key={row.contractor}
-                  columns={4}
-                  items={[
-                    { label: "Контрагент", value: row.contractor },
-                    { label: "План", value: fmtInt(row.plan), highlight: "ok" },
-                    { label: "Факт", value: fmtInt(row.fact) },
-                    { label: "Откл.", value: fmtSigned(row.deviation), highlight: row.deviation < 0 ? "bad" : "ok" },
-                  ]}
-                />
-              )}
+          ) : null}
+          {detail?.kind === "matrix" ? (
+            <MobileMetricGrid
+              columns={2}
+              items={[
+                { label: "Вид работ", value: detail.vid_raboty || "—" },
+                { label: "План", value: fmtInt(detail.plan), highlight: "ok" },
+                { label: "СКУД", value: fmtInt(detail.skud) },
+                {
+                  label: "Отклонение",
+                  value: fmtSigned(detail.deviation),
+                  highlight: detail.deviation < 0 ? "bad" : "ok",
+                },
+                { label: "Откл. %", value: fmtPct(detail.delta_pct) },
+              ]}
             />
-          </MobileEntityCard>
-        </MobileCardStack>
+          ) : null}
+          {detail?.kind === "dynamics" ? (
+            <MobileMetricGrid
+              columns={2}
+              items={[
+                { label: "План", value: fmtInt(detail.plan), highlight: "ok" },
+                { label: "Факт", value: fmtInt(detail.fact) },
+                {
+                  label: "Отклонение",
+                  value: fmtSigned(detail.deviation),
+                  highlight: detail.deviation < 0 ? "bad" : "ok",
+                },
+                { label: "Откл. %", value: fmtPct(detail.delta_pct) },
+              ]}
+            />
+          ) : null}
+          {detail?.kind === "contractor" ? (
+            <MobileMetricGrid
+              columns={2}
+              items={[
+                { label: "План", value: fmtInt(detail.plan), highlight: "ok" },
+                { label: "Факт", value: fmtInt(detail.fact) },
+                {
+                  label: "Отклонение",
+                  value: fmtSigned(detail.deviation),
+                  highlight: detail.deviation < 0 ? "bad" : "ok",
+                },
+                { label: "Доля %", value: fmtPct(detail.share_pct) },
+              ]}
+            />
+          ) : null}
+        </MobileDetailSheet>
       </div>
     </AppShell>
   );

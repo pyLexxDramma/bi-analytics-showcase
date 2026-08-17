@@ -28,6 +28,12 @@ import {
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
 import {
+  MobileCardStack,
+  MobileEntityCard,
+  MobileMetricGrid,
+} from "@/components/mobile-entity-card";
+import { MobileFilterChips, MobilePaneTabs } from "@/components/mobile-ux";
+import {
   filterChip,
   formatDateChip,
   multiFilterChips,
@@ -209,7 +215,31 @@ function MobilePeriodBlocks({
   totalPeriodLabel: string;
 }) {
   return (
-    <div className="flex flex-col gap-4 px-2 pb-2">
+    <MobileCardStack
+      pinned={
+        <MobileEntityCard
+          className="bi-card-pinned"
+          title="ИТОГО"
+          badge={totalPeriodLabel || undefined}
+        >
+          <MobileMetricGrid
+            columns={3}
+            items={[
+              { label: "План", value: mlnPlain(totals.plan) },
+              { label: "Факт", value: mlnPlain(totals.fact) },
+              {
+                label: "Откл.",
+                value: mlnPlain(totals.deviation, { signed: true }),
+                className: deviationClass(totals.deviation),
+              },
+            ]}
+          />
+          <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">
+            Значения — млн ₽
+          </p>
+        </MobileEntityCard>
+      }
+    >
       {blocks.map((block) => (
         <section
           key={block.project}
@@ -260,41 +290,7 @@ function MobilePeriodBlocks({
           </table>
         </section>
       ))}
-      <section className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] dark:border-white">
-        <table className="w-full table-fixed border-collapse text-xs">
-          <colgroup>
-            <col className="w-[28%]" />
-            <col className="w-[24%]" />
-            <col className="w-[24%]" />
-            <col className="w-[24%]" />
-          </colgroup>
-          <tbody>
-            <tr className={TOTAL_ROW}>
-              <td className={`${CELL} px-2 py-2`}>
-                ИТОГО
-                <div className="text-[10px] font-normal opacity-80">{totalPeriodLabel}</div>
-              </td>
-              <td className={`${CELL} px-1 py-2 text-center tabular-nums`}>
-                {mlnPlain(totals.plan)}
-              </td>
-              <td className={`${CELL} px-1 py-2 text-center tabular-nums`}>
-                {mlnPlain(totals.fact)}
-              </td>
-              <td
-                className={`${CELL} px-1 py-2 text-center tabular-nums ${deviationClass(
-                  totals.deviation,
-                )}`}
-              >
-                {mlnPlain(totals.deviation, { signed: true })}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p className="px-2 py-1 text-[10px] text-tremor-content dark:text-dark-tremor-content">
-          Значения — млн ₽
-        </p>
-      </section>
-    </div>
+    </MobileCardStack>
   );
 }
 
@@ -306,7 +302,27 @@ function MobileProjectBlocks({
   totals: { plan: number; fact: number; deviation: number };
 }) {
   return (
-    <div className="flex flex-col gap-3 px-2 pb-2">
+    <MobileCardStack
+      pinned={
+        <MobileEntityCard className="bi-card-pinned" title="ИТОГО">
+          <MobileMetricGrid
+            columns={3}
+            items={[
+              { label: "План", value: mlnNumber(totals.plan).toFixed(1) },
+              { label: "Факт", value: mlnNumber(totals.fact).toFixed(1) },
+              {
+                label: "Откл.",
+                value: mlnPlain(totals.deviation, { signed: true }),
+                className: deviationClass(totals.deviation),
+              },
+            ]}
+          />
+          <p className="mt-2 text-[10px] text-tremor-content dark:text-dark-tremor-content">
+            Значения — млн ₽
+          </p>
+        </MobileEntityCard>
+      }
+    >
       {rows.map((row) => (
         <section
           key={row.project}
@@ -337,26 +353,7 @@ function MobileProjectBlocks({
           </dl>
         </section>
       ))}
-      <section className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] dark:border-white">
-        <div className={`${TOTAL_ROW} px-3 py-2`}>ИТОГО · млн ₽</div>
-        <dl className="grid grid-cols-3 gap-0 text-center text-xs">
-          <div className={`${CELL} px-1 py-2`}>
-            <dt className="text-[10px] font-semibold uppercase">План</dt>
-            <dd className="mt-0.5 font-bold tabular-nums">{mlnNumber(totals.plan).toFixed(1)}</dd>
-          </div>
-          <div className={`${CELL} px-1 py-2`}>
-            <dt className="text-[10px] font-semibold uppercase">Факт</dt>
-            <dd className="mt-0.5 font-bold tabular-nums">{mlnNumber(totals.fact).toFixed(1)}</dd>
-          </div>
-          <div className={`${CELL} px-1 py-2`}>
-            <dt className="text-[10px] font-semibold uppercase">Откл.</dt>
-            <dd className={`mt-0.5 font-bold tabular-nums ${deviationClass(totals.deviation)}`}>
-              {mlnPlain(totals.deviation, { signed: true })}
-            </dd>
-          </div>
-        </dl>
-      </section>
-    </div>
+    </MobileCardStack>
   );
 }
 
@@ -384,6 +381,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [periodSort, setPeriodSort] = useState<SortState>(null);
   const [projectSort, setProjectSort] = useState<SortState>(null);
+  const [mobilePane, setMobilePane] = useState<"chart" | "periods">("chart");
 
   const load = useCallback(async (next: Filters) => {
     setLoading(true);
@@ -689,6 +687,25 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               : null
           }
         />
+        <MobilePaneTabs
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { id: "chart", label: "График" },
+            { id: "periods", label: "Периоды" },
+          ]}
+        />
+        <div className="mb-1 px-0 lg:hidden">
+          <MobileFilterChips
+            value={filters.view}
+            onChange={(view) => setFilters((state) => ({ ...state, view }))}
+            options={(data?.filters.views ?? [
+              { id: "monthly", label: "По месяцам" },
+              { id: "cumulative", label: "Накопительно" },
+            ]).map((item) => ({ id: item.id, label: item.label }))}
+          />
+        </div>
+        <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
         <Card className="rounded-xl">
           <FullscreenPanel disabled={!chartRows.length} fill>
             {(zoomed) => (
@@ -708,7 +725,9 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             )}
           </FullscreenPanel>
         </Card>
+        </div>
 
+        <div className={mobilePane === "periods" ? "block space-y-6" : "hidden space-y-6 lg:block"}>
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -839,7 +858,9 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             disabled={!periodRows.length}
           />
         </div>
+        </div>
 
+        <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
         <Card className="rounded-xl">
           <FullscreenPanel disabled={!projectChartRows.length} fill>
             {(zoomed) => (
@@ -863,7 +884,9 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             )}
           </FullscreenPanel>
         </Card>
+        </div>
 
+        <div className={mobilePane === "periods" ? "block space-y-6" : "hidden space-y-6 lg:block"}>
         <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -966,6 +989,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             fileStem={`${config.sheetName.toLowerCase()}_po_proektam`}
             disabled={!projectRows.length}
           />
+        </div>
         </div>
 
         {hints.length ? (

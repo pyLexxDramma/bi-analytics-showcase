@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Card, Grid, Metric, Text, Title } from "@tremor/react";
 import {
   fetchWorkingDocumentation,
@@ -30,6 +30,12 @@ import {
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
 import {
+  MobileDetailSheet,
+  MobilePaneTabs,
+  MobileSearchField,
+} from "@/components/mobile-ux";
+import { tapFeedback } from "@/lib/haptics";
+import {
   RdDelayGanttChart,
   RdDynamicsLineChart,
   RdExecutionPieChart,
@@ -53,6 +59,7 @@ const TD =
 
 type TabId = "main" | "delay";
 type SortState = { key: string; asc: boolean } | null;
+type RdMobilePane = "charts" | "tables";
 
 const INITIAL = {
   projects: [] as string[],
@@ -187,6 +194,11 @@ function DetailTable({
 }) {
   const [sort, setSort] = useState<SortState>(null);
   const [dark, setDark] = useState(false);
+  const [listQuery, setListQuery] = useState("");
+  const [detailRow, setDetailRow] = useState<Record<
+    string,
+    string | number | null
+  > | null>(null);
 
   useEffect(() => {
     const el = document.documentElement;
@@ -215,6 +227,16 @@ function DetailTable({
     });
     return copy;
   }, [rows, sort]);
+
+  const listQueryNorm = listQuery.trim().toLowerCase();
+  const mobileRows = useMemo(() => {
+    if (!listQueryNorm) return sortedRows;
+    return sortedRows.filter((row) =>
+      columns
+        .filter((c) => !/проект/i.test(String(c)))
+        .some((c) => cellDisplay(row, c).toLowerCase().includes(listQueryNorm)),
+    );
+  }, [sortedRows, columns, listQueryNorm]);
 
   const vmaxByCol = useMemo(() => {
     const map: Record<string, number> = {};
@@ -262,39 +284,89 @@ function DetailTable({
           />
         ) : (
           <>
+            <div className="space-y-2 px-3 pt-3 lg:hidden">
+              <MobileSearchField
+                value={listQuery}
+                onChange={setListQuery}
+                placeholder="Поиск раздела"
+              />
+              <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                Показано {mobileRows.length} из {sortedRows.length}. Тап — детали.
+              </p>
+            </div>
             <MobileCardStack>
-              {sortedRows.map((row, i) => {
+              {mobileRows.map((row, i) => {
                 const badgeVal = badgeCol ? parseSortableNumber(row[badgeCol]) : null;
                 const badgeText = badgeCol ? cellDisplay(row, badgeCol) : undefined;
-                const metricCols = columns.filter((c) => c !== titleCol).slice(0, 8);
+                const previewCols = columns
+                  .filter((c) => c !== titleCol && c !== badgeCol)
+                  .slice(0, 2);
                 return (
-                  <MobileEntityCard
+                  <button
                     key={`rd-m-${i}`}
-                    title={titleCol ? cellDisplay(row, titleCol) : `Строка ${i + 1}`}
-                    badge={badgeText && badgeText !== "—" ? badgeText : undefined}
-                    badgeTone={
-                      badgeVal == null ? "neutral" : badgeVal < 0 ? "bad" : "ok"
-                    }
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => {
+                      tapFeedback();
+                      setDetailRow(row);
+                    }}
                   >
-                    <MobileMetricGrid
-                      columns={2}
-                      items={metricCols.map((c) => {
-                        const isDev = isDeviationCol(c);
-                        const num = isDev
-                          ? parseSortableNumber(row[c] ?? row[`${c}__label`])
-                          : null;
-                        return {
-                          label: c.length > 28 ? `${c.slice(0, 26)}…` : c,
-                          value: cellDisplay(row, c),
-                          className: isDev ? deviationClass(num) : undefined,
-                          highlight: isDev ? highlightFromDays(num) : "none",
-                        };
-                      })}
-                    />
-                  </MobileEntityCard>
+                    <MobileEntityCard
+                      title={titleCol ? cellDisplay(row, titleCol) : `Строка ${i + 1}`}
+                      badge={badgeText && badgeText !== "—" ? badgeText : undefined}
+                      badgeTone={
+                        badgeVal == null ? "neutral" : badgeVal < 0 ? "bad" : "ok"
+                      }
+                    >
+                      <MobileMetricGrid
+                        columns={2}
+                        items={previewCols.map((c) => {
+                          const isDev = isDeviationCol(c);
+                          const num = isDev
+                            ? parseSortableNumber(row[c] ?? row[`${c}__label`])
+                            : null;
+                          return {
+                            label: c.length > 28 ? `${c.slice(0, 26)}…` : c,
+                            value: cellDisplay(row, c),
+                            className: isDev ? deviationClass(num) : undefined,
+                            highlight: isDev ? highlightFromDays(num) : "none",
+                          };
+                        })}
+                      />
+                    </MobileEntityCard>
+                  </button>
                 );
               })}
             </MobileCardStack>
+            <MobileDetailSheet
+              open={detailRow != null}
+              onClose={() => setDetailRow(null)}
+              title={
+                detailRow && titleCol
+                  ? cellDisplay(detailRow, titleCol)
+                  : "Строка"
+              }
+            >
+              {detailRow ? (
+                <MobileMetricGrid
+                  columns={2}
+                  items={columns.map((c) => {
+                    const isDev = isDeviationCol(c);
+                    const num = isDev
+                      ? parseSortableNumber(
+                          detailRow[c] ?? detailRow[`${c}__label`],
+                        )
+                      : null;
+                    return {
+                      label: c.length > 28 ? `${c.slice(0, 26)}…` : c,
+                      value: cellDisplay(detailRow, c),
+                      className: isDev ? deviationClass(num) : undefined,
+                      highlight: isDev ? highlightFromDays(num) : "none",
+                    };
+                  })}
+                />
+              ) : null}
+            </MobileDetailSheet>
             <div className="hidden max-h-[32rem] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto lg:block">
               <table
                 className="bi-sticky-head bi-sticky-col w-max min-w-full border-separate border-spacing-0 text-sm"
@@ -422,6 +494,9 @@ export function WorkingDocumentationView() {
   const [data, setData] = useState<WorkingDocumentationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mobilePane, setMobilePane] = useState<RdMobilePane>("charts");
+  const chartsRef = useRef<HTMLDivElement>(null);
+  const tablesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -651,6 +726,21 @@ export function WorkingDocumentationView() {
 
           {tab === "main" ? (
             <>
+              <MobilePaneTabs
+                value={mobilePane}
+                onChange={setMobilePane}
+                options={[
+                  { id: "charts", label: "Графики" },
+                  { id: "tables", label: "Таблицы" },
+                ]}
+              />
+
+              <div
+                ref={chartsRef}
+                className={`scroll-mt-4 space-y-6 ${
+                  mobilePane === "charts" ? "block" : "hidden lg:block"
+                }`}
+              >
               <FullscreenPanel fill className="mb-6" disabled={!statusMix.length}>
                 {(zoomed) => (
                   <Card className="rounded-xl">
@@ -750,7 +840,14 @@ export function WorkingDocumentationView() {
                   )}
                 </FullscreenPanel>
               </Card>
+              </div>
 
+              <div
+                ref={tablesRef}
+                className={`scroll-mt-4 ${
+                  mobilePane === "tables" ? "block" : "hidden lg:block"
+                }`}
+              >
               <Title className="mb-3">Детальная таблица</Title>
               <DetailTable
                 columns={data?.detail_columns ?? []}
@@ -758,9 +855,25 @@ export function WorkingDocumentationView() {
                 fileStem="rd_detail"
                 onReset={activeFilters.length ? resetFilters : undefined}
               />
+              </div>
             </>
           ) : (
             <>
+              <MobilePaneTabs
+                value={mobilePane}
+                onChange={setMobilePane}
+                options={[
+                  { id: "charts", label: "Графики" },
+                  { id: "tables", label: "Таблицы" },
+                ]}
+              />
+
+              <div
+                ref={chartsRef}
+                className={`scroll-mt-4 space-y-6 ${
+                  mobilePane === "charts" ? "block" : "hidden lg:block"
+                }`}
+              >
               <FullscreenPanel
                 fill
                 className="mb-6"
@@ -796,7 +909,14 @@ export function WorkingDocumentationView() {
                   </Card>
                 )}
               </FullscreenPanel>
+              </div>
 
+              <div
+                ref={tablesRef}
+                className={`scroll-mt-4 ${
+                  mobilePane === "tables" ? "block" : "hidden lg:block"
+                }`}
+              >
               <Title className="mb-3">Детальная таблица</Title>
               <DetailTable
                 columns={data?.delay.detail_columns ?? data?.detail_columns ?? []}
@@ -804,6 +924,7 @@ export function WorkingDocumentationView() {
                 fileStem="rd_delay_detail"
                 onReset={activeFilters.length ? resetFilters : undefined}
               />
+              </div>
             </>
           )}
         </>

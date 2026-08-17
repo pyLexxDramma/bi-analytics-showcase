@@ -22,6 +22,7 @@ import {
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
+import { MobilePaneTabs } from "@/components/mobile-ux";
 import {
   PrescriptionsContractorChart,
   PrescriptionsObjectsChart,
@@ -120,6 +121,7 @@ export function PrescriptionsView() {
   const [error, setError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState<SortState>(null);
+  const [mobilePane, setMobilePane] = useState<"charts" | "list">("charts");
   const contractOptionsRef = useRef<string[]>([]);
 
   const load = useCallback(async (next: Filters) => {
@@ -471,6 +473,20 @@ export function PrescriptionsView() {
           ))}
         </div>
 
+        <MobilePaneTabs
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { id: "charts", label: "Графики" },
+            { id: "list", label: "Список" },
+          ]}
+        />
+
+        <div
+          className={
+            mobilePane === "charts" ? "block space-y-6" : "hidden space-y-6 lg:block"
+          }
+        >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)] lg:items-start">
           <FullscreenPanel fill>
             {(zoomed) => (
@@ -559,7 +575,13 @@ export function PrescriptionsView() {
             </Card>
           )}
         </FullscreenPanel>
+        </div>
 
+        <div
+          className={
+            mobilePane === "list" ? "block space-y-6" : "hidden space-y-6 lg:block"
+          }
+        >
         <Card className="hidden overflow-hidden rounded-xl p-0 lg:block">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -793,6 +815,7 @@ export function PrescriptionsView() {
               disabled={!rows.length}
             />
           </div>
+        </div>
         </div>
       </div>
     </AppShell>

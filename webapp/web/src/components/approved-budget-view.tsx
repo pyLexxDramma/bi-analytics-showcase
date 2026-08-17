@@ -7,6 +7,7 @@ import { DownloadTableButton } from "@/components/download-table-button";
 import { FinanceBarChart } from "@/components/finance-bar-chart";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { MobileCardStack, MobileEntityCard, MobileMetricGrid } from "@/components/mobile-entity-card";
+import { MobilePaneTabs } from "@/components/mobile-ux";
 import { fetchApprovedBudget, type ApprovedBudgetPayload } from "@/lib/api";
 import {
   FilterCheck,
@@ -263,6 +264,7 @@ export function ApprovedBudgetView() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [periodSort, setPeriodSort] = useState<SortState>(null);
   const [projectSort, setProjectSort] = useState<SortState>(null);
+  const [mobilePane, setMobilePane] = useState<"chart" | "periods">("chart");
   const load = useCallback(async (next: Filters) => {
     setLoading(true); setError(null);
     const hideZeroEffective =
@@ -371,6 +373,15 @@ export function ApprovedBudgetView() {
               : null
         }
       />
+      <MobilePaneTabs
+        value={mobilePane}
+        onChange={setMobilePane}
+        options={[
+          { id: "chart", label: "График" },
+          { id: "periods", label: "Периоды" },
+        ]}
+      />
+      <div className={mobilePane === "chart" ? "block space-y-6" : "hidden space-y-6 lg:block"}>
       <Card className="rounded-xl"><Title>Сводный БДДС по проектам</Title><div className="mt-3 grid items-center gap-6 lg:grid-cols-2"><HalfGauge gauge={gauge} /><div className={`grid gap-4 ${filters.show_deviation ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div>
           <Text className="text-rose-700 dark:text-rose-300">План</Text>
@@ -408,6 +419,8 @@ export function ApprovedBudgetView() {
         ) : null}
       </div></div></Card>
       <Card className="rounded-xl"><FullscreenPanel disabled={!data?.tremor.by_period.length} fill>{(zoomed) => <FinanceBarChart rows={data?.tremor.by_period ?? []} planName="БДДС план" factName="БДДС факт" showDeviation={filters.show_deviation} xAxisTitle="Бюджет план/факт/отклонение по месяцам" fullscreen={zoomed} emptyText={loading ? "Загрузка…" : "Нет периодов для графика."} colors={{ plan: "#2E86AB", fact: "#0d9488" }} />}</FullscreenPanel></Card>
+      </div>
+      <div className={mobilePane === "periods" ? "block space-y-6" : "hidden space-y-6 lg:block"}>
       <Card className="overflow-hidden rounded-xl border-[3px] border-[#94a3b8] p-0 dark:border-white">
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
           <Title>
@@ -612,6 +625,7 @@ export function ApprovedBudgetView() {
         </FullscreenPanel>
       </Card>
       <DownloadTableButton getTable={projectExport} fileStem="utverzhdennyy_byudzhet_po_proektam" disabled={!projectRows.length} />
+      </div>
       {data?.hints.length ? <Card className="hidden rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 lg:block"><Text className="font-medium text-amber-900 dark:text-amber-200">О данных для план-факта:</Text><ul className="mt-2 list-disc pl-5 text-sm text-amber-900 dark:text-amber-200">{data.hints.map((hint) => <li key={hint}>{hint}</li>)}</ul></Card> : null}
     </div>
   </AppShell>;

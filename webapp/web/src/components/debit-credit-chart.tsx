@@ -80,9 +80,11 @@ function useChartTheme() {
   };
 }
 
-/** Цифра + единица — как на замечании заказчика. */
-function valueLabel(value: number): string {
-  return Math.abs(value) >= 0.05 ? `${value.toFixed(1)} млн.руб` : "";
+/** Подпись столбца: на мобилке только число, единица — в подписи под графиком. */
+function valueLabel(value: number, numbersOnly = false): string {
+  if (Math.abs(value) < 0.05) return "";
+  const num = value.toFixed(1);
+  return numbersOnly ? num : `${num} млн.руб`;
 }
 
 /** Как main `_dk_x_tick_labels`: wrap width 16, max 2 lines. */
@@ -172,7 +174,7 @@ export function DebitCreditChart({
             y: values,
             marker: { color: colors },
             width: 0.55,
-            text: values.map(valueLabel),
+            text: values.map((v) => valueLabel(v, compact)),
             textposition: textPositions,
             textangle: 0,
             cliponaxis: false,
@@ -268,9 +270,9 @@ export function DebitCreditChart({
       // Стек: внутри сегментов — только если в столбце ≥2 частей; иначе дубль с итогом сверху.
       const text = stacked
         ? values.map((v, i) =>
-            stackSegmentCount[i] >= 2 ? valueLabel(v) : "",
+            stackSegmentCount[i] >= 2 ? valueLabel(v, compact) : "",
           )
-        : values.map(valueLabel);
+        : values.map((v) => valueLabel(v, compact));
       return {
         type: "bar" as const,
         x: labels,
@@ -304,7 +306,7 @@ export function DebitCreditChart({
         x: labels,
         y: stackTops,
         text: stackTops.map((v) =>
-          Math.abs(v) >= 0.05 ? valueLabel(v) : "",
+          Math.abs(v) >= 0.05 ? valueLabel(v, compact) : "",
         ),
         textposition: "top center",
         textfont: { size: compact ? 10 : 12, color: theme.label },

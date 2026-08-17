@@ -36,6 +36,13 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
+import {
+  MobileDetailSheet,
+  MobileFilterChips,
+  MobilePaneTabs,
+  MobileSearchField,
+} from "@/components/mobile-ux";
+import { tapFeedback } from "@/lib/haptics";
 
 const INITIAL = {
   projects: [] as string[],
@@ -208,6 +215,11 @@ export function ProjectScheduleView() {
   const [loading, setLoading] = useState(true);
   const [tableSort, setTableSort] = useState<SortState>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const ganttRef = useRef<HTMLDivElement>(null);
+  const [mobilePane, setMobilePane] = useState<"gantt" | "tasks">("gantt");
+  const [taskQuery, setTaskQuery] = useState("");
+  const [taskFilter, setTaskFilter] = useState<"all" | "delay">("all");
+  const [detailRow, setDetailRow] = useState<ScheduleRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -277,6 +289,21 @@ export function ProjectScheduleView() {
       return tableSort.asc ? diff : -diff;
     });
   }, [rows, tableSort]);
+
+  const mobileTaskRows = useMemo(() => {
+    const q = taskQuery.trim().toLowerCase();
+    return sortedRows.filter((row) => {
+      if (taskFilter === "delay") {
+        const late =
+          (row.dev_end_days != null && row.dev_end_days < 0) ||
+          (row.dev_start_days != null && row.dev_start_days < 0);
+        if (!late) return false;
+      }
+      if (!q) return true;
+      const hay = `${row.task} ${row.task_id ?? ""} ${row.reason ?? ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [sortedRows, taskQuery, taskFilter]);
 
   const toggleSort = useCallback((key: SortKey) => {
     setTableSort((prev) => {
@@ -397,26 +424,33 @@ export function ProjectScheduleView() {
                 : null
             }
           />
+
+          <MobilePaneTabs
+            value={mobilePane}
+            onChange={setMobilePane}
+            options={[
+              { id: "gantt", label: "График" },
+              { id: "tasks", label: "Задачи" },
+            ]}
+          />
+
+          <div
+            ref={ganttRef}
+            className={`scroll-mt-4 ${
+              mobilePane === "gantt" ? "block" : "hidden lg:block"
+            }`}
+          >
           <Card className="rounded-xl">
-            <div className="mb-3 flex justify-end lg:hidden">
-              <button
-                type="button"
-                className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm active:scale-[0.98] dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
-                onClick={() =>
-                  tableRef.current?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  })
-                }
-              >
-                К таблице
-                <span aria-hidden>↓</span>
-              </button>
-            </div>
             {data ? <ProjectScheduleGantt data={data} /> : null}
           </Card>
+          </div>
 
-          <div ref={tableRef} className="scroll-mt-4">
+          <div
+            ref={tableRef}
+            className={`scroll-mt-4 ${
+              mobilePane === "tasks" ? "block" : "hidden lg:block"
+            }`}
+          >
             <Card className="overflow-hidden rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
                 <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -431,8 +465,27 @@ export function ProjectScheduleView() {
                 />
               ) : (
                 <>
+              <div className="space-y-2 px-3 pt-3 lg:hidden">
+                <MobileSearchField
+                  value={taskQuery}
+                  onChange={setTaskQuery}
+                  placeholder="Поиск задачи, ИД"
+                />
+                <MobileFilterChips
+                  value={taskFilter}
+                  onChange={setTaskFilter}
+                  options={[
+                    { id: "all", label: "Все" },
+                    { id: "delay", label: "С опозданием" },
+                  ]}
+                />
+                <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                  Показано {mobileTaskRows.length} из {sortedRows.length}. Тап —
+                  детали.
+                </p>
+              </div>
               <MobileCardStack>
-                {sortedRows.map((row, index) => {
+                {mobileTaskRows.map((row, index) => {
                   const title = showLots
                     ? row.task
                     : multiProject
@@ -451,8 +504,16 @@ export function ProjectScheduleView() {
                         ? "bad"
                         : "ok";
                   return (
-                    <MobileEntityCard
+                    <button
                       key={`${row.project}-${row.task_id ?? row.task}-${index}`}
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => {
+                        tapFeedback();
+                        setDetailRow(row);
+                      }}
+                    >
+                    <MobileEntityCard
                       title={title}
                       badge={badge}
                       badgeTone={badgeTone}
@@ -476,27 +537,82 @@ export function ProjectScheduleView() {
                             value: row.pct_complete == null ? "—" : `${row.pct_complete}%`,
                           },
                           {
-                            label: "Откл. нач.",
-                            value: row.dev_start || "—",
-                            className: deviationClass(row.dev_start_days),
-                          },
-                          {
                             label: "Откл. оконч.",
                             value: row.dev_end || "—",
                             className: deviationClass(row.dev_end_days),
                           },
-                          ...(showReasons
-                            ? [
-                                { label: "Причина", value: row.reason || "—" },
-                                { label: "Заметки", value: row.notes || "—" },
-                              ]
-                            : []),
                         ]}
                       />
                     </MobileEntityCard>
+                    </button>
                   );
                 })}
               </MobileCardStack>
+              <MobileDetailSheet
+                open={detailRow != null}
+                onClose={() => setDetailRow(null)}
+                title={detailRow?.task || "Задача"}
+              >
+                {detailRow ? (
+                  <div className="space-y-3 text-sm">
+                    <p className="text-tremor-content dark:text-dark-tremor-content">
+                      {detailRow.project}
+                      {detailRow.task_id != null ? ` · ИД ${detailRow.task_id}` : ""}
+                      {detailRow.level != null ? ` · ур. ${detailRow.level}` : ""}
+                    </p>
+                    <MobileMetricGrid
+                      columns={2}
+                      items={[
+                        {
+                          label: "%",
+                          value:
+                            detailRow.pct_complete == null
+                              ? "—"
+                              : `${detailRow.pct_complete}%`,
+                        },
+                        {
+                          label: "План нач.",
+                          value: detailRow.base_start || "—",
+                          highlight: "date",
+                        },
+                        {
+                          label: "План оконч.",
+                          value: detailRow.base_end || "—",
+                          highlight: "date",
+                        },
+                        {
+                          label: "Факт нач.",
+                          value: detailRow.plan_start || "—",
+                        },
+                        {
+                          label: "Факт оконч.",
+                          value: detailRow.plan_end || "—",
+                        },
+                        {
+                          label: "Откл. нач.",
+                          value: detailRow.dev_start || "—",
+                          className: deviationClass(detailRow.dev_start_days),
+                        },
+                        {
+                          label: "Откл. оконч.",
+                          value: detailRow.dev_end || "—",
+                          className: deviationClass(detailRow.dev_end_days),
+                        },
+                      ]}
+                    />
+                    {showReasons ? (
+                      <div className="space-y-1 text-xs">
+                        <p>
+                          <b>Причина:</b> {detailRow.reason || "—"}
+                        </p>
+                        <p>
+                          <b>Заметки:</b> {detailRow.notes || "—"}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </MobileDetailSheet>
               <div className="hidden p-1 lg:block">
                 <div className="max-h-[32rem] overflow-auto">
                   <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-left text-[13px]">

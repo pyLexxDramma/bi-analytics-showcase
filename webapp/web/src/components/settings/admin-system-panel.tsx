@@ -24,6 +24,7 @@ import {
 import { getAuthSession } from "@/lib/auth";
 import type { ExportTable } from "@/lib/table-export";
 import { AdminRolesPanel } from "@/components/settings/admin-roles-panel";
+import { MobileSearchField } from "@/components/mobile-ux";
 
 export function AdminSystemPanel() {
   const [subTab, setSubTab] = useState("users");
@@ -40,6 +41,8 @@ export function AdminSystemPanel() {
   const [roles, setRoles] = useState<SettingsRole[]>([]);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [configDesc, setConfigDesc] = useState<Record<string, string>>({});
+  const [usersQuery, setUsersQuery] = useState("");
+  const [logsQuery, setLogsQuery] = useState("");
 
   const [logQuery, setLogQuery] = useState({
     username: "Все",
@@ -140,6 +143,20 @@ export function AdminSystemPanel() {
   const deletable = users.filter(
     (u) => u.username !== session?.username && u.role !== "superadmin",
   );
+  const usersFiltered = useMemo(() => {
+    const q = usersQuery.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) =>
+      `${u.username} ${u.role_label} ${u.email ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [users, usersQuery]);
+  const logsFiltered = useMemo(() => {
+    const q = logsQuery.trim().toLowerCase();
+    if (!q) return logs;
+    return logs.filter((l) =>
+      `${l.username} ${l.action} ${l.details} ${l.ip_address}`.toLowerCase().includes(q),
+    );
+  }, [logs, logsQuery]);
 
   const logsExport = useMemo<ExportTable | null>(() => {
     if (!logs.length) return null;
@@ -200,7 +217,52 @@ export function AdminSystemPanel() {
         <div className="space-y-6">
           <Card className="rounded-xl">
             <Title className="!text-base">Список пользователей</Title>
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-3 lg:hidden">
+              <MobileSearchField
+                value={usersQuery}
+                onChange={setUsersQuery}
+                placeholder="Поиск пользователя"
+              />
+            </div>
+            <div className="mt-4 space-y-2 lg:hidden">
+              {usersFiltered.length ? (
+                usersFiltered.map((u) => (
+                  <article
+                    key={u.id}
+                    className="rounded-xl border border-tremor-border bg-tremor-background p-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                          {u.username}
+                        </div>
+                        <div className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                          {u.role_label} · id {u.id}
+                        </div>
+                      </div>
+                      <span className="text-sm">{u.is_active ? "✅" : "❌"}</span>
+                    </div>
+                    <dl className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <dt className="opacity-70">Email</dt>
+                        <dd>{u.email || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="opacity-70">Создан</dt>
+                        <dd>{u.created_at_fmt}</dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="opacity-70">Последний вход</dt>
+                        <dd>{u.last_login_fmt}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))
+              ) : (
+                <Text>Пользователи не найдены</Text>
+              )}
+            </div>
+            <div className="mt-4 hidden overflow-x-auto lg:block">
               {users.length ? (
                 <table className={SETTINGS_TABLE}>
                   <thead>
@@ -567,7 +629,34 @@ export function AdminSystemPanel() {
               disabled={!logs.length}
             />
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-3 lg:hidden">
+            <MobileSearchField
+              value={logsQuery}
+              onChange={setLogsQuery}
+              placeholder="Поиск в логах"
+            />
+          </div>
+          <div className="mt-4 space-y-2 lg:hidden">
+            {logsFiltered.length ? (
+              logsFiltered.map((l) => (
+                <article
+                  key={l.id}
+                  className="rounded-xl border border-tremor-border bg-tremor-background p-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                >
+                  <div className="font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                    {l.username} · {l.action}
+                  </div>
+                  <div className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
+                    {l.created_at_fmt} · {l.ip_address || "—"}
+                  </div>
+                  <p className="mt-2 break-words text-sm">{l.details || "—"}</p>
+                </article>
+              ))
+            ) : (
+              <Text>Логи не найдены</Text>
+            )}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto lg:block">
             {logs.length ? (
               <table className={SETTINGS_TABLE}>
                 <thead>

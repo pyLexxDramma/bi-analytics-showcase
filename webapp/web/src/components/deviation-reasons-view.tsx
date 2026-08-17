@@ -42,6 +42,7 @@ import {
 } from "@/lib/filters-summary";
 import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { MobileFilterChips, MobilePaneTabs, MobileSearchField } from "@/components/mobile-ux";
 
 const INITIAL = {
   projects: [] as string[],
@@ -239,12 +240,15 @@ export function DeviationReasonsView() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [periodReady, setPeriodReady] = useState(false);
   const [tab, setTab] = useState<"share" | "dynamics">("share");
+  const [mobilePane, setMobilePane] = useState<"charts" | "tables">("charts");
   const [data, setData] = useState<DeviationReasonsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tableSort, setTableSort] = useState<SortState>(null);
   const [pmSort, setPmSort] = useState<DynSortState<DynPmSortKey>>(null);
   const [sumSort, setSumSort] = useState<DynSortState<DynSumSortKey>>(null);
+  const [mobileQuery, setMobileQuery] = useState("");
+  const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -324,6 +328,25 @@ export function DeviationReasonsView() {
       return tableSort.asc ? diff : -diff;
     });
   }, [rows, tableSort]);
+
+  const mobileRows = useMemo(() => {
+    const q = mobileQuery.trim().toLowerCase();
+    const filtered = sortedRows.filter((row) => {
+      if (q) {
+        const hay = `${row.task ?? ""} ${row.task_id ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (mobileTone === "overdue" && !(row.end_diff_days != null && row.end_diff_days < 0)) {
+        return false;
+      }
+      return true;
+    });
+    return [...filtered].sort((a, b) => {
+      const av = Math.abs(Number(a.end_diff_days ?? 0));
+      const bv = Math.abs(Number(b.end_diff_days ?? 0));
+      return bv - av;
+    });
+  }, [sortedRows, mobileQuery, mobileTone]);
 
   const sortedPmRows = useMemo(() => {
     const indexed: DynPmRow[] = (dynamics.project_month_rows ?? []).map((row, index) => ({
@@ -539,7 +562,10 @@ export function DeviationReasonsView() {
           <button
             key={id}
             type="button"
-            onClick={() => setTab(id)}
+            onClick={() => {
+              setTab(id);
+              setMobilePane("charts");
+            }}
             className={`border-b-2 px-3 py-2 text-sm font-medium ${
               tab === id
                 ? "border-emerald-500 text-tremor-content-strong dark:text-dark-tremor-content-strong"
@@ -551,8 +577,22 @@ export function DeviationReasonsView() {
         ))}
       </div>
 
+      <MobilePaneTabs
+        value={mobilePane}
+        onChange={setMobilePane}
+        options={[
+          { id: "charts", label: "Графики" },
+          { id: "tables", label: tab === "share" ? "Задачи" : "Таблицы" },
+        ]}
+      />
+
       {tab === "share" ? (
         <div className="space-y-6">
+          <div
+            className={
+              mobilePane === "charts" ? "block space-y-6" : "hidden space-y-6 lg:block"
+            }
+          >
           <Text className="text-sm text-tremor-content dark:text-dark-tremor-content">
             Диаграммы и детальная таблица: {rows.length} задач (ур. 5, причина,
             отклонение окончания &lt; 0).
@@ -600,6 +640,7 @@ export function DeviationReasonsView() {
               )}
             </FullscreenPanel>
           </Card>
+          </div>
         </div>
       ) : (
         <div className="space-y-6">
@@ -613,6 +654,11 @@ export function DeviationReasonsView() {
             </Card>
           ) : null}
 
+          <div
+            className={
+              mobilePane === "charts" ? "block space-y-6" : "hidden space-y-6 lg:block"
+            }
+          >
           {facetCharts.map((facet) => (
             <Card key={facet.project} className="rounded-xl">
               <FullscreenPanel disabled={!facet.rows.length} fill>
@@ -626,7 +672,13 @@ export function DeviationReasonsView() {
               </FullscreenPanel>
             </Card>
           ))}
+          </div>
 
+          <div
+            className={
+              mobilePane === "tables" ? "block space-y-6" : "hidden space-y-6 lg:block"
+            }
+          >
           <Card className="overflow-hidden rounded-xl p-0">
             <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -736,7 +788,13 @@ export function DeviationReasonsView() {
               />
             </div>
           </Card>
+          </div>
 
+          <div
+            className={
+              mobilePane === "charts" ? "block space-y-6" : "hidden space-y-6 lg:block"
+            }
+          >
           <Card className="rounded-xl">
             <FullscreenPanel disabled={!stackRows.length} fill>
               {(zoomed) => (
@@ -749,7 +807,13 @@ export function DeviationReasonsView() {
               )}
             </FullscreenPanel>
           </Card>
+          </div>
 
+          <div
+            className={
+              mobilePane === "tables" ? "block space-y-6" : "hidden space-y-6 lg:block"
+            }
+          >
           <Card className="overflow-hidden rounded-xl p-0">
             <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -871,11 +935,17 @@ export function DeviationReasonsView() {
               />
             </div>
           </Card>
+          </div>
         </div>
       )}
 
       {tab === "share" ? (
-        <Card className="mt-6 overflow-hidden rounded-xl p-0">
+        <div
+          className={
+            mobilePane === "tables" ? "mt-6 block" : "mt-6 hidden lg:block"
+          }
+        >
+        <Card className="overflow-hidden rounded-xl p-0">
           <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               Детальные данные
@@ -898,8 +968,26 @@ export function DeviationReasonsView() {
               </div>
             ) : (
               <>
+                <div className="mb-2 space-y-2 px-3 pt-3 lg:hidden">
+                  <MobileSearchField
+                    value={mobileQuery}
+                    onChange={setMobileQuery}
+                    placeholder="Поиск задачи"
+                  />
+                  <MobileFilterChips
+                    value={mobileTone}
+                    onChange={setMobileTone}
+                    options={[
+                      { id: "all", label: "Все" },
+                      { id: "overdue", label: "Просрочка" },
+                    ]}
+                  />
+                  <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                    Показано {mobileRows.length} из {sortedRows.length} · сортировка по |откл.|
+                  </p>
+                </div>
                 <MobileCardStack>
-                  {sortedRows.map((row) => (
+                  {mobileRows.map((row) => (
                     <div
                       key={`${row.project}-${row.task_id ?? row.task}-${row._index}`}
                       className="overflow-hidden rounded-xl border-l-4"
@@ -1025,6 +1113,7 @@ export function DeviationReasonsView() {
             />
           </div>
         </Card>
+        </div>
       ) : null}
     </AppShell>
   );

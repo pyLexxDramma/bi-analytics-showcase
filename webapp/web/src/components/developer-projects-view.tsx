@@ -21,6 +21,7 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
+import { MobileFilterChips } from "@/components/mobile-ux";
 
 const URL_INITIAL = { projects: [] as string[] };
 
@@ -243,6 +244,18 @@ function MobileProjectName({ value }: { value: string }) {
   );
 }
 
+function projectHasOverdue(
+  row: DeveloperProjectsPayload["matrix"]["projects"][number],
+): boolean {
+  return Object.values(row.cells).some((cell) => {
+    if (!cell?.otkl || cell.otkl === "Н/Д" || cell.otkl === "—") return false;
+    const numMatch = String(cell.otkl).replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+    const n = numMatch ? Number(numMatch[0]) : null;
+    if (n != null && Number.isFinite(n)) return n < 0;
+    return String(cell.otkl).trim().startsWith("-");
+  });
+}
+
 /** Mobile: секции по контрольной точке — скролл только вертикальный. */
 function MobileMilestoneSections({
   columns,
@@ -333,6 +346,7 @@ export function DeveloperProjectsView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
 
   const load = useCallback(async (projects: string[]) => {
     setLoading(true);
@@ -368,6 +382,14 @@ export function DeveloperProjectsView() {
   const investCols = columns.filter((c) => c.phase === "invest");
   const lifeCols = columns.filter((c) => c.phase !== "invest");
   const hasRows = (data?.matrix.projects.length ?? 0) > 0;
+
+  const matrixProjects = data?.matrix.projects ?? [];
+  const mobileProjects = useMemo(() => {
+    return matrixProjects.filter((row) => {
+      if (mobileTone === "overdue" && !projectHasOverdue(row)) return false;
+      return true;
+    });
+  }, [matrixProjects, mobileTone]);
 
   const matrixExport = () =>
     data?.matrix.projects.length
@@ -449,10 +471,23 @@ export function DeveloperProjectsView() {
               />
             ) : (
               <>
+                <div className="mb-3 space-y-2 px-2 lg:hidden">
+                  <MobileFilterChips
+                    value={mobileTone}
+                    onChange={setMobileTone}
+                    options={[
+                      { id: "all", label: "Все" },
+                      { id: "overdue", label: "Только проблемные" },
+                    ]}
+                  />
+                  <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                    Показано {mobileProjects.length} из {matrixProjects.length}
+                  </p>
+                </div>
                 <div className="lg:hidden">
                   <MobileMilestoneSections
                     columns={columns}
-                    projects={data?.matrix.projects ?? []}
+                    projects={mobileProjects}
                   />
                 </div>
                 <div className="bi-table-scroll hidden overflow-x-auto lg:block">
@@ -460,7 +495,7 @@ export function DeveloperProjectsView() {
                     columns={columns}
                     investCols={investCols}
                     lifeCols={lifeCols}
-                    projects={data?.matrix.projects ?? []}
+                    projects={matrixProjects}
                   />
                 </div>
               </>

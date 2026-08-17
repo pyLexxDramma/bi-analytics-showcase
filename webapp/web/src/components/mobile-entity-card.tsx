@@ -48,7 +48,8 @@ export function MobileEntityCard({
             {expanded ? <div className="mt-2">{more}</div> : null}
             <button
               type="button"
-              onClick={() => {
+              onClick={(event) => {
+                event.stopPropagation();
                 tapFeedback();
                 setExpanded((v) => !v);
               }}

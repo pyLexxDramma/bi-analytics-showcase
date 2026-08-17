@@ -28,6 +28,13 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
+import {
+  MobileDetailSheet,
+  MobileFilterChips,
+  MobilePaneTabs,
+  MobileSearchField,
+} from "@/components/mobile-ux";
+import { tapFeedback } from "@/lib/haptics";
 
 type Filters = {
   projects: string[];
@@ -126,6 +133,12 @@ export function DebitCreditView() {
   const [open, setOpen] = useState(true);
   const [sortKey, setSortKey] = useState<MobileSortKey>("contractor");
   const [sortDesc, setSortDesc] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"chart" | "list">("list");
+  const [listQuery, setListQuery] = useState("");
+  const [toneFilter, setToneFilter] = useState<"all" | "red" | "yellow" | "green">("all");
+  const [detailRow, setDetailRow] = useState<
+    DebitCreditPayload["rows"][number] | null
+  >(null);
   const contractOptionsRef = useRef<string[]>([]);
 
   const load = useCallback(async (next: Filters) => {
@@ -172,7 +185,14 @@ export function DebitCreditView() {
   const mobileRows = useMemo(() => {
     const rows = data?.rows ?? [];
     const dir = sortDesc ? -1 : 1;
-    return [...rows].sort((a, b) => {
+    const q = listQuery.trim().toLowerCase();
+    const filtered = rows.filter((row) => {
+      if (toneFilter !== "all" && row.advance_tone !== toneFilter) return false;
+      if (!q) return true;
+      const hay = `${row.contractor} ${row.contract}`.toLowerCase();
+      return hay.includes(q);
+    });
+    return [...filtered].sort((a, b) => {
       if (sortKey === "contractor") {
         return dir * a.contractor.localeCompare(b.contractor, "ru");
       }
@@ -180,7 +200,7 @@ export function DebitCreditView() {
       const bv = Number(b[sortKey] ?? 0);
       return dir * (av - bv);
     });
-  }, [data, sortKey, sortDesc]);
+  }, [data, sortKey, sortDesc, listQuery, toneFilter]);
   const exportTable = useCallback((): ExportTable | null => {
     if (!data?.rows.length) return null;
     return {
@@ -322,6 +342,16 @@ export function DebitCreditView() {
         }
       />
 
+      <MobilePaneTabs
+        value={mobilePane}
+        onChange={setMobilePane}
+        options={[
+          { id: "chart", label: "График" },
+          { id: "list", label: "Договоры" },
+        ]}
+      />
+
+      <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
       <FullscreenPanel fill>
         <Card className="mb-6 overflow-visible rounded-xl">
           <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-100">
@@ -345,7 +375,9 @@ export function DebitCreditView() {
             <DebitCreditChartLegend stacked={stacked} aggregation={chartAggregation} />
           </div>
           <Text className="mt-3">
-            Значения на графике — млн руб.{" "}
+            <span className="font-semibold text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              Единица измерения: млн руб.
+            </span>{" "}
             {chartAggregation === "by_metric"
               ? "Сводка по типам сумм (все проекты, подрядчики и договоры): Договор стоимость (син.), обязательства (сер.), КС-2 (тёмн. жёлт.), Аванс (светл. жёлт.), КС-2 − Аванс (сер./красн. ниже 0). Для стека по подрядчикам выберите «С группировкой»."
               : stacked
@@ -354,6 +386,7 @@ export function DebitCreditView() {
           </Text>
         </Card>
       </FullscreenPanel>
+      </div>
 
       <Card className="hidden overflow-hidden rounded-xl p-0 lg:block">
         <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
@@ -536,6 +569,7 @@ export function DebitCreditView() {
           />
         </div>
       </Card>
+      <div className={`pb-24 lg:pb-0 ${mobilePane === "list" ? "block" : "hidden lg:block"}`}>
       <div className="lg:hidden">
         <Title className="mb-3 px-2 !text-tremor-content-strong dark:!text-dark-tremor-content-strong">
           Таблица по подрядчику и договору
@@ -547,6 +581,26 @@ export function DebitCreditView() {
           />
         ) : (
           <>
+            <div className="mb-2 space-y-2 px-2">
+              <MobileSearchField
+                value={listQuery}
+                onChange={setListQuery}
+                placeholder="Поиск подрядчика, договора"
+              />
+              <MobileFilterChips
+                value={toneFilter}
+                onChange={setToneFilter}
+                options={[
+                  { id: "all", label: "Все" },
+                  { id: "red", label: "🔴 Красные" },
+                  { id: "yellow", label: "🟡 Жёлтые" },
+                  { id: "green", label: "🟢 Зелёные" },
+                ]}
+              />
+              <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                Показано {mobileRows.length} из {data.rows.length}
+              </p>
+            </div>
             <MobileSortControl
               value={sortKey}
               options={MOBILE_SORT_OPTIONS}
@@ -593,8 +647,24 @@ export function DebitCreditView() {
               }
             >
               {mobileRows.map((row, index) => (
-                <MobileEntityCard
+                <div
                   key={`${row.contract}-${index}`}
+                  role="button"
+                  tabIndex={0}
+                  className="w-full cursor-pointer text-left"
+                  onClick={() => {
+                    tapFeedback();
+                    setDetailRow(row);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      tapFeedback();
+                      setDetailRow(row);
+                    }
+                  }}
+                >
+                <MobileEntityCard
                   title={row.contractor}
                   badge={toneDot(row.advance_tone) || "—"}
                   badgeTone={
@@ -631,8 +701,37 @@ export function DebitCreditView() {
                     ]}
                   />
                 </MobileEntityCard>
+                </div>
               ))}
             </MobileCardStack>
+            <MobileDetailSheet
+              open={detailRow != null}
+              onClose={() => setDetailRow(null)}
+              title={detailRow?.contractor || "Договор"}
+            >
+              {detailRow ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-tremor-content dark:text-dark-tremor-content">
+                    {detailRow.contract} · {detailRow.project}
+                  </p>
+                  <MobileMetricGrid
+                    columns={2}
+                    items={[
+                      { label: "Стоимость", value: mln(detailRow.contract_sum) },
+                      { label: "Аванс", value: mln(detailRow.advance) },
+                      { label: "КС-2", value: mln(detailRow.ks2) },
+                      { label: "Обязательства", value: mln(detailRow.fulfilled) },
+                      { label: "Остаток", value: mln(detailRow.balance) },
+                      {
+                        label: "Аванс − КС-2",
+                        value: `${toneDot(detailRow.advance_tone)} ${mln(detailRow.advance_ks2)}`,
+                        highlight: detailRow.advance_tone === "red" ? "bad" : "none",
+                      },
+                    ]}
+                  />
+                </div>
+              ) : null}
+            </MobileDetailSheet>
           </>
         )}
         <div className="space-y-2 px-2 pb-3 text-sm">
@@ -652,6 +751,18 @@ export function DebitCreditView() {
             disabled={!data?.rows?.length}
           />
         </div>
+      </div>
+      {data?.totals ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-tremor-border bg-tremor-background/95 px-3 py-2 backdrop-blur supports-[padding:max(0px)]:pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:border-dark-tremor-border dark:bg-dark-tremor-background/95 lg:hidden">
+          <div className="mx-auto flex max-w-lg items-center justify-between gap-2 text-xs">
+            <span className="font-semibold">ИТОГО</span>
+            <span className="tabular-nums">
+              {toneDot(data.totals.advance_tone)} А−КС {mln(data.totals.advance_ks2)} · КС{" "}
+              {mln(data.totals.ks2)}
+            </span>
+          </div>
+        </div>
+      ) : null}
       </div>
     </AppShell>
   );

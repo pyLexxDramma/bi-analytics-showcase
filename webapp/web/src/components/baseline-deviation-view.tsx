@@ -29,6 +29,7 @@ import {
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
+import { MobileFilterChips, MobilePaneTabs, MobileSearchField } from "@/components/mobile-ux";
 
 const INITIAL = {
   projects: [] as string[],
@@ -251,6 +252,9 @@ export function BaselineDeviationView() {
   const [loading, setLoading] = useState(true);
   const [tableSort, setTableSort] = useState<SortState>(null);
   const [fullTableOpen, setFullTableOpen] = useState(true);
+  const [mobileQuery, setMobileQuery] = useState("");
+  const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
+  const [mobilePane, setMobilePane] = useState<"chart" | "tables">("chart");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -334,6 +338,25 @@ export function BaselineDeviationView() {
       return tableSort.asc ? diff : -diff;
     });
   }, [rows, tableSort]);
+
+  const mobileRows = useMemo(() => {
+    const q = mobileQuery.trim().toLowerCase();
+    const filtered = sortedRows.filter((row) => {
+      if (q) {
+        const hay = `${row.task ?? ""} ${row.task_id ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (mobileTone === "overdue" && !(row.dev_end_days != null && row.dev_end_days < 0)) {
+        return false;
+      }
+      return true;
+    });
+    return [...filtered].sort((a, b) => {
+      const av = Math.abs(Number(a.dev_end_days ?? 0));
+      const bv = Math.abs(Number(b.dev_end_days ?? 0));
+      return bv - av;
+    });
+  }, [sortedRows, mobileQuery, mobileTone]);
 
   const toggleSort = useCallback((key: string) => {
     setTableSort((prev) => {
@@ -575,6 +598,16 @@ export function BaselineDeviationView() {
           )}
         </div>
 
+        <MobilePaneTabs
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { id: "chart", label: "График" },
+            { id: "tables", label: "Таблицы" },
+          ]}
+        />
+
+        <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
         <Card className="rounded-xl">
           <FullscreenPanel fill disabled={(data?.chart.rows.length ?? 0) === 0}>
             {(zoomed) =>
@@ -588,7 +621,13 @@ export function BaselineDeviationView() {
             }
           </FullscreenPanel>
         </Card>
+        </div>
 
+        <div
+          className={
+            mobilePane === "tables" ? "block space-y-6" : "hidden space-y-6 lg:block"
+          }
+        >
         {covenantMode ? (
           <Card className="overflow-hidden rounded-xl p-0">
             <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
@@ -776,8 +815,26 @@ export function BaselineDeviationView() {
               />
             ) : (
               <>
+                <div className="mb-2 space-y-2 px-3 pt-3 lg:hidden">
+                  <MobileSearchField
+                    value={mobileQuery}
+                    onChange={setMobileQuery}
+                    placeholder="Поиск задачи"
+                  />
+                  <MobileFilterChips
+                    value={mobileTone}
+                    onChange={setMobileTone}
+                    options={[
+                      { id: "all", label: "Все" },
+                      { id: "overdue", label: "Просрочка" },
+                    ]}
+                  />
+                  <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                    Показано {mobileRows.length} из {sortedRows.length} · сортировка по |откл.|
+                  </p>
+                </div>
                 <MobileCardStack>
-                  {sortedRows.map((row) => {
+                  {mobileRows.map((row) => {
                     const title =
                       row.project && row.task
                         ? `${row.project}: ${row.task}`
@@ -978,6 +1035,7 @@ export function BaselineDeviationView() {
             </>
           ) : null}
         </Card>
+        </div>
       </div>
     </AppShell>
   );

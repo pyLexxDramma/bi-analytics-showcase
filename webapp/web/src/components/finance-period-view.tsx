@@ -15,6 +15,7 @@ import {
   MobileEntityCard,
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
+import { MobileFilterChips, MobilePaneTabs } from "@/components/mobile-ux";
 
 type Filters = {
   projects: string[];
@@ -51,6 +52,7 @@ export function FinancePeriodView({
   const [data, setData] = useState<FinancePeriodPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mobilePane, setMobilePane] = useState<"chart" | "periods">("chart");
 
   const load = useCallback(
     async (nextFilters: Filters) => {
@@ -151,30 +153,63 @@ export function FinancePeriodView({
           ))}
         </Grid>
 
-        <Card className="rounded-xl">
-          <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
-            План и факт расходов
-          </Title>
-          <Text className="mt-1">По периодам, млн ₽</Text>
-          <BarChart
-            className="mt-6 h-80"
-            data={withRuPlanFactDeviation(data?.tremor.by_period ?? [])}
-            index="period"
-            categories={[...PLAN_FACT_DEVIATION_CATEGORIES]}
-            colors={["blue", "emerald", "amber"]}
-            valueFormatter={(value) => formatMln(Number(value))}
-            yAxisWidth={64}
-            showLegend
-            showAnimation
-            showGridLines
-            showTooltip={false}
+        <MobilePaneTabs
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { id: "chart", label: "График" },
+            { id: "periods", label: "Периоды" },
+          ]}
+        />
+        <div className="lg:hidden">
+          <MobileFilterChips
+            value={filters.view}
+            onChange={(view) => setFilters((state) => ({ ...state, view }))}
+            options={[
+              { id: "monthly", label: "По месяцам" },
+              { id: "cumulative", label: "Накопительно" },
+            ]}
           />
-        </Card>
+        </div>
 
-        <Grid numItemsLg={2} className="gap-6">
-          <PeriodTable title="По периодам" rows={data?.period_rows ?? []} label="period" />
-          <PeriodTable title="По проектам" rows={data?.project_rows ?? []} label="project" />
-        </Grid>
+        <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
+          <Card className="rounded-xl">
+            <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
+              План и факт расходов
+            </Title>
+            <Text className="mt-1">По периодам, млн ₽</Text>
+            <BarChart
+              className="mt-6 h-80"
+              data={withRuPlanFactDeviation(data?.tremor.by_period ?? [])}
+              index="period"
+              categories={[...PLAN_FACT_DEVIATION_CATEGORIES]}
+              colors={["blue", "emerald", "amber"]}
+              valueFormatter={(value) => formatMln(Number(value))}
+              yAxisWidth={64}
+              showLegend
+              showAnimation
+              showGridLines
+              showTooltip={false}
+            />
+          </Card>
+        </div>
+
+        <div className={mobilePane === "periods" ? "block" : "hidden lg:block"}>
+          <Grid numItemsLg={2} className="gap-6">
+            <PeriodTable
+              title="По периодам"
+              rows={data?.period_rows ?? []}
+              label="period"
+              totals={kpis}
+            />
+            <PeriodTable
+              title="По проектам"
+              rows={data?.project_rows ?? []}
+              label="project"
+              totals={kpis}
+            />
+          </Grid>
+        </div>
       </div>
     </AppShell>
   );
@@ -184,6 +219,7 @@ function PeriodTable({
   title,
   rows,
   label,
+  totals,
 }: {
   title: string;
   rows: Array<{
@@ -194,6 +230,7 @@ function PeriodTable({
     deviation: number;
   }>;
   label: "period" | "project";
+  totals: { plan_mln: number; fact_mln: number; deviation_mln: number };
 }) {
   return (
     <Card className="overflow-hidden rounded-xl p-0">
@@ -202,7 +239,25 @@ function PeriodTable({
           {title}
         </Title>
       </div>
-      <MobileCardStack compact>
+      <MobileCardStack
+        compact
+        pinned={
+          <MobileEntityCard className="bi-card-pinned" title="ИТОГО">
+            <MobileMetricGrid
+              columns={3}
+              items={[
+                { label: "План", value: formatMln(totals.plan_mln) },
+                { label: "Факт", value: formatMln(totals.fact_mln) },
+                {
+                  label: "Откл.",
+                  value: formatMln(totals.deviation_mln),
+                  highlight: totals.deviation_mln < 0 ? "bad" : "ok",
+                },
+              ]}
+            />
+          </MobileEntityCard>
+        }
+      >
         {rows.map((row, index) => (
           <MobileEntityCard
             key={`m-${row[label]}-${index}`}

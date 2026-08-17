@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Card,
   Grid,
@@ -34,6 +34,12 @@ import {
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
 import {
+  MobileDetailSheet,
+  MobilePaneTabs,
+  MobileSearchField,
+} from "@/components/mobile-ux";
+import { tapFeedback } from "@/lib/haptics";
+import {
   PdDelayGanttChart,
   PdDynamicsLineChart,
   PdExecutionPieChart,
@@ -52,6 +58,11 @@ const OVERDUE_BG = "bg-[rgba(231,76,60,0.22)] dark:bg-[rgba(255,84,84,0.18)]";
 
 type TabId = "main" | "delay";
 type SortState = { key: string; asc: boolean } | null;
+type PdMobilePane = "charts" | "tables";
+type PdDetailRow =
+  | { kind: "main"; project: string; section: string; n?: number | null; base_end?: string | null; plan_end?: string | null; dev_end?: string | null; dev_end_days?: number | null }
+  | { kind: "detail"; project: string; work_name?: string | null; section: string; status?: string | null; start?: string | null; base_start?: string | null; finish?: string | null; base_finish?: string | null; dev_start?: string | null; dev_start_days?: number | null; dev_end?: string | null; dev_end_days?: number | null }
+  | { kind: "summary"; project: string; plan: number; fact: number; overdue: number; overdue_label: string };
 
 const INITIAL = {
   projects: [] as string[],
@@ -142,6 +153,11 @@ function ProjectDocumentationScreen({
   const [detailSort, setDetailSort] = useState<SortState>(null);
   const [sumSort, setSumSort] = useState<SortState>(null);
   const [dark, setDark] = useState(false);
+  const [mobilePane, setMobilePane] = useState<PdMobilePane>("charts");
+  const [listQuery, setListQuery] = useState("");
+  const [detailRow, setDetailRow] = useState<PdDetailRow | null>(null);
+  const chartsRef = useRef<HTMLDivElement>(null);
+  const tablesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = document.documentElement;
@@ -251,6 +267,22 @@ function ProjectDocumentationScreen({
       return sumSort.asc ? cmp : -cmp;
     });
   }, [data?.delay.summary_rows, sumSort]);
+
+  const listQueryNorm = listQuery.trim().toLowerCase();
+  const mobileMainRows = useMemo(() => {
+    if (!listQueryNorm) return mainRows;
+    return mainRows.filter((row) =>
+      String(row.section ?? "").toLowerCase().includes(listQueryNorm),
+    );
+  }, [mainRows, listQueryNorm]);
+  const mobileDetailRows = useMemo(() => {
+    if (!listQueryNorm) return detailRows;
+    return detailRows.filter(
+      (row) =>
+        String(row.section ?? "").toLowerCase().includes(listQueryNorm) ||
+        String(row.work_name ?? "").toLowerCase().includes(listQueryNorm),
+    );
+  }, [detailRows, listQueryNorm]);
 
   const mainVmax = useMemo(() => {
     let vmax = 1;
@@ -444,6 +476,21 @@ function ProjectDocumentationScreen({
 
       {tab === "main" ? (
         <div className="space-y-6">
+          <MobilePaneTabs
+            value={mobilePane}
+            onChange={setMobilePane}
+            options={[
+              { id: "charts", label: "Графики" },
+              { id: "tables", label: "Таблицы" },
+            ]}
+          />
+
+          <div
+            ref={chartsRef}
+            className={`scroll-mt-4 space-y-6 ${
+              mobilePane === "charts" ? "block" : "hidden lg:block"
+            }`}
+          >
           <FullscreenPanel fill disabled={!data?.tremor.status_mix.length}>
             {(zoomed) => (
               <Card className="rounded-xl">
@@ -522,7 +569,14 @@ function ProjectDocumentationScreen({
               </Card>
             )}
           </FullscreenPanel>
+          </div>
 
+          <div
+            ref={tablesRef}
+            className={`scroll-mt-4 ${
+              mobilePane === "tables" ? "block" : "hidden lg:block"
+            }`}
+          >
           <FullscreenPanel disabled={!mainRows.length}>
             <Card className="min-w-0 max-w-full rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
@@ -532,63 +586,69 @@ function ProjectDocumentationScreen({
                 <div className="px-4 py-10 text-center text-sm">Нет строк по фильтрам.</div>
               ) : (
                 <>
+                  <div className="space-y-2 px-3 pt-3 lg:hidden">
+                    <MobileSearchField
+                      value={listQuery}
+                      onChange={setListQuery}
+                      placeholder="Поиск раздела"
+                    />
+                    <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                      Показано {mobileMainRows.length} из {mainRows.length}. Тап — детали.
+                    </p>
+                  </div>
                   <MobileCardStack>
-                    {mainRows.map((row, index) => {
+                    {mobileMainRows.map((row, index) => {
                       const ahead = (row.dev_end_days ?? 0) > 0;
                       const overdue = (row.dev_end_days ?? 0) < 0;
                       const rowTint = ahead ? AHEAD_BG : overdue ? OVERDUE_BG : "";
-                      const cellHl = ahead ? "ok" : overdue ? "bad" : "none";
                       return (
-                        <MobileEntityCard
+                        <button
                           key={`m-pd-${row.project}-${row.section}-${index}`}
-                          title={`${row.project}: ${row.section}`}
-                          className={rowTint}
-                          badge={row.dev_end || undefined}
-                          badgeTone={
-                            row.dev_end_days == null
-                              ? "neutral"
-                              : row.dev_end_days < 0
-                                ? "bad"
-                                : "ok"
-                          }
+                          type="button"
+                          className="w-full text-left"
+                          onClick={() => {
+                            tapFeedback();
+                            setDetailRow({
+                              kind: "main",
+                              project: row.project,
+                              section: row.section,
+                              n: row.n,
+                              base_end: row.base_end,
+                              plan_end: row.plan_end,
+                              dev_end: row.dev_end,
+                              dev_end_days: row.dev_end_days,
+                            });
+                          }}
                         >
-                          <MobileMetricGrid
-                            columns={2}
-                            items={[
-                              {
-                                label: "№",
-                                value: row.n ?? index + 1,
-                                highlight: cellHl,
-                              },
-                              {
-                                label: "Проект",
-                                value: row.project,
-                                highlight: cellHl,
-                              },
-                              {
-                                label: "Раздел",
-                                value: row.section,
-                                highlight: cellHl === "none" ? "date" : cellHl,
-                              },
-                              {
-                                label: "Базовое",
-                                value: row.base_end ?? "—",
-                                highlight: cellHl === "none" ? "date" : cellHl,
-                              },
-                              {
-                                label: "Окончание",
-                                value: row.plan_end ?? "—",
-                                highlight: cellHl === "none" ? "date" : cellHl,
-                              },
-                              {
-                                label: "Откл.",
-                                value: row.dev_end || "—",
-                                className: deviationClass(row.dev_end_days),
-                                highlight: highlightFromDays(row.dev_end_days),
-                              },
-                            ]}
-                          />
-                        </MobileEntityCard>
+                          <MobileEntityCard
+                            title={`${row.project}: ${row.section}`}
+                            className={rowTint}
+                            badge={row.dev_end || undefined}
+                            badgeTone={
+                              row.dev_end_days == null
+                                ? "neutral"
+                                : row.dev_end_days < 0
+                                  ? "bad"
+                                  : "ok"
+                            }
+                          >
+                            <MobileMetricGrid
+                              columns={2}
+                              items={[
+                                {
+                                  label: "Базовое",
+                                  value: row.base_end ?? "—",
+                                  highlight: "date",
+                                },
+                                {
+                                  label: "Окончание",
+                                  value: row.plan_end ?? "—",
+                                  highlight: "date",
+                                },
+                              ]}
+                            />
+                          </MobileEntityCard>
+                        </button>
                       );
                     })}
                   </MobileCardStack>
@@ -695,11 +755,27 @@ function ProjectDocumentationScreen({
               </div>
             </Card>
           </FullscreenPanel>
+          </div>
         </div>
       ) : (
         <div className="space-y-6">
           <Title className="!text-xl">Просрочка выдачи ПД</Title>
 
+          <MobilePaneTabs
+            value={mobilePane}
+            onChange={setMobilePane}
+            options={[
+              { id: "charts", label: "Графики" },
+              { id: "tables", label: "Таблицы" },
+            ]}
+          />
+
+          <div
+            ref={chartsRef}
+            className={`scroll-mt-4 space-y-6 ${
+              mobilePane === "charts" ? "block" : "hidden lg:block"
+            }`}
+          >
           <FullscreenPanel fill disabled={!data?.delay.gantt.rows.length}>
             {(zoomed) => (
               <Card className="rounded-xl">
@@ -745,7 +821,14 @@ function ProjectDocumentationScreen({
               </Card>
             )}
           </FullscreenPanel>
+          </div>
 
+          <div
+            ref={tablesRef}
+            className={`scroll-mt-4 space-y-6 ${
+              mobilePane === "tables" ? "block" : "hidden lg:block"
+            }`}
+          >
           <FullscreenPanel disabled={!detailRows.length}>
             <Card className="min-w-0 max-w-full rounded-xl p-0">
               <div className="border-b border-tremor-border px-4 py-3 dark:border-dark-tremor-border">
@@ -758,60 +841,61 @@ function ProjectDocumentationScreen({
                 />
               ) : (
                 <>
+                  <div className="space-y-2 px-3 pt-3 lg:hidden">
+                    <MobileSearchField
+                      value={listQuery}
+                      onChange={setListQuery}
+                      placeholder="Поиск раздела"
+                    />
+                    <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                      Показано {mobileDetailRows.length} из {detailRows.length}. Тап — детали.
+                    </p>
+                  </div>
                   <MobileCardStack>
-                    {detailRows.map((row, i) => (
-                      <MobileEntityCard
+                    {mobileDetailRows.map((row, i) => (
+                      <button
                         key={`m-det-${row.project}-${row.section}-${i}`}
-                        title={`${row.project}: ${row.work_name || row.section}`}
-                        badge={row.dev_end || undefined}
-                        badgeTone={
-                          row.dev_end_days == null
-                            ? "neutral"
-                            : row.dev_end_days < 0
-                              ? "bad"
-                              : "ok"
-                        }
+                        type="button"
+                        className="w-full text-left"
+                        onClick={() => {
+                          tapFeedback();
+                          setDetailRow({
+                            kind: "detail",
+                            project: row.project,
+                            work_name: row.work_name,
+                            section: row.section,
+                            status: row.status,
+                            start: row.start,
+                            base_start: row.base_start,
+                            finish: row.finish,
+                            base_finish: row.base_finish,
+                            dev_start: row.dev_start,
+                            dev_start_days: row.dev_start_days,
+                            dev_end: row.dev_end,
+                            dev_end_days: row.dev_end_days,
+                          });
+                        }}
                       >
-                        <MobileMetricGrid
-                          columns={2}
-                          items={[
-                            { label: "Раздел", value: row.section },
-                            { label: "Статус", value: row.status || "—" },
-                            {
-                              label: "Начало",
-                              value: row.start || "—",
-                              highlight: "date",
-                            },
-                            {
-                              label: "Баз. нач.",
-                              value: row.base_start || "—",
-                              highlight: "date",
-                            },
-                            {
-                              label: "Окончание",
-                              value: row.finish || "—",
-                              highlight: "date",
-                            },
-                            {
-                              label: "Баз. оконч.",
-                              value: row.base_finish || "—",
-                              highlight: "date",
-                            },
-                            {
-                              label: "Откл. нач.",
-                              value: row.dev_start || "—",
-                              className: deviationClass(row.dev_start_days),
-                              highlight: highlightFromDays(row.dev_start_days),
-                            },
-                            {
-                              label: "Откл. оконч.",
-                              value: row.dev_end || "—",
-                              className: deviationClass(row.dev_end_days),
-                              highlight: highlightFromDays(row.dev_end_days),
-                            },
-                          ]}
-                        />
-                      </MobileEntityCard>
+                        <MobileEntityCard
+                          title={`${row.project}: ${row.work_name || row.section}`}
+                          badge={row.dev_end || undefined}
+                          badgeTone={
+                            row.dev_end_days == null
+                              ? "neutral"
+                              : row.dev_end_days < 0
+                                ? "bad"
+                                : "ok"
+                          }
+                        >
+                          <MobileMetricGrid
+                            columns={2}
+                            items={[
+                              { label: "Раздел", value: row.section },
+                              { label: "Статус", value: row.status || "—" },
+                            ]}
+                          />
+                        </MobileEntityCard>
+                      </button>
                     ))}
                   </MobileCardStack>
                   <div className="hidden lg:block">
@@ -928,28 +1012,44 @@ function ProjectDocumentationScreen({
                 />
               ) : (
                 <>
+                  <div className="space-y-2 px-3 pt-3 lg:hidden">
+                    <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
+                      Проектов {summaryRows.length}. Список задаётся в «Фильтрах». Тап —
+                      детали.
+                    </p>
+                  </div>
                   <MobileCardStack>
                     {summaryRows.map((row) => (
-                      <MobileEntityCard
+                      <button
                         key={`m-sum-${row.project}`}
-                        title={row.project}
-                        badge={row.overdue_label}
-                        badgeTone={row.overdue < 0 ? "bad" : "ok"}
+                        type="button"
+                        className="w-full text-left"
+                        onClick={() => {
+                          tapFeedback();
+                          setDetailRow({
+                            kind: "summary",
+                            project: row.project,
+                            plan: row.plan,
+                            fact: row.fact,
+                            overdue: row.overdue,
+                            overdue_label: row.overdue_label,
+                          });
+                        }}
                       >
-                        <MobileMetricGrid
-                          columns={2}
-                          items={[
-                            { label: "План ПД", value: row.plan },
-                            { label: "Факт ПД", value: row.fact },
-                            {
-                              label: "Просрочка",
-                              value: row.overdue_label,
-                              className: deviationClass(row.overdue),
-                              highlight: row.overdue < 0 ? "bad" : "ok",
-                            },
-                          ]}
-                        />
-                      </MobileEntityCard>
+                        <MobileEntityCard
+                          title={row.project}
+                          badge={row.overdue_label}
+                          badgeTone={row.overdue < 0 ? "bad" : "ok"}
+                        >
+                          <MobileMetricGrid
+                            columns={2}
+                            items={[
+                              { label: "План ПД", value: row.plan },
+                              { label: "Факт ПД", value: row.fact },
+                            ]}
+                          />
+                        </MobileEntityCard>
+                      </button>
                     ))}
                   </MobileCardStack>
                   <div className="hidden lg:block">
@@ -1023,8 +1123,82 @@ function ProjectDocumentationScreen({
               </div>
             </Card>
           </FullscreenPanel>
+          </div>
         </div>
       )}
+
+      <MobileDetailSheet
+        open={detailRow != null}
+        onClose={() => setDetailRow(null)}
+        title={
+          detailRow?.kind === "main"
+            ? `${detailRow.project}: ${detailRow.section}`
+            : detailRow?.kind === "detail"
+              ? `${detailRow.project}: ${detailRow.work_name || detailRow.section}`
+              : detailRow?.kind === "summary"
+                ? detailRow.project
+                : "Детали"
+        }
+      >
+        {detailRow?.kind === "main" ? (
+          <MobileMetricGrid
+            columns={2}
+            items={[
+              { label: "№", value: detailRow.n ?? "—" },
+              { label: "Проект", value: detailRow.project },
+              { label: "Раздел", value: detailRow.section, highlight: "date" },
+              { label: "Базовое", value: detailRow.base_end ?? "—", highlight: "date" },
+              { label: "Окончание", value: detailRow.plan_end ?? "—", highlight: "date" },
+              {
+                label: "Откл.",
+                value: detailRow.dev_end || "—",
+                className: deviationClass(detailRow.dev_end_days),
+                highlight: highlightFromDays(detailRow.dev_end_days),
+              },
+            ]}
+          />
+        ) : null}
+        {detailRow?.kind === "detail" ? (
+          <MobileMetricGrid
+            columns={2}
+            items={[
+              { label: "Раздел", value: detailRow.section },
+              { label: "Статус", value: detailRow.status || "—" },
+              { label: "Начало", value: detailRow.start || "—", highlight: "date" },
+              { label: "Баз. нач.", value: detailRow.base_start || "—", highlight: "date" },
+              { label: "Окончание", value: detailRow.finish || "—", highlight: "date" },
+              { label: "Баз. оконч.", value: detailRow.base_finish || "—", highlight: "date" },
+              {
+                label: "Откл. нач.",
+                value: detailRow.dev_start || "—",
+                className: deviationClass(detailRow.dev_start_days),
+                highlight: highlightFromDays(detailRow.dev_start_days),
+              },
+              {
+                label: "Откл. оконч.",
+                value: detailRow.dev_end || "—",
+                className: deviationClass(detailRow.dev_end_days),
+                highlight: highlightFromDays(detailRow.dev_end_days),
+              },
+            ]}
+          />
+        ) : null}
+        {detailRow?.kind === "summary" ? (
+          <MobileMetricGrid
+            columns={2}
+            items={[
+              { label: "План ПД", value: detailRow.plan },
+              { label: "Факт ПД", value: detailRow.fact },
+              {
+                label: "Просрочка",
+                value: detailRow.overdue_label,
+                className: deviationClass(detailRow.overdue),
+                highlight: detailRow.overdue < 0 ? "bad" : "ok",
+              },
+            ]}
+          />
+        ) : null}
+      </MobileDetailSheet>
     </AppShell>
   );
 }

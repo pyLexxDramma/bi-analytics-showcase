@@ -28,6 +28,7 @@ import { useUrlFilterState } from "@/lib/use-url-filter-state";
 import { BddsPlanFactEditor } from "@/components/bdds-plan-fact-editor";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
+import { MobilePaneTabs } from "@/components/mobile-ux";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -121,8 +122,10 @@ export function BddsPlanFactView() {
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  /** Mobile: Обзор (график) | Редактирование. Desktop — оба блока подряд. */
-  const [mobilePane, setMobilePane] = useState<"overview" | "edit">("overview");
+  /** Mobile: График | Периоды | Редактирование (если один проект). Desktop — всё подряд. */
+  const [mobilePane, setMobilePane] = useState<"chart" | "periods" | "edit">(
+    "chart",
+  );
 
   const singleProject = filters.projects.length === 1;
   const editorProject = singleProject ? filters.projects[0] : null;
@@ -406,40 +409,17 @@ export function BddsPlanFactView() {
         </Card>
       ) : null}
 
-      {editorProject ? (
-        <div
-          className="mb-3 flex gap-1 rounded-xl border border-tremor-border bg-tremor-background p-1 dark:border-dark-tremor-border dark:bg-dark-tremor-background lg:hidden"
-          role="tablist"
-          aria-label="Разделы экрана"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobilePane === "overview"}
-            className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-medium ${
-              mobilePane === "overview"
-                ? "bg-sky-600 text-white"
-                : "text-tremor-content dark:text-dark-tremor-content"
-            }`}
-            onClick={() => setMobilePane("overview")}
-          >
-            Обзор
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobilePane === "edit"}
-            className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-medium ${
-              mobilePane === "edit"
-                ? "bg-sky-600 text-white"
-                : "text-tremor-content dark:text-dark-tremor-content"
-            }`}
-            onClick={() => setMobilePane("edit")}
-          >
-            Редактирование
-          </button>
-        </div>
-      ) : null}
+      <MobilePaneTabs
+        value={mobilePane}
+        onChange={setMobilePane}
+        options={[
+          { id: "chart", label: "График" },
+          { id: "periods", label: "Периоды" },
+          ...(editorProject
+            ? ([{ id: "edit", label: "Редактирование" }] as const)
+            : []),
+        ]}
+      />
 
       {editorProject ? (
         <div className={mobilePane === "edit" ? "block" : "hidden lg:block"}>
@@ -448,18 +428,13 @@ export function BddsPlanFactView() {
             filters={editorFilters}
             onDataChange={onEditorDataChange}
             onPreviewError={onEditorPreviewError}
-            onGoToOverview={() => setMobilePane("overview")}
+            onGoToOverview={() => setMobilePane("chart")}
           />
         </div>
       ) : null}
 
-      <div
-        className={
-          editorProject && mobilePane === "edit" ? "hidden lg:block" : "block"
-        }
-      >
-      {showEditBanner ? (
-        <div className={`${BANNER} mb-4`}>{data?.labels.edit_banner}</div>
+      {showEditBanner && mobilePane !== "edit" ? (
+        <div className={`${BANNER} mb-4 lg:hidden`}>{data?.labels.edit_banner}</div>
       ) : null}
 
       <div className="min-w-0 max-w-full space-y-6">
@@ -472,6 +447,10 @@ export function BddsPlanFactView() {
                 : null
           }
         />
+        {showEditBanner ? (
+          <div className={`${BANNER} hidden lg:block`}>{data?.labels.edit_banner}</div>
+        ) : null}
+        <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
         <Card className="min-w-0 max-w-full overflow-hidden rounded-xl">
           <div className="border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
             <Title className="!break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
@@ -503,7 +482,13 @@ export function BddsPlanFactView() {
             )}
           </FullscreenPanel>
         </Card>
+        </div>
 
+        <div
+          className={
+            mobilePane === "periods" ? "block space-y-6" : "hidden space-y-6 lg:block"
+          }
+        >
         <Card className="min-w-0 max-w-full overflow-hidden rounded-xl p-0">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tremor-border px-3 py-3 dark:border-dark-tremor-border sm:px-4">
             <Title className="min-w-0 flex-1 !break-words !text-base !text-tremor-content-strong sm:!text-tremor-title dark:!text-dark-tremor-content-strong">
@@ -779,7 +764,7 @@ export function BddsPlanFactView() {
             </div>
           </FullscreenPanel>
         </Card>
-      </div>
+        </div>
       </div>
     </AppShell>
   );
