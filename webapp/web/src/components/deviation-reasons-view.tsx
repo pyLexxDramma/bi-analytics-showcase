@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Metric, Text, Title } from "@tremor/react";
+import { Card, Metric, Text } from "@tremor/react";
 import {
   fetchDeviationReasons,
   type DeviationReasonsPayload,

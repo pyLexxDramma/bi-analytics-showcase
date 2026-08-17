@@ -31,7 +31,6 @@ import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
 import {
   DashboardTableActions,
-  DashboardTableTitle,
   MobileFilterChips,
   MobilePaneTabs,
   MobileSearchField,
