@@ -739,8 +739,8 @@ function ProjectDocumentationScreen({
                   <PdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
                 </div>
                 <Text className="mt-2 text-center text-xs">
-                  Жёлтый — план накопительно, зелёный — факт. Справа «+N» — выдано в
-                  производство за месяц.
+                  Жёлтый — план накопительно, зелёный — факт, красный — просрочка.
+                  Справа «+N» — выдано в производство за месяц.
                 </Text>
               </Card>
             )}

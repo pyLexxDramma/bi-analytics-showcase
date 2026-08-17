@@ -837,7 +837,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v12-pd-gantt-arrow|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v17-pd-monthly-due-ontime|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1222,59 +1222,77 @@ def build_project_documentation_payload(
                 )
 
         monthly: list[dict[str, Any]] = []
-        if not delay_df.empty and delay_df["_plan_end_dt"].notna().any():
-            msrc = delay_df[delay_df["_plan_end_dt"].notna()].copy()
-            msrc = _dedupe_by_cipher(
-                msrc, cipher_col=cipher_col if isinstance(cipher_col, str) else None, project_col=proj_col
-            )
-            # После dedupe пересчитать ontime (как main `_pd_monthly_dedupe_by_cipher`).
-            if "_pd_row_fact" in msrc.columns and "_pd_row_overdue" in msrc.columns:
-                msrc["_pd_row_fact_ontime"] = (
-                    (pd.to_numeric(msrc["_pd_row_fact"], errors="coerce").fillna(0) > 0)
-                    & (pd.to_numeric(msrc["_pd_row_overdue"], errors="coerce").fillna(0) <= 0)
-                ).astype(int)
-            msrc["_month"] = _to_dt(msrc["_plan_end_dt"]).dt.to_period("M")
-            cur_m = pd.Period(pd.Timestamp.today().normalize(), freq="M")
-            msrc = msrc[msrc["_month"] <= cur_m]
-            if not msrc.empty:
-                # Как main `_rd_monthly_sections_aggregate(..., overdue_col=_pd_row_overdue)`:
-                # done = факт вовремя; overdue = просрочка (в т.ч. сдано с опозданием).
-                _ov = pd.to_numeric(msrc["_pd_row_overdue"], errors="coerce").fillna(0).gt(0)
-                _fact = pd.to_numeric(msrc["_pd_row_fact"], errors="coerce").fillna(0)
-                _plan = pd.to_numeric(msrc["_pd_row_plan"], errors="coerce").fillna(0)
-                msrc["_overdue_n"] = np.where(_ov, _plan, 0.0)
-                msrc["_done_n"] = np.where(~_ov & (_fact > 0), np.minimum(_plan, _fact), 0.0)
-                agg = (
-                    msrc.groupby("_month", as_index=False)
-                    .agg(
-                        plan=("_pd_row_plan", "sum"),
-                        done=("_done_n", "sum"),
-                        overdue=("_overdue_n", "sum"),
-                    )
-                    .sort_values("_month")
+        # Месячная динамика — по всем разделам ПД (metrics), не только delay_df,
+        # иначе зелёный факт почти всегда 0 и остаётся только красная просрочка.
+        month_base = scoped.loc[metrics.fillna(False)].copy() if metrics.any() else scoped.copy()
+        if not month_base.empty:
+            bs_m = _to_dt(month_base[b_start]) if b_start and b_start in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
+            ss_m = _to_dt(month_base[s_start]) if s_start and s_start in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
+            bf_m = _to_dt(month_base[b_base]) if b_base and b_base in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
+            sf_m = _to_dt(month_base[s_fin]) if s_fin and s_fin in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
+            af_m = af.reindex(month_base.index)
+            pc_m = pc.reindex(month_base.index).fillna(0.0)
+            plan_fin_m = bf_m.where(bf_m.notna(), sf_m)
+            month_base["_plan_end_dt"] = plan_fin_m
+            if month_base["_plan_end_dt"].notna().any():
+                msrc = month_base[month_base["_plan_end_dt"].notna()].copy()
+                msrc["_pc"] = pc_m.reindex(msrc.index).fillna(0.0)
+                msrc["_af"] = af_m.reindex(msrc.index) if isinstance(af_m, pd.Series) else pd.NaT
+                msrc["_bf"] = bf_m.reindex(msrc.index)
+                msrc["_sf"] = sf_m.reindex(msrc.index)
+                msrc = _dedupe_by_cipher(
+                    msrc, cipher_col=cipher_col if isinstance(cipher_col, str) else None, project_col=proj_col
                 )
-                agg = agg[agg["plan"] > 0].copy()
-                cum_p = cum_d = cum_o = 0
-                rows_m = []
-                for _, r in agg.iterrows():
-                    p_inc = int(r["plan"])
-                    d_inc = int(r["done"])
-                    o_inc = int(r["overdue"])
-                    cum_p += p_inc
-                    cum_d += d_inc
-                    cum_o += o_inc
-                    fact_inc = d_inc + o_inc
-                    rest = max(0, cum_p - cum_d - cum_o)
-                    p = r["_month"]
+                # Накопительный срез на конец каждого месяца (как РД / ТЗ):
+                # жёлтый plan = срок наступил к as_of;
+                # зелёный fact = завершено вовремя;
+                # красный overdue = просрочка графика или не выдано (карта «N док.» / Гант);
+                # fact_inc = прирост выдачи (всех завершённых) за календарный месяц.
+                _plan_end = _to_dt(msrc["_plan_end_dt"]).dt.normalize()
+                _af = _to_dt(msrc["_af"]).dt.normalize() if "_af" in msrc.columns else pd.Series(pd.NaT, index=msrc.index)
+                _bf = _to_dt(msrc["_bf"]).dt.normalize() if "_bf" in msrc.columns else pd.Series(pd.NaT, index=msrc.index)
+                _sf = _to_dt(msrc["_sf"]).dt.normalize() if "_sf" in msrc.columns else pd.Series(pd.NaT, index=msrc.index)
+                _pc = pd.to_numeric(msrc["_pc"], errors="coerce").fillna(0.0) if "_pc" in msrc.columns else pd.Series(0.0, index=msrc.index)
+                _w = _plan_end.notna()
+                _plan_w = _plan_end[_w]
+                _af_w = _af.reindex(_plan_w.index)
+                _bf_w = _bf.reindex(_plan_w.index)
+                _sf_w = _sf.reindex(_plan_w.index)
+                _pc_w = _pc.reindex(_plan_w.index).fillna(0.0)
+                _weights = pd.Series(1.0, index=_plan_w.index)
+                periods = sorted({p for p in _plan_w.dt.to_period("M").tolist() if p is not pd.NaT})
+                _today = pd.Timestamp.today().normalize()
+                cur_m = pd.Period(min(_today, ts_rep), freq="M")
+                periods = [p for p in periods if p <= cur_m]
+                rows_m: list[dict[str, Any]] = []
+                prev_issued = 0
+                for p in periods:
+                    as_of = min(pd.Timestamp(p.end_time).normalize(), _today, ts_rep)
+                    issued = (_pc_w >= 99.99) | (_af_w.notna() & (_af_w <= as_of))
+                    due = _plan_w <= as_of
+                    sched_ov = (
+                        _bf_w.notna()
+                        & (_bf_w <= as_of)
+                        & _sf_w.notna()
+                        & (_sf_w > _bf_w)
+                    )
+                    ontime = issued & ~sched_ov
+                    done_v = int(round(float(_weights[due & ontime].sum())))
+                    overdue_v = int(round(float(_weights[due & ~ontime].sum())))
+                    rest_v = int(round(float(_weights[(~issued) & (_plan_w > as_of)].sum())))
+                    plan_as_of = int(round(float(_weights[due].sum())))
+                    issued_n = int(round(float(_weights[issued].sum())))
+                    fact_inc = max(0, issued_n - prev_issued)
+                    prev_issued = issued_n
                     rows_m.append(
                         {
                             "month": f"{p.year}-{int(p.month):02d}",
                             "month_label": f"{_MONTH_RU[int(p.month)]} {p.year}",
-                            "plan": cum_p,
-                            "done": cum_d,
-                            "overdue": cum_o,
-                            "rest": rest,
-                            "fact": cum_d + cum_o,
+                            "plan": plan_as_of,
+                            "done": done_v,
+                            "overdue": overdue_v,
+                            "rest": rest_v,
+                            "fact": done_v,
                             "fact_inc": fact_inc,
                         }
                     )

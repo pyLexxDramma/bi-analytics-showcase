@@ -24,6 +24,7 @@ const RD_FACT = "#F39C12";
 const RD_FCST = "#9B59B6";
 const RD_MONTH_PLAN = "#F39C12";
 const RD_MONTH_FACT = "#27AE60";
+const RD_MONTH_OVERDUE = "#C0392B";
 
 const RD_PIE_COLORS: Record<string, string> = {
   "Выдано в производство работ": "#27AE60",
@@ -344,19 +345,18 @@ export function RdMonthlyCumulativeChart({
       if (r.fact != null) return Math.max(0, Number(r.fact) || 0);
       return Math.max(0, Number(r.done) || 0);
     });
+    const overdue = chronological.map((r) => Math.max(0, Number(r.overdue) || 0));
     const factInc = chronological.map((r, i) => {
       if (r.fact_inc != null) return Math.max(0, Number(r.fact_inc) || 0);
       if (i === 0) return fact[i];
       return Math.max(0, fact[i] - fact[i - 1]);
     });
     const yIdx = chronological.map((_, i) => i);
-    const xMax = Math.max(1, ...plan, ...fact);
+    const xMax = Math.max(1, ...plan, ...fact, ...overdue);
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
       : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
 
-    const incTxt = factInc.map((v) => (v > 0 ? `+${Math.round(v)}` : ""));
-    const planLonger = plan.map((p, i) => p >= fact[i]);
     const tipFont = compact ? 13 : 15;
     const tipColor = theme.dark ? "#bbf7d0" : "#14532d";
 
@@ -370,29 +370,50 @@ export function RdMonthlyCumulativeChart({
         "<b>%{customdata}</b><br>%{fullData.name} (накопительно): %{x}<extra></extra>",
     };
 
+    const annotations = chronological
+      .map((_, i) => {
+        const v = factInc[i];
+        if (!(v > 0)) return null;
+        const tip = Math.max(plan[i], fact[i] + overdue[i], fact[i], overdue[i]);
+        return {
+          x: tip,
+          y: i,
+          text: `+${Math.round(v)}`,
+          showarrow: false,
+          xanchor: "left" as const,
+          yanchor: "middle" as const,
+          xshift: 8,
+          font: { size: tipFont, color: tipColor },
+        };
+      })
+      .filter(Boolean);
+
     return {
       data: [
         {
           ...barBase,
           name: CHART_RU.plan,
           x: plan,
-          marker: { color: RD_MONTH_PLAN, opacity: 0.92 },
+          marker: { color: RD_MONTH_PLAN, opacity: 0.88 },
+          width: 0.62,
           customdata: labels,
-          text: incTxt.map((t, i) => (planLonger[i] ? t : "")),
-          textposition: "outside" as const,
-          texttemplate: "%{text}",
-          textfont: { size: tipFont, color: tipColor },
         },
         {
           ...barBase,
           name: CHART_RU.fact,
           x: fact,
-          marker: { color: RD_MONTH_FACT, opacity: 0.95 },
+          marker: { color: RD_MONTH_FACT, opacity: 0.96 },
+          width: 0.38,
           customdata: labels,
-          text: incTxt.map((t, i) => (planLonger[i] ? "" : t)),
-          textposition: "outside" as const,
-          texttemplate: "%{text}",
-          textfont: { size: tipFont, color: tipColor },
+        },
+        {
+          ...barBase,
+          name: CHART_RU.overdue,
+          x: overdue,
+          base: fact,
+          marker: { color: RD_MONTH_OVERDUE, opacity: 0.95 },
+          width: 0.38,
+          customdata: labels,
         },
       ],
       layout: {
@@ -404,6 +425,7 @@ export function RdMonthlyCumulativeChart({
           : { l: 16, r: 80, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
+        annotations,
         legend: plotlyLegendUnderLeft({
           fontSize: compact ? 11 : 12,
           labelColor: theme.axis,
@@ -559,7 +581,8 @@ export function RdDelayGanttChart({
       const arrowMs = lateComplete ? finMs ?? delayEndMs : null;
       if (arrowMs != null) {
         arrowY.push(y);
-        arrowX.push(arrowMs);
+        // Смещаем вправо от конца красной полосы — тело triangle-right иначе тонет в заливке.
+        arrowX.push(arrowMs + 4 * DAY_MS);
         arrowCd.push(
           row.delay_label
             ? `Выдано с опозданием: ${row.delay_label}`
@@ -676,22 +699,28 @@ export function RdDelayGanttChart({
       });
     }
     if (arrowY.length) {
-      data.push({
-        type: "scatter",
-        mode: "markers",
-        name: "Выдано с опозданием",
-        y: arrowY,
-        x: arrowX,
-        marker: {
-          symbol: "triangle-right",
-          size: compact ? 14 : 16,
-          color: RD_GANTT_GREEN,
-          line: { width: 1, color: "#1e8449" },
-        },
-        customdata: arrowCd,
-        hovertemplate: "%{y}<br>%{customdata}<extra></extra>",
-        cliponaxis: false,
-      });
+      for (let i = 0; i < arrowY.length; i++) {
+        const tip = Number(arrowX[i]);
+        const stemStart = tip - 10 * DAY_MS;
+        data.push({
+          type: "scatter",
+          mode: "lines+markers",
+          name: i === 0 ? "Выдано с опозданием" : "Выдано с опозданием ",
+          showlegend: i === 0,
+          y: [arrowY[i], arrowY[i]],
+          x: [stemStart, tip],
+          line: { color: RD_GANTT_GREEN, width: 6 },
+          marker: {
+            symbol: ["circle", "triangle-right"],
+            size: [6, compact ? 18 : 22],
+            color: RD_GANTT_GREEN,
+            line: { width: 1, color: "#145a32" },
+          },
+          customdata: [arrowCd[i], arrowCd[i]],
+          hovertemplate: "%{y}<br>%{customdata}<extra></extra>",
+          cliponaxis: false,
+        });
+      }
     }
 
     const xs: number[] = [];

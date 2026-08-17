@@ -680,7 +680,7 @@ export function WorkingDocumentationView() {
                   <Card className="rounded-xl">
                     <Title>Динамика по месяцам</Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      Накопительно: жёлтый — план на дату месяца, зелёный — факт.
+                      Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка.
                       Справа «+N» — разделы, выданные в производство за этот месяц.
                     </Text>
                     <div className="mt-3">
@@ -787,7 +787,7 @@ export function WorkingDocumentationView() {
                   <Card className="rounded-xl">
                     <Title>Динамика по месяцам</Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      Накопительно: жёлтый — план на дату месяца, зелёный — факт.
+                      Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка.
                       Справа «+N» — разделы, выданные в производство за этот месяц.
                     </Text>
                     <div className="mt-3">

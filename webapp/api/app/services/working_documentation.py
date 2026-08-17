@@ -854,7 +854,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v19-rd-uuid-project-resolve",
+            "v20-rd-monthly-overdue-ui",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
