@@ -79,6 +79,22 @@ function sparseBargap(n: number): { bargap: number; bargroupgap: number } | Reco
   return {};
 }
 
+/**
+ * Высота сегментов для отрисовки: мелкие не тоньше ~9% столбца (цифры влезают
+ * и центрируются), сумма по столбцу = исходный total.
+ */
+function stackDisplayHeights(raw: number[]): number[] {
+  const total = raw.reduce((sum, value) => sum + value, 0);
+  if (total <= 0) return raw.map(() => 0);
+  const nPos = raw.filter((value) => value > 0).length;
+  if (nPos <= 1) return raw.slice();
+  const minShare = Math.min(0.09, 0.36 / nPos);
+  const minHeight = total * minShare;
+  const floors = raw.map((value) => (value > 0 ? Math.max(value, minHeight) : 0));
+  const floorSum = floors.reduce((sum, value) => sum + value, 0);
+  return floors.map((value) => (value * total) / floorSum);
+}
+
 /** Горизонтальный бар «Предписания по подрядчикам» — фон=всего/неустранено, оранжевый сегмент=просроченные, синий пузырёк=итог. 1:1 с main `dashboard_predpisania`. */
 export function PrescriptionsContractorChart({
   rows,
@@ -333,34 +349,33 @@ export function PrescriptionsObjectsChart({
     const ymax = Math.max(...rows.map((row) => Number(row.total) || 0), 0);
     const axisUpper = ymax > 0 ? axisUpperBound(ymax) : 5;
 
-    // 1–2 при total≈90 физически не влезают в сегмент даже на высоком графике.
-    const isSmallSegment = (v: number, total: number) =>
-      v > 0 && (v < 4 || (total > 0 && v / total < 0.05));
+    const rawByRow = rows.map((row) =>
+      statusKeys.map((status) => Number(row[status] ?? 0) || 0),
+    );
+    const displayByRow = rawByRow.map(stackDisplayHeights);
 
-    const data = statusKeys.map((status) => {
-      const vals = rows.map((row) => Number(row[status] ?? 0) || 0);
+    const data = statusKeys.map((status, statusIdx) => {
+      const realVals = rawByRow.map((raw) => raw[statusIdx] ?? 0);
+      const displayVals = displayByRow.map((display) => display[statusIdx] ?? 0);
       return {
         type: "bar" as const,
         x,
-        y: vals,
+        y: displayVals,
         name: status,
         marker: { color: PRED_OBJECT_STATUS_COLOR[status] ?? "#94a3b8" },
-        // Крупные — внутри (белый / тёмный на жёлтом); мелкие — сбоку как сумма.
-        text: vals.map((v, i) => {
-          const total = Number(rows[i]?.total) || 0;
-          if (!v || isSmallSegment(v, total)) return "";
-          return String(v);
-        }),
+        customdata: realVals,
+        text: realVals.map((value) => (value > 0 ? String(value) : "")),
         texttemplate: "%{text}",
         textposition: "inside" as const,
         insidetextanchor: "middle" as const,
         constraintext: "none" as const,
+        cliponaxis: false,
         textangle: 0,
         textfont: {
           color: predSegmentLabelColor(status),
           size: compact ? 11 : 14,
         },
-        hovertemplate: `<b>%{x}</b><br>${status}: %{y}<extra></extra>`,
+        hovertemplate: `<b>%{x}</b><br>${status}: %{customdata}<extra></extra>`,
       };
     });
 
@@ -379,38 +394,7 @@ export function PrescriptionsObjectsChart({
         font: { color: theme.label, size: compact ? 12 : 16 },
       }));
 
-    // Мелкие сегменты: те же жирные подписи без стрелок, что и сумма над столбцом
-    // (как в main `_pred_objects_by_status_figure` + totalAnnotations), сбоку от сегмента.
-    const smallAnnotations: Array<Record<string, unknown>> = [];
-    rows.forEach((row) => {
-      const total = Number(row.total) || 0;
-      if (total <= 0) return;
-      let yBase = 0;
-      let side = 1;
-      for (const status of statusKeys) {
-        const v = Number(row[status] ?? 0) || 0;
-        if (v <= 0) continue;
-        if (isSmallSegment(v, total)) {
-          const yMid = yBase + v / 2;
-          smallAnnotations.push({
-            x: String(row.object),
-            y: yMid,
-            text: `<b>${v}</b>`,
-            showarrow: false,
-            xref: "x",
-            yref: "y",
-            xshift: side * (compact ? 22 : 34),
-            xanchor: side > 0 ? "left" : "right",
-            yanchor: "middle",
-            font: { color: theme.label, size: compact ? 12 : 16 },
-          });
-          side *= -1;
-        }
-        yBase += v;
-      }
-    });
-
-    const annotations = [...totalAnnotations, ...smallAnnotations];
+    const annotations = totalAnnotations;
 
     return {
       data,
@@ -445,7 +429,7 @@ export function PrescriptionsObjectsChart({
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
-        uniformtext: { minsize: 10, mode: "hide" as const },
+        uniformtext: { minsize: 10, mode: "show" as const },
         modebar: { bgcolor: "rgba(0,0,0,0)", color: theme.axis, activecolor: "#0f766e" },
         ...sparseBargap(n),
       },

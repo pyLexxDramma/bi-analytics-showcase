@@ -44288,6 +44288,23 @@ def _pred_axis_upper_bound(xmax: float) -> float:
     return float(int(np.ceil(val / 25.0)) * 25)
 
 
+def _pred_stack_display_heights(raw: list[float]) -> list[float]:
+    """Мелкие сегменты не тоньше ~9% столбца; сумма = исходный total."""
+    total = float(sum(raw))
+    if total <= 0:
+        return [0.0] * len(raw)
+    n_pos = sum(1 for v in raw if v > 0)
+    if n_pos <= 1:
+        return [float(v) for v in raw]
+    min_share = min(0.09, 0.36 / n_pos)
+    min_h = total * min_share
+    floors = [max(float(v), min_h) if v > 0 else 0.0 for v in raw]
+    floor_sum = float(sum(floors))
+    if floor_sum <= 0:
+        return [float(v) for v in raw]
+    return [v * total / floor_sum for v in floors]
+
+
 def _pred_objects_by_status_figure(
     piv: pd.DataFrame,
     obj_col: str,
@@ -44298,25 +44315,34 @@ def _pred_objects_by_status_figure(
         return go.Figure()
     obj_labels = piv[obj_col].astype(str).tolist()
     status_order = _pred_objects_chart_status_order(hide_resolved=hide_resolved)
+    statuses = [s for s in status_order if s in piv.columns]
+    raw_by_row: list[list[float]] = []
+    for _, row in piv.iterrows():
+        raw_by_row.append(
+            [float(pd.to_numeric(row.get(s, 0), errors="coerce") or 0) for s in statuses]
+        )
+    display_by_row = [_pred_stack_display_heights(raw) for raw in raw_by_row]
     fig = go.Figure()
-    for status in status_order:
-        if status not in piv.columns:
-            continue
-        vals = pd.to_numeric(piv[status], errors="coerce").fillna(0).astype(int).tolist()
-        texts = [str(v) if v > 0 else "" for v in vals]
+    for si, status in enumerate(statuses):
+        real_vals = [int(round(raw[si])) for raw in raw_by_row]
+        display_vals = [disp[si] for disp in display_by_row]
+        texts = [str(v) if v > 0 else "" for v in real_vals]
         fig.add_trace(
             go.Bar(
                 x=obj_labels,
-                y=vals,
+                y=display_vals,
                 name=status,
                 marker=dict(color=_pred_status_chart_color(status)),
+                customdata=real_vals,
                 text=texts,
                 texttemplate="%{text}",
                 textposition="inside",
                 insidetextanchor="middle",
+                constraintext="none",
+                cliponaxis=False,
                 textangle=0,
                 textfont=dict(color="#ffffff", size=13, family="Inter, Arial, sans-serif"),
-                hovertemplate=f"<b>%{{x}}</b><br>{status}: %{{y}}<extra></extra>",
+                hovertemplate=f"<b>%{{x}}</b><br>{status}: %{{customdata}}<extra></extra>",
             )
         )
     for _, row in piv.iterrows():
