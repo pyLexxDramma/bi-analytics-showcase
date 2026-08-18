@@ -96,9 +96,9 @@ const PRED_STICKY: Record<
   string,
   { left: string; width: string; shadow?: boolean }
 > = {
-  status: { left: "0", width: "9.75rem" },
-  contractor: { left: "9.75rem", width: "13.5rem" },
-  project: { left: "23.25rem", width: "8.5rem", shadow: true },
+  status: { left: "0", width: "15rem" },
+  contractor: { left: "15rem", width: "13.5rem" },
+  project: { left: "28.5rem", width: "8.5rem", shadow: true },
 };
 
 const PRED_STICKY_SHADOW =
@@ -695,7 +695,7 @@ export function PrescriptionsView() {
                               >
                                 {key === "status" ? (
                                   <span
-                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                    className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
                                       row.status_chip === "overdue"
                                         ? "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200"
                                         : row.status_chip === "ok"
