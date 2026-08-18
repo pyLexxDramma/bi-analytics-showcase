@@ -1,39 +1,39 @@
 #!/usr/bin/env bash
 # Inspect users.db under ~/apps and, if prod default_filters is empty,
 # copy rows from the richest sibling DB (cloudpub / Streamlit / backup).
+# Writes go through the prod API container: host user cannot write the volume.
 set -euo pipefail
 
-PROD_DB="${PROD_USERS_DB:-$HOME/apps/bi-analytics-webapp-prod/webapp/data/db/users.db}"
+PROD_APP="${PROD_APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
+PROD_DB="${PROD_USERS_DB:-$PROD_APP/webapp/data/db/users.db}"
+export PROD_USERS_DB="$PROD_DB"
 
+SRC="$(
 python3 - <<'PY'
 import os
-import sqlite3
 from pathlib import Path
+import sqlite3
 
 home = Path.home()
-prod = Path(os.environ.get(
-    "PROD_USERS_DB",
-    str(home / "apps/bi-analytics-webapp-prod/webapp/data/db/users.db"),
-)).resolve()
+prod = Path(os.environ["PROD_USERS_DB"]).resolve()
 
-candidates: list[Path] = []
+candidates = []
 apps = home / "apps"
 if apps.is_dir():
     for p in apps.rglob("users.db"):
-        # skip docker overlay / huge trees
         if any(x in p.parts for x in ("node_modules", ".git", "__pycache__")):
             continue
         candidates.append(p.resolve())
 
-# de-dupe
-seen: set[str] = set()
-uniq: list[Path] = []
+uniq = []
+seen = set()
 for p in candidates:
     key = str(p)
     if key in seen:
         continue
     seen.add(key)
     uniq.append(p)
+
 
 def count_filters(path: Path):
     if not path.is_file():
@@ -47,46 +47,76 @@ def count_filters(path: Path):
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
         }
-        if "default_filters" not in tables:
-            con.close()
-            return 0
-        n = int(cur.execute("SELECT COUNT(*) FROM default_filters").fetchone()[0])
+        n = 0
+        if "default_filters" in tables:
+            n = int(cur.execute("SELECT COUNT(*) FROM default_filters").fetchone()[0])
         con.close()
         return n
     except sqlite3.Error as e:
-        print(f"ERR {path}: {e}")
+        print(f"ERR {path}: {e}", flush=True)
         return None
 
-print("== users.db scan ==")
-rows: list[tuple[Path, int]] = []
+print("== users.db scan ==", flush=True)
+rows = []
 for p in sorted(uniq, key=lambda x: str(x)):
     n = count_filters(p)
     if n is None:
         continue
     mark = " PROD" if p == prod else ""
-    print(f"{n:5d}  {p}{mark}")
+    print(f"{n:5d}  {p}{mark}", flush=True)
     rows.append((p, n))
 
 prod_n = count_filters(prod)
 if prod_n is None:
-    print(f"PROD missing: {prod}")
+    print(f"PROD missing: {prod}", flush=True)
     raise SystemExit(2)
 
-print(f"PROD default_filters={prod_n} path={prod}")
-
+print(f"PROD default_filters={prod_n} path={prod}", flush=True)
 if prod_n > 0:
-    print("OK: prod already has filters; no copy")
+    print("OK: prod already has filters; no copy", flush=True)
+    print("SOURCE_PATH=", flush=True)
     raise SystemExit(0)
 
 sources = [(p, n) for p, n in rows if p != prod and n and n > 0]
 if not sources:
-    print("NO_SOURCE: no other users.db with default_filters on this host")
+    print("NO_SOURCE: no other users.db with default_filters on this host", flush=True)
     raise SystemExit(3)
 
 sources.sort(key=lambda t: t[1], reverse=True)
 src, src_n = sources[0]
-print(f"RESTORE from {src} ({src_n} rows) -> {prod}")
+print(f"RESTORE from {src} ({src_n} rows)", flush=True)
+print(f"SOURCE_PATH={src}", flush=True)
+PY
+)"
 
+echo "$SRC"
+SRC_PATH="$(printf '%s\n' "$SRC" | sed -n 's/^SOURCE_PATH=//p' | tail -n 1)"
+if [[ -z "${SRC_PATH}" ]]; then
+  exit 0
+fi
+echo "Copy via api container: $SRC_PATH -> /data/db/users.db"
+
+cd "$PROD_APP/webapp"
+COMPOSE=(docker compose -p webapp-prod -f docker-compose.yml -f docker-compose.prod.yml)
+CID="$("${COMPOSE[@]}" ps -q api)"
+if [[ -z "$CID" ]]; then
+  echo "ERROR: prod api container not running"
+  exit 4
+fi
+docker cp "$SRC_PATH" "$CID:/data/db/_restore_src.db"
+if [[ -f "${SRC_PATH}-wal" ]]; then
+  docker cp "${SRC_PATH}-wal" "$CID:/data/db/_restore_src.db-wal"
+fi
+if [[ -f "${SRC_PATH}-shm" ]]; then
+  docker cp "${SRC_PATH}-shm" "$CID:/data/db/_restore_src.db-shm"
+fi
+
+"${COMPOSE[@]}" exec -T api python - <<'PY'
+import sqlite3
+from pathlib import Path
+
+src = Path("/data/db/_restore_src.db")
+dst = Path("/data/db/users.db")
 src_con = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
 src_con.row_factory = sqlite3.Row
 filters = src_con.execute(
@@ -96,8 +126,6 @@ filters = src_con.execute(
     FROM default_filters
     """
 ).fetchall()
-
-# optional role rows for FK-ish integrity
 roles = []
 try:
     roles = src_con.execute(
@@ -107,8 +135,8 @@ except sqlite3.Error:
     roles = []
 src_con.close()
 
-dst = sqlite3.connect(str(prod))
-cur = dst.cursor()
+con = sqlite3.connect(str(dst))
+cur = con.cursor()
 cur.execute(
     """
     CREATE TABLE IF NOT EXISTS default_filters (
@@ -124,7 +152,6 @@ cur.execute(
     )
     """
 )
-# ensure roles table exists if we have role defs
 if roles:
     cur.execute(
         """
@@ -144,7 +171,6 @@ if roles:
             """,
             (r["code"], r["label"], r["is_system"], r["can_admin"]),
         )
-
 for f in filters:
     cur.execute(
         """
@@ -167,8 +193,11 @@ for f in filters:
             f["updated_by"],
         ),
     )
-dst.commit()
+con.commit()
 after = int(cur.execute("SELECT COUNT(*) FROM default_filters").fetchone()[0])
-dst.close()
+con.close()
 print(f"DONE: prod default_filters={after}")
 PY
+
+"${COMPOSE[@]}" exec -T api rm -f /data/db/_restore_src.db /data/db/_restore_src.db-wal /data/db/_restore_src.db-shm
+echo "Restore finished"

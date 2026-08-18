@@ -21,7 +21,6 @@ jobs:
           key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
           port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
           command_timeout: 15m
-          script_stop: true
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.PROD_VPS_PATH }}"
