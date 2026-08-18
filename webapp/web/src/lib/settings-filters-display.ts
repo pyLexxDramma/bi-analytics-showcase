@@ -70,7 +70,15 @@ function garbledHits(stored: string, extraTitles: string[] = []): string[] {
     }
   }
   for (const title of [...HISTORICAL_TITLES, ...extraTitles]) {
-    if (garbledMatches(stored, title)) add(title);
+    if (!garbledMatches(stored, title)) continue;
+    let resolved = title;
+    for (const row of catalog()) {
+      if (row.title === title || row.aliases.includes(title)) {
+        resolved = row.title;
+        break;
+      }
+    }
+    add(resolved);
   }
   return hits;
 }
@@ -95,9 +103,10 @@ export function reportDisplayName(
 export function sameReport(
   storedOrLabel: string | null | undefined,
   selectedLabel: string | null | undefined,
+  extraTitles: string[] = [],
 ): boolean {
-  const a = reportDisplayName(storedOrLabel);
-  const b = reportDisplayName(selectedLabel);
+  const a = reportDisplayName(storedOrLabel, extraTitles);
+  const b = reportDisplayName(selectedLabel, extraTitles);
   return Boolean(a && b && a === b);
 }
 

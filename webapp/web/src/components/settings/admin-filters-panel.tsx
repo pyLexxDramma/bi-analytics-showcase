@@ -159,7 +159,11 @@ export function AdminFiltersPanel() {
         .filter(
           (i) =>
             i.role === delForm.role &&
-            sameReport(i.report_label || i.report_name, delForm.report_name),
+            sameReport(
+              i.report_label || i.report_name,
+              delForm.report_name,
+              extraTitles,
+            ),
         )
         .map((i) => i.filter_key),
     ),

@@ -107,8 +107,15 @@ def report_display_name(
                     hits.append(title)
         for title in (*_HISTORICAL_TITLES, *(extra_titles or [])):
             t = (title or "").strip()
-            if t and _garbled_matches(s, t) and t not in hits:
-                hits.append(t)
+            if not t or not _garbled_matches(s, t):
+                continue
+            resolved = t
+            for cat_title, aliases in _catalog():
+                if t == cat_title or t in aliases:
+                    resolved = cat_title
+                    break
+            if resolved not in hits:
+                hits.append(resolved)
         if len(hits) == 1:
             return hits[0]
     return s

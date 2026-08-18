@@ -23,6 +23,10 @@ def test_report_display_name_garbled_cyrillic():
         "?" if ch.isalpha() else ch for ch in "Предписания по строительству"
     )
     assert report_display_name(prescriptions) == "Предписания по подрядчикам"
+    assert report_display_name(
+        prescriptions,
+        extra_titles=["Предписания по строительству", "Предписания по подрядчикам"],
+    ) == "Предписания по подрядчикам"
 
     schedule = "".join("?" if ch.isalpha() else ch for ch in "График проекта")
     assert report_display_name(schedule) == "График проекта"
