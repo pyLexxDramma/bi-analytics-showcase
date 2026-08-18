@@ -498,7 +498,7 @@ export function GdrsDynamicsLineChart({
         },
       ],
       layout: {
-        width: contractors && !fullscreen ? chartWidth : undefined,
+        width: fullscreen ? undefined : chartWidth,
         height,
         margin: compact
           ? { l: 40, r: 16, t: 28, b: 72 }
