@@ -509,6 +509,19 @@ def list_filters(
         rows = [
             f for f in rows if report_name_matches(f.get("report_name"), selected_report)
         ]
+    extra_titles: list[str] = []
+    seen_extra: set[str] = set()
+    for f in rows:
+        raw = (f.get("report_name") or "").strip()
+        decoded = report_display_name(raw)
+        for cand in (raw, decoded):
+            if (
+                cand
+                and not is_garbled_report_name(cand)
+                and cand not in seen_extra
+            ):
+                seen_extra.add(cand)
+                extra_titles.append(cand)
     items = []
     for f in rows:
         stored_name = f["report_name"]
@@ -521,7 +534,9 @@ def list_filters(
                 "role": f["role"],
                 "role_label": auth.get_user_role_display(f["role"]),
                 "report_name": stored_name,
-                "report_label": report_display_name(stored_name),
+                "report_label": report_display_name(
+                    stored_name, extra_titles=extra_titles
+                ),
                 "filter_key": f["filter_key"],
                 "filter_value": format_filter_value_display(f["filter_value"]),
                 "filter_type": f["filter_type"],

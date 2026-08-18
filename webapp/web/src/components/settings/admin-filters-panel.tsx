@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import {
   formatFilterValueDisplay,
+  isGarbledReportName,
   reportDisplayName,
   sameReport,
 } from "@/lib/settings-filters-display";
@@ -141,8 +142,16 @@ export function AdminFiltersPanel() {
     }
   };
 
+  const extraTitles = [
+    ...new Set(
+      items
+        .map((i) => reportDisplayName(i.report_label || i.report_name))
+        .filter((t) => Boolean(t) && !isGarbledReportName(t)),
+    ),
+  ];
+
   const rowReportLabel = (row: DefaultFilterRow) =>
-    reportDisplayName(row.report_label || row.report_name);
+    reportDisplayName(row.report_label || row.report_name, extraTitles);
 
   const keysForDel = [
     ...new Set(

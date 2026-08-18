@@ -27,6 +27,10 @@ def test_report_display_name_garbled_cyrillic():
     schedule = "".join("?" if ch.isalpha() else ch for ch in "График проекта")
     assert report_display_name(schedule) == "График проекта"
 
+    sroki = "".join("?" if ch.isalpha() else ch for ch in "Сроки проекта")
+    assert sroki == "????? ???????"
+    assert report_display_name(sroki) == "Сроки проекта"
+
 
 def test_format_filter_value_json_list():
     assert (

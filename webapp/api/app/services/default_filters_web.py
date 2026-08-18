@@ -15,6 +15,9 @@ _EXTRA_ALIASES: dict[str, tuple[str, ...]] = {
     "approved-budget": ("Утвержденный бюджет",),
 }
 
+# Старые имена из Streamlit users.db, которых нет в SCREENS.
+_HISTORICAL_TITLES: tuple[str, ...] = ("Сроки проекта",)
+
 _WILDCARD_CHARS = frozenset("?\ufffd")
 _PUNCT = frozenset(" \t/().,-–—:+")
 
@@ -81,7 +84,10 @@ def _garbled_matches(stored: str, candidate: str) -> bool:
     return wild
 
 
-def report_display_name(stored: str | None) -> str:
+def report_display_name(
+    stored: str | None,
+    extra_titles: list[str] | None = None,
+) -> str:
     """Человекочитаемое имя отчёта: nav.id и битая кириллица → title."""
     s = (stored or "").strip()
     if not s:
@@ -89,6 +95,8 @@ def report_display_name(stored: str | None) -> str:
     for title, aliases in _catalog():
         if s in aliases:
             return title
+    if s in _HISTORICAL_TITLES:
+        return s
     if any(ch in _WILDCARD_CHARS for ch in s):
         hits: list[str] = []
         for title, aliases in _catalog():
@@ -97,6 +105,10 @@ def report_display_name(stored: str | None) -> str:
                     continue
                 if _garbled_matches(s, alias) and title not in hits:
                     hits.append(title)
+        for title in (*_HISTORICAL_TITLES, *(extra_titles or [])):
+            t = (title or "").strip()
+            if t and _garbled_matches(s, t) and t not in hits:
+                hits.append(t)
         if len(hits) == 1:
             return hits[0]
     return s
