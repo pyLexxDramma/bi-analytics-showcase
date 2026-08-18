@@ -184,6 +184,31 @@ export function DebitCreditView() {
   const chartAggregation = data?.chart.aggregation ?? "by_contractor";
 
   // Сортировка только для мобильных карточек: таблица на desktop идёт в порядке API
+  const toneCounts = useMemo(() => {
+    const counts = { all: 0, red: 0, yellow: 0, green: 0 };
+    for (const row of data?.rows ?? []) {
+      counts.all += 1;
+      if (row.advance_tone === "red") counts.red += 1;
+      else if (row.advance_tone === "yellow") counts.yellow += 1;
+      else counts.green += 1;
+    }
+    return counts;
+  }, [data]);
+
+  const searchSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const row of data?.rows ?? []) {
+      for (const label of [row.contractor, row.contract]) {
+        const key = label?.trim();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(key);
+      }
+    }
+    return out;
+  }, [data]);
+
   const mobileRows = useMemo(() => {
     const rows = data?.rows ?? [];
     const dir = sortDesc ? -1 : 1;
@@ -191,7 +216,7 @@ export function DebitCreditView() {
     const filtered = rows.filter((row) => {
       if (toneFilter !== "all" && row.advance_tone !== toneFilter) return false;
       if (!q) return true;
-      const hay = `${row.contractor} ${row.contract}`.toLowerCase();
+      const hay = `${row.contractor} ${row.contract} ${row.project}`.toLowerCase();
       return hay.includes(q);
     });
     return [...filtered].sort((a, b) => {
@@ -203,6 +228,39 @@ export function DebitCreditView() {
       return dir * (av - bv);
     });
   }, [data, sortKey, sortDesc, listQuery, toneFilter]);
+
+  const filteredTotals = useMemo(() => {
+    if (!data) return null;
+    if (toneFilter === "all" && !listQuery.trim()) return data.totals;
+    const acc = {
+      contract_sum: 0,
+      advance: 0,
+      ks2: 0,
+      fulfilled: 0,
+      balance: 0,
+    };
+    for (const row of mobileRows) {
+      acc.contract_sum += Number(row.contract_sum ?? 0);
+      acc.advance += Number(row.advance ?? 0);
+      acc.ks2 += Number(row.ks2 ?? 0);
+      acc.fulfilled += Number(row.fulfilled ?? 0);
+      acc.balance += Number(row.balance ?? 0);
+    }
+    const advance_ks2 = acc.advance - acc.ks2;
+    const pct =
+      acc.contract_sum > 0 ? (advance_ks2 / acc.contract_sum) * 100 : null;
+    const tone: "green" | "yellow" | "red" =
+      pct == null
+        ? advance_ks2 <= 0
+          ? "green"
+          : "red"
+        : pct <= 30
+          ? "green"
+          : pct < 60
+            ? "yellow"
+            : "red";
+    return { ...acc, advance_ks2, advance_tone: tone };
+  }, [data, mobileRows, toneFilter, listQuery]);
   const exportTable = useCallback((): ExportTable | null => {
     if (!data?.rows.length) return null;
     return {
@@ -588,19 +646,21 @@ export function DebitCreditView() {
                 value={listQuery}
                 onChange={setListQuery}
                 placeholder="Поиск подрядчика, договора"
+                suggestions={searchSuggestions}
               />
               <MobileFilterChips
                 value={toneFilter}
                 onChange={setToneFilter}
                 options={[
-                  { id: "all", label: "Все" },
-                  { id: "red", label: "🔴 Красные" },
-                  { id: "yellow", label: "🟡 Жёлтые" },
-                  { id: "green", label: "🟢 Зелёные" },
+                  { id: "all", label: `Все ${toneCounts.all}` },
+                  { id: "red", label: `🔴 ${toneCounts.red}` },
+                  { id: "yellow", label: `🟡 ${toneCounts.yellow}` },
+                  { id: "green", label: `🟢 ${toneCounts.green}` },
                 ]}
               />
               <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
                 Показано {mobileRows.length} из {data.rows.length}
+                {toneFilter !== "all" || listQuery.trim() ? " · фильтр" : ""}
               </p>
             </div>
             <MobileSortControl
@@ -610,16 +670,31 @@ export function DebitCreditView() {
               desc={sortDesc}
               onToggleDir={() => setSortDesc((v) => !v)}
             />
+            {!mobileRows.length ? (
+              <DashboardEmptyState
+                message="Нет договоров с таким цветом или поиском."
+                onReset={() => {
+                  setToneFilter("all");
+                  setListQuery("");
+                }}
+              />
+            ) : null}
             <MobileCardStack
+              key={`${toneFilter}-${listQuery}`}
               pinned={
+                filteredTotals && mobileRows.length ? (
                 <MobileEntityCard
                   className="bi-card-pinned"
-                  title="ИТОГО"
-                  badge={toneDot(data.totals.advance_tone) || "—"}
+                  title={
+                    toneFilter === "all" && !listQuery.trim()
+                      ? "ИТОГО"
+                      : `ИТОГО · ${mobileRows.length}`
+                  }
+                  badge={toneDot(filteredTotals.advance_tone) || "—"}
                   badgeTone={
-                    data.totals.advance_tone === "red"
+                    filteredTotals.advance_tone === "red"
                       ? "bad"
-                      : data.totals.advance_tone === "yellow"
+                      : filteredTotals.advance_tone === "yellow"
                         ? "warn"
                         : "ok"
                   }
@@ -627,8 +702,8 @@ export function DebitCreditView() {
                     <MobileMetricGrid
                       columns={2}
                       items={[
-                        { label: "Обязательства", value: mln(data.totals.fulfilled) },
-                        { label: "Остаток", value: mln(data.totals.balance) },
+                        { label: "Обязательства", value: mln(filteredTotals.fulfilled) },
+                        { label: "Остаток", value: mln(filteredTotals.balance) },
                       ]}
                     />
                   }
@@ -636,16 +711,17 @@ export function DebitCreditView() {
                   <MobileMetricGrid
                     columns={2}
                     items={[
-                      { label: "Стоимость", value: mln(data.totals.contract_sum) },
-                      { label: "Аванс", value: mln(data.totals.advance) },
-                      { label: "КС-2", value: mln(data.totals.ks2) },
+                      { label: "Стоимость", value: mln(filteredTotals.contract_sum) },
+                      { label: "Аванс", value: mln(filteredTotals.advance) },
+                      { label: "КС-2", value: mln(filteredTotals.ks2) },
                       {
                         label: "Аванс − КС-2",
-                        value: `${toneDot(data.totals.advance_tone)} ${mln(data.totals.advance_ks2)}`,
+                        value: `${toneDot(filteredTotals.advance_tone)} ${mln(filteredTotals.advance_ks2)}`,
                       },
                     ]}
                   />
                 </MobileEntityCard>
+                ) : null
               }
             >
               {mobileRows.map((row, index) => (

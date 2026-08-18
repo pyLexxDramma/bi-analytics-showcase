@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
@@ -45,25 +53,116 @@ export function MobilePaneTabs<T extends string>({
   );
 }
 
+function matchMobileSuggestions(
+  options: string[],
+  query: string,
+  limit = 12,
+): string[] {
+  const needle = query.trim().toLocaleLowerCase("ru-RU");
+  if (!needle) return [];
+  const seen = new Set<string>();
+  const starts: string[] = [];
+  const mid: string[] = [];
+  for (const option of options) {
+    const key = option.trim().toLocaleLowerCase("ru-RU");
+    if (!key || seen.has(key) || !key.includes(needle)) continue;
+    seen.add(key);
+    if (key.startsWith(needle)) starts.push(option);
+    else mid.push(option);
+  }
+  return [...starts, ...mid].slice(0, limit);
+}
+
 export function MobileSearchField({
   value,
   onChange,
   placeholder = "Поиск…",
   className = "",
+  suggestions,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
+  suggestions?: string[];
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+
+  const matches = useMemo(
+    () => (suggestions?.length ? matchMobileSuggestions(suggestions, value) : []),
+    [suggestions, value],
+  );
+  const showMenu = open && matches.length > 0;
+
+  const syncPos = useCallback(() => {
+    const el = inputRef.current;
+    if (!el || !showMenu) {
+      setMenuPos(null);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const gap = 4;
+    const spaceBelow = window.innerHeight - r.bottom - gap - 12;
+    const maxHeight = Math.min(240, Math.max(120, spaceBelow));
+    setMenuPos({
+      top: r.bottom + gap,
+      left: r.left,
+      width: r.width,
+      maxHeight,
+    });
+  }, [showMenu]);
+
+  useLayoutEffect(() => {
+    syncPos();
+  }, [syncPos, matches]);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    const onDoc = (event: MouseEvent | TouchEvent) => {
+      const t = event.target as Node;
+      if (inputRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onScroll = () => syncPos();
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [showMenu, syncPos]);
+
   return (
     <div className={`relative lg:hidden ${className}`}>
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       <input
+        ref={inputRef}
         type="search"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
         placeholder={placeholder}
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        role="combobox"
+        aria-expanded={showMenu}
+        aria-autocomplete="list"
         className="min-h-11 w-full rounded-xl border border-tremor-border bg-tremor-background py-2 pl-9 pr-9 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
       />
       {value ? (
@@ -71,11 +170,48 @@ export function MobileSearchField({
           type="button"
           className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500"
           aria-label="Очистить поиск"
-          onClick={() => onChange("")}
+          onClick={() => {
+            onChange("");
+            setOpen(false);
+          }}
         >
           <X className="h-4 w-4" />
         </button>
       ) : null}
+      {showMenu && menuPos && typeof document !== "undefined"
+        ? createPortal(
+            <ul
+              ref={listRef}
+              role="listbox"
+              className="fixed overflow-y-auto overscroll-contain rounded-xl border border-tremor-border bg-tremor-background py-1 text-sm shadow-xl dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              style={{
+                top: menuPos.top,
+                left: menuPos.left,
+                width: menuPos.width,
+                maxHeight: menuPos.maxHeight,
+                zIndex: 90,
+              }}
+            >
+              {matches.map((option) => (
+                <li key={option} role="option">
+                  <button
+                    type="button"
+                    className="block min-h-11 w-full truncate px-3 py-2 text-left text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      tapFeedback();
+                      onChange(option);
+                      setOpen(false);
+                    }}
+                  >
+                    {option}
+                  </button>
+                </li>
+              ))}
+            </ul>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
