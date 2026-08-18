@@ -697,7 +697,7 @@ export function BaselineDeviationView() {
                   </MobileCardStack>
                   <div className="hidden lg:block">
                     <div className="bi-table-scroll">
-                    <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
+                    <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-center text-xs">
                       <thead>
                         <tr>
                           {covenantColumns.map((label) => (
@@ -980,7 +980,7 @@ export function BaselineDeviationView() {
                 </MobileCardStack>
                 <div className="hidden lg:block">
                   <div className="max-h-[36rem] overflow-auto">
-                  <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-left text-xs">
+                  <table className="bi-sticky-head bi-sticky-col min-w-full border-separate border-spacing-0 text-center text-xs">
                     <thead>
                       <tr>
                         {columns.map((label) => (

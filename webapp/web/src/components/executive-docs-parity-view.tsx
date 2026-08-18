@@ -331,7 +331,7 @@ export function ExecutiveDocsParityView() {
             данных» — по текущей выгрузке до фильтров.
           </Text>
           <div className="bi-table-scroll overflow-x-auto rounded-lg border border-tremor-border dark:border-dark-tremor-border">
-            <table className="bi-sticky-head bi-sticky-col min-w-full text-left text-sm">
+            <table className="bi-sticky-head bi-sticky-col min-w-full text-center text-sm">
               <thead>
                 <tr className="bg-tremor-background-subtle dark:bg-dark-tremor-background-subtle">
                   {(
@@ -586,7 +586,7 @@ export function ExecutiveDocsParityView() {
                     onReset={activeFilters.length ? reset : undefined}
                   />
                 ) : (
-                  <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-left text-sm">
+                  <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-center text-sm">
                     <thead>
                       <tr>
                         {DETAIL_COLS.map(([key, label]) => (

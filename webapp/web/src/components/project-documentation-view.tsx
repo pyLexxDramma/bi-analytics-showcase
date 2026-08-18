@@ -950,7 +950,7 @@ function ProjectDocumentationScreen({
                             <td className={cell} style={stickyTint.style}>
                               {row.project}
                             </td>
-                            <td className={`${cell} max-w-xs truncate text-left`} style={tint.style}>
+                            <td className={`${cell} max-w-xs truncate text-center`} style={tint.style}>
                               {row.work_name}
                             </td>
                             <td className={cell} style={tint.style}>

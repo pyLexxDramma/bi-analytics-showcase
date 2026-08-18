@@ -601,7 +601,7 @@ export function PrescriptionsView() {
                 /* shrink-wrap: иначе table width:auto = 100% карточки и колонки раздуваются */
                 <div className="w-max max-w-none">
                   <table
-                    className="bi-sticky-head border-separate border-spacing-0 text-left text-sm"
+                    className="bi-sticky-head border-separate border-spacing-0 text-center text-sm"
                     style={{ width: "max-content" }}
                   >
                     <thead>

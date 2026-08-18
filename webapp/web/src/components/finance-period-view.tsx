@@ -34,7 +34,7 @@ function joinMulti(values: string[], allToken = "Все"): string | undefined {
 }
 
 const tableCell =
-  "bi-num px-3 py-2 text-right tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong";
+  "bi-num px-3 py-2 text-center tabular-nums text-tremor-content-strong dark:text-dark-tremor-content-strong";
 
 export function FinancePeriodView({
   title,
@@ -281,15 +281,15 @@ function PeriodTable({
         ))}
       </MobileCardStack>
       <div className="bi-table-scroll hidden overflow-x-auto lg:block">
-        <table className="bi-sticky-head bi-sticky-col min-w-full text-left text-tremor-default">
+        <table className="bi-sticky-head bi-sticky-col min-w-full text-center text-tremor-default">
           <thead className="bg-tremor-background-subtle text-tremor-label uppercase text-tremor-content dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content">
             <tr>
               <th className="bg-tremor-background-subtle px-3 py-2 dark:bg-dark-tremor-background-subtle">
                 {label === "period" ? "Период" : "Проект"}
               </th>
-              <th className="bg-tremor-background-subtle px-3 py-2 text-right dark:bg-dark-tremor-background-subtle">План</th>
-              <th className="bg-tremor-background-subtle px-3 py-2 text-right dark:bg-dark-tremor-background-subtle">Факт</th>
-              <th className="bg-tremor-background-subtle px-3 py-2 text-right dark:bg-dark-tremor-background-subtle">Отклонение</th>
+              <th className="bg-tremor-background-subtle px-3 py-2 text-center dark:bg-dark-tremor-background-subtle">План</th>
+              <th className="bg-tremor-background-subtle px-3 py-2 text-center dark:bg-dark-tremor-background-subtle">Факт</th>
+              <th className="bg-tremor-background-subtle px-3 py-2 text-center dark:bg-dark-tremor-background-subtle">Отклонение</th>
             </tr>
           </thead>
           <tbody className="bg-tremor-background dark:bg-dark-tremor-background">

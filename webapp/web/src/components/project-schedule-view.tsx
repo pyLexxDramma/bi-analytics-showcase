@@ -615,7 +615,7 @@ export function ProjectScheduleView() {
               </MobileDetailSheet>
               <div className="hidden p-1 lg:block">
                 <div className="max-h-[32rem] overflow-auto">
-                  <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-left text-[13px]">
+                  <table className="bi-sticky-head bi-sticky-col min-w-full border-collapse text-center text-[13px]">
                     <thead>
                       <tr>
                         {columnLabels.map((label) => {
@@ -648,16 +648,16 @@ export function ProjectScheduleView() {
                           key={`${row.project}-${row.task_id ?? row.task}-${index}`}
                           className="bi-row-alt hover:bg-[#f3f4f6] dark:hover:bg-slate-800/40"
                         >
-                          <td className={`${TD} text-left font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
+                          <td className={`${TD} text-center font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
                             {row.project}
                           </td>
                           {showLots ? (
-                            <td className={`${TD} max-w-xs truncate text-left`}>{row.task}</td>
+                            <td className={`${TD} max-w-xs truncate text-center`}>{row.task}</td>
                           ) : (
                             <>
                               <td className={`${TD} bi-num tabular-nums`}>{row.task_id ?? ""}</td>
                               <td className={`${TD} bi-num tabular-nums`}>{row.level ?? ""}</td>
-                              <td className={`${TD} max-w-xs truncate text-left text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
+                              <td className={`${TD} max-w-xs truncate text-center text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
                                 {row.task}
                               </td>
                             </>

@@ -192,7 +192,7 @@ function WideMatrixTable({
         {projects.map((row) => (
           <tr key={row.project} className="bi-row-alt">
             <td
-              className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-left font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
+              className={`sticky left-0 z-10 ${CELL} ${EDGE_R} bg-[#f9fafb] px-3 py-2 text-center font-bold text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
             >
               {row.project}
             </td>
@@ -297,7 +297,7 @@ function MobileMilestoneSections({
               <thead>
                 <tr className="text-[10px]">
                   <th
-                    className={`${CELL} ${HEAD_BOTTOM} bg-[#e8f0fe] px-1.5 py-1.5 text-left font-bold text-[#111827] dark:bg-[#1a3328] dark:text-[#f0f4f8]`}
+                    className={`${CELL} ${HEAD_BOTTOM} bg-[#e8f0fe] px-1.5 py-1.5 text-center font-bold text-[#111827] dark:bg-[#1a3328] dark:text-[#f0f4f8]`}
                   >
                     Проект
                   </th>
@@ -319,7 +319,7 @@ function MobileMilestoneSections({
                   return (
                     <tr key={`${col.key}-${row.project}`} className="bi-row-alt">
                       <td
-                        className={`${CELL} bg-[#f9fafb] px-1.5 py-2 text-left text-[11px] font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
+                        className={`${CELL} bg-[#f9fafb] px-1.5 py-2 text-center text-[11px] font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8]`}
                       >
                         <MobileProjectName value={row.project} />
                       </td>

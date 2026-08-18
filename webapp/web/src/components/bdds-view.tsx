@@ -74,7 +74,7 @@ const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
 const HEAD_CELL =
   "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8]";
 const TABLE =
-  "min-w-full border-collapse border-2 border-[#94a3b8] text-left text-tremor-default dark:border-[#7a9ec4]";
+  "min-w-full border-collapse border-2 border-[#94a3b8] text-center text-tremor-default dark:border-[#7a9ec4]";
 const BANNER =
   "!bg-[#e2e8f0] px-3 py-2 font-bold text-[#111827] dark:!bg-slate-600/50 dark:text-[#f0f4f8]";
 const TOTAL_ROW =
@@ -253,7 +253,7 @@ function MobilePeriodBlocks({
           <div className={`${BANNER} border-b border-[#94a3b8] dark:border-[#7a9ec4]`}>
             {block.project}
           </div>
-          <table className="w-full table-fixed border-collapse text-left text-xs">
+          <table className="w-full table-fixed border-collapse text-center text-xs">
             <colgroup>
               <col className="w-[28%]" />
               <col className="w-[24%]" />

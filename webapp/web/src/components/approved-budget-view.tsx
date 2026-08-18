@@ -36,7 +36,7 @@ type ProjectMetric = "plan" | "fact" | "remainder" | "deviation" | "completion_p
 const INITIAL: Filters = { projects: [], fiz: "Все", hide_zero: null, show_deviation: true };
 const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
 const HEAD = "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8]";
-const TABLE = "min-w-full border-collapse border-2 border-[#94a3b8] text-left text-tremor-default dark:border-[#7a9ec4]";
+const TABLE = "min-w-full border-collapse border-2 border-[#94a3b8] text-center text-tremor-default dark:border-[#7a9ec4]";
 const BODY = "px-3 py-2 text-tremor-content-strong dark:text-dark-tremor-content-strong";
 const TOTAL =
   "border-t-[3px] border-t-[#94a3b8] !bg-[#f1f5f9] font-bold dark:border-t-white dark:!bg-[#16283a]";

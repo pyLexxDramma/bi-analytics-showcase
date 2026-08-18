@@ -907,7 +907,7 @@ export function DeviationReasonsView() {
                             className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
                           >
                             <td className={`${TD} font-medium`}>{row.project}</td>
-                            <td className={`${TD} max-w-md text-left`}>{row.reason}</td>
+                            <td className={`${TD} max-w-md text-center`}>{row.reason}</td>
                             <td className={`${TD} tabular-nums`}>{row.count}</td>
                             <td className={`${TD} tabular-nums`}>{row.days}</td>
                           </tr>
@@ -1074,7 +1074,7 @@ export function DeviationReasonsView() {
                           </td>
                           <td className={`${TD} font-medium`}>{row.project}</td>
                           <td className={TD}>{row.block ?? "—"}</td>
-                          <td className={`${TD} max-w-xs text-left`}>
+                          <td className={`${TD} max-w-xs text-center`}>
                             {row.task ?? "—"}
                           </td>
                           <td className={TD}>{row.building ?? "—"}</td>
@@ -1090,12 +1090,12 @@ export function DeviationReasonsView() {
                             {row.end_diff_days ?? "—"}
                           </td>
                           <td
-                            className={`${TD} max-w-xs text-left font-semibold`}
+                            className={`${TD} max-w-xs text-center font-semibold`}
                             style={{ borderLeft: `4px solid ${row.bucket_color}` }}
                           >
                             {row.reason}
                           </td>
-                          <td className={`${TD} max-w-md whitespace-normal text-left`}>
+                          <td className={`${TD} max-w-md whitespace-normal text-center`}>
                             {row.notes ?? "—"}
                           </td>
                         </tr>

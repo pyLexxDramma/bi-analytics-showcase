@@ -54,7 +54,7 @@ const HEAD =
   "border border-[#cbd5e1] bg-[#e8f0fe] px-1.5 py-2 text-[11px] font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8] whitespace-nowrap";
 const CELL = "border border-[#cbd5e1] bg-tremor-background px-1.5 py-1 text-xs dark:border-[#7a9ec4] dark:bg-dark-tremor-background";
 const TABLE =
-  "w-full min-w-[980px] border-collapse border-2 border-[#94a3b8] text-left dark:border-[#7a9ec4]";
+  "w-full min-w-[980px] border-collapse border-2 border-[#94a3b8] text-center dark:border-[#7a9ec4]";
 const FIELD =
   "text-[10px] font-semibold uppercase tracking-wide text-[#64748b] dark:text-slate-400";
 /** Правые A/B/C всегда видны при горизонтальном скролле. */
@@ -1373,35 +1373,35 @@ export function BddsPlanFactEditor({
                 <thead>
                   <tr>
                     <th className={HEAD}>Лот</th>
-                    <th className={`${HEAD} text-right`}>БДДС план, млн</th>
-                    <th className={`${HEAD} text-right`}>БДДС факт, млн</th>
-                    <th className={`${HEAD} text-right`}>
+                    <th className={`${HEAD} text-center`}>БДДС план, млн</th>
+                    <th className={`${HEAD} text-center`}>БДДС факт, млн</th>
+                    <th className={`${HEAD} text-center`}>
                       {lotRecalc.forecast_uniform_column}
                     </th>
-                    <th className={`${HEAD} text-right`}>
+                    <th className={`${HEAD} text-center`}>
                       {lotRecalc.forecast_cond_column}
                     </th>
-                    <th className={`${HEAD} text-right`}>{lotRecalc.delta_column}</th>
+                    <th className={`${HEAD} text-center`}>{lotRecalc.delta_column}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lotRecalc.rows.map((row) => (
                     <tr key={row.lot}>
                       <td className={CELL}>{row.lot}</td>
-                      <td className={`${CELL} text-right tabular-nums`}>
+                      <td className={`${CELL} text-center tabular-nums`}>
                         {row.plan_mln.toFixed(1)}
                       </td>
-                      <td className={`${CELL} text-right tabular-nums`}>
+                      <td className={`${CELL} text-center tabular-nums`}>
                         {row.fact_mln.toFixed(1)}
                       </td>
-                      <td className={`${CELL} text-right tabular-nums`}>
+                      <td className={`${CELL} text-center tabular-nums`}>
                         {row.forecast_uniform_mln.toFixed(1)}
                       </td>
-                      <td className={`${CELL} text-right tabular-nums`}>
+                      <td className={`${CELL} text-center tabular-nums`}>
                         {row.forecast_cond_mln.toFixed(1)}
                       </td>
                       <td
-                        className={`${CELL} text-right tabular-nums ${deltaClass(row.delta_mln)}`}
+                        className={`${CELL} text-center tabular-nums ${deltaClass(row.delta_mln)}`}
                       >
                         {row.delta_mln.toFixed(1)}
                       </td>

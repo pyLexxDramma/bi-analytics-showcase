@@ -50,4 +50,4 @@ export function InfoBanner({ children }: { children: React.ReactNode }) {
 }
 
 export const SETTINGS_TABLE =
-  "min-w-full border-collapse text-sm [&_th]:border-b [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border-b [&_td]:border-gray-100 [&_td]:px-3 [&_td]:py-2 dark:[&_th]:border-dark-tremor-border dark:[&_th]:bg-dark-tremor-background-subtle dark:[&_td]:border-dark-tremor-border";
+  "min-w-full border-collapse text-sm [&_th]:border-b [&_th]:border-gray-200 [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-center [&_th]:font-semibold [&_td]:border-b [&_td]:border-gray-100 [&_td]:px-3 [&_td]:py-2 dark:[&_th]:border-dark-tremor-border dark:[&_th]:bg-dark-tremor-background-subtle dark:[&_td]:border-dark-tremor-border";

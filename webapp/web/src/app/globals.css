@@ -73,10 +73,16 @@ html.dark [tabindex]:focus-visible {
   outline-color: #60a5fa;
 }
 
-/* Числа в таблицах / KPI */
+/* Числа в таблицах / KPI — табулярные цифры, выравнивание как у всех ячеек. */
 .bi-num {
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
+}
+
+/* Общее правило UI: содержимое всех ячеек таблиц по центру. */
+table :is(th, td) {
+  text-align: center !important;
+  vertical-align: middle;
 }
 
 .bi-row-alt:nth-child(even) > td,

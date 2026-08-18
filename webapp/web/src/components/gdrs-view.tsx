@@ -894,17 +894,17 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 <tbody>
                   {projectRows.map((r) => (
                     <tr key={r.project} className="bi-row-alt">
-                      <td style={td({ textAlign: "left" })}>{r.project}</td>
-                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                      <td style={td({ textAlign: "center" })}>{r.project}</td>
+                      <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
                       </td>
-                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                      <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.skudBg })}>
                         {fmtInt(r.fact)}
                       </td>
                       <td
                         className="bi-num"
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           ...dev(r.deviation),
                         })}
                       >
@@ -913,7 +913,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       <td
                         className="bi-num"
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           ...dev(r.delta_pct),
                         })}
                       >
@@ -925,7 +925,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <tr>
                       <td
                         style={td({
-                          textAlign: "left",
+                          textAlign: "center",
                           fontWeight: 700,
                           backgroundColor: pal.grandBg,
                         })}
@@ -934,7 +934,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           backgroundColor: pal.planBold,
                         })}
@@ -943,7 +943,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           backgroundColor: pal.skudBold,
                         })}
@@ -952,7 +952,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           ...dev(data.kpis.deviation),
                         })}
@@ -961,7 +961,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           ...dev(data.kpis.delta_pct),
                         })}
@@ -1230,7 +1230,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <tr key={`${r.kind}-${r.label}-${i}`}>
                       <td
                         style={td({
-                          textAlign: "left",
+                          textAlign: "center",
                           fontWeight: bold ? 700 : 500,
                           backgroundColor: stickyBg,
                           color:
@@ -1247,7 +1247,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "left",
+                          textAlign: "center",
                           backgroundColor: stickyBg,
                           position: "sticky",
                           left: "12rem",
@@ -1261,7 +1261,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: bold ? 700 : undefined,
                           backgroundColor: bold ? pal.planBold : pal.planBg,
                         })}
@@ -1270,7 +1270,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: bold ? 700 : undefined,
                           backgroundColor: bold ? pal.skudBold : pal.skudBg,
                         })}
@@ -1279,7 +1279,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: bold ? 700 : undefined,
                           ...dev(r.deviation),
                         })}
@@ -1288,7 +1288,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: bold ? 700 : undefined,
                           ...dev(r.delta_pct),
                         })}
@@ -1300,7 +1300,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                             <td
                               key={k}
                               style={td({
-                                textAlign: "right",
+                                textAlign: "center",
                                 backgroundColor: pal.planBg,
                               })}
                             >
@@ -1317,7 +1317,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                             <td
                               key={k}
                               style={td({
-                                textAlign: "right",
+                                textAlign: "center",
                                 backgroundColor: pal.skudBg,
                               })}
                             >
@@ -1468,17 +1468,17 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 <tbody>
                   {dynamicsRows.map((r) => (
                     <tr key={r.period} className="bi-row-alt">
-                      <td style={td({ textAlign: "left" })}>{r.period}</td>
-                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                      <td style={td({ textAlign: "center" })}>{r.period}</td>
+                      <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
                       </td>
-                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                      <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.skudBg })}>
                         {fmtInt(r.fact)}
                       </td>
                       <td
                         className="bi-num"
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           ...dev(r.deviation),
                         })}
                       >
@@ -1487,7 +1487,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       <td
                         className="bi-num"
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           ...dev(r.delta_pct),
                         })}
                       >
@@ -1561,23 +1561,23 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 <tbody>
                   {contractorRows.map((r) => (
                     <tr key={r.contractor} className="bi-row-alt">
-                      <td style={td({ textAlign: "left" })}>{r.contractor}</td>
-                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.planBg })}>
+                      <td style={td({ textAlign: "center" })}>{r.contractor}</td>
+                      <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
                       </td>
-                      <td className="bi-num" style={td({ textAlign: "right", backgroundColor: pal.skudBg })}>
+                      <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.skudBg })}>
                         {fmtInt(r.fact)}
                       </td>
                       <td
                         className="bi-num"
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           ...dev(r.deviation),
                         })}
                       >
                         {fmtSigned(r.deviation)}
                       </td>
-                      <td className="bi-num" style={td({ textAlign: "right" })}>
+                      <td className="bi-num" style={td({ textAlign: "center" })}>
                         {fmtPct(r.share_pct)}
                       </td>
                     </tr>
@@ -1586,7 +1586,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     <tr>
                       <td
                         style={td({
-                          textAlign: "left",
+                          textAlign: "center",
                           fontWeight: 700,
                           backgroundColor: pal.grandBg,
                         })}
@@ -1595,7 +1595,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           backgroundColor: pal.planBold,
                         })}
@@ -1604,7 +1604,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           backgroundColor: pal.skudBold,
                         })}
@@ -1613,7 +1613,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           ...dev(contractorTotal.deviation),
                         })}
@@ -1622,7 +1622,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       </td>
                       <td
                         style={td({
-                          textAlign: "right",
+                          textAlign: "center",
                           fontWeight: 700,
                           backgroundColor: pal.grandBg,
                         })}

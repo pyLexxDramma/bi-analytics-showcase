@@ -206,7 +206,7 @@ function ControlPointsDesktopTable({
           {projects.map((project) => (
             <tr key={project.project} className="bi-row-alt">
               <td
-                className={`sticky left-0 z-10 bg-[#f9fafb] px-0.5 py-1 text-left font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8] ${
+                className={`sticky left-0 z-10 bg-[#f9fafb] px-0.5 py-1 text-center font-bold leading-snug text-[#111827] dark:bg-[#161f2b] dark:text-[#f0f4f8] ${
                   dense
                     ? "border border-[#cbd5e1] border-r-2 border-r-[#94a3b8] text-[9px] dark:border-[#5a6f82] dark:border-r-white xl:text-[10px]"
                     : `${CELL} ${EDGE_R} text-[10px] xl:text-[11px]`
