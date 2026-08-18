@@ -346,23 +346,13 @@ export function PdMonthlyCumulativeChart({
         "<b>%{customdata}</b><br>%{fullData.name} (накопительно): %{x}<extra></extra>",
     };
 
-    const annotations = chronological
-      .map((_, i) => {
-        const v = factInc[i];
-        if (!(v > 0)) return null;
-        const tip = Math.max(plan[i], fact[i] + overdue[i], fact[i], overdue[i]);
-        return {
-          x: tip,
-          y: i,
-          text: `+${Math.round(v)}`,
-          showarrow: false,
-          xanchor: "left" as const,
-          yanchor: "middle" as const,
-          xshift: 8,
-          font: { size: tipFont, color: tipColor },
-        };
-      })
-      .filter(Boolean);
+    const labelX = chronological.map((_, i) =>
+      Math.max(plan[i], fact[i] + overdue[i], fact[i], overdue[i]),
+    );
+    const labelText = chronological.map((_, i) => {
+      const shown = factInc[i] > 0 ? factInc[i] : fact[i];
+      return shown > 0 ? `+${Math.round(shown)}` : "";
+    });
 
     // Overlay: жёлтый план на всю длину; зелёный факт от 0; красный просрочка от конца факта.
     // Иначе при fact≈0 overdue полностью перекрывает план.
@@ -393,17 +383,28 @@ export function PdMonthlyCumulativeChart({
           width: 0.38,
           customdata: labels,
         },
+        {
+          type: "scatter",
+          mode: "text",
+          x: labelX,
+          y: yIdx,
+          text: labelText,
+          textposition: "middle right",
+          textfont: { size: tipFont, color: tipColor, family: "Inter, system-ui, sans-serif" },
+          cliponaxis: false,
+          hoverinfo: "skip",
+          showlegend: false,
+        },
       ],
       layout: {
         height,
         barmode: "overlay" as const,
         bargap: 0.28,
         margin: compact
-          ? { l: 8, r: 72, t: 12, b: 96 }
-          : { l: 16, r: 80, t: 48, b: 96 },
+          ? { l: 8, r: 88, t: 12, b: 96 }
+          : { l: 16, r: 96, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
-        annotations,
         legend: plotlyLegendUnderLeft({
           fontSize: compact ? 11 : 12,
           labelColor: theme.axis,
@@ -414,7 +415,7 @@ export function PdMonthlyCumulativeChart({
             text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * (compact ? 1.32 : 1.14)],
+          range: [0, xMax * (compact ? 1.38 : 1.22)],
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
@@ -509,6 +510,7 @@ export function PdDelayGanttChart({
     const dateLabelFont = Math.max(11, Math.round(labelFont * 1.5));
 
     const arrowY: string[] = [];
+    const arrowStartX: number[] = [];
     const arrowX: number[] = [];
     const arrowCd: string[] = [];
 
@@ -560,10 +562,11 @@ export function PdDelayGanttChart({
       }
 
       const arrowMs = lateComplete ? finMs ?? delayEndMs : null;
-      if (arrowMs != null) {
+      const arrowFrom = startMs ?? bfMs;
+      if (arrowMs != null && arrowFrom != null) {
         arrowY.push(y);
-        // Смещаем вправо от конца красной полосы — тело triangle-right иначе тонет в заливке.
-        arrowX.push(arrowMs + 4 * DAY_MS);
+        arrowStartX.push(arrowFrom);
+        arrowX.push(arrowMs);
         arrowCd.push(
           row.finish_label
             ? `Сдано с опозданием: ${row.finish_label}`
@@ -675,7 +678,7 @@ export function PdDelayGanttChart({
     if (arrowY.length) {
       for (let i = 0; i < arrowY.length; i++) {
         const tip = Number(arrowX[i]);
-        const stemStart = tip - 10 * DAY_MS;
+        const stemStart = Number(arrowStartX[i]);
         data.push({
           type: "scatter",
           mode: "lines+markers",
@@ -683,10 +686,10 @@ export function PdDelayGanttChart({
           showlegend: i === 0,
           y: [arrowY[i], arrowY[i]],
           x: [stemStart, tip],
-          line: { color: PD_GANTT_GREEN, width: 6 },
+          line: { color: PD_GANTT_GREEN, width: compact ? 7 : 9 },
           marker: {
             symbol: ["circle", "triangle-right"],
-            size: [6, compact ? 18 : 22],
+            size: [7, compact ? 16 : 20],
             color: PD_GANTT_GREEN,
             line: { width: 1, color: "#145a32" },
           },
