@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { chartLegendHostFrom } from "@/lib/chart-legend-host";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { usePinnedHScrollModebar } from "@/lib/use-pinned-hscroll-modebar";
 
@@ -162,7 +163,7 @@ export function GdrsGroupedBarChart({
         },
       ],
       layout: {
-        width: chartWidth,
+        width: contractors && !fullscreen ? chartWidth : undefined,
         height,
         barmode: "group" as const,
         bargap: 0.22,
@@ -239,7 +240,7 @@ export function GdrsGroupedBarChart({
           layout={figure.layout}
           config={figure.config}
           useResizeHandler={!scrollEnabled}
-          style={{ width: contractors ? "max-content" : "100%", height: "100%" }}
+          style={{ width: contractors && !fullscreen ? "max-content" : "100%", height: "100%" }}
         />
       </div>
       <ChartHtmlLegend
@@ -377,15 +378,24 @@ export function GdrsContractorsPieChart({
             const pct = total > 0 ? Math.round((value / total) * 100) : 0;
             return (
               <li key={`${row.name}-${i}`} className="flex items-start gap-2">
-                <span
-                  className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1 leading-snug">{row.name}</span>
-                <span className="shrink-0 tabular-nums text-tremor-content dark:text-dark-tremor-content">
-                  {Math.round(value)} · {pct}%
-                </span>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                  title="Скрыть/показать на графике"
+                  onClick={(event) => {
+                    chartLegendHostFrom(event.currentTarget)?.toggle(row.name);
+                  }}
+                >
+                  <span
+                    className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 leading-snug">{row.name}</span>
+                  <span className="shrink-0 tabular-nums text-tremor-content dark:text-dark-tremor-content">
+                    {Math.round(value)} · {pct}%
+                  </span>
+                </button>
               </li>
             );
           })}
@@ -488,7 +498,7 @@ export function GdrsDynamicsLineChart({
         },
       ],
       layout: {
-        width: chartWidth,
+        width: contractors && !fullscreen ? chartWidth : undefined,
         height,
         margin: compact
           ? { l: 40, r: 16, t: 28, b: 72 }

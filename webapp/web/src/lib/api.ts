@@ -2424,6 +2424,7 @@ export type DefaultFilterRow = {
   role: string;
   role_label: string;
   report_name: string;
+  report_label?: string;
   filter_key: string;
   filter_value: string | null;
   filter_type: string;
@@ -2473,6 +2474,7 @@ export async function postSettingsCopyFilters(body: {
 export async function fetchReportConfig(): Promise<{
   values: Record<string, string>;
   descriptions: Record<string, string>;
+  defaults?: Record<string, string>;
 }> {
   return apiGet("/api/settings/report-config", {}, { headers: authHeaders() });
 }

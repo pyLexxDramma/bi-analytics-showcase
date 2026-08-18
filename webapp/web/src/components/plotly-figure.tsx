@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import Plotly from "plotly.js-dist-min";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { useChartInteractive } from "@/lib/chart-interaction";
+import { bindChartLegendHost } from "@/lib/chart-legend-host";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 /**
@@ -41,10 +42,26 @@ function withoutHoverLayout(
   lockGestures: boolean,
 ): PlotProps["layout"] {
   const base =
-    layout && typeof layout === "object" ? { ...(layout as object) } : {};
+    layout && typeof layout === "object"
+      ? { ...(layout as Record<string, unknown>) }
+      : {};
+  const hasFixedWidth = typeof base.width === "number";
+  if (!hasFixedWidth) {
+    delete base.width;
+    base.autosize = true;
+  }
+  const prevLegend =
+    base.legend && typeof base.legend === "object"
+      ? (base.legend as Record<string, unknown>)
+      : {};
   return {
     ...base,
     hovermode: false,
+    legend: {
+      ...prevLegend,
+      itemclick: prevLegend.itemclick ?? "toggle",
+      itemdoubleclick: prevLegend.itemdoubleclick ?? "toggleothers",
+    },
     ...(lockGestures ? { dragmode: false } : {}),
   } as PlotProps["layout"];
 }
@@ -61,6 +78,53 @@ function withoutGestureConfig(
     scrollZoom: false,
     doubleClick: false,
   } as PlotProps["config"];
+}
+
+function legendNameHidden(name: string, hidden: Set<string>): boolean {
+  const n = name.trim();
+  if (hidden.has(name) || hidden.has(n)) return true;
+  for (const item of hidden) {
+    if (item.trim() === n) return true;
+  }
+  return false;
+}
+
+function applyLegendHidden(
+  data: PlotProps["data"],
+  hidden: Set<string>,
+): PlotProps["data"] {
+  if (!Array.isArray(data) || hidden.size === 0) {
+    if (!Array.isArray(data)) return data;
+    return data.map((trace) => {
+      if (!trace || typeof trace !== "object") return trace;
+      const t = trace as { type?: string; visible?: unknown };
+      if (t.type === "pie") return { ...trace, hiddenlabels: [] };
+      if (t.visible === "legendonly") return { ...trace, visible: true };
+      return trace;
+    }) as PlotProps["data"];
+  }
+  return data.map((trace) => {
+    if (!trace || typeof trace !== "object") return trace;
+    const t = trace as {
+      type?: string;
+      name?: string;
+      labels?: unknown[];
+      visible?: unknown;
+    };
+    if (t.visible === false) return trace;
+    if (t.type === "pie") {
+      const labels = (t.labels ?? []).map(String);
+      const hiddenlabels = labels.filter((lab) =>
+        [...hidden].some((name) => lab === name || lab.startsWith(`${name} (`)),
+      );
+      return { ...trace, hiddenlabels };
+    }
+    if (typeof t.name === "string" && legendNameHidden(t.name, hidden)) {
+      return { ...trace, visible: "legendonly" };
+    }
+    if (t.visible === "legendonly") return { ...trace, visible: true };
+    return trace;
+  }) as PlotProps["data"];
 }
 
 /** Высота из layout, если задана числом — плейсхолдер не «прыгает». */
@@ -118,7 +182,28 @@ export default function PlotlyFigure(props: PlotProps) {
     return () => window.removeEventListener("beforeprint", show);
   }, [visible]);
 
-  const data = useMemo(() => withoutHoverData(props.data), [props.data]);
+  const [legendHidden, setLegendHidden] = useState<Set<string>>(() => new Set());
+  const legendHiddenRef = useRef(legendHidden);
+  legendHiddenRef.current = legendHidden;
+  const legendListeners = useRef(new Set<() => void>());
+
+  const toggleLegend = useCallback((name: string) => {
+    setLegendHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    legendListeners.current.forEach((fn) => fn());
+  }, [legendHidden]);
+
+  const data = useMemo(
+    () => applyLegendHidden(withoutHoverData(props.data), legendHidden),
+    [props.data, legendHidden],
+  );
   const layout = useMemo(
     () => withoutHoverLayout(props.layout, lockGestures),
     [props.layout, lockGestures],
@@ -127,6 +212,79 @@ export default function PlotlyFigure(props: PlotProps) {
     () => withoutGestureConfig(props.config, lockGestures),
     [props.config, lockGestures],
   );
+
+  // `height: 100%` в контейнере без заданной высоты Plotly вместе с
+  // useResizeHandler иногда схлопывает в 0 — график остаётся пустым листом.
+  // Числовая высота из layout делает контейнер определённым.
+  const heightPx = layoutHeight(props.layout);
+  const fillWidth =
+    props.style?.width == null ||
+    props.style.width === "100%" ||
+    props.style.width === "100";
+  const style =
+    heightPx && (props.style?.height == null || props.style.height === "100%")
+      ? {
+          ...props.style,
+          ...(fillWidth ? { width: "100%" } : {}),
+          height: heightPx,
+        }
+      : props.style;
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    return bindChartLegendHost(el, {
+      get hidden() {
+        return legendHiddenRef.current;
+      },
+      toggle: toggleLegend,
+      subscribe: (listener) => {
+        legendListeners.current.add(listener);
+        return () => {
+          legendListeners.current.delete(listener);
+        };
+      },
+    });
+  }, [visible, toggleLegend]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const wrap = wrapRef.current;
+    if (!wrap || !fillWidth) return;
+
+    const resize = () => {
+      const gd = wrap.querySelector(".js-plotly-plot") as
+        | (HTMLElement & { data?: unknown })
+        | null;
+      if (!gd || !gd.data) return;
+      try {
+        Plotly.Plots.resize(gd);
+      } catch {
+        /* график ещё не готов */
+      }
+    };
+
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(resize);
+    });
+    ro.observe(wrap);
+    window.addEventListener("resize", resize);
+    document.addEventListener("fullscreenchange", resize);
+    document.addEventListener("webkitfullscreenchange", resize);
+    const t0 = window.setTimeout(resize, 0);
+    const t1 = window.setTimeout(resize, 160);
+    const t2 = window.setTimeout(resize, 480);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("fullscreenchange", resize);
+      document.removeEventListener("webkitfullscreenchange", resize);
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [visible, fillWidth, layout, heightPx]);
 
   if (!visible) {
     return (
@@ -139,22 +297,20 @@ export default function PlotlyFigure(props: PlotProps) {
     );
   }
 
-  // `height: 100%` в контейнере без заданной высоты Plotly вместе с
-  // useResizeHandler иногда схлопывает в 0 — график остаётся пустым листом.
-  // Числовая высота из layout делает контейнер определённым.
-  const heightPx = layoutHeight(props.layout);
-  const style =
-    heightPx && (props.style?.height == null || props.style.height === "100%")
-      ? { ...props.style, height: heightPx }
-      : props.style;
-
   return (
-    <RawPlotlyFigure
-      {...props}
-      data={data}
-      layout={layout}
-      config={config}
-      style={style}
-    />
+    <div
+      ref={wrapRef}
+      className="bi-plotly-host min-w-0 w-full"
+      style={{ height: heightPx ?? style?.height ?? "100%" }}
+    >
+      <RawPlotlyFigure
+        {...props}
+        data={data}
+        layout={layout}
+        config={config}
+        useResizeHandler={fillWidth ? true : props.useResizeHandler}
+        style={style}
+      />
+    </div>
   );
 }

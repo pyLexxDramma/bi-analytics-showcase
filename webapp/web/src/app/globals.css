@@ -428,6 +428,35 @@ html.dark tr.bi-row-alt:nth-child(even) > td {
   }
 }
 
+/*
+ * Fullscreen API на div не меняет window — Plotly остаётся ширины карточки.
+ * Хост и полотно тянем на 100%; фактический redraw — ResizeObserver в PlotlyFigure.
+ */
+.bi-fs-fill:fullscreen,
+.bi-fs-fill:-webkit-full-screen,
+.bi-fs-table:fullscreen,
+.bi-fs-table:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+}
+
+.bi-fs-active.bi-fs-fill .bi-plotly-host,
+.bi-fs-fill:fullscreen .bi-plotly-host,
+.bi-fs-fill:-webkit-full-screen .bi-plotly-host,
+.bi-fs-active.bi-fs-fill .js-plotly-plot,
+.bi-fs-fill:fullscreen .js-plotly-plot,
+.bi-fs-fill:-webkit-full-screen .js-plotly-plot,
+.bi-fs-active.bi-fs-fill .js-plotly-plot .plot-container,
+.bi-fs-fill:fullscreen .js-plotly-plot .plot-container,
+.bi-fs-fill:-webkit-full-screen .js-plotly-plot .plot-container,
+.bi-fs-active.bi-fs-fill .js-plotly-plot .svg-container,
+.bi-fs-fill:fullscreen .js-plotly-plot .svg-container,
+.bi-fs-fill:-webkit-full-screen .js-plotly-plot .svg-container {
+  width: 100% !important;
+  max-width: none !important;
+}
+
 .js-plotly-plot .modebar-btn {
   background: transparent !important;
 }

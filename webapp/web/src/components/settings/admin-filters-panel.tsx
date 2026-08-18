@@ -11,6 +11,11 @@ import {
   postSettingsFilter,
   type DefaultFilterRow,
 } from "@/lib/api";
+import {
+  formatFilterValueDisplay,
+  reportDisplayName,
+  sameReport,
+} from "@/lib/settings-filters-display";
 
 export function AdminFiltersPanel() {
   const [subTab, setSubTab] = useState("setup");
@@ -68,6 +73,21 @@ export function AdminFiltersPanel() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const labels = [
+      ...new Set(
+        items
+          .filter((i) => i.role === delForm.role)
+          .map((i) => reportDisplayName(i.report_label || i.report_name)),
+      ),
+    ].filter(Boolean);
+    if (!labels.length) return;
+    setDelForm((f) => {
+      if (labels.includes(f.report_name)) return f;
+      return { ...f, report_name: labels[0], filter_key: "" };
+    });
+  }, [delForm.role, items]);
+
   const roleOptions = meta ? Object.entries(meta.roles) : [];
   const reports = meta?.reports || [];
 
@@ -121,15 +141,29 @@ export function AdminFiltersPanel() {
     }
   };
 
-  const keysForDel = items
-    .filter(
-      (i) =>
-        i.role === delForm.role && i.report_name === delForm.report_name,
-    )
-    .map((i) => i.filter_key);
+  const rowReportLabel = (row: DefaultFilterRow) =>
+    reportDisplayName(row.report_label || row.report_name);
+
+  const keysForDel = [
+    ...new Set(
+      items
+        .filter(
+          (i) =>
+            i.role === delForm.role &&
+            sameReport(i.report_label || i.report_name, delForm.report_name),
+        )
+        .map((i) => i.filter_key),
+    ),
+  ];
+
+  const delReports = [
+    ...new Set(
+      items.filter((i) => i.role === delForm.role).map(rowReportLabel),
+    ),
+  ].filter(Boolean);
 
   const grouped = items.reduce<Record<string, DefaultFilterRow[]>>((acc, row) => {
-    const key = `${row.role_label} — ${row.report_name}`;
+    const key = `${row.role_label} — ${rowReportLabel(row)}`;
     (acc[key] ||= []).push(row);
     return acc;
   }, {});
@@ -301,9 +335,9 @@ export function AdminFiltersPanel() {
                     {items.map((row) => (
                       <tr key={`${row.role}-${row.report_name}-${row.filter_key}`}>
                         <td>{row.role_label}</td>
-                        <td>{row.report_name}</td>
+                        <td>{rowReportLabel(row)}</td>
                         <td>{row.filter_key}</td>
-                        <td>{row.filter_value || "-"}</td>
+                        <td>{formatFilterValueDisplay(row.filter_value)}</td>
                         <td>{row.filter_type_label}</td>
                         <td>{row.updated_at || "-"}</td>
                         <td>{row.updated_by || "-"}</td>
@@ -321,7 +355,9 @@ export function AdminFiltersPanel() {
               <select
                 className="rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
                 value={delForm.role}
-                onChange={(e) => setDelForm({ ...delForm, role: e.target.value })}
+                onChange={(e) =>
+                  setDelForm({ ...delForm, role: e.target.value, filter_key: "" })
+                }
               >
                 {roleOptions.map(([code, label]) => (
                   <option key={code} value={code}>
@@ -336,7 +372,7 @@ export function AdminFiltersPanel() {
                   setDelForm({ ...delForm, report_name: e.target.value, filter_key: "" })
                 }
               >
-                {reports.map((r) => (
+                {(delReports.length ? delReports : reports).map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
@@ -396,7 +432,7 @@ export function AdminFiltersPanel() {
                         {rows.map((row) => (
                           <tr key={row.filter_key}>
                             <td>{row.filter_key}</td>
-                            <td>{row.filter_value || "-"}</td>
+                            <td>{formatFilterValueDisplay(row.filter_value)}</td>
                             <td>{row.filter_type_label}</td>
                             <td>{row.updated_at || "-"}</td>
                             <td>{row.updated_by || "-"}</td>

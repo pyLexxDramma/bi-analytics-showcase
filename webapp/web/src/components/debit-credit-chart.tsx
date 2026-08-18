@@ -6,6 +6,7 @@ import { PLOTLY_AXIS_LINE, PLOTLY_CONFIG, PLOTLY_ZEROLINE } from "@/lib/plotly-c
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 import { usePinnedHScrollModebar } from "@/lib/use-pinned-hscroll-modebar";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { ChartHtmlLegend } from "@/components/chart-html-legend";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -458,29 +459,12 @@ export function DebitCreditChartLegend({
             { name: "Отклонение, если меньше 0", short: "Откл. <0", color: "#F1948A" },
           ];
   return (
-    <div
-      className={
-        mobile
-          ? "mt-2 flex flex-wrap items-center justify-start gap-x-3 gap-y-1 px-0.5 text-[11px] leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong"
-          : "mt-2 flex flex-wrap items-center justify-start gap-x-4 gap-y-1.5 px-1 text-xs text-tremor-content-strong dark:text-dark-tremor-content-strong"
-      }
-    >
-      {items.map((item) => (
-        <span key={item.name} className="inline-flex max-w-full items-center gap-1.5">
-          <span
-            className={
-              mobile
-                ? "inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
-                : "inline-block h-3.5 w-3.5 shrink-0 rounded-sm"
-            }
-            style={{ background: item.color }}
-            aria-hidden
-          />
-          <span className="min-w-0 break-words">{mobile ? item.short : item.name}</span>
-        </span>
-      ))}
+    <div>
+      <ChartHtmlLegend compact={mobile} items={items} />
       {mobile ? (
-        <span className="w-full pt-0.5 font-medium">Единица измерения: млн. руб.</span>
+        <p className="mt-1 px-0.5 text-[11px] font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
+          Единица измерения: млн. руб.
+        </p>
       ) : null}
     </div>
   );

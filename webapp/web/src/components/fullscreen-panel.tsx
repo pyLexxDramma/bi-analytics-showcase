@@ -57,9 +57,6 @@ export function FullscreenPanel({
       const doc = document as FullscreenDocument;
       const current = document.fullscreenElement || doc.webkitFullscreenElement;
       setNativeActive(!!host && current === host);
-      // Разворот элемента не меняет размер окна, поэтому Plotly не пересчитывает
-      // ширину сам и график остаётся в габаритах карточки на пустом экране.
-      window.setTimeout(() => window.dispatchEvent(new Event("resize")), 120);
     };
     document.addEventListener("fullscreenchange", sync);
     document.addEventListener("webkitfullscreenchange", sync);
@@ -68,6 +65,18 @@ export function FullscreenPanel({
       document.removeEventListener("webkitfullscreenchange", sync);
     };
   }, []);
+
+  // Element fullscreen не меняет window.innerWidth (Safari/Mac особенно).
+  // Пинок resize после смены layout — Plotly пересчитывает ширину.
+  useEffect(() => {
+    const kick = () => window.dispatchEvent(new Event("resize"));
+    const ids = [0, 50, 160, 400].map((ms) => window.setTimeout(kick, ms));
+    const raf = requestAnimationFrame(() => requestAnimationFrame(kick));
+    return () => {
+      ids.forEach((id) => window.clearTimeout(id));
+      cancelAnimationFrame(raf);
+    };
+  }, [nativeActive]);
 
   const toggle = useCallback(async () => {
     if (mobile) return;

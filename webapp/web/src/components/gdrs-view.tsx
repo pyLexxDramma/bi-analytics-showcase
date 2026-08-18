@@ -822,8 +822,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           <Text className="mt-1">{copy.unitDay}</Text>
           <FullscreenPanel
             className="mt-2"
+            fill
             disabled={!(data?.tremor.by_project?.length ?? 0)}
-            scroll={false}
           >
             {(zoomed) => (
               <>
@@ -1352,8 +1352,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           <Text className="mt-1">План, факт и отклонение по всем контрагентам</Text>
           <FullscreenPanel
             className="mt-2"
+            fill
             disabled={!(data?.tremor.by_contractor?.length ?? 0)}
-            scroll={false}
           >
             {(zoomed) => (
               <>

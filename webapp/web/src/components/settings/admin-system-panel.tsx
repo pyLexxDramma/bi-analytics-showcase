@@ -41,6 +41,7 @@ export function AdminSystemPanel() {
   const [roles, setRoles] = useState<SettingsRole[]>([]);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [configDesc, setConfigDesc] = useState<Record<string, string>>({});
+  const [configDefaults, setConfigDefaults] = useState<Record<string, string>>({});
   const [usersQuery, setUsersQuery] = useState("");
   const [logsQuery, setLogsQuery] = useState("");
 
@@ -121,7 +122,19 @@ export function AdminSystemPanel() {
 
   const loadConfig = useCallback(async () => {
     const data = await fetchReportConfig();
-    setConfig(data.values);
+    const defaults = data.defaults || {};
+    setConfigDefaults(defaults);
+    setConfig({
+      ...data.values,
+      control_points_milestones_json:
+        data.values.control_points_milestones_json ||
+        defaults.control_points_milestones_json ||
+        "",
+      developer_projects_matrix_json:
+        data.values.developer_projects_matrix_json ||
+        defaults.developer_projects_matrix_json ||
+        "",
+    });
     setConfigDesc(data.descriptions);
   }, []);
 
@@ -765,8 +778,9 @@ export function AdminSystemPanel() {
               {configDesc.control_points_milestones_json}
             </Text>
             <textarea
-              rows={6}
-              className="mt-3 w-full rounded-md border border-gray-200 px-3 py-2 font-mono text-xs dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              rows={16}
+              className="mt-3 w-full rounded-md border border-gray-200 px-3 py-2 font-mono text-xs placeholder:whitespace-pre-wrap placeholder:text-gray-400 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:placeholder:text-gray-500"
+              placeholder={configDefaults.control_points_milestones_json || ""}
               value={config.control_points_milestones_json || ""}
               onChange={(e) =>
                 setConfig({
@@ -799,8 +813,9 @@ export function AdminSystemPanel() {
               {configDesc.developer_projects_matrix_json}
             </Text>
             <textarea
-              rows={6}
-              className="mt-3 w-full rounded-md border border-gray-200 px-3 py-2 font-mono text-xs dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              rows={16}
+              className="mt-3 w-full rounded-md border border-gray-200 px-3 py-2 font-mono text-xs placeholder:whitespace-pre-wrap placeholder:text-gray-400 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:placeholder:text-gray-500"
+              placeholder={configDefaults.developer_projects_matrix_json || ""}
               value={config.developer_projects_matrix_json || ""}
               onChange={(e) =>
                 setConfig({

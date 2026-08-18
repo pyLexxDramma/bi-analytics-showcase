@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -284,6 +284,16 @@ export function FinanceBarChart({
     return () => obs.disconnect();
   }, []);
 
+  const [legendHidden, setLegendHidden] = useState<Set<string>>(() => new Set());
+  const toggleLegend = useCallback((name: string) => {
+    setLegendHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
   if (!rows.length) {
     return <DashboardEmptyState message={emptyText} className="h-80" />;
   }
@@ -357,6 +367,12 @@ export function FinanceBarChart({
   };
 
   const angled = compact || rows.length > 6 || categoryKey === "project";
+
+  const legendHiddenPlan = legendHidden.has(planName);
+  const legendHiddenFact = legendHidden.has(factName);
+  const legendHiddenForecast = legendHidden.has(forecastName);
+  const legendHiddenNeg = legendHidden.has(DEV_NEG_NAME);
+  const legendHiddenPos = legendHidden.has(DEV_POS_NAME);
 
   const legendItems = [
     { name: planName, color: planColor, short: "План" },
@@ -528,6 +544,7 @@ export function FinanceBarChart({
                   radius={[3, 3, 0, 0]}
                   minPointSize={0}
                   isAnimationActive={false}
+                  hide={legendHiddenPlan}
                 >
                   <LabelList
                     dataKey={planName}
@@ -540,6 +557,7 @@ export function FinanceBarChart({
                   radius={[3, 3, 0, 0]}
                   minPointSize={0}
                   isAnimationActive={false}
+                  hide={legendHiddenFact}
                 >
                   <LabelList
                     dataKey={factName}
@@ -552,6 +570,7 @@ export function FinanceBarChart({
                     fill={forecastColor}
                     radius={[3, 3, 0, 0]}
                     isAnimationActive={false}
+                    hide={legendHiddenForecast}
                   >
                     <LabelList
                       dataKey={forecastName}
@@ -568,6 +587,7 @@ export function FinanceBarChart({
                     fill={DEV_BAR_NEG}
                     radius={[3, 3, 3, 3]}
                     isAnimationActive={false}
+                    hide={legendHiddenNeg}
                   >
                     <LabelList
                       dataKey={DEV_NEG_NAME}
@@ -588,6 +608,7 @@ export function FinanceBarChart({
                     fill={DEV_BAR_POS}
                     radius={[3, 3, 0, 0]}
                     isAnimationActive={false}
+                    hide={legendHiddenPos}
                   >
                     <LabelList
                       dataKey={DEV_POS_NAME}
@@ -640,7 +661,12 @@ export function FinanceBarChart({
           </ResponsiveContainer>
         </div>
       </div>
-      <ChartHtmlLegend items={legendItems} compact={compact} />
+      <ChartHtmlLegend
+        items={legendItems}
+        compact={compact}
+        hidden={legendHidden}
+        onToggle={toggleLegend}
+      />
       {compact ? (
         <p className="mt-2 text-center text-xs font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
           Единица измерения: млн. руб.

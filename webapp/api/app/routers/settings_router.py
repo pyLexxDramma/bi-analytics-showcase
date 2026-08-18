@@ -8,6 +8,13 @@ from pydantic import BaseModel, Field
 
 from app.config import USERS_DB_PATH
 from app.services.auth_context import require_admin_user
+from app.services.default_filters_web import (
+    catalog_report_titles,
+    format_filter_value_display,
+    is_garbled_report_name,
+    report_display_name,
+    report_name_matches,
+)
 from app.services.users_bridge import (
     format_russian_datetime,
     import_auth,
@@ -466,28 +473,53 @@ def list_filters(
     filters_mod = import_filters()
     rows = filters_mod.get_all_default_filters(
         role=None if not role or role == "Все" else role,
-        report_name=None if not report_name or report_name == "Все" else report_name,
+        report_name=None,
     )
+    selected_report = None if not report_name or report_name == "Все" else report_name
+    if selected_report:
+        rows = [
+            f for f in rows if report_name_matches(f.get("report_name"), selected_report)
+        ]
     items = []
     for f in rows:
+        stored_name = f["report_name"]
+        stored_type = (f.get("filter_type") or "string").lower()
+        type_label = filters_mod.FILTER_TYPES.get(stored_type, stored_type)
+        if stored_type == "json":
+            type_label = "Список"
         items.append(
             {
                 "role": f["role"],
                 "role_label": auth.get_user_role_display(f["role"]),
-                "report_name": f["report_name"],
+                "report_name": stored_name,
+                "report_label": report_display_name(stored_name),
                 "filter_key": f["filter_key"],
-                "filter_value": f["filter_value"],
+                "filter_value": format_filter_value_display(f["filter_value"]),
                 "filter_type": f["filter_type"],
-                "filter_type_label": filters_mod.FILTER_TYPES.get(
-                    f["filter_type"], f["filter_type"]
-                ),
+                "filter_type_label": type_label,
                 "updated_at": f.get("updated_at"),
                 "updated_by": f.get("updated_by"),
             }
         )
+    reports: list[str] = []
+    seen: set[str] = set()
+    for name in list(catalog_report_titles()) + list(
+        getattr(filters_mod, "AVAILABLE_REPORTS", None) or []
+    ):
+        label = report_display_name(name)
+        if not label or is_garbled_report_name(label) or label in seen:
+            continue
+        seen.add(label)
+        reports.append(label)
+    for item in items:
+        label = item.get("report_label") or report_display_name(item.get("report_name"))
+        if not label or is_garbled_report_name(label) or label in seen:
+            continue
+        seen.add(label)
+        reports.append(label)
     return {
         "items": items,
-        "reports": filters_mod.AVAILABLE_REPORTS,
+        "reports": reports,
         "filter_types": filters_mod.FILTER_TYPES,
         "roles": {r["code"]: r["label"] for r in auth.list_roles()},
     }
@@ -530,9 +562,20 @@ def remove_filter(
     actor = _require_admin(authorization)
     filters_mod = import_filters()
     auth = import_auth()
-    ok = filters_mod.delete_default_filter(
-        body.role, body.report_name, body.filter_key
-    )
+    stored_names = {
+        str(f.get("report_name") or "")
+        for f in filters_mod.get_all_default_filters(role=body.role)
+        if f.get("filter_key") == body.filter_key
+        and report_name_matches(f.get("report_name"), body.report_name)
+    }
+    if body.report_name:
+        stored_names.add(body.report_name)
+    ok = False
+    for stored in stored_names:
+        if not stored:
+            continue
+        if filters_mod.delete_default_filter(body.role, stored, body.filter_key):
+            ok = True
     if not ok:
         raise HTTPException(status_code=400, detail="Ошибка при удалении фильтра")
     logger = import_logger()
@@ -574,6 +617,28 @@ def copy_filters(
     return {"ok": True}
 
 
+def _report_json_defaults() -> dict[str, str]:
+    fallback = {
+        "control_points_milestones_json": "[]",
+        "developer_projects_matrix_json": (
+            '{\n  "subcolumns": {\n    "plan": "План",\n    "fact": "Факт",'
+            '\n    "otkl": "Откл."\n  },\n  "default_vertical_dates": false,'
+            '\n  "titles": {},\n  "matches": {}\n}'
+        ),
+    }
+    try:
+        from app.services.core_bridge import import_dashboard_module, prepare_core_env
+
+        prepare_core_env()
+        mtx = import_dashboard_module("dev_projects_tz_matrix")
+        return {
+            "control_points_milestones_json": mtx.control_point_milestones_default_json(),
+            "developer_projects_matrix_json": mtx.developer_projects_matrix_default_prefs_json(),
+        }
+    except Exception:
+        return fallback
+
+
 @router.get("/report-config")
 def get_report_config(
     authorization: str | None = Header(default=None),
@@ -592,6 +657,7 @@ def get_report_config(
         "descriptions": {
             k: settings_mod.SETTING_KEYS.get(k, k) for k in keys
         },
+        "defaults": _report_json_defaults(),
     }
 
 
