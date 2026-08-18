@@ -185,6 +185,19 @@ def _reason_bucket(raw: Any) -> str:
     return "Прочее"
 
 
+def _fmt_task_id(raw: Any) -> str:
+    """MSP unique id → целое без «.0»."""
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+    text = str(raw).strip()
+    if not text or text.casefold() in _BLANK:
+        return ""
+    try:
+        return str(int(float(text.replace(",", "."))))
+    except (TypeError, ValueError):
+        return text
+
+
 def _task_id_col(frame: pd.DataFrame) -> str | None:
     return _col(
         frame,
@@ -870,9 +883,7 @@ def build_deviation_reasons_payload(
         for _, rr in table_df.iterrows():
             tid = ""
             if id_col and id_col in table_df.columns:
-                raw_id = rr.get(id_col)
-                if pd.notna(raw_id) and str(raw_id).strip().casefold() not in _BLANK:
-                    tid = str(raw_id).strip()
+                tid = _fmt_task_id(rr.get(id_col))
             fb = ""
             if block_col and block_col in table_df.columns:
                 fb = _clean(rr.get(block_col))

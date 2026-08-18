@@ -77,6 +77,15 @@ type DynSumSortKey = "project" | "reason" | "count" | "days";
 type SortState = { key: SortKey; asc: boolean } | null;
 type DynSortState<K extends string> = { key: K; asc: boolean } | null;
 type DetailRow = DeviationReasonsPayload["rows"][number] & { _index: number };
+
+function fmtTaskId(raw: string | number | null | undefined): string {
+  if (raw == null || raw === "") return "";
+  const text = String(raw).trim();
+  if (!text) return "";
+  const n = Number(text.replace(",", "."));
+  if (Number.isFinite(n)) return String(Math.trunc(n));
+  return text;
+}
 type DynPmRow = DeviationReasonsPayload["tremor"]["dynamics"]["project_month_rows"][number] & {
   _index: number;
 };
@@ -181,7 +190,7 @@ function buildExport(rows: DeviationReasonsPayload["rows"]): ExportTable {
     "Заметки",
   ];
   const body: ExportCell[][] = rows.map((row) => [
-    row.task_id ?? "",
+    fmtTaskId(row.task_id) || "",
     row.project,
     row.block ?? "",
     row.task ?? "",
@@ -1015,7 +1024,7 @@ export function DeviationReasonsView() {
                         <MobileMetricGrid
                           columns={2}
                           items={[
-                            { label: "ID", value: row.task_id ?? "—" },
+                            { label: "ID", value: fmtTaskId(row.task_id) || "—" },
                             { label: "Блок", value: row.block ?? "—" },
                             { label: "Строение", value: row.building ?? "—" },
                             { label: "Окончание", value: row.plan_end ?? "—" },
@@ -1070,7 +1079,7 @@ export function DeviationReasonsView() {
                           className="odd:bg-slate-50/60 dark:odd:bg-slate-900/20"
                         >
                           <td className={`${TD} tabular-nums`}>
-                            {row.task_id ?? "—"}
+                            {fmtTaskId(row.task_id) || "—"}
                           </td>
                           <td className={`${TD} font-medium`}>{row.project}</td>
                           <td className={TD}>{row.block ?? "—"}</td>
