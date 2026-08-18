@@ -462,6 +462,32 @@ def activity_logs(
     }
 
 
+def _volume_default_filter_rows(
+    role: str | None = None,
+) -> list[dict]:
+    """Читает default_filters из volume users.db, не из /core/users.db."""
+    path = USERS_DB_PATH
+    if not path.is_file():
+        return []
+    sql = """
+        SELECT role, report_name, filter_key, filter_value, filter_type, updated_at, updated_by
+        FROM default_filters
+    """
+    params: tuple = ()
+    if role:
+        sql += " WHERE role = ?"
+        params = (role,)
+    sql += " ORDER BY role, report_name, filter_key"
+    try:
+        conn = sqlite3.connect(str(path))
+        conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+        rows = conn.execute(sql, params).fetchall()
+        conn.close()
+        return list(rows or [])
+    except sqlite3.Error:
+        return []
+
+
 @router.get("/filters")
 def list_filters(
     authorization: str | None = Header(default=None),
@@ -471,10 +497,13 @@ def list_filters(
     _require_admin(authorization)
     auth = import_auth()
     filters_mod = import_filters()
-    rows = filters_mod.get_all_default_filters(
-        role=None if not role or role == "Все" else role,
-        report_name=None,
-    )
+    role_code = None if not role or role == "Все" else role
+    rows = _volume_default_filter_rows(role_code)
+    if not rows:
+        rows = filters_mod.get_all_default_filters(
+            role=role_code,
+            report_name=None,
+        )
     selected_report = None if not report_name or report_name == "Все" else report_name
     if selected_report:
         rows = [

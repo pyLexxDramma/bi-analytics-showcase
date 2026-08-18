@@ -20,6 +20,12 @@ def _patch_db_path() -> None:
     path = str(USERS_DB_PATH.resolve())
     USERS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     config.DB_PATH = path
+    try:
+        import db as db_mod  # type: ignore
+
+        db_mod.DB_PATH = path
+    except Exception:
+        pass
 
 
 def ensure_users_db(*, seed: bool = True) -> None:

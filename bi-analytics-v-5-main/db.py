@@ -7,16 +7,23 @@ from typing import Optional
 from contextlib import contextmanager
 
 from config import DB_PATH
+import config
+
 
 # Для создания дефолтного суперадмина (без циклического импорта auth)
 def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
+def _db_path() -> str:
+    """Актуальный путь: webapp патчит config.DB_PATH после импорта модуля."""
+    return str(getattr(config, "DB_PATH", None) or DB_PATH)
+
+
 @contextmanager
 def get_connection():
     """Контекстный менеджер для подключения к SQLite."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_db_path())
     try:
         yield conn
         conn.commit()
@@ -32,7 +39,7 @@ def init_all_tables(st_callback=None):
     Создание всех таблиц приложения в одном месте.
     st_callback: опционально вызывается с сообщением для отображения в Streamlit (например, о создании дефолтного пользователя).
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_db_path())
     cursor = conn.cursor()
 
     # Таблица пользователей
