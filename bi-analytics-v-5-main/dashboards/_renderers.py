@@ -44986,6 +44986,17 @@ def _pred_crit_overdue_unresolved_mask(df: pd.DataFrame) -> pd.Series:
     return critical & overdue_open
 
 
+# Тема предписания в TESSA Name обычно короткая («Замена сендвич панелей»).
+# Длинный текст — это формулировка замечания, которую кладут в Name вместо Comment.
+_PRED_NAME_TITLE_MAX_LEN = 55
+_PRED_NAME_COMMENT_RE = re.compile(
+    r"(?is)"
+    r"(в ходе выполнения|не в соответствии|предоставить|восстановить|"
+    r"выполнить работы|котлован|поврежден|допущено поврежден|"
+    r"выполнен монтаж|вдоль блока)"
+)
+
+
 def _pred_is_name_stub(value) -> bool:
     """Заглушки/пометки в TESSA Name («нарушения», опечатки) — не название задачи."""
     if value is None or (isinstance(value, float) and pd.isna(value)):
@@ -45004,6 +45015,29 @@ def _pred_is_name_stub(value) -> bool:
     return False
 
 
+def _pred_is_comment_like_name(value: str) -> bool:
+    """Name = текст замечания/комментарий, а не короткое название задачи."""
+    s = str(value or "").strip()
+    if not s:
+        return False
+    if len(s) > _PRED_NAME_TITLE_MAX_LEN:
+        return True
+    if s.count(". ") >= 1:
+        return True
+    return bool(_PRED_NAME_COMMENT_RE.search(s))
+
+
+_PRED_DOC_CAPTION_RE = re.compile(
+    r"^\S+ от \d{2}\.\d{2}\.\d{4}\s+Предписания$",
+    re.IGNORECASE,
+)
+
+
+def _pred_is_doc_caption(value: str) -> bool:
+    """Автоподпись карточки («22 от 01.10.2025 Предписания») — не название задачи."""
+    return bool(_PRED_DOC_CAPTION_RE.match(str(value or "").strip()))
+
+
 def _pred_resolve_display_name(
     row,
     name_col: str | None = None,
@@ -45011,11 +45045,10 @@ def _pred_resolve_display_name(
     comment_col: str | None = None,
 ) -> str:
     """
-    «Наименование» в таблице предписаний.
+    «Наименование» = короткое TESSA Name (тема задачи).
 
-    1) TESSA Name — если это тема предписания (не заглушка «нарушения» и не Comment)
-    2) DocDescription — подпись карточки/задачи (как в РД), если Name пустой/заглушка
-    Comment никогда не используем.
+    Не показываем: Comment, длинный текст замечания, заглушку «нарушения»,
+    автоподпись DocDescription («N от дата Предписания»).
     """
     def _pick(col) -> str:
         if not col:
@@ -45028,14 +45061,13 @@ def _pred_resolve_display_name(
 
     name = _pick(name_col)
     comment = _pick(comment_col)
-    if name and not _pred_is_name_stub(name):
+    if name and not _pred_is_name_stub(name) and not _pred_is_doc_caption(name):
         if comment and name.casefold() == comment.casefold():
+            name = ""
+        elif _pred_is_comment_like_name(name):
             name = ""
         else:
             return name
-    title = _pick(doc_desc_col)
-    if title:
-        return title
     return "—"
 
 

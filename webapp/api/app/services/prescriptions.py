@@ -10,7 +10,7 @@ import pandas as pd
 from app.config import DATA_MODE
 from app.services.core_bridge import (
     active_version_id,
-    import_dashboard_module,
+    import_renderers_module,
     load_version_df,
     prepare_web_db,
     session_state,
@@ -71,7 +71,7 @@ def _empty_payload(message: str | None = None) -> dict[str, Any]:
 
 
 def _renderer():
-    return import_dashboard_module("_renderers")
+    return import_renderers_module()
 
 
 def _column(renderer, frame: pd.DataFrame, names: list[str]) -> str | None:
@@ -235,8 +235,7 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
             "Department",
         ],
     )
-    # Наименование: тема из Name; заглушки «нарушения» / пусто → DocDescription.
-    # Comment не используем (пометки вроде «не критично»).
+    # Наименование: только короткое TESSA Name. Не Comment и не «N от дата Предписания».
     name_col = _column(
         renderer,
         pred,
