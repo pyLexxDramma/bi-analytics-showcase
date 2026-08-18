@@ -1,0 +1,38 @@
+# One-shot: find users.db with default_filters on iivm and copy into prod volume.
+name: Restore prod default filters
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: webapp-prod-restore-filters
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect + restore default_filters on iivm
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
+          command_timeout: 15m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.PROD_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
+            cd "$APP_DIR"
+            git fetch origin
+            git checkout main
+            git reset --hard origin/main
+            chmod +x webapp/scripts/restore_default_filters_prod.sh
+            export PROD_USERS_DB="$APP_DIR/webapp/data/db/users.db"
+            bash webapp/scripts/restore_default_filters_prod.sh
+            cd "$APP_DIR/webapp"
+            docker compose -p webapp-prod -f docker-compose.yml -f docker-compose.prod.yml restart api || true
+            echo "Restore finished"
