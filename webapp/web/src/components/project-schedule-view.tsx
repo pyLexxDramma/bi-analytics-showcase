@@ -652,12 +652,14 @@ export function ProjectScheduleView() {
                             {row.project}
                           </td>
                           {showLots ? (
-                            <td className={`${TD} max-w-xs truncate text-center`}>{row.task}</td>
+                            <td className={`${TD} min-w-[16rem] whitespace-normal break-words text-center`}>
+                              {row.task}
+                            </td>
                           ) : (
                             <>
                               <td className={`${TD} bi-num tabular-nums`}>{row.task_id ?? ""}</td>
                               <td className={`${TD} bi-num tabular-nums`}>{row.level ?? ""}</td>
-                              <td className={`${TD} max-w-xs truncate text-center text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
+                              <td className={`${TD} min-w-[16rem] whitespace-normal break-words text-center text-tremor-content-strong dark:text-dark-tremor-content-strong`}>
                                 {row.task}
                               </td>
                             </>
@@ -691,8 +693,8 @@ export function ProjectScheduleView() {
                           </td>
                           {showReasons ? (
                             <>
-                              <td className={`${TD} max-w-xs truncate`}>{row.reason ?? ""}</td>
-                              <td className={`${TD} max-w-xs truncate`}>{row.notes ?? ""}</td>
+                              <td className={`${TD} min-w-[14rem] whitespace-normal break-words text-center`}>{row.reason ?? ""}</td>
+                              <td className={`${TD} min-w-[14rem] whitespace-normal break-words text-center`}>{row.notes ?? ""}</td>
                             </>
                           ) : null}
                         </tr>
