@@ -7,6 +7,7 @@ import type { BaselineDeviationPayload } from "@/lib/api";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
+import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -24,7 +25,9 @@ const LANE_GAP = 0.04;
 const MARGIN_TOP = 28;
 const MARGIN_BOTTOM = 110;
 const DAY_MS = 24 * 3600 * 1000;
-const LABEL_COL_PCT = 28;
+const LABEL_COL_PCT_DESKTOP = 42;
+const LABEL_COL_PCT_MOBILE = 48;
+const LABEL_MAX_LINES = 4;
 
 function toMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -43,31 +46,23 @@ function fmtLabel(iso: string | null | undefined, fallback?: string | null): str
   return `${dd}.${mm}.${yyyy}`;
 }
 
-function wrapTaskLabelLines(name: string, widthChars = 30, maxLines = 2): string[] {
+function wrapLineCount(name: string, widthChars: number, maxLines: number): number {
   const s = String(name || "").trim();
-  if (!s) return [""];
-  if (s.length <= widthChars) return [s];
+  if (!s) return 1;
   const words = s.split(/\s+/);
-  const lines: string[] = [];
-  let cur = "";
+  let lines = 1;
+  let cur = 0;
   for (const word of words) {
-    const next = cur ? `${cur} ${word}` : word;
-    if (next.length <= widthChars || !cur) {
-      cur = next;
+    const add = cur ? word.length + 1 : word.length;
+    if (cur && cur + add > widthChars) {
+      lines += 1;
+      cur = word.length;
+      if (lines >= maxLines) return maxLines;
       continue;
     }
-    lines.push(cur);
-    cur = word;
-    if (lines.length >= maxLines) break;
+    cur += add;
   }
-  if (lines.length < maxLines && cur) lines.push(cur);
-  else if (lines.length >= maxLines && cur) {
-    const last = lines[lines.length - 1] || "";
-    const rest = `${last} ${cur}`.trim();
-    lines[lines.length - 1] =
-      rest.length > widthChars + 8 ? `${rest.slice(0, widthChars + 6)}…` : rest;
-  }
-  return lines.slice(0, maxLines);
+  return lines;
 }
 
 function taskLabelOnly(
@@ -111,6 +106,8 @@ export function BaselineDeviationChart({
   data: BaselineDeviationPayload;
   fullscreen?: boolean;
 }) {
+  const mobile = useIsMobileViewport();
+  const labelColPct = mobile ? LABEL_COL_PCT_MOBILE : LABEL_COL_PCT_DESKTOP;
   const rows = data.chart.rows;
   const baseColor = data.chart.base_color || "#14b8a6";
   const planColor = data.chart.plan_color || "#fb923c";
@@ -123,20 +120,16 @@ export function BaselineDeviationChart({
       rows.map((row) => String(row.project || "").trim()).filter(Boolean),
     );
     const showProjectPrefix = distinctProjects.size > 1;
-    const labelLines = rows.map((row) =>
-      wrapTaskLabelLines(
-        taskLabelOnly(row.label, row.project),
-        fullscreen ? 36 : 28,
-        showProjectPrefix ? 2 : 2,
-      ),
+    const charsPerLine = fullscreen ? 52 : mobile ? 28 : 44;
+    const taskNames = rows.map((row) => taskLabelOnly(row.label, row.project));
+    const lineCounts = taskNames.map((name) =>
+      wrapLineCount(name, charsPerLine, LABEL_MAX_LINES),
     );
+    const maxNameLines = Math.max(1, ...lineCounts);
     const labelFont = fullscreen ? 12 : 10;
-    const taskFont = fullscreen ? 13 : 11;
-    const rowPx = isCovenant
-      ? Math.max(ROW_PX, showProjectPrefix ? 58 : 52)
-      : showProjectPrefix
-        ? Math.max(ROW_PX, 52)
-        : ROW_PX;
+    const taskFont = fullscreen ? 13 : mobile ? 11 : 12;
+    const nameBlockPx = Math.ceil(maxNameLines * taskFont * 1.3);
+    const rowPx = Math.max(ROW_PX, (showProjectPrefix ? 20 : 8) + nameBlockPx);
 
     if (isCovenant) {
       const y = rows.map((_, i) => i);
@@ -213,7 +206,7 @@ export function BaselineDeviationChart({
       const labelRowH = plotHeight / n;
       const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
       return {
-        labelLines,
+        taskNames,
         taskFont,
         rowPx,
         labelRowH,
@@ -369,7 +362,7 @@ export function BaselineDeviationChart({
     const chartHeight = plotHeight + MARGIN_TOP + MARGIN_BOTTOM;
 
     return {
-      labelLines,
+      taskNames,
       taskFont,
       rowPx,
       labelRowH,
@@ -414,7 +407,7 @@ export function BaselineDeviationChart({
       chartHeight,
       plotHeight,
     };
-  }, [rows, baseColor, planColor, fullscreen, data.chart.kind]);
+  }, [rows, baseColor, planColor, fullscreen, data.chart.kind, mobile]);
 
   if (!built) {
     return <DashboardEmptyState message="Нет задач для графика." />;
@@ -440,39 +433,46 @@ export function BaselineDeviationChart({
           <div
             className="shrink-0 border-r border-tremor-border pr-2 dark:border-dark-tremor-border"
             style={{
-              width: `${LABEL_COL_PCT}%`,
+              width: `${labelColPct}%`,
               paddingTop: MARGIN_TOP,
               paddingBottom: MARGIN_BOTTOM,
             }}
           >
-            {built.labelLines.map((lines, i) => (
+            {built.taskNames.map((name, i) => (
               <div
                 key={`${rows[i]?.label}-${i}`}
                 className="flex items-center border-b border-dashed border-slate-200/80 dark:border-slate-600/50"
                 style={{ height: built.labelRowH ?? built.rowPx ?? ROW_PX }}
               >
-                <div className="min-w-0 py-0.5">
+                <div className="min-w-0 w-full py-0.5 pr-1">
                   {built.showProjectPrefix && rows[i]?.project ? (
                     <div className="mb-0.5 truncate text-[10px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-300">
                       {rows[i].project}
                     </div>
                   ) : null}
                   <span
-                    className="line-clamp-2 text-tremor-content-strong dark:text-dark-tremor-content-strong"
-                    style={{ fontSize: built.taskFont, lineHeight: 1.25 }}
+                    className="block break-words text-tremor-content-strong dark:text-dark-tremor-content-strong"
+                    style={{
+                      fontSize: built.taskFont,
+                      lineHeight: 1.3,
+                      display: "-webkit-box",
+                      WebkitBoxOrient: "vertical" as const,
+                      WebkitLineClamp: LABEL_MAX_LINES,
+                      overflow: "hidden",
+                    }}
                     title={
                       rows[i]?.project
-                        ? `${rows[i].project}: ${taskLabelOnly(rows[i].label, rows[i].project)}`
-                        : rows[i]?.label
+                        ? `${rows[i].project}: ${name}`
+                        : name
                     }
                   >
-                    {lines.join(" ")}
+                    {name}
                   </span>
                 </div>
               </div>
             ))}
           </div>
-          <div className="min-w-0 flex-1" style={{ width: `${100 - LABEL_COL_PCT}%` }}>
+          <div className="min-w-0 flex-1" style={{ width: `${100 - labelColPct}%` }}>
             <PlotlyFigure
               data={built.data as never}
               layout={built.layout as never}
