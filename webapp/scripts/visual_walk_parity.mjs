@@ -637,7 +637,7 @@ async function main() {
   console.log("\n=== SUMMARY ===");
   console.log(JSON.stringify(report.summary, null, 2));
   console.log("HTML", path.join(OUT, "compare.html"));
-  if (process.env.OPEN_COMPARE !== "0" && process.platform === "win32") {
+  if (process.env.OPEN_COMPARE === "1" && process.platform === "win32") {
     const { execFile } = await import("node:child_process");
     for (const p of [
       path.join(OUT, "compare.html"),

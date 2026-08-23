@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConstructionAnalyticsScene } from "@/components/construction-analytics-scene";
-import { fetchAuthMe, fetchAuthStatus, postAuthLogin } from "@/lib/api";
+import { ApiError, fetchAuthMe, fetchAuthStatus, postAuthLogin } from "@/lib/api";
 import { isAuthenticated, logout, saveAuthSession } from "@/lib/auth";
+import { firstAccessibleReportHref } from "@/lib/reports-index";
 
 export function LoginView() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export function LoginView() {
       // Не доверяем только флагу в localStorage — сверяем токен с API.
       try {
         await fetchAuthMe();
-        if (!cancelled) router.replace("/developer-projects");
+        if (!cancelled) router.replace(firstAccessibleReportHref());
       } catch {
         logout();
         if (!cancelled) {
@@ -61,9 +62,16 @@ export function LoginView() {
     try {
       const result = await postAuthLogin(username.trim(), password);
       saveAuthSession(result.user, result.token);
-      router.replace("/developer-projects");
-    } catch {
-      setError("Неверное имя пользователя или пароль");
+      router.replace(firstAccessibleReportHref());
+    } catch (err) {
+      const status = err instanceof ApiError ? err.status : 0;
+      if (status === 401 || status === 403) {
+        setError("Неверное имя пользователя или пароль");
+      } else if (status === 0) {
+        setError("Сервер аналитики недоступен. Проверьте, запущен ли API.");
+      } else {
+        setError(`Ошибка сервера (${status}). Повторите попытку позже.`);
+      }
     } finally {
       setBusy(false);
     }

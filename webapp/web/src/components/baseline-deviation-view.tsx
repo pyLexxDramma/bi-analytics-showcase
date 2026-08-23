@@ -7,6 +7,7 @@ import {
   type BaselineDeviationPayload,
 } from "@/lib/api";
 import { useRefreshTick } from "@/lib/refresh-context";
+import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
 import { AppShell } from "@/components/app-shell";
 import { BaselineDeviationChart } from "@/components/baseline-deviation-chart";
 import {
@@ -264,7 +265,7 @@ export function BaselineDeviationView() {
   const [data, setData] = useState<BaselineDeviationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tableSort, setTableSort] = useState<SortState>(null);
+  const [tableSort, toggleSort] = usePersistedTableSort("baseline-deviation");
   const [fullTableOpen, setFullTableOpen] = useState(true);
   const [mobileQuery, setMobileQuery] = useState("");
   const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
@@ -370,14 +371,6 @@ export function BaselineDeviationView() {
       return bv - av;
     });
   }, [sortedRows, mobileQuery, mobileTone]);
-
-  const toggleSort = useCallback((key: string) => {
-    setTableSort((prev) => {
-      if (!prev || prev.key !== key) return { key, asc: true };
-      if (prev.asc) return { key, asc: false };
-      return null;
-    });
-  }, []);
 
   const exportTable = useMemo(() => buildExport(columns, rows), [columns, rows]);
   const covenantExport = useMemo((): ExportTable => {

@@ -77,3 +77,9 @@ export function recentReports(
         canAccessReport(report!.id),
     );
 }
+
+/** Первый отчёт, доступный текущей роли — для редиректа после логина. */
+export function firstAccessibleReportHref(): string {
+  const first = visibleReports(FLAT_REPORTS)[0];
+  return first?.href ?? "/settings/profile";
+}

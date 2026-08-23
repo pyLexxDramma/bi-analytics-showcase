@@ -16,6 +16,8 @@ import {
   type BddsView,
 } from "@/lib/api";
 import { useRefreshTick } from "@/lib/refresh-context";
+import { ChartTableSyncProvider, SyncTableRow } from "@/lib/chart-table-sync";
+import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
 import {
   FilterCheck,
   FilterChipMulti,
@@ -396,8 +398,13 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [periodSort, setPeriodSort] = useState<SortState>(null);
-  const [projectSort, setProjectSort] = useState<SortState>(null);
+  const navScope = config.navId ?? "bdds";
+  const [periodSortRaw, togglePeriodSortRaw] = usePersistedTableSort(`${navScope}:period`);
+  const [projectSortRaw, toggleProjectSortRaw] = usePersistedTableSort(`${navScope}:project`);
+  const periodSort = periodSortRaw as SortState;
+  const projectSort = projectSortRaw as SortState;
+  const togglePeriodSort = (key: SortKey) => togglePeriodSortRaw(key);
+  const toggleProjectSort = (key: SortKey) => toggleProjectSortRaw(key);
   const [mobilePane, setMobilePane] = useState<"chart" | "periods">("chart");
 
   const load = useCallback(async (next: Filters) => {
@@ -487,15 +494,6 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     () => groupPeriodByProject(periodVisible),
     [periodVisible],
   );
-
-  const togglePeriodSort = (key: SortKey) =>
-    setPeriodSort((state) =>
-      state && state.key === key ? (state.asc ? { key, asc: false } : null) : { key, asc: true },
-    );
-  const toggleProjectSort = (key: SortKey) =>
-    setProjectSort((state) =>
-      state && state.key === key ? (state.asc ? { key, asc: false } : null) : { key, asc: true },
-    );
 
   const periodExport = (): ExportTable | null => {
     if (!periodRows.length) return null;
@@ -711,9 +709,14 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             ]).map((item) => ({ id: item.id, label: item.label }))}
           />
         </div>
+        <ChartTableSyncProvider>
         <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
         <Card className="rounded-xl">
-          <FullscreenPanel disabled={!chartRows.length} fill>
+          <FullscreenPanel
+            disabled={!chartRows.length}
+            fill
+            pngFileStem={`${config.sheetName.toLowerCase()}_chart_period`}
+          >
             {(zoomed) => (
               <FinanceBarChart
                 rows={chartRows}
@@ -722,6 +725,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                 showDeviation={filters.show_deviation}
                 xAxisTitle={data?.labels.chart_caption ?? `${config.sheetName} по месяцам`}
                 fullscreen={zoomed}
+                tableSync
                 emptyText={
                   loading
                     ? "Загрузка…"
@@ -807,7 +811,11 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                               </td>
                             </tr>
                           ) : (
-                            <tr key={`${row.project}-${row.period}-${index}`} className="bi-row-alt">
+                            <SyncTableRow
+                              key={`${row.project}-${row.period}-${index}`}
+                              syncKey={row.period}
+                              className="bi-row-alt"
+                            >
                               <td className={`${CELL} ${BODY_CELL}`}>{row.project}</td>
                               <td className={`${CELL} ${BODY_CELL} text-center`}>
                                 {row.period}
@@ -825,7 +833,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                               >
                                 {mlnCell(row.deviation, { signed: true })}
                               </td>
-                            </tr>
+                            </SyncTableRow>
                           ),
                         )}
                         <tr className={TOTAL_ROW}>
@@ -863,10 +871,16 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
           </DashboardTableActions>
         </Card>
         </div>
+        </ChartTableSyncProvider>
 
+        <ChartTableSyncProvider>
         <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
         <Card className="rounded-xl">
-          <FullscreenPanel disabled={!projectChartRows.length} fill>
+          <FullscreenPanel
+            disabled={!projectChartRows.length}
+            fill
+            pngFileStem={`${config.sheetName.toLowerCase()}_chart_project`}
+          >
             {(zoomed) => (
               <FinanceBarChart
                 rows={projectChartRows}
@@ -874,6 +888,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                 factName={config.factSeries}
                 showDeviation={filters.show_deviation}
                 categoryKey="project"
+                tableSync
                 xAxisTitle={
                   data?.labels.project_table_title?.replace(/^Таблица\s+/i, "") ||
                   `${config.sheetName} по проектам`
@@ -944,7 +959,11 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                       </thead>
                       <tbody>
                         {projectVisible.map((row) => (
-                          <tr key={row.project} className="bi-row-alt">
+                          <SyncTableRow
+                            key={row.project}
+                            syncKey={row.project}
+                            className="bi-row-alt"
+                          >
                             <td className={`${CELL} ${BODY_CELL}`}>{row.project}</td>
                             <td className={`${CELL} ${BODY_CELL} bi-num text-center tabular-nums`}>
                               {mlnCell(row.plan)}
@@ -959,7 +978,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                             >
                               {mlnCell(row.deviation, { signed: true })}
                             </td>
-                          </tr>
+                          </SyncTableRow>
                         ))}
                         <tr className={TOTAL_ROW}>
                           <td className={`${CELL} px-3 py-2`}>ИТОГО</td>
@@ -993,6 +1012,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
           </DashboardTableActions>
         </Card>
         </div>
+        </ChartTableSyncProvider>
 
         {hints.length ? (
           <Card className="hidden rounded-xl border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 lg:block">

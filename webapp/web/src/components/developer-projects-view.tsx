@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Text } from "@tremor/react";
 import {
+  ApiError,
   fetchDeveloperProjects,
   type DeveloperProjectsCell,
   type DeveloperProjectsPayload,
 } from "@/lib/api";
+import { canAccessReport } from "@/lib/auth";
 import { useRefreshTick } from "@/lib/refresh-context";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
@@ -344,6 +346,19 @@ function MobileMilestoneSections({
 }
 
 export function DeveloperProjectsView() {
+  const [loading, setLoading] = useState(true);
+  return (
+    <AppShell title="Девелоперские проекты" loading={loading}>
+      <DeveloperProjectsBody onLoading={setLoading} />
+    </AppShell>
+  );
+}
+
+function DeveloperProjectsBody({
+  onLoading,
+}: {
+  onLoading: (loading: boolean) => void;
+}) {
   const refreshTick = useRefreshTick();
   const {
     draft: filters,
@@ -365,11 +380,13 @@ export function DeveloperProjectsView() {
     setFilters((prev) => ({ ...prev, projects }));
 
   const load = useCallback(async (projects: string[]) => {
+    if (!canAccessReport("developer-projects")) return;
     setLoading(true);
     setError(null);
     try {
       setData(await fetchDeveloperProjects(projects));
     } catch (e) {
+      if (e instanceof ApiError && e.status === 403) return;
       setError(e instanceof Error ? e.message : String(e));
       setData(null);
     } finally {
@@ -378,8 +395,16 @@ export function DeveloperProjectsView() {
   }, []);
 
   useEffect(() => {
+    if (!canAccessReport("developer-projects")) {
+      setLoading(false);
+      return;
+    }
     void load(applied.projects);
   }, [applied, load, refreshTick]);
+
+  useEffect(() => {
+    onLoading(loading);
+  }, [loading, onLoading]);
 
   const columns = useMemo(() => {
     if (data?.matrix.columns?.length) return data.matrix.columns;
@@ -410,7 +435,7 @@ export function DeveloperProjectsView() {
   const metaError = data?.meta?.error;
 
   return (
-    <AppShell title="Девелоперские проекты" loading={loading}>
+    <>
       <FiltersCard
         open={filtersOpen}
         onToggle={() => setFiltersOpen((state) => !state)}
@@ -556,6 +581,6 @@ export function DeveloperProjectsView() {
           Откл. — отрицательное отклонение (просрочка / недовыполнение)
         </span>
       </div>
-    </AppShell>
+    </>
   );
 }

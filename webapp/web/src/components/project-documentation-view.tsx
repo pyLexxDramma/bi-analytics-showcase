@@ -14,6 +14,7 @@ import {
   type ProjectDocumentationQuery,
 } from "@/lib/api";
 import { useRefreshTick } from "@/lib/refresh-context";
+import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
 import { AppShell } from "@/components/app-shell";
 import {
   FilterChipMulti,
@@ -159,9 +160,9 @@ function ProjectDocumentationScreen({
   const [data, setData] = useState<ProjectDocumentationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mainSort, setMainSort] = useState<SortState>(null);
-  const [detailSort, setDetailSort] = useState<SortState>(null);
-  const [sumSort, setSumSort] = useState<SortState>(null);
+  const [mainSort, toggleMainSort] = usePersistedTableSort("project-documentation:main");
+  const [detailSort, toggleDetailSort] = usePersistedTableSort("project-documentation:detail");
+  const [sumSort, toggleSumSort] = usePersistedTableSort("project-documentation:sum");
   const [dark, setDark] = useState(false);
   const [mobilePane, setMobilePane] = useState<PdMobilePane>("charts");
   const [listQuery, setListQuery] = useState("");
@@ -312,12 +313,6 @@ function ProjectDocumentationScreen({
     }
     return vmax;
   }, [summaryRows]);
-
-  const toggleSort = (current: SortState, key: string, set: (s: SortState) => void) => {
-    if (!current || current.key !== key) set({ key, asc: true });
-    else if (current.asc) set({ key, asc: false });
-    else set(null);
-  };
 
   const mainExport = useCallback((): ExportTable | null => {
     if (!mainRows.length) return null;
@@ -667,37 +662,37 @@ function ProjectDocumentationScreen({
                           label="№ п/п"
                           sortKey="n"
                           sort={mainSort}
-                          onSort={(k) => toggleSort(mainSort, k, setMainSort)}
+                          onSort={toggleMainSort}
                         />
                         <SortHeader
                           label="Проект"
                           sortKey="project"
                           sort={mainSort}
-                          onSort={(k) => toggleSort(mainSort, k, setMainSort)}
+                          onSort={toggleMainSort}
                         />
                         <SortHeader
                           label="Раздел ПД"
                           sortKey="section"
                           sort={mainSort}
-                          onSort={(k) => toggleSort(mainSort, k, setMainSort)}
+                          onSort={toggleMainSort}
                         />
                         <SortHeader
                           label="Базовое окончание"
                           sortKey="base_end"
                           sort={mainSort}
-                          onSort={(k) => toggleSort(mainSort, k, setMainSort)}
+                          onSort={toggleMainSort}
                         />
                         <SortHeader
                           label="Окончание"
                           sortKey="plan_end"
                           sort={mainSort}
-                          onSort={(k) => toggleSort(mainSort, k, setMainSort)}
+                          onSort={toggleMainSort}
                         />
                         <SortHeader
                           label="Отклонение (дней)"
                           sortKey="dev_end_days"
                           sort={mainSort}
-                          onSort={(k) => toggleSort(mainSort, k, setMainSort)}
+                          onSort={toggleMainSort}
                         />
                       </tr>
                     </thead>
@@ -928,7 +923,7 @@ function ProjectDocumentationScreen({
                             label={label}
                             sortKey={key}
                             sort={detailSort}
-                            onSort={(k) => toggleSort(detailSort, k, setDetailSort)}
+                            onSort={toggleDetailSort}
                           />
                         ))}
                       </tr>
@@ -1076,7 +1071,7 @@ function ProjectDocumentationScreen({
                           label={label}
                           sortKey={key}
                           sort={sumSort}
-                          onSort={(k) => toggleSort(sumSort, k, setSumSort)}
+                          onSort={toggleSumSort}
                         />
                       ))}
                     </tr>

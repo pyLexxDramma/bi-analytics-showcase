@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { ChartPngButton } from "@/components/chart-png-button";
 import { ChartInteractiveProvider } from "@/lib/chart-interaction";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
@@ -32,6 +33,8 @@ export function FullscreenPanel({
   disabled = false,
   toolbar,
   fill = false,
+  /** Имя файла без расширения для кнопки PNG в тулбаре. */
+  pngFileStem,
   /** Plotly-зум/панорама в развёрнутом виде. Для ганта — false. */
   chartGestures = true,
   /** false — содержимое прокручивает себя само (у таблицы свой `bi-table-scroll`). */
@@ -42,6 +45,7 @@ export function FullscreenPanel({
   disabled?: boolean;
   toolbar?: ReactNode;
   fill?: boolean;
+  pngFileStem?: string;
   chartGestures?: boolean;
   scroll?: boolean;
   className?: string;
@@ -122,6 +126,9 @@ export function FullscreenPanel({
           }`}
         >
           {toolbar}
+          {pngFileStem ? (
+            <ChartPngButton hostRef={hostRef} fileStem={pngFileStem} />
+          ) : null}
           {!mobile ? (
             <FsToggleButton active={false} disabled={disabled} onClick={() => void toggle()} />
           ) : null}
@@ -131,6 +138,9 @@ export function FullscreenPanel({
       {active ? (
         <div className="bi-fs-chrome z-[1002] flex shrink-0 items-center justify-end gap-2 border-b border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
           {toolbar}
+          {pngFileStem ? (
+            <ChartPngButton hostRef={hostRef} fileStem={pngFileStem} />
+          ) : null}
           <FsToggleButton active disabled={disabled} onClick={() => void toggle()} />
         </div>
       ) : null}

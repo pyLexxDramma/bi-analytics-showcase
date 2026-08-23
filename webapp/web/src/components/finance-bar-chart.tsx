@@ -15,6 +15,7 @@ import {
 import { Text } from "@tremor/react";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { chartSyncKey, useChartTableSync } from "@/lib/chart-table-sync";
 
 export type FinanceBarPoint = {
   period: string;
@@ -119,6 +120,8 @@ export function FinanceBarChart({
   emptyText = "Нет периодов для графика",
   fullscreen = false,
   colors,
+  /** Подсветка строк таблицы при наведении на столбец (ChartTableSyncProvider). */
+  tableSync = false,
 }: {
   rows: FinanceBarPoint[];
   planName: string;
@@ -139,7 +142,9 @@ export function FinanceBarChart({
     forecast?: string;
     deviation?: string;
   };
+  tableSync?: boolean;
 }) {
+  const { setActiveKey } = useChartTableSync();
   const narrow = useIsNarrow();
   const viewport = useViewportSize(fullscreen);
   const compact = narrow && !fullscreen;
@@ -439,6 +444,19 @@ export function FinanceBarChart({
                   compact ? "10%" : showForecast ? "12%" : "18%"
                 }
                 barGap={showForecast ? 4 : showDeviation ? 6 : 2}
+                onMouseMove={
+                  tableSync
+                    ? (state) => {
+                        const label = state?.activeLabel;
+                        setActiveKey(
+                          label != null ? chartSyncKey(label) : null,
+                        );
+                      }
+                    : undefined
+                }
+                onMouseLeave={
+                  tableSync ? () => setActiveKey(null) : undefined
+                }
               >
                 <CartesianGrid
                   strokeDasharray="3 3"

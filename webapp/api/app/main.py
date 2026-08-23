@@ -3,7 +3,14 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import API_TITLE, API_VERSION, CORS_ORIGINS, DATA_MODE, WEB_DATA_DIR
+from app.config import (
+    API_TITLE,
+    API_VERSION,
+    CORS_ORIGIN_REGEX,
+    CORS_ORIGINS,
+    DATA_MODE,
+    WEB_DATA_DIR,
+)
 from app.routers import (
     admin,
     approved_budget,
@@ -35,6 +42,7 @@ app = FastAPI(title=API_TITLE, version=API_VERSION)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
+    allow_origin_regex=CORS_ORIGIN_REGEX or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps 
 import Plotly from "plotly.js-dist-min";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { useChartInteractive } from "@/lib/chart-interaction";
+import { chartSyncKey, useChartTableSync } from "@/lib/chart-table-sync";
 import { bindChartLegendHost } from "@/lib/chart-legend-host";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
@@ -24,6 +25,11 @@ import { useIsMobileViewport } from "@/lib/use-is-mobile";
 const RawPlotlyFigure = createPlotlyComponent(Plotly);
 
 type PlotProps = ComponentProps<typeof RawPlotlyFigure>;
+
+type PlotlyFigureProps = PlotProps & {
+  /** События hover без tooltip — подсветка строки в связанной таблице. */
+  tableSync?: boolean;
+};
 
 function withoutHoverData(data: PlotProps["data"]): PlotProps["data"] {
   if (!Array.isArray(data)) return data;
@@ -159,10 +165,12 @@ function layoutHeight(layout: PlotProps["layout"]): number | undefined {
   return typeof h === "number" ? h : undefined;
 }
 
-export default function PlotlyFigure(props: PlotProps) {
+export default function PlotlyFigure(props: PlotlyFigureProps) {
+  const { tableSync = false, onHover, onUnhover, ...plotProps } = props;
   const mobile = useIsMobileViewport();
   const interactive = useChartInteractive();
   const lockGestures = mobile && !interactive;
+  const { setActiveKey } = useChartTableSync();
 
   // График монтируется, только когда до него доскроллили: на тяжёлых отчётах
   // это заметно ускоряет первый экран. На десктопе запас больше — курсор
@@ -227,34 +235,34 @@ export default function PlotlyFigure(props: PlotProps) {
   }, [legendHidden]);
 
   const data = useMemo(
-    () => applyLegendHidden(withoutHoverData(props.data), legendHidden),
-    [props.data, legendHidden],
+    () => applyLegendHidden(withoutHoverData(plotProps.data), legendHidden),
+    [plotProps.data, legendHidden],
   );
   const layout = useMemo(
-    () => withoutHoverLayout(props.layout, lockGestures),
-    [props.layout, lockGestures],
+    () => withoutHoverLayout(plotProps.layout, lockGestures),
+    [plotProps.layout, lockGestures],
   );
   const config = useMemo(
-    () => withoutGestureConfig(props.config, lockGestures),
-    [props.config, lockGestures],
+    () => withoutGestureConfig(plotProps.config, lockGestures),
+    [plotProps.config, lockGestures],
   );
 
   // `height: 100%` в контейнере без заданной высоты Plotly вместе с
   // useResizeHandler иногда схлопывает в 0 — график остаётся пустым листом.
   // Числовая высота из layout делает контейнер определённым.
-  const heightPx = layoutHeight(props.layout);
+  const heightPx = layoutHeight(plotProps.layout);
   const fillWidth =
-    props.style?.width == null ||
-    props.style.width === "100%" ||
-    props.style.width === "100";
+    plotProps.style?.width == null ||
+    plotProps.style.width === "100%" ||
+    plotProps.style.width === "100";
   const style =
-    heightPx && (props.style?.height == null || props.style.height === "100%")
+    heightPx && (plotProps.style?.height == null || plotProps.style.height === "100%")
       ? {
-          ...props.style,
+          ...plotProps.style,
           ...(fillWidth ? { width: "100%" } : {}),
           height: heightPx,
         }
-      : props.style;
+      : plotProps.style;
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -317,7 +325,7 @@ export default function PlotlyFigure(props: PlotProps) {
       <div
         ref={holderRef}
         className="bi-chart-placeholder bi-skeleton"
-        style={{ height: layoutHeight(props.layout) ?? "100%", minHeight: 120 }}
+        style={{ height: layoutHeight(plotProps.layout) ?? "100%", minHeight: 120 }}
         aria-hidden
       />
     );
@@ -330,14 +338,27 @@ export default function PlotlyFigure(props: PlotProps) {
       style={{ height: heightPx ?? style?.height ?? "100%" }}
     >
       <RawPlotlyFigure
-        {...props}
+        {...plotProps}
         data={data}
         layout={layout}
         config={config}
-        useResizeHandler={fillWidth ? true : props.useResizeHandler}
+        useResizeHandler={fillWidth ? true : plotProps.useResizeHandler}
         style={style}
+        onHover={(event) => {
+          onHover?.(event);
+          if (!tableSync) return;
+          const pt = event.points?.[0];
+          if (!pt) return;
+          const raw =
+            (pt as { customdata?: unknown }).customdata ?? pt.x ?? pt.label;
+          setActiveKey(chartSyncKey(raw));
+        }}
+        onUnhover={(event) => {
+          onUnhover?.(event);
+          if (tableSync) setActiveKey(null);
+        }}
         onRelayout={(eventData) => {
-          props.onRelayout?.(eventData);
+          plotProps.onRelayout?.(eventData);
           const gd = wrapRef.current?.querySelector(".js-plotly-plot") as
             | (HTMLElement & { layout?: Record<string, unknown> })
             | null;

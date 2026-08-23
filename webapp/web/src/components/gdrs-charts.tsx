@@ -423,11 +423,13 @@ export function GdrsDynamicsLineChart({
   rows,
   fullscreen = false,
   compact = false,
+  tableSync = false,
 }: {
   rows: Array<{ period: string; plan: number; fact: number }>;
   fullscreen?: boolean;
   /** Mobile: компактный холст, подписи на точках, горизонтальный скролл при «День». */
   compact?: boolean;
+  tableSync?: boolean;
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
@@ -561,6 +563,7 @@ export function GdrsDynamicsLineChart({
           data={figure.data}
           layout={figure.layout}
           config={figure.config}
+          tableSync={tableSync}
           useResizeHandler={!scrollEnabled}
           style={{
             width: scrollEnabled ? "max-content" : "100%",

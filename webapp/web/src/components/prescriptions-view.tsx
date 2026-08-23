@@ -7,6 +7,7 @@ import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { fetchPrescriptions, type PrescriptionsPayload } from "@/lib/api";
 import { useRefreshTick } from "@/lib/refresh-context";
+import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
 import {
   ContractNoSuggest,
   FilterCheck,
@@ -55,7 +56,6 @@ const INITIAL: Filters = {
   date_to: "",
   hide_resolved: false,
 };
-type SortState = { key: string; asc: boolean } | null;
 
 const STATUS_KEYS = [
   "Остановка работ",
@@ -133,7 +133,7 @@ export function PrescriptionsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [sort, setSort] = useState<SortState>(null);
+  const [sort, toggleSort] = usePersistedTableSort("prescriptions");
   const [mobilePane, setMobilePane] = useState<"charts" | "list">("charts");
   const contractOptionsRef = useRef<string[]>([]);
 
@@ -237,11 +237,6 @@ export function PrescriptionsView() {
       ),
     };
   }, [rows]);
-
-  const toggleSort = (key: string) =>
-    setSort((previous) =>
-      previous?.key === key ? { key, asc: !previous.asc } : { key, asc: true },
-    );
 
   const kpis = data?.kpis;
   const topMetrics = [

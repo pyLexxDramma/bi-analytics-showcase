@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
 import { ReportBreadcrumbs } from "@/components/report-breadcrumbs";
-import { ShortcutsOnboarding } from "@/components/shortcuts-onboarding";
+import { ShortcutsHelp } from "@/components/shortcuts-help";
 import {
   DashboardSkeleton,
   useDelayedLoading,
@@ -15,8 +15,8 @@ import {
 } from "@/components/dashboard-loading";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { ReportsSearchSheet } from "@/components/reports-search-sheet";
-import { ShortcutsHelp } from "@/components/shortcuts-help";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
+import { ReportAccessProvider } from "@/lib/report-access-context";
 import { findNavItem } from "@/lib/nav";
 import { pushRecentReport } from "@/lib/recent-reports";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -36,6 +36,7 @@ import {
 import { fetchAuthMe } from "@/lib/api";
 import { canAccessReport, isAuthenticated, logout, saveAuthSession } from "@/lib/auth";
 import { prefetchAdjacentReports } from "@/lib/prefetch-reports";
+import { firstAccessibleReportHref } from "@/lib/reports-index";
 import { PullRefreshProvider } from "@/lib/refresh-context";
 
 export function AppShell({
@@ -58,9 +59,15 @@ export function AppShell({
   const [flashData, setFlashData] = useState(false);
   const pathname = usePathname();
   const mobile = useIsMobileViewport();
-  const showLoading = useDelayedLoading(loading, mobile ? 400 : 1000);
-  const slowHint = useSlowLoadingHint(loading);
-  const [accessDenied, setAccessDenied] = useState(false);
+  const navItem = findNavItem(pathname);
+  const [accessDenied, setAccessDenied] = useState(
+    () => !!(navItem && !canAccessReport(navItem.id)),
+  );
+  const showLoading = useDelayedLoading(
+    !accessDenied && loading,
+    mobile ? 400 : 1000,
+  );
+  const slowHint = useSlowLoadingHint(!accessDenied && loading);
 
   useEffect(() => {
     applyThemeClass(readTheme());
@@ -94,15 +101,6 @@ export function AppShell({
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
-
-  useEffect(() => {
-    const nav = findNavItem(pathname);
-    if (!nav) {
-      setAccessDenied(false);
-      return;
-    }
-    setAccessDenied(!canAccessReport(nav.id));
   }, [pathname]);
 
   useEffect(() => {
@@ -214,52 +212,55 @@ export function AppShell({
               ) : null}
               <DataFreshnessBadge />
             </div>
-            <div className="hidden shrink-0 items-center gap-2 lg:flex">
-              <AskAiButton />
-              <button
-                type="button"
-                onClick={toggleWide}
-                title={
-                  wide
-                    ? "Вернуть ограниченную ширину"
-                    : "Растянуть отчёт во всю ширину экрана"
-                }
-                aria-pressed={wide}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
-              >
-                <span aria-hidden>{wide ? "><" : "<>"}</span>
-                <span className="sr-only">Ширина полотна</span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleDensity}
-                title={
-                  density === "compact"
-                    ? "Обычная высота строк"
-                    : "Компактные строки — больше данных на экран"
-                }
-                aria-pressed={density === "compact"}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
-              >
-                <span aria-hidden>{density === "compact" ? "☰" : "≡"}</span>
-                <span className="sr-only">Плотность строк</span>
-              </button>
-              <button
-                type="button"
-                onClick={openCommandPalette}
-                title="Поиск по отчётам"
-                className="inline-flex items-center gap-2 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
-              >
-                <span aria-hidden>🔎</span>
-                Поиск
-                <kbd className="rounded border border-tremor-border px-1.5 py-0.5 text-xs text-tremor-content dark:border-dark-tremor-border dark:text-dark-tremor-content">
-                  Ctrl K
-                </kbd>
-              </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="hidden items-center gap-2 lg:flex">
+                <AskAiButton />
+                <button
+                  type="button"
+                  onClick={toggleWide}
+                  title={
+                    wide
+                      ? "Вернуть ограниченную ширину"
+                      : "Растянуть отчёт во всю ширину экрана"
+                  }
+                  aria-pressed={wide}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                >
+                  <span aria-hidden>{wide ? "><" : "<>"}</span>
+                  <span className="sr-only">Ширина полотна</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleDensity}
+                  title={
+                    density === "compact"
+                      ? "Обычная высота строк"
+                      : "Компактные строки — больше данных на экран"
+                  }
+                  aria-pressed={density === "compact"}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                >
+                  <span aria-hidden>{density === "compact" ? "☰" : "≡"}</span>
+                  <span className="sr-only">Плотность строк</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openCommandPalette}
+                  title="Поиск по отчётам"
+                  className="inline-flex items-center gap-2 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                >
+                  <span aria-hidden>🔎</span>
+                  Поиск
+                  <kbd className="rounded border border-tremor-border px-1.5 py-0.5 text-xs text-tremor-content dark:border-dark-tremor-border dark:text-dark-tremor-content">
+                    Ctrl K
+                  </kbd>
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setTheme(dark ? "light" : "dark")}
-                className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle sm:px-3 sm:text-tremor-default"
+                aria-label={dark ? "Включить светлую тему" : "Включить тёмную тему"}
               >
                 {dark ? "☀ Светлая" : "🌙 Тёмная"}
               </button>
@@ -277,9 +278,19 @@ export function AppShell({
                   У вашей роли нет прав на этот дашборд. Выберите другой отчёт в
                   меню или обратитесь к администратору.
                 </p>
+                {firstAccessibleReportHref() !== pathname ? (
+                  <a
+                    href={firstAccessibleReportHref()}
+                    className="mt-4 inline-flex rounded-lg bg-amber-800 px-4 py-2 text-sm font-medium text-white hover:bg-amber-900 dark:bg-amber-600 dark:hover:bg-amber-500"
+                  >
+                    Перейти к доступному отчёту
+                  </a>
+                ) : null}
               </div>
             ) : (
-              <PullRefreshProvider>{children}</PullRefreshProvider>
+              <ReportAccessProvider allowed>
+                <PullRefreshProvider>{children}</PullRefreshProvider>
+              </ReportAccessProvider>
             )}
           </div>
         </div>
@@ -299,7 +310,6 @@ export function AppShell({
         />
         <CommandPalette />
         <ShortcutsHelp />
-        <ShortcutsOnboarding />
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import {
   type WorkingDocumentationQuery,
 } from "@/lib/api";
 import { useRefreshTick } from "@/lib/refresh-context";
+import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
 import { AppShell } from "@/components/app-shell";
 import {
   FilterCheck,
@@ -196,7 +197,7 @@ function DetailTable({
   fileStem: string;
   onReset?: () => void;
 }) {
-  const [sort, setSort] = useState<SortState>(null);
+  const [sort, toggleSort] = usePersistedTableSort(`working-documentation:${fileStem}`);
   const [dark, setDark] = useState(false);
   const [listQuery, setListQuery] = useState("");
   const [detailRow, setDetailRow] = useState<Record<
@@ -211,15 +212,6 @@ function DetailTable({
     const obs = new MutationObserver(sync);
     obs.observe(el, { attributes: true, attributeFilter: ["class"] });
     return () => obs.disconnect();
-  }, []);
-
-  const onSort = useCallback((key: string) => {
-    setSort((prev) => {
-      if (prev?.key === key) {
-        return prev.asc ? { key, asc: false } : null;
-      }
-      return { key, asc: true };
-    });
   }, []);
 
   const sortedRows = useMemo(() => {
@@ -388,7 +380,7 @@ function DetailTable({
                         label={c}
                         sortKey={c}
                         sort={sort}
-                        onSort={onSort}
+                        onSort={toggleSort}
                         dark={dark}
                       />
                     ))}

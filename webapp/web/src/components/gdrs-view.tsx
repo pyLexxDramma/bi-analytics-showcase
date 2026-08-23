@@ -54,6 +54,8 @@ import {
   type GdrsQuery,
 } from "@/lib/api";
 import { useRefreshTick } from "@/lib/refresh-context";
+import { ChartTableSyncProvider, SyncTableRow } from "@/lib/chart-table-sync";
+import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type ResourceKind = "people" | "equipment";
@@ -360,11 +362,6 @@ function useSortableRows<T extends Record<string, unknown>>(
   }, [rows, sort]);
 }
 
-function toggleSort(prev: SortState, key: string): SortState {
-  if (prev?.key === key) return { key, asc: !prev.asc };
-  return { key, asc: true };
-}
-
 async function fetchGdrs(
   kind: ResourceKind,
   query: GdrsQuery,
@@ -399,10 +396,11 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const bootstrappedRef = useRef(false);
   const loadSeqRef = useRef(0);
 
-  const [projSort, setProjSort] = useState<SortState>(null);
-  const [dynSort, setDynSort] = useState<SortState>(null);
-  const [ctrSort, setCtrSort] = useState<SortState>(null);
-  const [mtxSort, setMtxSort] = useState<SortState>(null);
+  const sortScope = resourceKind === "people" ? "gdrs-people" : "gdrs-equipment";
+  const [projSort, toggleProjSort] = usePersistedTableSort(`${sortScope}:proj`);
+  const [dynSort, toggleDynSort] = usePersistedTableSort(`${sortScope}:dyn`);
+  const [ctrSort, toggleCtrSort] = usePersistedTableSort(`${sortScope}:ctr`);
+  const [mtxSort, toggleMtxSort] = usePersistedTableSort(`${sortScope}:mtx`);
   const matrixGroupHdrRef = useRef<HTMLTableRowElement>(null);
   const [matrixGroupHdrH, setMatrixGroupHdrH] = useState(40);
   const [mobilePane, setMobilePane] = useState<GdrsMobilePane>("charts");
@@ -818,14 +816,14 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Проект"
                       sortKey="project"
                       sort={projSort}
-                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      onSort={toggleProjSort}
                       palette={pal}
                     />
                     <SortHeader
                       label="План"
                       sortKey="plan"
                       sort={projSort}
-                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      onSort={toggleProjSort}
                       palette={pal}
                       style={{ backgroundColor: pal.planHdr }}
                     />
@@ -833,7 +831,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Факт"
                       sortKey="fact"
                       sort={projSort}
-                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      onSort={toggleProjSort}
                       palette={pal}
                       style={{ backgroundColor: pal.skudHdr }}
                     />
@@ -841,7 +839,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Отклонение"
                       sortKey="deviation"
                       sort={projSort}
-                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      onSort={toggleProjSort}
                       palette={pal}
                       style={{ backgroundColor: pal.devHdr }}
                     />
@@ -849,7 +847,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Отклонение %"
                       sortKey="delta_pct"
                       sort={projSort}
-                      onSort={(k) => setProjSort((s) => toggleSort(s, k))}
+                      onSort={toggleProjSort}
                       palette={pal}
                       style={{ backgroundColor: pal.devHdr }}
                     />
@@ -1056,7 +1054,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     label="Контрагент"
                     sortKey="label"
                     sort={mtxSort}
-                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    onSort={toggleMtxSort}
                     palette={matrixHdrPal}
                     borderWidth={2}
                     stickyTop={matrixHdrStickyTop}
@@ -1071,7 +1069,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     label="Вид работ"
                     sortKey="vid_raboty"
                     sort={mtxSort}
-                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    onSort={toggleMtxSort}
                     palette={matrixHdrPal}
                     borderWidth={2}
                     stickyTop={matrixHdrStickyTop}
@@ -1086,7 +1084,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     label="План"
                     sortKey="plan"
                     sort={mtxSort}
-                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    onSort={toggleMtxSort}
                     palette={matrixHdrPal}
                     borderWidth={2}
                     stickyTop={matrixHdrStickyTop}
@@ -1100,7 +1098,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     label="СКУД"
                     sortKey="skud"
                     sort={mtxSort}
-                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    onSort={toggleMtxSort}
                     palette={matrixHdrPal}
                     borderWidth={2}
                     stickyTop={matrixHdrStickyTop}
@@ -1114,7 +1112,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     label="Отклонение"
                     sortKey="deviation"
                     sort={mtxSort}
-                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    onSort={toggleMtxSort}
                     palette={matrixHdrPal}
                     borderWidth={2}
                     stickyTop={matrixHdrStickyTop}
@@ -1128,7 +1126,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                     label="Отклонение %"
                     sortKey="delta_pct"
                     sort={mtxSort}
-                    onSort={(k) => setMtxSort((s) => toggleSort(s, k))}
+                    onSort={toggleMtxSort}
                     palette={matrixHdrPal}
                     borderWidth={2}
                     stickyTop={matrixHdrStickyTop}
@@ -1145,7 +1143,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                           label={matrixMeta.week_labels[i] ?? k}
                           sortKey={k}
                           sort={mtxSort}
-                          onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
+                          onSort={toggleMtxSort}
                           palette={matrixHdrPal}
                           borderWidth={2}
                           stickyTop={matrixHdrStickyTop}
@@ -1164,7 +1162,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                           label={matrixMeta.week_labels[i] ?? k}
                           sortKey={k}
                           sort={mtxSort}
-                          onSort={(key) => setMtxSort((s) => toggleSort(s, key))}
+                          onSort={toggleMtxSort}
                           palette={matrixHdrPal}
                           borderWidth={2}
                           stickyTop={matrixHdrStickyTop}
@@ -1340,7 +1338,11 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           </FullscreenPanel>
         </Card>
 
-        <FullscreenPanel fill>
+        <ChartTableSyncProvider>
+        <FullscreenPanel
+          fill
+          pngFileStem={`${copy.fileStem}_dynamics_chart`}
+        >
           {(zoomed) => <Card className="rounded-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -1371,10 +1373,18 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               План и факт — среднее за день в периоде группировки
             </Text>
             <div className="mt-4 hidden lg:block">
-              <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} fullscreen={zoomed} />
+              <GdrsDynamicsLineChart
+                rows={data?.tremor.dynamics ?? []}
+                fullscreen={zoomed}
+                tableSync
+              />
             </div>
             <div className="mt-4 lg:hidden">
-              <GdrsDynamicsLineChart rows={data?.tremor.dynamics ?? []} compact />
+              <GdrsDynamicsLineChart
+                rows={data?.tremor.dynamics ?? []}
+                compact
+                tableSync
+              />
             </div>
           </Card>}
         </FullscreenPanel>
@@ -1392,14 +1402,14 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Период"
                       sortKey="period"
                       sort={dynSort}
-                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      onSort={toggleDynSort}
                       palette={pal}
                     />
                     <SortHeader
                       label="План"
                       sortKey="plan"
                       sort={dynSort}
-                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      onSort={toggleDynSort}
                       palette={pal}
                       style={{ backgroundColor: pal.planHdr }}
                     />
@@ -1407,7 +1417,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Факт"
                       sortKey="fact"
                       sort={dynSort}
-                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      onSort={toggleDynSort}
                       palette={pal}
                       style={{ backgroundColor: pal.skudHdr }}
                     />
@@ -1415,7 +1425,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Отклонение"
                       sortKey="deviation"
                       sort={dynSort}
-                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      onSort={toggleDynSort}
                       palette={pal}
                       style={{ backgroundColor: pal.devHdr }}
                     />
@@ -1423,7 +1433,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Отклонение %"
                       sortKey="delta_pct"
                       sort={dynSort}
-                      onSort={(k) => setDynSort((s) => toggleSort(s, k))}
+                      onSort={toggleDynSort}
                       palette={pal}
                       style={{ backgroundColor: pal.devHdr }}
                     />
@@ -1431,7 +1441,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 </thead>
                 <tbody>
                   {dynamicsRows.map((r) => (
-                    <tr key={r.period} className="bi-row-alt">
+                    <SyncTableRow key={r.period} syncKey={r.period} className="bi-row-alt">
                       <td style={td({ textAlign: "center" })}>{r.period}</td>
                       <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
@@ -1457,7 +1467,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       >
                         {fmtPct(r.delta_pct)}
                       </td>
-                    </tr>
+                    </SyncTableRow>
                   ))}
                 </tbody>
               </table>
@@ -1471,6 +1481,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             />
           </DashboardTableActions>
         </Card>
+        </ChartTableSyncProvider>
 
         <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <DashboardTableTitle className="mb-0 border-0 px-0 py-0">
@@ -1485,14 +1496,14 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Контрагент"
                       sortKey="contractor"
                       sort={ctrSort}
-                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      onSort={toggleCtrSort}
                       palette={pal}
                     />
                     <SortHeader
                       label="План"
                       sortKey="plan"
                       sort={ctrSort}
-                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      onSort={toggleCtrSort}
                       palette={pal}
                       style={{ backgroundColor: pal.planHdr }}
                     />
@@ -1500,7 +1511,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Факт"
                       sortKey="fact"
                       sort={ctrSort}
-                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      onSort={toggleCtrSort}
                       palette={pal}
                       style={{ backgroundColor: pal.skudHdr }}
                     />
@@ -1508,7 +1519,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Отклонение"
                       sortKey="deviation"
                       sort={ctrSort}
-                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      onSort={toggleCtrSort}
                       palette={pal}
                       style={{ backgroundColor: pal.devHdr }}
                     />
@@ -1516,7 +1527,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                       label="Доля %"
                       sortKey="share_pct"
                       sort={ctrSort}
-                      onSort={(k) => setCtrSort((s) => toggleSort(s, k))}
+                      onSort={toggleCtrSort}
                       palette={pal}
                       style={{ backgroundColor: pal.devHdr }}
                     />

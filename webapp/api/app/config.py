@@ -97,6 +97,17 @@ CORS_ORIGINS = [
     ).split(",")
     if o.strip()
 ]
+# Next dev занимает любой свободный порт (3000/3001/3002…), перечислять их
+# в WEBAPP_CORS_ORIGINS на каждой машине бессмысленно. Признак dev — loopback
+# в самом списке origins; на проде там только https://ai.conall.ru, и regex
+# остаётся пустым.
+_LOOPBACK_DEV = any(
+    o.startswith(("http://localhost:", "http://127.0.0.1:")) for o in CORS_ORIGINS
+)
+CORS_ORIGIN_REGEX = os.environ.get(
+    "WEBAPP_CORS_ORIGIN_REGEX",
+    r"http://(localhost|127\.0\.0\.1):\d+" if _LOOPBACK_DEV else "",
+).strip()
 API_TITLE = "BI Analytics Showcase API"
 API_VERSION = "0.19.0"
 ADMIN_SYNC_TOKEN = (os.environ.get("WEBAPP_ADMIN_TOKEN") or "").strip()

@@ -9,3 +9,5 @@ web/.env.local
 web/.env*.local
 **/__pycache__/
 parity_out/
+node_modules/
+_pw_*
