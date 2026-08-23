@@ -133,7 +133,10 @@ else
 fi
 
 echo "==> assistant readiness (in-app opencode)"
-"${COMPOSE[@]}" up -d --build --force-recreate opencode
+# shellcheck disable=SC1091
+source "$WEBAPP/scripts/_sync_vllm_model.sh"
+_sync_vllm_model
+"${COMPOSE[@]}" up -d --no-build --force-recreate api opencode
 opencode_ok=0
 for _ in $(seq 1 60); do
   cid="$("${COMPOSE[@]}" ps -q opencode 2>/dev/null || true)"
