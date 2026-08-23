@@ -5,6 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { readRecentReports } from "@/lib/recent-reports";
+import {
+  readReportFavorites,
+  toggleReportFavorite,
+} from "@/lib/report-favorites";
 import { groupReports, recentReports, searchReports } from "@/lib/reports-index";
 import { tapFeedback } from "@/lib/haptics";
 
@@ -25,6 +29,7 @@ export function ReportsSearchSheet({
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
   const [recents, setRecents] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [dragY, setDragY] = useState(0);
   const startY = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -38,6 +43,7 @@ export function ReportsSearchSheet({
       return;
     }
     setRecents(readRecentReports());
+    setFavorites(readReportFavorites());
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -51,6 +57,12 @@ export function ReportsSearchSheet({
       document.body.style.overflow = prev;
     };
   }, [open, onClose]);
+
+  const favoriteItems = useMemo(() => {
+    if (query.trim()) return [];
+    const fav = new Set(favorites);
+    return searchReports("").filter((r) => fav.has(r.href));
+  }, [favorites, query]);
 
   const grouped = useMemo(() => groupReports(searchReports(query)), [query]);
 
@@ -128,6 +140,35 @@ export function ReportsSearchSheet({
         </div>
 
         <div className="bi-sheet-body">
+          {favoriteItems.length > 0 ? (
+            <section className="mb-3">
+              <div className="mb-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-gray-500 dark:text-dark-tremor-content">
+                Избранное
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {favoriteItems.map((r) => (
+                  <div key={`fav-${r.id}`} className="flex items-center gap-1">
+                    <Link
+                      href={r.href}
+                      onClick={go}
+                      className={`${itemClass(r.href)} flex-1`}
+                    >
+                      <span aria-hidden>★</span>
+                      <span className="min-w-0 flex-1 break-words">{r.label}</span>
+                    </Link>
+                    <button
+                      type="button"
+                      className="min-h-11 shrink-0 rounded-lg px-2 text-amber-500"
+                      aria-label="Убрать из избранного"
+                      onClick={() => setFavorites(toggleReportFavorite(r.href))}
+                    >
+                      ★
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
           {recentItems.length > 0 ? (
             <section className="mb-3">
               <div className="mb-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-gray-500 dark:text-dark-tremor-content">
@@ -161,14 +202,27 @@ export function ReportsSearchSheet({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {g.items.map((r) => (
-                    <Link
-                      key={r.id}
-                      href={r.href}
-                      onClick={go}
-                      className={itemClass(r.href)}
-                    >
-                      <span className="min-w-0 flex-1 break-words">{r.label}</span>
-                    </Link>
+                    <div key={r.id} className="flex items-center gap-1">
+                      <Link
+                        href={r.href}
+                        onClick={go}
+                        className={`${itemClass(r.href)} flex-1`}
+                      >
+                        <span className="min-w-0 flex-1 break-words">{r.label}</span>
+                      </Link>
+                      <button
+                        type="button"
+                        className="min-h-11 shrink-0 rounded-lg px-2 text-gray-400"
+                        aria-label={
+                          favorites.includes(r.href)
+                            ? "Убрать из избранного"
+                            : "В избранное"
+                        }
+                        onClick={() => setFavorites(toggleReportFavorite(r.href))}
+                      >
+                        {favorites.includes(r.href) ? "★" : "☆"}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </section>

@@ -2141,4 +2141,79 @@ html.dark .bi-nav-active::before {
   }
 }
 
+/* Подсветка блока данных после «Применить» фильтры */
+@keyframes bi-data-flash-keyframes {
+  0% {
+    background-color: rgba(16, 185, 129, 0.12);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.bi-data-flash {
+  animation: bi-data-flash-keyframes 0.7s ease-out;
+  border-radius: 0.75rem;
+}
+
+.bi-filter-sticky-bar {
+  pointer-events: none;
+}
+
+.bi-filter-sticky-bar > * {
+  pointer-events: auto;
+}
+
+.bi-chart-hint {
+  user-select: none;
+}
+
+.bi-tabbar-inner {
+  display: contents;
+}
+
+/* Узкие Android (360px): не обрезать tab-bar и sheet */
+@media (max-width: 390px) {
+  .bi-tabbar-inner {
+    padding-left: max(0.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.25rem, env(safe-area-inset-right, 0px));
+  }
+
+  .bi-filters-trigger {
+    font-size: 0.875rem;
+  }
+}
+
+/* Печать отчёта: KPI + таблицы, без chrome */
+@media print {
+  .bi-tabbar-root,
+  .bi-sheet-backdrop,
+  .bi-filter-sticky-bar,
+  .bi-onboarding-hint,
+  nav[aria-label="Навигация по разделам"],
+  aside,
+  header button {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .bi-has-tabbar {
+    padding-bottom: 0 !important;
+  }
+
+  table {
+    break-inside: avoid;
+  }
+
+  .bi-sticky-head thead th,
+  .bi-sticky-col td:first-child,
+  .bi-sticky-col th:first-child {
+    position: static !important;
+  }
+}
+
 

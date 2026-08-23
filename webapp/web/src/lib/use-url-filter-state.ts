@@ -247,6 +247,9 @@ export function useDeferredUrlFilters<T extends FilterValues>(
 
   const commit = useCallback(() => {
     setApplied(draftRef.current);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("bi:filters-committed"));
+    }
   }, []);
 
   const reset = useCallback(() => {

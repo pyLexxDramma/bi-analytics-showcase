@@ -17,7 +17,8 @@ import { useStickyHead } from "@/lib/use-sticky-head";
 import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
-import { MobileFilterChips, MobilePaneTabs, DashboardTableActions } from "@/components/mobile-ux";
+import { MobileFilterChips, MobilePaneTabs, DashboardTableActions, MobileDetailSheet } from "@/components/mobile-ux";
+import { useRefreshTick } from "@/lib/refresh-context";
 
 const URL_INITIAL = { projects: [] as string[] };
 
@@ -131,9 +132,15 @@ function ControlPointsMobileCards({
 function ControlPointsDesktopTable({
   group,
   projects,
+  onStatusClick,
 }: {
   group: Group;
   projects: ProjectRow[];
+  onStatusClick?: (
+    project: string,
+    milestone: { slug: string; title: string },
+    cell: MilestoneCell | undefined,
+  ) => void;
 }) {
   const headRef = useStickyHead([group.milestones]);
   const milestoneCount = Math.max(group.milestones.length, 1);
@@ -221,12 +228,18 @@ function ControlPointsDesktopTable({
                   : "";
                 return [
                   <td key={`${milestone.slug}-status`} className={`${body} ${edgeL}`}>
-                    <span
-                      className={`mx-auto block rounded-full ${
-                        dense ? "h-2 w-2" : "h-2.5 w-2.5"
-                      } ${milestoneCell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`}
-                      aria-label={milestoneCell?.status === "ok" ? "В срок" : "Просрочено"}
-                    />
+                    <button
+                      type="button"
+                      className="mx-auto flex h-8 w-8 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+                      onClick={() => onStatusClick?.(project.project, milestone, milestoneCell)}
+                      aria-label={`Детали: ${milestone.title}, ${project.project}`}
+                    >
+                      <span
+                        className={`block rounded-full ${
+                          dense ? "h-2 w-2" : "h-2.5 w-2.5"
+                        } ${milestoneCell?.status === "ok" ? "bg-emerald-500" : "bg-rose-500"}`}
+                      />
+                    </button>
                   </td>,
                   <td
                     key={`${milestone.slug}-plan`}
@@ -261,10 +274,16 @@ function ControlPointsGroup({
   group,
   projects,
   mobileProjects,
+  onStatusClick,
 }: {
   group: Group;
   projects: ProjectRow[];
   mobileProjects: ProjectRow[];
+  onStatusClick?: (
+    project: string,
+    milestone: { slug: string; title: string },
+    cell: MilestoneCell | undefined,
+  ) => void;
 }) {
   const titles = group.milestones.map((m) => m.title).join(" · ");
   return (
@@ -275,7 +294,11 @@ function ControlPointsGroup({
         </Text>
       </div>
       <ControlPointsMobileCards group={group} projects={mobileProjects} />
-      <ControlPointsDesktopTable group={group} projects={projects} />
+      <ControlPointsDesktopTable
+        group={group}
+        projects={projects}
+        onStatusClick={onStatusClick}
+      />
     </Card>
   );
 }
@@ -296,6 +319,12 @@ export function ControlPointsView() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
   const [mobileGroup, setMobileGroup] = useState<string>("");
+  const refreshTick = useRefreshTick();
+  const [detail, setDetail] = useState<{
+    project: string;
+    milestone: string;
+    cell: MilestoneCell | undefined;
+  } | null>(null);
 
   const load = useCallback(async (projects: string[]) => {
     setLoading(true);
@@ -312,7 +341,7 @@ export function ControlPointsView() {
 
   useEffect(() => {
     void load(applied.projects);
-  }, [load, applied]);
+  }, [load, applied, refreshTick]);
 
   const selected = filters.projects;
   const setSelected = (projects: string[]) =>
@@ -351,6 +380,8 @@ export function ControlPointsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={multiFilterChips("projects", "Проект", selected, setSelected)}
+        navId="control-points"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}
@@ -422,6 +453,13 @@ export function ControlPointsView() {
                       group={group}
                       projects={projects}
                       mobileProjects={mobileProjects}
+                      onStatusClick={(project, milestone, cell) =>
+                        setDetail({
+                          project,
+                          milestone: milestone.title,
+                          cell,
+                        })
+                      }
                     />
                   </div>
                 ))}
@@ -433,6 +471,41 @@ export function ControlPointsView() {
           </DashboardTableActions>
         </div>
       )}
+      <MobileDetailSheet
+        open={detail != null}
+        onClose={() => setDetail(null)}
+        title={detail ? `${detail.milestone}` : ""}
+      >
+        {detail ? (
+          <div className="space-y-2 text-sm">
+            <p>
+              <span className="font-semibold">Проект:</span> {detail.project}
+            </p>
+            <p>
+              <span className="font-semibold">Статус:</span>{" "}
+              {detail.cell?.status === "ok" ? "В срок" : "Просрочено"}
+            </p>
+            <p>
+              <span className="font-semibold">План:</span> {detail.cell?.plan ?? "Н/Д"}
+            </p>
+            <p>
+              <span className="font-semibold">Факт:</span> {detail.cell?.fact ?? "Н/Д"}
+            </p>
+            <p>
+              <span className="font-semibold">Отклонение:</span>{" "}
+              {detail.cell?.otkl ?? "Н/Д"}
+              {detail.cell?.otkl_days != null
+                ? ` (${detail.cell.otkl_days} дн.)`
+                : ""}
+            </p>
+            {detail.cell?.pct_complete_100 ? (
+              <p className="text-orange-600 dark:text-orange-300">
+                Веха выполнена на 100% (даты оранжевые)
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </MobileDetailSheet>
     </AppShell>
   );
 }

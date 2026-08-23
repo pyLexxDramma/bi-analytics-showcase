@@ -6,6 +6,7 @@ import {
   fetchBaselineDeviation,
   type BaselineDeviationPayload,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import { AppShell } from "@/components/app-shell";
 import { BaselineDeviationChart } from "@/components/baseline-deviation-chart";
 import {
@@ -249,6 +250,7 @@ function buildExport(
 }
 
 export function BaselineDeviationView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -297,7 +299,7 @@ export function BaselineDeviationView() {
 
   useEffect(() => {
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   const showReasons = data?.filters.applied.show_reasons ?? applied.showReasons;
   const showDur = data?.filters.applied.show_dur ?? applied.showDur;
@@ -436,6 +438,8 @@ export function BaselineDeviationView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
+        navId="baseline-deviation"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}

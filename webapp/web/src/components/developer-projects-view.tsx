@@ -7,6 +7,7 @@ import {
   type DeveloperProjectsCell,
   type DeveloperProjectsPayload,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -343,6 +344,7 @@ function MobileMilestoneSections({
 }
 
 export function DeveloperProjectsView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -377,7 +379,7 @@ export function DeveloperProjectsView() {
 
   useEffect(() => {
     void load(applied.projects);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   const columns = useMemo(() => {
     if (data?.matrix.columns?.length) return data.matrix.columns;
@@ -413,6 +415,8 @@ export function DeveloperProjectsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((state) => !state)}
         activeFilters={multiFilterChips("projects", "Проект", selected, setSelected)}
+        navId="developer-projects"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}

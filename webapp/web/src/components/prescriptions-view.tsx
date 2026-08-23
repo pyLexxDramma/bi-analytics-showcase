@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { fetchPrescriptions, type PrescriptionsPayload } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import {
   ContractNoSuggest,
   FilterCheck,
@@ -118,6 +119,7 @@ function exportCell(value: unknown): ExportCell {
 }
 
 export function PrescriptionsView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -160,7 +162,7 @@ export function PrescriptionsView() {
 
   useEffect(() => {
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   const contractOptions =
     data?.filters.contract_nos?.length
@@ -333,6 +335,8 @@ export function PrescriptionsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={activeFilters}
+        navId="prescriptions"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}

@@ -12,6 +12,7 @@ import {
   type BddsPlanFactPayload,
   type BddsPlanFactQuery,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import {
   FilterCheck,
   FilterChipMulti,
@@ -118,6 +119,7 @@ function statusBulletClass(valueMln: number): string {
 }
 
 export function BddsPlanFactView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -205,7 +207,7 @@ export function BddsPlanFactView() {
     const controller = new AbortController();
     void load(applied, controller.signal);
     return () => controller.abort();
-  }, [applied, load, singleProject]);
+  }, [applied, load, refreshTick, singleProject]);
 
   useEffect(() => {
     if (!data?.filters) return;
@@ -338,6 +340,8 @@ export function BddsPlanFactView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
+        navId="bdds-plan-fact"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}

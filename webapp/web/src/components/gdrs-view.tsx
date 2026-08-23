@@ -53,6 +53,7 @@ import {
   type GdrsPayload,
   type GdrsQuery,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type ResourceKind = "people" | "equipment";
@@ -374,6 +375,7 @@ async function fetchGdrs(
 }
 
 export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
+  const refreshTick = useRefreshTick();
   const copy = COPY[resourceKind];
   const dark = useIsDark();
   const pal = useMemo(() => gdrsPalette(dark), [dark]);
@@ -463,7 +465,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       return;
     }
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   const pieData = data?.tremor.pie ?? data?.pie_rows ?? [];
 
@@ -700,6 +702,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((o) => !o)}
         activeFilters={activeFilters}
+        navId={resourceKind === "people" ? "gdrs-people" : "gdrs-equipment"}
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? resetFilters : undefined}

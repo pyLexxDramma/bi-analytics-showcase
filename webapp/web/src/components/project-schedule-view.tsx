@@ -13,6 +13,7 @@ import {
   fetchProjectSchedule,
   type ProjectSchedulePayload,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -209,6 +210,7 @@ function buildExport(data: ProjectSchedulePayload): ExportTable {
 }
 
 export function ProjectScheduleView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -257,7 +259,7 @@ export function ProjectScheduleView() {
 
   useEffect(() => {
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   const metaError = data?.meta?.error as string | undefined;
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
@@ -346,6 +348,8 @@ export function ProjectScheduleView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={activeFilters}
+        navId="project-schedule"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}

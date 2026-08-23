@@ -25,10 +25,41 @@ export function MobilePaneTabs<T extends string>({
   options: Array<{ id: T; label: string }>;
   className?: string;
 }) {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const tracking = useRef(false);
+
+  const idx = options.findIndex((o) => o.id === value);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0]?.clientX ?? 0;
+    startY.current = e.touches[0]?.clientY ?? 0;
+    tracking.current = true;
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!tracking.current || idx < 0) return;
+    tracking.current = false;
+    const endX = e.changedTouches[0]?.clientX ?? 0;
+    const endY = e.changedTouches[0]?.clientY ?? 0;
+    const dx = endX - startX.current;
+    const dy = endY - startY.current;
+    if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (dx < 0 && idx < options.length - 1) {
+      tapFeedback();
+      onChange(options[idx + 1].id);
+    } else if (dx > 0 && idx > 0) {
+      tapFeedback();
+      onChange(options[idx - 1].id);
+    }
+  };
+
   return (
     <div
       className={`mb-3 flex gap-1 rounded-xl border border-tremor-border bg-tremor-background p-1 dark:border-dark-tremor-border dark:bg-dark-tremor-background lg:hidden ${className}`}
       role="tablist"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       {options.map((opt) => (
         <button

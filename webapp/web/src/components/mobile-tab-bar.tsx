@@ -101,7 +101,8 @@ export function MobileTabBar({
     `bi-tabbar-item${on ? " bi-tabbar-item-on" : ""}`;
 
   return (
-    <nav className="bi-tabbar lg:hidden" aria-label="Основная навигация">
+    <nav className="bi-tabbar bi-tabbar-root lg:hidden" aria-label="Основная навигация">
+      <div className="bi-tabbar-inner flex w-full">
       <button
         type="button"
         onClick={() => {
@@ -182,6 +183,7 @@ export function MobileTabBar({
         </span>
         <span className="bi-tabbar-label">Вверх</span>
       </button>
+      </div>
     </nav>
   );
 }

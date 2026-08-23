@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BarChart, Card, Grid, Metric, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import type { FinancePeriodPayload } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import { formatMln } from "@/lib/format";
 import {
   PLAN_FACT_DEVIATION_CATEGORIES,
@@ -47,6 +48,7 @@ export function FinancePeriodView({
     params: Record<string, string | undefined>,
   ) => Promise<FinancePeriodPayload>;
 }) {
+  const refreshTick = useRefreshTick();
   const [filters, setFilters] = useState<Filters>({
     projects: [],
     date_from: "",
@@ -83,7 +85,7 @@ export function FinancePeriodView({
 
   useEffect(() => {
     void load(filters);
-  }, [filters, load]);
+  }, [filters, load, refreshTick]);
 
   const kpis = data?.kpis ?? { plan_mln: 0, fact_mln: 0, deviation_mln: 0 };
   const kpiCards = [

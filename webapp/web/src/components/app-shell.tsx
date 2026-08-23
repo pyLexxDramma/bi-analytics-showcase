@@ -6,9 +6,12 @@ import { AskAiButton } from "@/components/ask-ai-button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
+import { ReportBreadcrumbs } from "@/components/report-breadcrumbs";
+import { ShortcutsOnboarding } from "@/components/shortcuts-onboarding";
 import {
   DashboardSkeleton,
   useDelayedLoading,
+  useSlowLoadingHint,
 } from "@/components/dashboard-loading";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { ReportsSearchSheet } from "@/components/reports-search-sheet";
@@ -32,6 +35,8 @@ import {
 } from "@/lib/view-prefs";
 import { fetchAuthMe } from "@/lib/api";
 import { canAccessReport, isAuthenticated, logout, saveAuthSession } from "@/lib/auth";
+import { prefetchAdjacentReports } from "@/lib/prefetch-reports";
+import { PullRefreshProvider } from "@/lib/refresh-context";
 
 export function AppShell({
   title,
@@ -50,10 +55,12 @@ export function AppShell({
   const [reportsOpen, setReportsOpen] = useState(false);
   const [wide, setWide] = useState(false);
   const [density, setDensity] = useState<Density>("comfortable");
-  const [accessDenied, setAccessDenied] = useState(false);
+  const [flashData, setFlashData] = useState(false);
   const pathname = usePathname();
   const mobile = useIsMobileViewport();
   const showLoading = useDelayedLoading(loading, mobile ? 400 : 1000);
+  const slowHint = useSlowLoadingHint(loading);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
     applyThemeClass(readTheme());
@@ -117,6 +124,19 @@ export function AppShell({
     const item = findNavItem(pathname);
     if (item) pushRecentReport(item.href);
   }, [pathname]);
+
+  useEffect(() => {
+    prefetchAdjacentReports(pathname);
+  }, [pathname]);
+
+  useEffect(() => {
+    const onCommit = () => {
+      setFlashData(true);
+      window.setTimeout(() => setFlashData(false), 700);
+    };
+    window.addEventListener("bi:filters-committed", onCommit);
+    return () => window.removeEventListener("bi:filters-committed", onCommit);
+  }, []);
 
   const setTheme = (mode: ThemeMode) => {
     confirmFeedback();
@@ -183,6 +203,7 @@ export function AppShell({
         >
           <header className="mb-5 flex items-start justify-between gap-2 sm:mb-8 sm:items-center sm:gap-3">
             <div className="min-w-0 flex-1">
+              <ReportBreadcrumbs />
               <h1 className="min-w-0 break-words text-lg font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
                 {title}
               </h1>
@@ -244,7 +265,9 @@ export function AppShell({
               </button>
             </div>
           </header>
-          <div className="min-w-0 max-w-full">
+          <div
+            className={`min-w-0 max-w-full ${flashData ? "bi-data-flash" : ""}`}
+          >
             {accessDenied ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-8 dark:border-amber-800 dark:bg-amber-950/40">
                 <h2 className="text-lg font-semibold text-amber-950 dark:text-amber-100">
@@ -256,11 +279,11 @@ export function AppShell({
                 </p>
               </div>
             ) : (
-              children
+              <PullRefreshProvider>{children}</PullRefreshProvider>
             )}
           </div>
         </div>
-        {showLoading ? <DashboardSkeleton wide={!mobile} /> : null}
+        {showLoading ? <DashboardSkeleton wide={!mobile} slowHint={slowHint} /> : null}
         <MobileTabBar
           onOpenMenu={() => setMenuOpen((open) => !open)}
           menuOpen={menuOpen}
@@ -276,6 +299,7 @@ export function AppShell({
         />
         <CommandPalette />
         <ShortcutsHelp />
+        <ShortcutsOnboarding />
       </div>
     </div>
   );

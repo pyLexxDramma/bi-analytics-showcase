@@ -12,9 +12,17 @@ import {
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FiltersSheet } from "@/components/filters-sheet";
+import { FilterStickyBar } from "@/components/filter-sticky-bar";
 import type { ActiveFilter } from "@/lib/filters-summary";
+import {
+  deleteFilterPreset,
+  listFilterPresets,
+  saveFilterPreset,
+  type FilterPreset,
+} from "@/lib/filter-presets";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
+import { usePathname, useRouter } from "next/navigation";
 
 /** Shared select/date look — fixed height, non-OS chrome, focus-visible only. */
 export const FILTER_SELECT_CLASS =
@@ -910,6 +918,10 @@ export function FiltersCard({
   onApply,
   applyDisabled,
   resetDisabled,
+  /** Для сохранённых срезов (localStorage) */
+  navId,
+  /** Плавающая «Применить» при скролле */
+  stickyPending,
   children,
 }: {
   open: boolean;
@@ -923,12 +935,76 @@ export function FiltersCard({
   onApply?: () => void;
   applyDisabled?: boolean;
   resetDisabled?: boolean;
+  navId?: string;
+  stickyPending?: boolean;
   children: ReactNode;
 }) {
   const mobile = useIsMobileViewport();
+  const router = useRouter();
+  const pathname = usePathname();
+  const panelRef = useRef<HTMLDivElement | null>(null);
   // Лист держим на собственном состоянии: экраны с `open=true` по умолчанию
   // (например «Дебиторка») иначе открывали бы его при загрузке страницы.
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+
+  useEffect(() => {
+    if (!navId) return;
+    setPresets(listFilterPresets(navId));
+  }, [navId, sheetOpen, open]);
+
+  const presetsRow =
+    navId && presets.length ? (
+      <div className="bi-filter-presets mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-tremor-content dark:text-dark-tremor-content">
+          Срезы:
+        </span>
+        {presets.map((p) => (
+          <span key={p.id} className="inline-flex items-center gap-0.5">
+            <button
+              type="button"
+              className="bi-active-chip text-xs"
+              onClick={() => {
+                tapFeedback();
+                const q = p.query ? `?${p.query}` : "";
+                router.push(`${pathname}${q}`);
+              }}
+              title={`Загрузить срез «${p.name}»`}
+            >
+              {p.name}
+            </button>
+            <button
+              type="button"
+              className="rounded px-1 text-xs text-tremor-content hover:text-rose-600 dark:text-dark-tremor-content"
+              aria-label={`Удалить срез ${p.name}`}
+              onClick={() => {
+                deleteFilterPreset(navId, p.id);
+                setPresets(listFilterPresets(navId));
+              }}
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+      </div>
+    ) : null;
+
+  const savePresetBtn =
+    navId && onApply ? (
+      <button
+        type="button"
+        className="text-xs text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+        onClick={() => {
+          const name = window.prompt("Название среза фильтров:", "Мой срез");
+          if (!name) return;
+          saveFilterPreset(navId, name, window.location.search.replace(/^\?/, ""));
+          setPresets(listFilterPresets(navId));
+          confirmFeedback();
+        }}
+      >
+        Сохранить срез
+      </button>
+    ) : null;
 
   const chips = activeFilters ?? [];
   const chipsRow =
@@ -982,25 +1058,29 @@ export function FiltersCard({
     const count = activeCount ?? chips.length;
     return (
       <>
-        <button
-          type="button"
-          onClick={() => {
-            tapFeedback();
-            setSheetOpen(true);
-          }}
-          aria-expanded={sheetOpen}
-          className={`bi-filters-trigger ${chips.length ? "mb-2" : "mb-4"}`}
-        >
-          <span className="bi-filters-trigger-icon" aria-hidden>
-            ⛭
-          </span>
-          <span className="flex-1 text-left">{title}</span>
-          {count ? (
-            <span className="bi-filters-trigger-badge">{count}</span>
-          ) : null}
-          <span aria-hidden>▾</span>
-        </button>
-        {chipsRow}
+        <div ref={panelRef}>
+          <button
+            type="button"
+            onClick={() => {
+              tapFeedback();
+              setSheetOpen(true);
+            }}
+            aria-expanded={sheetOpen}
+            className={`bi-filters-trigger ${chips.length ? "mb-2" : "mb-4"}`}
+          >
+            <span className="bi-filters-trigger-icon" aria-hidden>
+              ⛭
+            </span>
+            <span className="flex-1 text-left">{title}</span>
+            {count ? (
+              <span className="bi-filters-trigger-badge">{count}</span>
+            ) : null}
+            <span aria-hidden>▾</span>
+          </button>
+          {chipsRow}
+          {presetsRow}
+          {savePresetBtn ? <div className="mb-2">{savePresetBtn}</div> : null}
+        </div>
         <FiltersSheet
           open={sheetOpen}
           onClose={() => setSheetOpen(false)}
@@ -1012,6 +1092,14 @@ export function FiltersCard({
         >
           <div className="bi-filters-body space-y-3">{children}</div>
         </FiltersSheet>
+        {stickyPending && onApply ? (
+          <FilterStickyBar
+            anchorRef={panelRef}
+            pending={!applyDisabled}
+            onApply={onApply}
+            applyDisabled={applyDisabled}
+          />
+        ) : null}
       </>
     );
   }
@@ -1029,26 +1117,43 @@ export function FiltersCard({
     ) : null;
 
   return (
-    <div className="bi-filters-panel mb-6 rounded-xl border border-tremor-border bg-tremor-background p-4 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
+    <>
+      <div
+        ref={panelRef}
+        className="bi-filters-panel mb-6 rounded-xl border border-tremor-border bg-tremor-background p-4 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
       >
-        <span className="text-xs">{open ? "▾" : "▸"}</span>
-        {title}
-        {!open && chips.length ? (
-          <span className="ml-auto rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
-            {chips.length}
-          </span>
-        ) : null}
-      </button>
-      {!open ? chipsRow : null}
-      {open ? <div className="bi-filters-body mt-3 space-y-3">{children}</div> : null}
-      {open && chips.length ? <div className="mt-3">{chipsRow}</div> : null}
-      {open ? actions : null}
-    </div>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex w-full items-center gap-2 text-left text-sm font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong"
+        >
+          <span className="text-xs">{open ? "▾" : "▸"}</span>
+          {title}
+          {!open && chips.length ? (
+            <span className="ml-auto rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+              {chips.length}
+            </span>
+          ) : null}
+        </button>
+        {!open ? chipsRow : null}
+        {!open ? presetsRow : null}
+        {!open && savePresetBtn ? <div className="mt-2">{savePresetBtn}</div> : null}
+        {open ? <div className="bi-filters-body mt-3 space-y-3">{children}</div> : null}
+        {open && chips.length ? <div className="mt-3">{chipsRow}</div> : null}
+        {open ? presetsRow : null}
+        {open && savePresetBtn ? <div className="mt-2">{savePresetBtn}</div> : null}
+        {open ? actions : null}
+      </div>
+      {stickyPending && onApply ? (
+        <FilterStickyBar
+          anchorRef={panelRef}
+          pending={!applyDisabled}
+          onApply={onApply}
+          applyDisabled={applyDisabled}
+        />
+      ) : null}
+    </>
   );
 }
 

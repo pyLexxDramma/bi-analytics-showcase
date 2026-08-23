@@ -13,6 +13,7 @@ import {
   fetchExecutiveDocs,
   type ExecutiveDocsPayload,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import {
   FilterCheck,
   FilterChipMulti,
@@ -103,6 +104,7 @@ function fmtLate(days: number | null | undefined): string {
 }
 
 export function ExecutiveDocsParityView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -146,7 +148,7 @@ export function ExecutiveDocsParityView() {
 
   useEffect(() => {
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   useEffect(() => {
     if (
@@ -235,6 +237,8 @@ export function ExecutiveDocsParityView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
+        navId="executive-docs"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}

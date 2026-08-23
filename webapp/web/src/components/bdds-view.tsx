@@ -5,6 +5,7 @@ import { Card, Text } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FinanceBarChart } from "@/components/finance-bar-chart";
+import { ChartHint } from "@/components/chart-hint";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
   fetchBdds,
@@ -14,6 +15,7 @@ import {
   type BddsTableRow,
   type BddsView,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import {
   FilterCheck,
   FilterChipMulti,
@@ -380,6 +382,7 @@ const BDDS_CONFIG: FinanceViewConfig = {
 };
 
 export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig }) {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -422,7 +425,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
 
   useEffect(() => {
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   const periodLabel = data?.labels.period ?? "Месяц";
   const zeroToggleEnabled = filters.group === "month" && filters.view === "monthly";
@@ -604,6 +607,8 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
         open={filtersOpen}
         onToggle={() => setFiltersOpen((state) => !state)}
         activeFilters={activeFilters}
+        navId={config.navId ?? "bdds"}
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}
@@ -725,6 +730,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               />
             )}
           </FullscreenPanel>
+          <ChartHint />
         </Card>
         </div>
 
@@ -881,6 +887,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               />
             )}
           </FullscreenPanel>
+          <ChartHint />
         </Card>
         </div>
 

@@ -13,6 +13,7 @@ import {
   type ProjectDocumentationPayload,
   type ProjectDocumentationQuery,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import { AppShell } from "@/components/app-shell";
 import {
   FilterChipMulti,
@@ -143,6 +144,7 @@ function ProjectDocumentationScreen({
   fetchPayload: (query?: ProjectDocumentationQuery) => Promise<ProjectDocumentationPayload>;
   showDelayTab: boolean;
 }) {
+  const refreshTick = useRefreshTick();
   const [tab, setTab] = useState<TabId>("main");
   const {
     draft: filters,
@@ -203,7 +205,7 @@ function ProjectDocumentationScreen({
 
   useEffect(() => {
     void load(applied, tab);
-  }, [applied, tab, load]);
+  }, [applied, tab, load, refreshTick]);
 
   useEffect(() => {
     const reportDate = data?.filters.applied.report_date;
@@ -402,6 +404,8 @@ function ProjectDocumentationScreen({
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
+        navId="project-documentation"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? resetFilters : undefined}

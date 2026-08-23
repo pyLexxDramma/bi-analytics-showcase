@@ -193,3 +193,26 @@ export function findNavItem(pathname: string): NavItem | ReportLeaf | null {
   }
   return null;
 }
+
+/** Хлебные крошки: раздел → отчёт (для шапки экрана). */
+export function findNavTrail(pathname: string): Array<{ label: string; href?: string }> {
+  if (
+    pathname === REPORT_TOP_TAB.href ||
+    pathname.startsWith(`${REPORT_TOP_TAB.href}/`)
+  ) {
+    return [{ label: REPORT_TOP_TAB.label }];
+  }
+  for (const acc of REPORT_ACCORDIONS) {
+    for (const item of acc.items) {
+      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+        return [{ label: acc.label }, { label: item.label }];
+      }
+    }
+  }
+  for (const item of REPORT_STANDALONE) {
+    if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+      return [{ label: "Прочее" }, { label: item.label }];
+    }
+  }
+  return [];
+}

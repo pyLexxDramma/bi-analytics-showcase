@@ -13,6 +13,7 @@ import {
   MobilePaneTabs,
 } from "@/components/mobile-ux";
 import { fetchApprovedBudget, type ApprovedBudgetPayload } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import {
   FilterCheck,
   FilterChipMulti,
@@ -260,6 +261,7 @@ function SortHeader({
 }
 
 export function ApprovedBudgetView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -291,7 +293,7 @@ export function ApprovedBudgetView() {
     catch (cause) { setData(null); setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(applied); }, [applied, load]);
+  useEffect(() => { void load(applied); }, [applied, load, refreshTick]);
   const hideZero = filters.hide_zero ?? (filters.projects.length === 0 && filters.fiz === "Все");
   const toggleSort = (set: (next: SortState | ((value: SortState) => SortState)) => void) => (key: SortKey) => set((state) => state?.key === key ? (state.asc ? { key, asc: false } : null) : { key, asc: true });
   const sortRows = <T extends Record<string, unknown>>(rows: T[], sort: SortState) => !sort ? rows : [...rows].sort((a, b) => {
@@ -354,8 +356,10 @@ export function ApprovedBudgetView() {
       open={filtersOpen}
       onToggle={() => setFiltersOpen((value) => !value)}
       activeFilters={activeFilters}
-      onApply={commit}
-      applyDisabled={!pending}
+        navId="approved-budget"
+        stickyPending
+        onApply={commit}
+        applyDisabled={!pending}
       onReset={dirty ? reset : undefined}
       resetDisabled={!dirty}
     >

@@ -13,6 +13,7 @@ import {
   MobileSortControl,
 } from "@/components/mobile-entity-card";
 import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import {
   ContractNoSuggest,
   FilterField,
@@ -127,6 +128,7 @@ const DC_FOOT_W =
   `calc(${DC_W_PROJECT} + ${DC_W_CONTRACTOR} + ${DC_W_CONTRACT})`;
 
 export function DebitCreditView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -176,7 +178,7 @@ export function DebitCreditView() {
 
   useEffect(() => {
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   const contractOptions =
     data?.filters.contract_nos?.length
@@ -319,6 +321,8 @@ export function DebitCreditView() {
         open={open}
         onToggle={() => setOpen((v) => !v)}
         activeFilters={activeFilters}
+        navId="debit-credit"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}

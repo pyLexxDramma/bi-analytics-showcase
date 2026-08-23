@@ -18,6 +18,20 @@ export function useDelayedLoading(loading: boolean, delayMs = 1000): boolean {
   return show;
 }
 
+/** Текст для долгих запросов (БДДС, ГДРС). */
+export function useSlowLoadingHint(loading: boolean, delayMs = 9000): boolean {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setSlow(false);
+      return;
+    }
+    const id = window.setTimeout(() => setSlow(true), delayMs);
+    return () => window.clearTimeout(id);
+  }, [loading, delayMs]);
+  return slow;
+}
+
 /**
  * Вместо размытого экрана — каркас будущего дашборда: блюр читался как
  * «подвисло», а скелетон показывает, что и где появится. Оверлей, а не замена
@@ -25,7 +39,13 @@ export function useDelayedLoading(loading: boolean, delayMs = 1000): boolean {
  *
  * На десктопе каркас другой: фильтры, пара графиков в ряд и таблица.
  */
-export function DashboardSkeleton({ wide = false }: { wide?: boolean }) {
+export function DashboardSkeleton({
+  wide = false,
+  slowHint = false,
+}: {
+  wide?: boolean;
+  slowHint?: boolean;
+}) {
   if (wide) {
     return (
       <div
@@ -35,6 +55,11 @@ export function DashboardSkeleton({ wide = false }: { wide?: boolean }) {
         role="status"
       >
         <span className="sr-only">Загрузка дашборда</span>
+        {slowHint ? (
+          <p className="mb-3 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+            Загрузка может занять 15–30 с — данные не изменятся
+          </p>
+        ) : null}
         <div className="bi-skeleton mb-4 h-16 w-full rounded-xl" aria-hidden />
         <div className="mb-4 grid grid-cols-2 gap-4">
           <div className="bi-skeleton h-64 rounded-xl" aria-hidden />
@@ -58,6 +83,11 @@ export function DashboardSkeleton({ wide = false }: { wide?: boolean }) {
       role="status"
     >
       <span className="sr-only">Загрузка дашборда</span>
+      {slowHint ? (
+        <p className="mb-3 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
+          Загрузка может занять 15–30 с
+        </p>
+      ) : null}
       <div className="bi-skeleton mb-4 h-12 w-full rounded-xl" aria-hidden />
       <div className="bi-skeleton mb-4 h-56 w-full rounded-xl" aria-hidden />
       {[0, 1, 2].map((i) => (

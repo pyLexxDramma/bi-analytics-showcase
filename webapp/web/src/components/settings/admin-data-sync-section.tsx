@@ -73,11 +73,20 @@ export function AdminDataSyncSection() {
   }, [refresh]);
 
   const onSync = async () => {
+    const fileHint =
+      status?.files != null
+        ? `\n\nТекущий снимок web/: ${status.files} файлов.`
+        : "";
+    const mtimeHint = status?.latest_mtime
+      ? `\nПоследнее изменение web/: ${formatMtime(status.latest_mtime)}.`
+      : "";
     if (
       !window.confirm(
-        force
+        (force
           ? "Запустить FTP → web/ → БД с force? Операция может занять несколько минут и перезапишет данные."
-          : "Запустить синхронизацию FTP → web/ → БД? Операция может занять несколько минут.",
+          : "Запустить синхронизацию FTP → web/ → БД? Операция может занять несколько минут.") +
+          fileHint +
+          mtimeHint,
       )
     ) {
       return;
@@ -113,9 +122,12 @@ export function AdminDataSyncSection() {
   };
 
   const onIngest = async () => {
+    const fileHint =
+      status?.files != null ? `\n\nФайлов в web/: ${status.files}.` : "";
     if (
       !window.confirm(
-        "Пересобрать БД только из web/ (без FTP)? Текущая активная версия будет заменена новым снимком.",
+        "Пересобрать БД только из web/ (без FTP)? Текущая активная версия будет заменена новым снимком." +
+          fileHint,
       )
     ) {
       return;

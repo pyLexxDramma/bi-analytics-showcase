@@ -6,6 +6,7 @@ import {
   fetchDeviationReasons,
   type DeviationReasonsPayload,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
@@ -250,6 +251,7 @@ function emptyDynamics(): DeviationReasonsPayload["tremor"]["dynamics"] {
 }
 
 export function DeviationReasonsView() {
+  const refreshTick = useRefreshTick();
   const {
     draft: filters,
     setDraft: setFilters,
@@ -296,7 +298,7 @@ export function DeviationReasonsView() {
 
   useEffect(() => {
     void load(applied);
-  }, [applied, load]);
+  }, [applied, load, refreshTick]);
 
   useEffect(() => {
     const min = data?.filters.period.min;
@@ -498,6 +500,8 @@ export function DeviationReasonsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={activeFilters}
+        navId="deviation-reasons"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? resetFilters : undefined}

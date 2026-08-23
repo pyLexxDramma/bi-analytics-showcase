@@ -7,6 +7,7 @@ import {
   type WorkingDocumentationPayload,
   type WorkingDocumentationQuery,
 } from "@/lib/api";
+import { useRefreshTick } from "@/lib/refresh-context";
 import { AppShell } from "@/components/app-shell";
 import {
   FilterCheck,
@@ -503,6 +504,7 @@ export function WorkingDocumentationView() {
     pending,
     dirty,
   } = useDeferredUrlFilters(INITIAL, { navId: "working-documentation" });
+  const refreshTick = useRefreshTick();
   const [data, setData] = useState<WorkingDocumentationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -559,6 +561,7 @@ export function WorkingDocumentationView() {
     applied.metricMode,
     applied.showForecast,
     applied.viewMode,
+    refreshTick,
   ]);
 
   const kpis = data?.kpis;
@@ -624,6 +627,8 @@ export function WorkingDocumentationView() {
         onToggle={() => setFiltersOpen((v) => !v)}
         title={tab === "main" ? "План выдачи РД — фильтры" : "Фильтры"}
         activeFilters={activeFilters}
+        navId="working-documentation"
+        stickyPending
         onApply={commit}
         applyDisabled={!pending}
         onReset={dirty ? reset : undefined}
