@@ -431,9 +431,9 @@ export function AdminSystemPanel() {
               {userProjectsUnrestricted ? " (сейчас без ограничений)." : "."}
             </Text>
             {activeUsers.length ? (
-              <>
+              <div className="mt-4 flex max-w-lg flex-col gap-3">
                 <select
-                  className="mt-4 w-full max-w-md rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
                   value={roleChange.user_id}
                   onChange={(e) => {
                     const id = Number(e.target.value);
@@ -451,7 +451,7 @@ export function AdminSystemPanel() {
                   ))}
                 </select>
                 <textarea
-                  className="mt-3 min-h-[6rem] w-full max-w-lg rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className="min-h-[6rem] w-full rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-dark-tremor-border dark:bg-dark-tremor-background"
                   value={userProjectsText}
                   onChange={(e) => setUserProjectsText(e.target.value)}
                   placeholder={"Проект А\nПроект Б"}
@@ -459,7 +459,7 @@ export function AdminSystemPanel() {
                 <button
                   type="button"
                   disabled={busy || !roleChange.user_id}
-                  className="mt-4 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  className="self-start rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                   onClick={() =>
                     void run(async () => {
                       const projects = userProjectsText
@@ -474,7 +474,7 @@ export function AdminSystemPanel() {
                 >
                   Сохранить проекты
                 </button>
-              </>
+              </div>
             ) : (
               <Text className="mt-3">Нет активных пользователей</Text>
             )}

@@ -13,17 +13,15 @@ import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
   FilterChipMulti,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { multiFilterChips } from "@/lib/filters-summary";
 import { useStickyHead } from "@/lib/use-sticky-head";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
 import {
   DashboardTableActions,
-  DashboardTableTitle,
   MobileFilterChips,
 } from "@/components/mobile-ux";
 
@@ -345,12 +343,24 @@ function MobileMilestoneSections({
 }
 
 export function DeveloperProjectsView() {
-  const [selected, setSelected] = useState<string[]>([]);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(URL_INITIAL, { navId: "developer-projects" });
   const [data, setData] = useState<DeveloperProjectsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
+
+  const selected = filters.projects;
+  const setSelected = (projects: string[]) =>
+    setFilters((prev) => ({ ...prev, projects }));
 
   const load = useCallback(async (projects: string[]) => {
     setLoading(true);
@@ -366,13 +376,8 @@ export function DeveloperProjectsView() {
   }, []);
 
   useEffect(() => {
-    void load(selected);
-  }, [selected, load]);
-
-  const urlState = useMemo(() => ({ projects: selected }), [selected]);
-  useUrlFilterState(urlState, URL_INITIAL, (patch) => {
-    if (patch.projects) setSelected(patch.projects);
-  }, { navId: "developer-projects" });
+    void load(applied.projects);
+  }, [applied, load]);
 
   const columns = useMemo(() => {
     if (data?.matrix.columns?.length) return data.matrix.columns;
@@ -408,9 +413,11 @@ export function DeveloperProjectsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((state) => !state)}
         activeFilters={multiFilterChips("projects", "Проект", selected, setSelected)}
-        onReset={selected.length ? () => setSelected([]) : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset disabled={selected.length === 0} onClick={() => setSelected([])} />
         <FilterChipMulti
           label="Проект"
           values={selected}
@@ -453,10 +460,15 @@ export function DeveloperProjectsView() {
       />
 
       <Card className="overflow-hidden rounded-xl p-0">
-        <DashboardTableTitle>
-          Матрица контрольных точек
-        </DashboardTableTitle>
-        <FullscreenPanel disabled={!hasRows} scroll={false}>
+        <FullscreenPanel
+          disabled={!hasRows}
+          scroll={false}
+          toolbar={
+            <h2 className="min-w-0 flex-1 break-words text-center text-base font-semibold leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong sm:text-lg lg:text-left">
+              Матрица контрольных точек
+            </h2>
+          }
+        >
           <div className="p-1 pt-3 lg:pt-1">
             {!hasRows ? (
               <DashboardEmptyState
@@ -468,7 +480,7 @@ export function DeveloperProjectsView() {
                       : "Нет данных матрицы. Сделайте ingest в админке."
                 }
                 onReset={
-                  !loading && selected.length ? () => setSelected([]) : undefined
+                  !loading && dirty ? reset : undefined
                 }
               />
             ) : (

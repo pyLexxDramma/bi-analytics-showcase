@@ -238,7 +238,7 @@ export function CommandPalette() {
         <div className="flex items-center justify-between border-t border-tremor-border px-4 py-2 text-xs text-tremor-content dark:border-dark-tremor-border dark:text-dark-tremor-content">
           <span>↑↓ — выбор, Enter — открыть</span>
           <span>
-            {HINT} · «/» · «?» — шпаргалка
+            {HINT} · «/» · «?» — шпаргалка горячих клавиш
           </span>
         </div>
       </div>

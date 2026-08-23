@@ -11,6 +11,7 @@ export function BdrView() {
         planSeries: "План расходов",
         factSeries: "Факт расходов",
         sheetName: "БДР",
+        navId: "bdr",
         fetchPayload: fetchBdr,
       }}
     />

@@ -36,6 +36,7 @@ export function DataFreshnessBadge() {
 
   return (
     <span
+      data-walk-mask="freshness"
       title={freshness.stale ? "Данные устарели — обновите БД в меню" : freshness.label}
       className={`mt-2 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs lg:inline-flex ${tone}`}
     >

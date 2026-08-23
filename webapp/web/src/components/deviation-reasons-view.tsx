@@ -32,7 +32,6 @@ import {
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import {
   filterChip,
@@ -40,7 +39,7 @@ import {
   multiFilterChips,
   type ActiveFilter,
 } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import {
   DashboardTableActions,
@@ -251,9 +250,17 @@ function emptyDynamics(): DeviationReasonsPayload["tremor"]["dynamics"] {
 }
 
 export function DeviationReasonsView() {
-  const [filters, setFilters] = useState(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    syncBoth,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "deviation-reasons" });
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [periodReady, setPeriodReady] = useState(false);
   const [tab, setTab] = useState<"share" | "dynamics">("share");
   const [mobilePane, setMobilePane] = useState<"charts" | "tables">("charts");
   const [data, setData] = useState<DeviationReasonsPayload | null>(null);
@@ -265,62 +272,45 @@ export function DeviationReasonsView() {
   const [mobileQuery, setMobileQuery] = useState("");
   const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (next: typeof INITIAL) => {
     setLoading(true);
     setError(null);
     try {
       const payload = await fetchDeviationReasons({
-        projects: filters.projects,
-        block: filters.block,
-        building: filters.building,
-        reason: filters.reason,
-        date_from: filters.dateFrom || undefined,
-        date_to: filters.dateTo || undefined,
-        top5: filters.top5,
+        projects: next.projects,
+        block: next.block,
+        building: next.building,
+        reason: next.reason,
+        date_from: next.dateFrom || undefined,
+        date_to: next.dateTo || undefined,
+        top5: next.top5,
       });
       setData(payload);
-      if (!periodReady) {
-        setFilters((prev) => ({
-          ...prev,
-          dateFrom: payload.filters.applied.date_from ?? "",
-          dateTo: payload.filters.applied.date_to ?? "",
-        }));
-        setPeriodReady(true);
-      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [filters, periodReady]);
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(applied);
+  }, [applied, load]);
 
-  // Даты из адреса важнее автоподстановки периода из ответа API
-  useUrlFilterState(
-    filters,
-    INITIAL,
-    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
-    {
-      onRestore: (restored) => {
-        if (restored.dateFrom || restored.dateTo) setPeriodReady(true);
-      },
-      navId: "deviation-reasons",
-    },
-  );
-
-  const dirty =
-    filters.projects.length > 0 ||
-    filters.block !== INITIAL.block ||
-    filters.building !== INITIAL.building ||
-    filters.reason !== INITIAL.reason ||
-    filters.top5 !== INITIAL.top5 ||
-    (periodReady &&
-      (filters.dateFrom !== (data?.filters.period.min ?? "") ||
-        filters.dateTo !== (data?.filters.period.max ?? "")));
+  useEffect(() => {
+    const min = data?.filters.period.min;
+    const max = data?.filters.period.max;
+    if (min && max && !applied.dateFrom && !applied.dateTo) {
+      syncBoth({ dateFrom: min, dateTo: max });
+    }
+  }, [
+    data?.filters.period.min,
+    data?.filters.period.max,
+    applied.dateFrom,
+    applied.dateTo,
+    syncBoth,
+  ]);
 
   const selectClass = FILTER_SELECT_CLASS;
 
@@ -443,12 +433,12 @@ export function DeviationReasonsView() {
     (dynamics.summary_rows?.length ?? 0) > 0;
 
   const resetFilters = () => {
-    setPeriodReady(false);
-    setFilters(INITIAL);
+    reset();
   };
 
   const periodMin = data?.filters.period.min ?? "";
   const periodMax = data?.filters.period.max ?? "";
+  const periodReady = Boolean(applied.dateFrom || applied.dateTo);
   const activeFilters: ActiveFilter[] = [
     ...multiFilterChips("projects", "Проект", filters.projects, (projects) =>
       setFilters((prev) => ({
@@ -508,9 +498,11 @@ export function DeviationReasonsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={activeFilters}
+        onApply={commit}
+        applyDisabled={!pending}
         onReset={dirty ? resetFilters : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset disabled={!dirty} onClick={resetFilters} />
         <FilterFieldsRow cols={5}>
           <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((prev) => ({ ...prev, projects, block: "Все", building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />

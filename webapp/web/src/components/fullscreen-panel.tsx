@@ -20,18 +20,19 @@ type FullscreenElement = HTMLElement & {
 };
 
 /**
- * Зум матриц/графиков «на весь экран» как в [main]: выход по ✕ и Esc,
- * состояние экрана (фильтры, данные) не сбрасывается — меняется только контейнер.
- *
+ * Зум матриц/графиков «на весь экран» как в [main]: выход по ✕ и Esc.
  * Desktop (`lg+`): Fullscreen API + кнопка ⛶.
- * Mobile (`<lg`): кнопка скрыта (временно) — контент как обычно; позже вернём точечно.
+ * Mobile (`<lg`): кнопка скрыта.
+ *
+ * BUG-012/019/020+: в active — отдельная шапка с ✕ (не поверх таблицы/графика);
+ * контент flex-1 min-h-0 на всю высоту.
  */
 export function FullscreenPanel({
   children,
   disabled = false,
   toolbar,
   fill = false,
-  /** Plotly-зум/панорама в развёрнутом виде. Для ганта — false: иначе touch-action:none ломает скролл. */
+  /** Plotly-зум/панорама в развёрнутом виде. Для ганта — false. */
   chartGestures = true,
   /** false — содержимое прокручивает себя само (у таблицы свой `bi-table-scroll`). */
   scroll = true,
@@ -48,7 +49,6 @@ export function FullscreenPanel({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mobile = useIsMobileViewport();
   const [nativeActive, setNativeActive] = useState(false);
-  // Mobile: fullscreen выключен — кнопка не показывается.
   const active = mobile ? false : nativeActive;
 
   useEffect(() => {
@@ -66,11 +66,9 @@ export function FullscreenPanel({
     };
   }, []);
 
-  // Element fullscreen не меняет window.innerWidth (Safari/Mac особенно).
-  // Пинок resize после смены layout — Plotly пересчитывает ширину.
   useEffect(() => {
     const kick = () => window.dispatchEvent(new Event("resize"));
-    const ids = [0, 50, 160, 400].map((ms) => window.setTimeout(kick, ms));
+    const ids = [0, 80, 200].map((ms) => window.setTimeout(kick, ms));
     const raf = requestAnimationFrame(() => requestAnimationFrame(kick));
     return () => {
       ids.forEach((id) => window.clearTimeout(id));
@@ -94,12 +92,10 @@ export function FullscreenPanel({
       if (el.requestFullscreen) await el.requestFullscreen();
       else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
     } catch {
-      /* браузер отказал в fullscreen — экран остаётся рабочим */
+      /* браузер отказал */
     }
   }, [mobile]);
 
-  // У таблиц кнопка стоит отдельной строкой над содержимым: поверх шапки она
-  // перекрывала последнюю колонку. У графиков угол свободен — там оставляем поверх.
   const inlineBar = !fill && !active;
 
   return (
@@ -109,66 +105,42 @@ export function FullscreenPanel({
         fill ? "bi-fs-fill" : "bi-fs-table"
       } ${
         active
-          ? fill
-            ? "bi-fs-active h-screen w-screen overflow-auto"
-            : "bi-fs-active flex h-screen w-screen flex-col overflow-hidden"
+          ? "bi-fs-active flex h-screen w-screen flex-col overflow-hidden"
           : inlineBar
             ? ""
             : "overflow-x-auto"
       } ${className}`}
     >
-      {!mobile ? (
+      {!active && (toolbar || !mobile) ? (
         <div
-          // Modebar Plotly держит z-index 1001 и перехватывал клик по ⛶
           className={`z-[1002] flex items-center gap-1 ${
-            active
-              ? "fixed right-3 top-3 lg:top-12"
-              : inlineBar
-                ? "justify-end px-2 pt-2"
-                : "absolute right-2 top-2 lg:top-12"
+            inlineBar
+              ? toolbar
+                ? "justify-between gap-2 border-b border-tremor-border px-3 py-2 dark:border-dark-tremor-border sm:px-4"
+                : "justify-end px-2 pt-2"
+              : "absolute right-2 top-2 lg:top-12"
           }`}
         >
           {toolbar}
-          <button
-            type="button"
-            title={active ? "Выйти из полного экрана (Esc)" : "На весь экран"}
-            onClick={() => void toggle()}
-            disabled={disabled}
-            aria-label={active ? "Выйти из полного экрана" : "На весь экран"}
-            className={`bi-fs-toggle ${active ? "bi-fs-toggle-active" : ""}`}
-          >
-            {active ? (
-              <span className="bi-fs-toggle-icon" aria-hidden>
-                ✕
-              </span>
-            ) : (
-              <svg
-                className="bi-fs-toggle-icon"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"
-                  stroke="currentColor"
-                  strokeWidth="2.25"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          </button>
+          {!mobile ? (
+            <FsToggleButton active={false} disabled={disabled} onClick={() => void toggle()} />
+          ) : null}
         </div>
       ) : null}
+
+      {active ? (
+        <div className="bi-fs-chrome z-[1002] flex shrink-0 items-center justify-end gap-2 border-b border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
+          {toolbar}
+          <FsToggleButton active disabled={disabled} onClick={() => void toggle()} />
+        </div>
+      ) : null}
+
       <div
         className={
           active
             ? fill
-              ? "h-full w-full"
-              : // Таблица короче экрана — по центру по вертикали; высокая — скролл внутри .bi-table-scroll
-                "flex min-h-0 min-w-0 flex-1 flex-col justify-center overflow-hidden p-4"
+              ? "bi-fs-body bi-fs-body-fill flex min-h-0 min-w-0 flex-1 flex-col items-stretch justify-center overflow-hidden py-3 pl-5 pr-3"
+              : "bi-fs-body bi-fs-body-table flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3"
             : inlineBar
               ? `min-w-0 max-w-full ${scroll ? "overflow-x-auto" : "overflow-x-hidden"}`
               : ""
@@ -179,5 +151,49 @@ export function FullscreenPanel({
         </ChartInteractiveProvider>
       </div>
     </div>
+  );
+}
+
+function FsToggleButton({
+  active,
+  disabled,
+  onClick,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={active ? "Выйти из полного экрана (Esc)" : "На весь экран"}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={active ? "Выйти из полного экрана" : "На весь экран"}
+      className={`bi-fs-toggle ${active ? "bi-fs-toggle-active" : ""}`}
+    >
+      {active ? (
+        <span className="bi-fs-toggle-icon" aria-hidden>
+          ✕
+        </span>
+      ) : (
+        <svg
+          className="bi-fs-toggle-icon"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden
+        >
+          <path
+            d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </button>
   );
 }

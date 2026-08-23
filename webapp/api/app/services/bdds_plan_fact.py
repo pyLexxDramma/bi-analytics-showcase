@@ -23,7 +23,7 @@ from app.services.report_cache import cache_get, cache_set
 from app.services.users_bridge import import_auth
 
 CACHE_ID = "bdds_plan_fact"
-CACHE_VERSION = "v6-syn-unfiltered"
+CACHE_VERSION = "v7-hide-zero-rows"
 CACHE_MAX_AGE_SEC = 3600
 
 GROUP_TO_EN = {"month": "Month", "quarter": "Quarter", "year": "Year"}
@@ -905,9 +905,10 @@ def build_bdds_plan_fact_payload(
 
     mf_fc["Период"] = mf_fc["month"].apply(utils_mod.format_period_ru)
 
-    chart_df = mf_fc.copy()
+    # Скрывать нулевые месяцы и в графике, и в таблице периодов (BUG-072).
     if group == "month" and hide_zero_effective:
-        chart_df = ren._forecast_filter_chart_months(chart_df, hide_zero_months=True)
+        mf_fc = ren._forecast_filter_chart_months(mf_fc, hide_zero_months=True)
+    chart_df = mf_fc.copy()
 
     period_rows, totals, dev_col = _build_period_rows(
         mf_fc,
@@ -954,9 +955,9 @@ def build_bdds_plan_fact_payload(
                     else:
                         mf_fc["_dev"] = mf_fc["bdds_plan_msp"] - mf_fc["bdds_forecast"]
                     mf_fc["Период"] = mf_fc["month"].apply(utils_mod.format_period_ru)
-                chart_df = mf_fc.copy()
                 if group == "month" and hide_zero_effective:
-                    chart_df = ren._forecast_filter_chart_months(chart_df, hide_zero_months=True)
+                    mf_fc = ren._forecast_filter_chart_months(mf_fc, hide_zero_months=True)
+                chart_df = mf_fc.copy()
                 period_rows, totals, dev_col = _build_period_rows(
                     mf_fc,
                     period_label=period_label,

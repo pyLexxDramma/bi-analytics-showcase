@@ -8,7 +8,6 @@ import { AdminDataSyncSection } from "@/components/settings/admin-data-sync-sect
 import { AdminFiltersPanel } from "@/components/settings/admin-filters-panel";
 import { AdminSystemPanel } from "@/components/settings/admin-system-panel";
 import { EmeraldTabs } from "@/components/settings/emerald-tabs";
-import { UserMetrics } from "@/components/settings/user-metrics";
 import { fetchAuthMe } from "@/lib/api";
 import {
   getAuthSession,
@@ -60,10 +59,26 @@ export function AdminView() {
 
   return (
     <AppShell title="Административная панель">
-      <UserMetrics
-        username={user?.username || "—"}
-        roleLabel={user?.role_label || "—"}
-      />
+      <p className="mb-4 text-sm text-tremor-content dark:text-dark-tremor-content">
+        Управление фильтрами, пользователями и данными.
+        {user?.username ? (
+          <>
+            {" "}
+            Сессия:{" "}
+            <span className="font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              {user.username}
+            </span>
+            {user.role_label ? ` · ${user.role_label}` : ""}. Пароль и email — в{" "}
+            <Link
+              href="/settings/profile"
+              className="text-emerald-700 underline dark:text-emerald-300"
+            >
+              профиле
+            </Link>
+            .
+          </>
+        ) : null}
+      </p>
 
       <EmeraldTabs
         className="mb-6"

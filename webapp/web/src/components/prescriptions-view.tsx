@@ -15,7 +15,6 @@ import {
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import {
   MobileCardStack,
@@ -33,7 +32,7 @@ import {
   PrescriptionsStatusPieChart,
 } from "@/components/prescriptions-charts";
 import { buildFilterChips } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -119,7 +118,15 @@ function exportCell(value: unknown): ExportCell {
 }
 
 export function PrescriptionsView() {
-  const [filters, setFilters] = useState<Filters>(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "prescriptions" });
   const [data, setData] = useState<PrescriptionsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -152,12 +159,8 @@ export function PrescriptionsView() {
   }, []);
 
   useEffect(() => {
-    const delayMs = filters.contract_q ? 320 : 0;
-    const timer = window.setTimeout(() => {
-      void load(filters);
-    }, delayMs);
-    return () => window.clearTimeout(timer);
-  }, [filters, load]);
+    void load(applied);
+  }, [applied, load]);
 
   const contractOptions =
     data?.filters.contract_nos?.length
@@ -191,7 +194,7 @@ export function PrescriptionsView() {
     [data?.tremor.by_status],
   );
 
-  const objectStatusKeys = filters.hide_resolved ? UNRESOLVED_STATUS_KEYS : STATUS_KEYS;
+  const objectStatusKeys = applied.hide_resolved ? UNRESOLVED_STATUS_KEYS : STATUS_KEYS;
 
   const objectChart = useMemo(
     () =>
@@ -206,14 +209,6 @@ export function PrescriptionsView() {
         return out;
       }) as Array<{ object: string; total: number } & Record<string, number>>,
     [data?.tremor.by_object, objectStatusKeys],
-  );
-
-  const reset = () => setFilters(INITIAL);
-
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((state) => ({ ...state, ...patch })),
-    { navId: "prescriptions" },
   );
 
   const activeFilters = buildFilterChips(
@@ -338,9 +333,11 @@ export function PrescriptionsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={activeFilters}
-        onReset={activeFilters.length ? reset : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={4}>
           <FilterChipMulti
             label="Проект"
@@ -418,9 +415,6 @@ export function PrescriptionsView() {
         </FilterChecksRow>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} строк`}
-          {data?.meta.version_id != null
-            ? ` · version_id=${data.meta.version_id}`
-            : ""}
         </Text>
         {data?.meta.warning ? (
           <Text className="mt-1 text-amber-700 dark:text-amber-300">
@@ -595,7 +589,7 @@ export function PrescriptionsView() {
               {!rows.length ? (
                 <DashboardEmptyState
                   message="Нет строк по фильтрам."
-                  onReset={activeFilters.length ? reset : undefined}
+                  onReset={dirty ? reset : undefined}
                 />
               ) : (
                 /* shrink-wrap: иначе table width:auto = 100% карточки и колонки раздуваются */
@@ -742,7 +736,7 @@ export function PrescriptionsView() {
           {!rows.length ? (
             <DashboardEmptyState
               message="Нет строк по фильтрам."
-              onReset={activeFilters.length ? reset : undefined}
+              onReset={dirty ? reset : undefined}
             />
           ) : (
             <MobileCardStack compact>

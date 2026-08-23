@@ -1,17 +1,11 @@
 #!/usr/bin/env node
 /**
- * Visual walk: ai.conall.ru vs cloudpub.
- * Opens every report, tabs, filters, checkboxes, light/dark — screenshots + pixel-diff.
- *
- * From webapp/:
- *   node scripts/visual_walk_parity.mjs
+ * Parity walk: local (правки) vs ref (cloudpub = ai.conall.ru).
  *
  * Env:
- *   PROD_BASE  DEV_BASE  PROD_USER  PROD_PASS  DEV_USER  DEV_PASS
- *   SETTLE_MS=2500  NAV_MS=4000  DIFF_THRESHOLD=0.003
- *   MAX_TABS=8  MAX_CHECKS=8  MAX_DROPDOWNS=2
- *   ONLY=working-documentation,bdds   SITE=prod|dev|both
- *   HEADED=1  PARITY_OUT=...
+ *   LOCAL_BASE  REF_BASE  LOCAL_USER  LOCAL_PASS  REF_USER  REF_PASS
+ *   (aliases: PROD_BASE→LOCAL, DEV_BASE→REF, SITE local|ref|both)
+ *   VIEWPORTS=desktop,mobile  SIMPLE_SHOTS=1  ONLY=bdds
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -22,27 +16,46 @@ import pixelmatch from "pixelmatch";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const PROD_BASE = (process.env.PROD_BASE || "https://ai.conall.ru").replace(/\/$/, "");
-const DEV_BASE = (
-  process.env.DEV_BASE || "https://insipidly-carefree-husky.cloudpub.ru"
+const LOCAL_BASE = (
+  process.env.LOCAL_BASE ||
+  process.env.PROD_BASE ||
+  "http://127.0.0.1:3000"
 ).replace(/\/$/, "");
-const PROD_USER = process.env.PROD_USER || "admin";
-const PROD_PASS = process.env.PROD_PASS || "adminAIcon!2026X";
-const DEV_USER = process.env.DEV_USER || "admin";
-const DEV_PASS = process.env.DEV_PASS || "admin";
+const REF_BASE = (
+  process.env.REF_BASE ||
+  process.env.DEV_BASE ||
+  "https://insipidly-carefree-husky.cloudpub.ru"
+).replace(/\/$/, "");
+const LOCAL_USER = process.env.LOCAL_USER || process.env.PROD_USER || "admin";
+const LOCAL_PASS = process.env.LOCAL_PASS || process.env.PROD_PASS || "admin";
+const REF_USER = process.env.REF_USER || process.env.DEV_USER || "admin";
+const REF_PASS = process.env.REF_PASS || process.env.DEV_PASS || "admin";
 const SETTLE_MS = Number(process.env.SETTLE_MS || 2500);
 const NAV_MS = Number(process.env.NAV_MS || 4000);
 const DIFF_THRESHOLD = Number(process.env.DIFF_THRESHOLD || 0.003);
 const MAX_TABS = Number(process.env.MAX_TABS || 8);
 const MAX_CHECKS = Number(process.env.MAX_CHECKS || 8);
 const MAX_DROPDOWNS = Number(process.env.MAX_DROPDOWNS || 2);
-const SITE = (process.env.SITE || "both").toLowerCase();
+const SITE_RAW = (process.env.SITE || "both").toLowerCase();
+const SITE =
+  SITE_RAW === "prod" ? "local" : SITE_RAW === "dev" ? "ref" : SITE_RAW;
+const VIEWPORT_MAP = {
+  desktop: { width: 1440, height: 900 },
+  mobile: { width: 390, height: 844 },
+};
+const VIEWPORT_NAMES = (process.env.VIEWPORTS || "desktop,mobile")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 const ONLY = new Set(
   (process.env.ONLY || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
 );
+const SIMPLE_SHOTS =
+  process.env.SIMPLE_SHOTS === "1" ||
+  (ONLY.size > 0 && process.env.SIMPLE_SHOTS !== "0");
 const OUT = path.resolve(
   process.env.PARITY_OUT || path.join(__dirname, "..", "parity_out", `walk_${stamp()}`),
 );
@@ -331,6 +344,9 @@ async function walkRoute(page, route, shotDir, creds) {
     file: await shot(page, shotDir, `${route.id}__00_default_full`, { full: true }),
   });
   actions.push("default");
+  if (SIMPLE_SHOTS) {
+    return { shots, actions, tabs: [] };
+  }
 
   const tabs = (await discoverTabs(page)).slice(0, MAX_TABS);
   actions.push(`tabs:${tabs.join("|") || "-"}`);
@@ -385,10 +401,10 @@ async function walkRoute(page, route, shotDir, creds) {
   return { shots, actions, tabs };
 }
 
-async function runSite(browser, label, base, user, pass, shotDir) {
+async function runSite(browser, label, base, user, pass, shotDir, viewport) {
   ensureDir(shotDir);
   const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
+    viewport,
     ignoreHTTPSErrors: true,
     locale: "ru-RU",
   });
@@ -466,18 +482,18 @@ function pixelDiff(aPath, bPath, diffPath) {
   return { mismatched, ratio: mismatched / (w * h), width: w, height: h };
 }
 
-function writeHtml(outDir, comparisons) {
+function writeHtml(outDir, comparisons, title) {
   const rows = comparisons
     .map((c) => {
       const cls = c.ok ? "ok" : "bad";
       const pct = c.ratio != null ? `${(c.ratio * 100).toFixed(2)}%` : c.reason || "";
-      const prod = c.prodRel ? `<img src="${c.prodRel}" />` : "";
-      const dev = c.devRel ? `<img src="${c.devRel}" />` : "";
+      const local = c.localRel ? `<img src="${c.localRel}" />` : "";
+      const ref = c.refRel ? `<img src="${c.refRel}" />` : "";
       const diff = c.diffRel ? `<img src="${c.diffRel}" />` : "";
-      return `<tr class="${cls}"><td>${c.id}</td><td>${pct}</td><td>${prod}</td><td>${dev}</td><td>${diff}</td></tr>`;
+      return `<tr class="${cls}"><td>${c.id}</td><td>${pct}</td><td>${local}</td><td>${ref}</td><td>${diff}</td></tr>`;
     })
     .join("\n");
-  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"/><title>Visual walk prod vs cloudpub</title>
+  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"/><title>${title}</title>
 <style>
 body{font:14px/1.4 system-ui,sans-serif;margin:16px;background:#111;color:#eee}
 table{border-collapse:collapse;width:100%}
@@ -486,109 +502,133 @@ img{max-width:420px;height:auto;background:#222}
 tr.bad{background:#3a1515} tr.ok{background:#14301a}
 .sticky{position:sticky;top:0;background:#111;padding:8px 0}
 </style></head><body>
-<div class="sticky"><h1>Visual walk: ai.conall.ru vs cloudpub</h1>
-<p>Красные строки — pixel-diff выше порога. Смотри столбец Diff.</p></div>
-<table><thead><tr><th>id</th><th>diff</th><th>prod</th><th>cloudpub</th><th>diff</th></tr></thead>
+<div class="sticky"><h1>${title}</h1>
+<p>Local = правки. Ref = cloudpub (= ai.conall.ru). Красные строки — pixel-diff выше порога.</p></div>
+<table><thead><tr><th>id</th><th>diff</th><th>local</th><th>ref</th><th>diff</th></tr></thead>
 <tbody>${rows}</tbody></table></body></html>`;
   fs.writeFileSync(path.join(outDir, "compare.html"), html);
 }
 
-async function main() {
-  ensureDir(OUT);
-  const prodDir = path.join(OUT, "prod");
-  const devDir = path.join(OUT, "dev");
-  const diffDir = path.join(OUT, "diff");
-  ensureDir(diffDir);
-  console.log("OUT", OUT);
-  console.log("PROD", PROD_BASE, "DEV", DEV_BASE, "SITE", SITE);
-
-  const browser = await chromium.launch({ headless: process.env.HEADED !== "1" });
-  let prod = { login: false, routes: [], label: "prod", base: PROD_BASE };
-  let dev = { login: false, routes: [], label: "dev", base: DEV_BASE };
-
-  if (SITE === "prod" || SITE === "both") {
-    prod = await runSite(browser, "prod", PROD_BASE, PROD_USER, PROD_PASS, prodDir);
-  }
-  if (SITE === "dev" || SITE === "both") {
-    dev = await runSite(browser, "dev", DEV_BASE, DEV_USER, DEV_PASS, devDir);
-    if (!dev.login && DEV_PASS !== "admin") {
-      console.log("dev login retry admin/admin");
-      dev = await runSite(browser, "dev", DEV_BASE, "admin", "admin", devDir);
-    }
-  }
-  await browser.close();
-
+async function compareDirs(localDir, refDir, diffDir, prefix = "") {
   const ids = new Set();
-  for (const dir of [prodDir, devDir]) {
+  for (const dir of [localDir, refDir]) {
     if (!fs.existsSync(dir)) continue;
     for (const f of fs.readdirSync(dir)) {
       if (f.endsWith(".png")) ids.add(f.replace(/\.png$/, ""));
     }
   }
-
   const comparisons = [];
   for (const id of [...ids].sort()) {
-    const p = path.join(prodDir, `${id}.png`);
-    const d = path.join(devDir, `${id}.png`);
+    const l = path.join(localDir, `${id}.png`);
+    const r = path.join(refDir, `${id}.png`);
     const row = {
-      id,
+      id: prefix ? `${prefix}/${id}` : id,
       ok: false,
-      prodRel: fs.existsSync(p) ? `prod/${id}.png` : null,
-      devRel: fs.existsSync(d) ? `dev/${id}.png` : null,
+      localRel: fs.existsSync(l)
+        ? `${prefix ? `${prefix}/` : ""}local/${id}.png`
+        : null,
+      refRel: fs.existsSync(r) ? `${prefix ? `${prefix}/` : ""}ref/${id}.png` : null,
     };
-    if (!row.prodRel || !row.devRel) {
+    if (!row.localRel || !row.refRel) {
       row.reason = "missing screenshot";
       comparisons.push(row);
       continue;
     }
     try {
-      const diffPath = path.join(diffDir, `${id}.png`);
-      const r = pixelDiff(p, d, diffPath);
-      row.ratio = Number(r.ratio.toFixed(4));
-      row.mismatched = r.mismatched;
+      const diffPath = path.join(diffDir, `${prefix ? `${prefix}_` : ""}${id}.png`);
+      const px = pixelDiff(l, r, diffPath);
+      row.ratio = Number(px.ratio.toFixed(4));
+      row.mismatched = px.mismatched;
       const full = id.endsWith("_full");
-      row.ok = full ? true : r.ratio <= DIFF_THRESHOLD;
+      row.ok = full ? true : row.ratio <= DIFF_THRESHOLD;
       row.full = full;
-      row.diffRel = `diff/${id}.png`;
-      console.log(`diff ${id}: ${(r.ratio * 100).toFixed(2)}% ${row.ok ? "OK" : "DIFF"}${full ? " (full, info)" : ""}`);
+      row.diffRel = `${prefix ? `${prefix}/` : ""}diff/${prefix ? `${prefix}_` : ""}${id}.png`;
+      console.log(
+        `diff ${row.id}: ${(row.ratio * 100).toFixed(2)}% ${row.ok ? "OK" : "DIFF"}${full ? " (full)" : ""}`,
+      );
     } catch (e) {
       row.reason = String(e);
     }
     comparisons.push(row);
   }
+  return comparisons;
+}
 
-  writeHtml(OUT, comparisons);
+async function main() {
+  ensureDir(OUT);
+  console.log("OUT", OUT);
+  console.log("LOCAL", LOCAL_BASE, "REF", REF_BASE, "SITE", SITE, "SIMPLE", SIMPLE_SHOTS);
+
+  const browser = await chromium.launch({ headless: process.env.HEADED !== "1" });
+  const allComparisons = [];
+  const runMeta = { local: null, ref: null };
+
+  for (const vpName of VIEWPORT_NAMES) {
+    const viewport = VIEWPORT_MAP[vpName] || VIEWPORT_MAP.desktop;
+    const vpRoot = path.join(OUT, vpName);
+    const localDir = path.join(vpRoot, "local");
+    const refDir = path.join(vpRoot, "ref");
+    const diffDir = path.join(vpRoot, "diff");
+    ensureDir(diffDir);
+
+    let local = { login: false, routes: [], label: "local", base: LOCAL_BASE };
+    let ref = { login: false, routes: [], label: "ref", base: REF_BASE };
+
+    if (SITE === "local" || SITE === "both") {
+      local = await runSite(browser, "local", LOCAL_BASE, LOCAL_USER, LOCAL_PASS, localDir, viewport);
+      runMeta.local = local;
+    }
+    if (SITE === "ref" || SITE === "both") {
+      ref = await runSite(browser, "ref", REF_BASE, REF_USER, REF_PASS, refDir, viewport);
+      if (!ref.login && REF_PASS !== "admin") {
+        console.log("ref login retry admin/admin");
+        ref = await runSite(browser, "ref", REF_BASE, "admin", "admin", refDir, viewport);
+      }
+      runMeta.ref = ref;
+    }
+
+    const vpCmp = await compareDirs(localDir, refDir, diffDir, vpName);
+    allComparisons.push(...vpCmp);
+    writeHtml(vpRoot, vpCmp, `Parity ${vpName}: local vs ref`);
+  }
+
+  await browser.close();
+
+  writeHtml(OUT, allComparisons, "Parity: local vs cloudpub (= ai.conall.ru)");
   const report = {
     generatedAt: new Date().toISOString(),
-    prodBase: PROD_BASE,
-    devBase: DEV_BASE,
+    localBase: LOCAL_BASE,
+    refBase: REF_BASE,
+    viewports: VIEWPORT_NAMES,
+    simpleShots: SIMPLE_SHOTS,
     threshold: DIFF_THRESHOLD,
-    prod,
-    dev,
-    comparisons,
+    local: runMeta.local,
+    ref: runMeta.ref,
+    comparisons: allComparisons,
     summary: {
-      prodLogin: prod.login,
-      devLogin: dev.login,
-      shots: comparisons.length,
-      visualDiffs: comparisons.filter((c) => !c.ok).map((c) => c.id),
+      localLogin: runMeta.local?.login,
+      refLogin: runMeta.ref?.login,
+      shots: allComparisons.length,
+      visualDiffs: allComparisons.filter((c) => !c.ok).map((c) => c.id),
     },
   };
   fs.writeFileSync(path.join(OUT, "report.json"), JSON.stringify(report, null, 2));
   const md = [
-    `# Visual walk prod vs cloudpub`,
+    `# Parity local vs ref (cloudpub)`,
     `Generated: ${report.generatedAt}`,
     "",
-    `- Prod: ${PROD_BASE} login=${prod.login}`,
-    `- Dev: ${DEV_BASE} login=${dev.login}`,
-    `- Shots compared: ${comparisons.length}`,
+    `- Local: ${LOCAL_BASE} login=${runMeta.local?.login}`,
+    `- Ref: ${REF_BASE} login=${runMeta.ref?.login}`,
+    `- Viewports: ${VIEWPORT_NAMES.join(", ")}`,
+    `- Shots compared: ${allComparisons.length}`,
     `- Diffs > ${DIFF_THRESHOLD * 100}%: ${report.summary.visualDiffs.length}`,
     "",
-    `Open \`compare.html\` for side-by-side.`,
+    `Open \`compare.html\` or \`desktop/compare.html\` / \`mobile/compare.html\`.`,
     "",
     `## Diffs`,
     ...(report.summary.visualDiffs.length
       ? report.summary.visualDiffs.map((id) => {
-          const c = comparisons.find((x) => x.id === id);
+          const c = allComparisons.find((x) => x.id === id);
           return `- ${id}: ${c?.ratio != null ? `${(c.ratio * 100).toFixed(2)}%` : c?.reason}`;
         })
       : ["(none)"]),
@@ -597,6 +637,16 @@ async function main() {
   console.log("\n=== SUMMARY ===");
   console.log(JSON.stringify(report.summary, null, 2));
   console.log("HTML", path.join(OUT, "compare.html"));
+  if (process.env.OPEN_COMPARE !== "0" && process.platform === "win32") {
+    const { execFile } = await import("node:child_process");
+    for (const p of [
+      path.join(OUT, "compare.html"),
+      path.join(OUT, "desktop", "compare.html"),
+      path.join(OUT, "mobile", "compare.html"),
+    ]) {
+      if (fs.existsSync(p)) execFile("cmd", ["/c", "start", "", p]);
+    }
+  }
 }
 
 main().catch((e) => {

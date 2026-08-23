@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 export function PasswordField({
   label,
@@ -22,7 +23,7 @@ export function PasswordField({
       <div className="relative">
         <input
           type={show ? "text" : "password"}
-          className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 pr-10 text-tremor-default dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+          className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 pr-10 text-tremor-default outline-none focus-visible:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
@@ -30,11 +31,15 @@ export function PasswordField({
         />
         <button
           type="button"
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-dark-tremor-content"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-dark-tremor-content dark:hover:bg-dark-tremor-background-subtle dark:hover:text-dark-tremor-content-strong"
           onClick={() => setShow((v) => !v)}
           aria-label={show ? "Скрыть" : "Показать"}
         >
-          {show ? "🙈" : "👁"}
+          {show ? (
+            <EyeOff className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+          ) : (
+            <Eye className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+          )}
         </button>
       </div>
     </label>

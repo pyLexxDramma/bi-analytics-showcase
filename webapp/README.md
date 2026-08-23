@@ -65,14 +65,22 @@ docker compose up -d --build
 Скриншоты всех отчётов, вкладок, фильтров, чекбоксов и тёмной темы на [ai.conall.ru](https://ai.conall.ru) и [cloudpub](https://insipidly-carefree-husky.cloudpub.ru/), затем pixel-diff 1:1.
 
 ```powershell
-cd webapp
-npm install playwright pngjs pixelmatch
-npx playwright install chromium
+cd d:\AI_codding\Analitics\bi-analytics-showcase\webapp
 node scripts/visual_walk_parity.mjs
 ```
 
+Или двойной клик: `webapp\scripts\visual_walk_parity.bat`
+
 Отчёт: `webapp/parity_out/walk_*/compare.html` (prod | cloudpub | diff).
 
-- Один экран: `ONLY=working-documentation`
-- Один стенд: `SITE=prod` или `SITE=dev`
-- Уже есть дымовой паритет без кликов: `node scripts/e2e_prod_cloudpub_parity.mjs`
+| Задача | Команда |
+|---|---|
+| Оба стенда, все экраны | `node scripts/visual_walk_parity.mjs` |
+| Один экран | `$env:ONLY="working-documentation"; node scripts/visual_walk_parity.mjs` |
+| Только prod | `$env:SITE="prod"; node scripts/visual_walk_parity.mjs` |
+| Только cloudpub | `$env:SITE="dev"; node scripts/visual_walk_parity.mjs` |
+| Порог (по умолчанию 0.3%) | `$env:DIFF_THRESHOLD="0.003"; node scripts/visual_walk_parity.mjs` |
+
+Логин: `PROD_USER` / `PROD_PASS`, `DEV_USER` / `DEV_PASS` (на cloudpub если не зайдёт — скрипт сам пробует `admin` / `admin`).
+
+Первый раз на машине: `npm install playwright pngjs pixelmatch` и `npx playwright install chromium` из `webapp/`.

@@ -9,7 +9,6 @@ import {
   REPORT_TOP_TAB,
   accordionIdForPath,
 } from "@/lib/nav";
-import { openCommandPalette } from "@/components/command-palette";
 import {
   getAuthSession,
   isAdminRole,
@@ -27,12 +26,23 @@ import {
   postActivateVersion,
   postAdminIngest,
   postAdminSync,
-  postAskAiLink,
   postEnsureFresh,
   type AdminSyncResult,
   type DataFreshness,
   type DataVersion,
 } from "@/lib/api";
+
+/** Короткая метка для свёрнутого рельса навигации. */
+function railGlyph(label: string): string {
+  const words = label
+    .replace(/[()]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return label.slice(0, 2).toUpperCase();
+}
 
 const ENSURE_FRESH_SESSION_KEY = "bi_showcase_ensure_fresh_v1";
 const COLLAPSED_KEY = "bi_showcase_sidebar_collapsed_v1";
@@ -232,41 +242,21 @@ export function AppSidebar({
   const visibleStandalone = REPORT_STANDALONE.filter((i) =>
     canAccessReport(i.id, session),
   );
-  const externalAi = process.env.NEXT_PUBLIC_AI_MODE === "full";
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-
-  const openFreeAskAi = async () => {
-    if (!externalAi) {
-      router.push("/ai-assistant");
-      onNavigate?.();
-      return;
-    }
-    setAiError(null);
-    setAiBusy(true);
-    const popup = window.open("about:blank", "_blank");
-    try {
-      const { url } = await postAskAiLink({
-        mode: "free",
-        report: "free",
-        q: "",
-        src: "sidebar",
-      });
-      if (popup && !popup.closed) {
-        popup.location.replace(url);
-      } else {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
-      onNavigate?.();
-    } catch (err) {
-      if (popup && !popup.closed) popup.close();
-      setAiError(err instanceof Error ? err.message : "Не удалось открыть ИИ");
-    } finally {
-      setAiBusy(false);
-    }
-  };
+  const railItems = [
+    ...(visibleTop ? [visibleTop] : []),
+    ...visibleAccordions.flatMap((acc) => acc.items),
+    ...visibleStandalone,
+  ];
+  const isMobileDrawer = Boolean(onNavigate);
 
   const runFtpSync = async () => {
+    if (
+      !window.confirm(
+        "Синхронизировать FTP и перезагрузить БД? Страница будет обновлена после завершения.",
+      )
+    ) {
+      return;
+    }
     const token = getAdminToken();
     const session = getAuthSession();
     const canFtp =
@@ -363,6 +353,13 @@ export function AppSidebar({
   };
 
   const downloadFreshSnapshot = async () => {
+    if (
+      !window.confirm(
+        "Скачать свежий слепок FTP (архив портфеля)? Подготовка архива может занять время.",
+      )
+    ) {
+      return;
+    }
     const token = getAdminToken();
     const session = getAuthSession();
     const canFtp =
@@ -420,26 +417,33 @@ export function AppSidebar({
 
   if (collapsible && collapsed) {
     return (
-      <aside className="sticky top-0 flex h-screen w-12 shrink-0 flex-col items-center gap-2 border-r border-gray-200 bg-[#f8f9fb] py-4 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
+      <aside className="bi-thin-scroll sticky top-0 flex h-screen w-12 shrink-0 flex-col items-center gap-1.5 overflow-y-auto overscroll-contain border-r border-gray-200 bg-[#f8f9fb] py-3 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
         <button
           type="button"
           onClick={toggleCollapsed}
           title="Развернуть меню"
           aria-label="Развернуть меню"
           aria-expanded={false}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-base text-[#1f2937] hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-base text-[#1f2937] hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
         >
           »
         </button>
-        <button
-          type="button"
-          onClick={openCommandPalette}
-          title="Поиск по отчётам (Ctrl+K)"
-          aria-label="Поиск по отчётам"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-base hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
-        >
-          🔎
-        </button>
+        {railItems.map((item) => (
+          <Link
+            key={item.id}
+            href={item.href}
+            title={item.label}
+            aria-label={item.label}
+            aria-current={isActive(item.href) ? "page" : undefined}
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold leading-none transition ${
+              isActive(item.href)
+                ? "border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-100"
+                : "border-gray-200 bg-white text-[#1f2937] hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
+            }`}
+          >
+            {railGlyph(item.label)}
+          </Link>
+        ))}
       </aside>
     );
   }
@@ -449,56 +453,24 @@ export function AppSidebar({
       className={`flex w-full shrink-0 flex-col border-r border-gray-200 bg-[#f8f9fb] text-[13px] text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong lg:sticky lg:top-0 lg:h-screen lg:w-[280px] lg:self-start ${className}`}
     >
       {/* overscroll-contain: докрутив меню до конца, колесо не начинает листать дашборд */}
-      <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
-        {collapsible ? (
-          <div className="mb-3 flex justify-end">
+      <div className="bi-thin-scroll flex-1 overflow-y-auto overscroll-contain px-3 pb-4 pt-3">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="text-sm font-bold text-[#1f2937] dark:text-dark-tremor-content-strong">
+            Меню
+          </div>
+          {collapsible ? (
             <button
               type="button"
               onClick={toggleCollapsed}
               title="Свернуть меню"
               aria-label="Свернуть меню"
               aria-expanded
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-base text-[#1f2937] hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-base text-[#1f2937] hover:bg-gray-100 dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content-strong"
             >
               «
             </button>
-          </div>
-        ) : null}
-        <section className="mb-5">
-          <SectionTitle>Меню</SectionTitle>
-          <button
-            type="button"
-            onClick={() => void openFreeAskAi()}
-            disabled={aiBusy}
-            className={`flex min-h-11 w-full items-center gap-2 rounded-md border px-3 py-2 text-left ${
-              isActive("/ai-assistant")
-                ? "border-sky-400 bg-sky-50 text-sky-800 dark:border-sky-600 dark:bg-sky-950/40 dark:text-sky-200"
-                : "border-sky-300 bg-white text-sky-700 hover:bg-sky-50 dark:border-sky-700 dark:bg-dark-tremor-background dark:text-sky-300"
-            } disabled:opacity-60`}
-          >
-            <span aria-hidden>✨</span>
-            <span className="min-w-0 flex-1">
-              <span className="block">
-                {aiBusy ? "Открываю ИИ…" : "ИИ помощник"}
-              </span>
-              {externalAi ? (
-                <span className="mt-0.5 block text-[11px] font-normal leading-tight text-sky-600 dark:text-sky-400 lg:hidden">
-                  ИИ откроется в отдельном окне
-                </span>
-              ) : null}
-            </span>
-            {externalAi ? (
-              <span className="shrink-0 text-sm" aria-hidden>
-                ↗
-              </span>
-            ) : null}
-          </button>
-          {aiError ? (
-            <p className="mt-1 text-[11px] leading-snug text-red-600 dark:text-red-400">
-              {aiError}
-            </p>
           ) : null}
-        </section>
+        </div>
 
         <section className="mb-5">
           <SectionTitle>Отчёты</SectionTitle>
@@ -535,26 +507,32 @@ export function AppSidebar({
                     <Chevron open={open} />
                     <span className="font-medium">{acc.label}</span>
                   </button>
-                  {open ? (
-                    <div className="ml-1 rounded-md border border-gray-200 bg-[#eef0f3] p-1.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background-muted">
-                      <div className="flex flex-col gap-1">
-                        {acc.items.map((item) => (
-                          <Link
-                            key={item.id}
-                            href={item.href}
-                            {...navProps}
-                            className={`rounded-md border px-2.5 py-2 leading-snug transition ${
-                              isActive(item.href)
-                                ? "bi-nav-active"
-                                : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-                            }`}
-                          >
-                            {item.label}
-                          </Link>
-                        ))}
+                  <div
+                    className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                      open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    }`}
+                  >
+                    <div className="min-h-0 overflow-hidden">
+                      <div className="ml-1 mt-1 rounded-md border border-gray-200 bg-[#eef0f3] p-1.5 dark:border-dark-tremor-border dark:bg-dark-tremor-background-muted">
+                        <div className="flex flex-col gap-1">
+                          {acc.items.map((item) => (
+                            <Link
+                              key={item.id}
+                              href={item.href}
+                              {...navProps}
+                              className={`rounded-md border px-2.5 py-2 leading-snug transition ${
+                                isActive(item.href)
+                                  ? "bi-nav-active"
+                                  : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+                              }`}
+                            >
+                              {item.label}
+                            </Link>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  ) : null}
+                  </div>
                 </div>
               );
             })}
@@ -726,19 +704,21 @@ export function AppSidebar({
         </section>
       </div>
 
-      <div className="shrink-0 border-t border-gray-200 p-3 dark:border-dark-tremor-border">
-        <button
-          type="button"
-          className="min-h-11 w-full rounded-md bg-[#fdecea] px-3 py-2 font-medium text-[#c62828] transition hover:bg-[#f8d7d3]"
-          onClick={() => {
-            logout();
-            onNavigate?.();
-            router.push("/login");
-          }}
-        >
-          Выйти
-        </button>
-      </div>
+      {!isMobileDrawer ? (
+        <div className="shrink-0 border-t border-gray-200 p-3 dark:border-dark-tremor-border">
+          <button
+            type="button"
+            className="min-h-11 w-full rounded-md bg-[#fdecea] px-3 py-2 font-medium text-[#c62828] transition hover:bg-[#f8d7d3] dark:bg-red-950/60 dark:text-red-200 dark:hover:bg-red-900/70"
+            onClick={() => {
+              logout();
+              onNavigate?.();
+              router.push("/login");
+            }}
+          >
+            Выйти
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }

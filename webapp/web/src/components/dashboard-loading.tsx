@@ -25,21 +25,6 @@ export function useDelayedLoading(loading: boolean, delayMs = 1000): boolean {
  *
  * На десктопе каркас другой: фильтры, пара графиков в ряд и таблица.
  */
-/** Каркас без движения читается как «зависло» — рядом всегда живой индикатор. */
-function LoadingBadge() {
-  return (
-    <div className="pointer-events-none sticky top-4 z-10 mb-3 flex justify-center">
-      <span className="inline-flex items-center gap-2 rounded-full border border-tremor-border bg-white/95 px-4 py-2 text-sm font-medium text-tremor-content-strong shadow-lg dark:border-dark-tremor-border dark:bg-slate-900/95 dark:text-dark-tremor-content-strong">
-        <span
-          className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent dark:border-emerald-400 dark:border-t-transparent"
-          aria-hidden
-        />
-        Загрузка дашборда
-      </span>
-    </div>
-  );
-}
-
 export function DashboardSkeleton({ wide = false }: { wide?: boolean }) {
   if (wide) {
     return (
@@ -50,7 +35,6 @@ export function DashboardSkeleton({ wide = false }: { wide?: boolean }) {
         role="status"
       >
         <span className="sr-only">Загрузка дашборда</span>
-        <LoadingBadge />
         <div className="bi-skeleton mb-4 h-16 w-full rounded-xl" aria-hidden />
         <div className="mb-4 grid grid-cols-2 gap-4">
           <div className="bi-skeleton h-64 rounded-xl" aria-hidden />
@@ -74,7 +58,6 @@ export function DashboardSkeleton({ wide = false }: { wide?: boolean }) {
       role="status"
     >
       <span className="sr-only">Загрузка дашборда</span>
-      <LoadingBadge />
       <div className="bi-skeleton mb-4 h-12 w-full rounded-xl" aria-hidden />
       <div className="bi-skeleton mb-4 h-56 w-full rounded-xl" aria-hidden />
       {[0, 1, 2].map((i) => (
@@ -91,4 +74,3 @@ export function DashboardSkeleton({ wide = false }: { wide?: boolean }) {
     </div>
   );
 }
-

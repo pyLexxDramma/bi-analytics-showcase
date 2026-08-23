@@ -73,6 +73,15 @@ export function AdminDataSyncSection() {
   }, [refresh]);
 
   const onSync = async () => {
+    if (
+      !window.confirm(
+        force
+          ? "Запустить FTP → web/ → БД с force? Операция может занять несколько минут и перезапишет данные."
+          : "Запустить синхронизацию FTP → web/ → БД? Операция может занять несколько минут.",
+      )
+    ) {
+      return;
+    }
     setSyncing(true);
     setError(null);
     setSyncResult(null);
@@ -104,6 +113,13 @@ export function AdminDataSyncSection() {
   };
 
   const onIngest = async () => {
+    if (
+      !window.confirm(
+        "Пересобрать БД только из web/ (без FTP)? Текущая активная версия будет заменена новым снимком.",
+      )
+    ) {
+      return;
+    }
     setIngesting(true);
     setError(null);
     setSyncResult(null);

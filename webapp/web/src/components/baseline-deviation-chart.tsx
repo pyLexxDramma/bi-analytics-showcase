@@ -436,6 +436,7 @@ export function BaselineDeviationChart({
               width: `${labelColPct}%`,
               paddingTop: MARGIN_TOP,
               paddingBottom: MARGIN_BOTTOM,
+              paddingLeft: fullscreen ? 12 : 4,
             }}
           >
             {built.taskNames.map((name, i) => (

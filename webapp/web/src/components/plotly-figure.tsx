@@ -80,6 +80,32 @@ function withoutGestureConfig(
   } as PlotProps["config"];
 }
 
+/** Не дать зуму «потерять» данные (BUG-029/032): слишком узкий диапазон → reset. */
+function clampZoomRelayout(
+  gd: HTMLElement & { layout?: Record<string, unknown> },
+  eventData: Record<string, unknown> | undefined,
+) {
+  if (!eventData || typeof eventData !== "object") return;
+  const layout = gd.layout || {};
+  const xRange = (eventData["xaxis.range[0]"] != null &&
+    eventData["xaxis.range[1]"] != null
+    ? [Number(eventData["xaxis.range[0]"]), Number(eventData["xaxis.range[1]"])]
+    : (layout.xaxis as { range?: number[] } | undefined)?.range) as
+    | number[]
+    | undefined;
+  if (!xRange || xRange.length < 2) return;
+  const span = Math.abs(xRange[1] - xRange[0]);
+  if (!Number.isFinite(span) || span >= 0.05) return;
+  try {
+    Plotly.relayout(gd as Parameters<typeof Plotly.relayout>[0], {
+      "xaxis.autorange": true,
+      "yaxis.autorange": true,
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 function legendNameHidden(name: string, hidden: Set<string>): boolean {
   const n = name.trim();
   if (hidden.has(name) || hidden.has(n)) return true;
@@ -310,6 +336,13 @@ export default function PlotlyFigure(props: PlotProps) {
         config={config}
         useResizeHandler={fillWidth ? true : props.useResizeHandler}
         style={style}
+        onRelayout={(eventData) => {
+          props.onRelayout?.(eventData);
+          const gd = wrapRef.current?.querySelector(".js-plotly-plot") as
+            | (HTMLElement & { layout?: Record<string, unknown> })
+            | null;
+          if (gd) clampZoomRelayout(gd, eventData as Record<string, unknown>);
+        }}
       />
     </div>
   );

@@ -22,10 +22,9 @@ import {
   FilterChecksRow,
   FilterFieldsRow,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips, filterChip } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import { tapFeedback } from "@/lib/haptics";
 import { AppShell } from "@/components/app-shell";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -73,14 +72,13 @@ type Filters = {
   skud_agg: string;
   dyn_agg: string;
   only_with_plan: boolean;
-  ready: boolean;
 };
 
-/** Ключи, которые живут в адресе; `ready` — служебный флаг загрузки. */
-const URL_INITIAL = {
-  projects: [] as string[],
-  contractors: [] as string[],
-  months: [] as string[],
+/** Ключи фильтров в адресе; months в INITIAL и в draft/applied. */
+const INITIAL: Filters = {
+  projects: [],
+  contractors: [],
+  months: [],
   plan_agg: "Среднее за месяц",
   skud_agg: "Среднее за месяц",
   dyn_agg: "День",
@@ -379,15 +377,16 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const copy = COPY[resourceKind];
   const dark = useIsDark();
   const pal = useMemo(() => gdrsPalette(dark), [dark]);
-  const [filters, setFilters] = useState<Filters>({
-    projects: [],
-    contractors: [],
-    months: [],
-    plan_agg: "Среднее за месяц",
-    skud_agg: "Среднее за месяц",
-    dyn_agg: "День",
-    only_with_plan: false,
-    ready: false,
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    syncBoth,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, {
+    navId: resourceKind === "people" ? "gdrs-people" : "gdrs-equipment",
   });
   const [data, setData] = useState<GdrsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -395,6 +394,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   /** После первого ответа API только подставляем selected — повторный fetch не нужен. */
   const skipNextLoadRef = useRef(false);
+  const bootstrappedRef = useRef(false);
   const loadSeqRef = useRef(0);
 
   const [projSort, setProjSort] = useState<SortState>(null);
@@ -428,20 +428,22 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         });
         if (seq !== loadSeqRef.current) return;
         setData(payload);
-        if (!next.ready) {
+        if (!bootstrappedRef.current) {
+          bootstrappedRef.current = true;
           const sel = payload.filters.selected;
           skipNextLoadRef.current = true;
-          setFilters({
-            projects: sel.projects ?? [],
-            contractors: sel.contractors ?? [],
-            months: sel.months?.length
-              ? sel.months
-              : payload.filters.default_months,
-            plan_agg: sel.plan_agg || "Среднее за месяц",
-            skud_agg: sel.skud_agg || "Среднее за месяц",
-            dyn_agg: sel.dyn_agg || "День",
-            only_with_plan: Boolean(sel.only_with_plan),
-            ready: true,
+          syncBoth({
+            projects: sel.projects ?? next.projects,
+            contractors: sel.contractors ?? next.contractors,
+            months: next.months.length
+              ? next.months
+              : sel.months?.length
+                ? sel.months
+                : payload.filters.default_months,
+            plan_agg: sel.plan_agg || next.plan_agg,
+            skud_agg: sel.skud_agg || next.skud_agg,
+            dyn_agg: sel.dyn_agg || next.dyn_agg,
+            only_with_plan: Boolean(sel.only_with_plan ?? next.only_with_plan),
           });
         }
       } catch (cause) {
@@ -452,7 +454,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         if (seq === loadSeqRef.current) setLoading(false);
       }
     },
-    [resourceKind],
+    [resourceKind, syncBoth],
   );
 
   useEffect(() => {
@@ -460,19 +462,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       skipNextLoadRef.current = false;
       return;
     }
-    void load(filters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on filter fields only
-  }, [
-    filters.ready,
-    filters.projects,
-    filters.contractors,
-    filters.months,
-    filters.plan_agg,
-    filters.skud_agg,
-    filters.dyn_agg,
-    filters.only_with_plan,
-    load,
-  ]);
+    void load(applied);
+  }, [applied, load]);
 
   const pieData = data?.tremor.pie ?? data?.pie_rows ?? [];
 
@@ -537,16 +528,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   }, [data?.contractor_rows]);
 
   const resetFilters = () => {
-    setFilters((s) => ({
-      ...s,
-      projects: [],
-      contractors: [],
-      months: data?.filters.default_months ?? [],
-      plan_agg: "Среднее за месяц",
-      skud_agg: "Среднее за месяц",
-      dyn_agg: "День",
-      only_with_plan: false,
-    }));
+    const months = data?.filters.default_months ?? [];
+    syncBoth({ ...INITIAL, months });
   };
 
   const exportProjectTable = useCallback((): ExportTable | null => {
@@ -680,28 +663,6 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
     filters.months.length !== defaultMonths.length ||
     filters.months.some((m) => !defaultMonths.includes(m));
 
-  // Месяцы по умолчанию приходят из API — в адрес пишем только изменённый набор
-  const urlState = useMemo(
-    () => ({
-      projects: filters.projects,
-      contractors: filters.contractors,
-      months: monthsChanged ? filters.months : [],
-      plan_agg: filters.plan_agg,
-      skud_agg: filters.skud_agg,
-      dyn_agg: filters.dyn_agg,
-      only_with_plan: filters.only_with_plan,
-    }),
-    [filters, monthsChanged],
-  );
-  useUrlFilterState(
-    urlState,
-    URL_INITIAL,
-    (patch) => setFilters((s) => ({ ...s, ...patch })),
-    {
-      navId: resourceKind === "people" ? "gdrs-people" : "gdrs-equipment",
-    },
-  );
-
   const activeFilters = [
     ...buildFilterChips(
       filters,
@@ -739,9 +700,11 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((o) => !o)}
         activeFilters={activeFilters}
-        onReset={activeFilters.length ? resetFilters : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? resetFilters : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset onClick={resetFilters} />
         <FilterFieldsRow cols={5}>
           <FilterChipMulti label="Проект" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
           <FilterChipMulti label="Контрагент" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((s) => ({ ...s, contractors }))} />
@@ -770,9 +733,6 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           {loading
             ? "загрузка…"
             : `${data?.meta.rows ?? 0} строк`}
-          {data?.meta.version_id != null
-            ? ` · version_id=${data.meta.version_id}`
-            : ""}
         </Text>
         {data?.meta.warning ? (
           <Text className="mt-2 text-amber-700 dark:text-amber-300">
@@ -1394,7 +1354,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                           : "bg-tremor-background-muted text-tremor-content dark:bg-dark-tremor-background-muted"
                       }`}
                       onClick={() =>
-                        setFilters((s) => ({ ...s, dyn_agg: opt }))
+                        syncBoth({ dyn_agg: opt })
                       }
                     >
                       {opt}

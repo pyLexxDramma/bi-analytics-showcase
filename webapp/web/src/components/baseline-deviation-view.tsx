@@ -15,10 +15,9 @@ import {
   FilterChecksRow,
   FilterFieldsRow,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -250,7 +249,15 @@ function buildExport(
 }
 
 export function BaselineDeviationView() {
-  const [filters, setFilters] = useState(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "baseline-deviation" });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [data, setData] = useState<BaselineDeviationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -261,23 +268,23 @@ export function BaselineDeviationView() {
   const [mobileTone, setMobileTone] = useState<"all" | "overdue">("all");
   const [mobilePane, setMobilePane] = useState<"chart" | "tables">("chart");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (next: typeof INITIAL) => {
     setLoading(true);
     setError(null);
     try {
       setData(
         await fetchBaselineDeviation({
-          projects: filters.projects,
-          block: filters.block,
-          building: filters.building,
-          level: filters.level,
-          reason: filters.reason,
-          show_reasons: filters.showReasons,
-          hide_completed: filters.hideCompleted,
-          only_covenants: filters.onlyCovenants,
-          only_neg_end: filters.onlyNegEnd,
-          show_dur: filters.showDur,
-          label_mode: filters.labelMode,
+          projects: next.projects,
+          block: next.block,
+          building: next.building,
+          level: next.level,
+          reason: next.reason,
+          show_reasons: next.showReasons,
+          hide_completed: next.hideCompleted,
+          only_covenants: next.onlyCovenants,
+          only_neg_end: next.onlyNegEnd,
+          show_dur: next.showDur,
+          label_mode: next.labelMode,
         }),
       );
     } catch (cause) {
@@ -286,15 +293,14 @@ export function BaselineDeviationView() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(applied);
+  }, [applied, load]);
 
-  const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);
-  const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
-  const showDur = data?.filters.applied.show_dur ?? filters.showDur;
+  const showReasons = data?.filters.applied.show_reasons ?? applied.showReasons;
+  const showDur = data?.filters.applied.show_dur ?? applied.showDur;
   const covenantMode =
     Boolean(data?.filters.applied.only_covenants) || data?.meta?.mode === "covenant";
   const covenantTable = data?.covenant_table;
@@ -399,12 +405,6 @@ export function BaselineDeviationView() {
       ? "Причины отклонений (таблица)"
       : "Отклонение от базового плана (таблица)";
 
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
-    { navId: "baseline-deviation" },
-  );
-
   const levelLabel = (id: string) =>
     (data?.filters.levels ?? []).find((l) => l.id === id)?.label ?? id;
   const activeFilters = buildFilterChips(
@@ -436,9 +436,11 @@ export function BaselineDeviationView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
-        onReset={dirty ? () => setFilters(INITIAL) : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
           <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((prev) => ({ ...prev, projects, building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
@@ -647,7 +649,7 @@ export function BaselineDeviationView() {
               {covenantRows.length === 0 ? (
                 <DashboardEmptyState
                   message="Нет строк для таблицы ковенантов."
-                  onReset={dirty ? () => setFilters(INITIAL) : undefined}
+                  onReset={dirty ? reset : undefined}
                 />
               ) : (
                 <>
@@ -816,7 +818,7 @@ export function BaselineDeviationView() {
             {rows.length === 0 ? (
               <DashboardEmptyState
                 message="Нет строк по выбранным фильтрам."
-                onReset={dirty ? () => setFilters(INITIAL) : undefined}
+                onReset={dirty ? reset : undefined}
               />
             ) : (
               <>

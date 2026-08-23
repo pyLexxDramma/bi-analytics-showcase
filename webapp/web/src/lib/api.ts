@@ -23,6 +23,8 @@ function apiUrl(path: string): string {
 
 /** Тяжёлые отчёты на холодном кэше считаются минутами — но не бесконечно. */
 export const DEFAULT_TIMEOUT_MS = 120_000;
+/** БДДС / БДР: тяжёлый расчёт — отдельный таймаут (BUG-011). */
+export const BDDS_TIMEOUT_MS = 180_000;
 
 export type AssistantSession = {
   id: string;
@@ -578,7 +580,7 @@ export async function fetchBdds(query: BddsQuery = {}): Promise<BddsPayload> {
   if (query.show_deviation !== undefined) {
     params.show_deviation = String(query.show_deviation);
   }
-  return apiGet<BddsPayload>("/api/bdds", params);
+  return apiGet<BddsPayload>("/api/bdds", params, { timeoutMs: BDDS_TIMEOUT_MS });
 }
 
 export type BdrPayload = BddsPayload;
@@ -595,7 +597,7 @@ export async function fetchBdr(query: BddsQuery = {}): Promise<BdrPayload> {
   if (query.show_deviation !== undefined) {
     params.show_deviation = String(query.show_deviation);
   }
-  return apiGet<BdrPayload>("/api/bdr", params);
+  return apiGet<BdrPayload>("/api/bdr", params, { timeoutMs: BDDS_TIMEOUT_MS });
 }
 
 export type ApprovedBudgetPayload = {
@@ -860,6 +862,7 @@ export async function fetchBddsPlanFact(
   return apiGet<BddsPlanFactPayload>("/api/bdds-plan-fact", params, {
     headers: authHeaders(),
     signal,
+    timeoutMs: BDDS_TIMEOUT_MS,
   });
 }
 

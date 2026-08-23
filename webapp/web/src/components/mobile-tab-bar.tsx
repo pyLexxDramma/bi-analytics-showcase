@@ -26,7 +26,7 @@ function IconArrowUp() {
   );
 }
 
-function IconReports() {
+function IconSearch() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path d="M4 6h11M4 12h7M4 18h5" strokeLinecap="round" />
@@ -64,11 +64,11 @@ function IconProfile() {
 export function MobileTabBar({
   onOpenMenu,
   menuOpen = false,
-  onOpenReports,
+  onOpenSearch,
 }: {
   onOpenMenu: () => void;
   menuOpen?: boolean;
-  onOpenReports: () => void;
+  onOpenSearch: () => void;
 }) {
   const pathname = usePathname();
   const [canScrollUp, setCanScrollUp] = useState(false);
@@ -87,7 +87,7 @@ export function MobileTabBar({
     return () => window.removeEventListener("scroll", sync);
   }, []);
 
-  const reportsActive = Boolean(findNavItem(pathname)) && !menuOpen;
+  const searchActive = Boolean(findNavItem(pathname)) && !menuOpen;
   const aiActive = pathname.startsWith("/ai-assistant");
   const profileActive = pathname.startsWith("/settings");
 
@@ -121,14 +121,14 @@ export function MobileTabBar({
         type="button"
         onClick={() => {
           tapFeedback();
-          onOpenReports();
+          onOpenSearch();
         }}
-        className={itemClass(reportsActive)}
+        className={itemClass(searchActive)}
       >
         <span className="bi-tabbar-icon">
-          <IconReports />
+          <IconSearch />
         </span>
-        <span className="bi-tabbar-label">Отчёты</span>
+        <span className="bi-tabbar-label">Поиск</span>
       </button>
 
       <Link

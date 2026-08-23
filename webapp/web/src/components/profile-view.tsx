@@ -18,6 +18,12 @@ import {
   saveAuthSession,
   type AuthUser,
 } from "@/lib/auth";
+import {
+  applyThemeClass,
+  readTheme,
+  writeTheme,
+  type ThemeMode,
+} from "@/lib/theme";
 
 export function ProfileView() {
   const router = useRouter();
@@ -30,6 +36,11 @@ export function ProfileView() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    setDark(readTheme() === "dark");
+  }, []);
 
   useEffect(() => {
     // migrate legacy demo → admin/superadmin, then refresh from users.db
@@ -49,6 +60,12 @@ export function ProfileView() {
         }
       });
   }, []);
+
+  const setTheme = (mode: ThemeMode) => {
+    setDark(mode === "dark");
+    writeTheme(mode);
+    applyThemeClass(mode);
+  };
 
   const onPassword = async () => {
     setMsg(null);
@@ -116,6 +133,20 @@ export function ProfileView() {
         roleLabel={user?.role_label || "—"}
       />
 
+      <Card className="mb-6 max-w-full overflow-hidden rounded-xl">
+        <Title className="!text-base">Оформление</Title>
+        <Text className="mt-1 text-sm text-tremor-content dark:text-dark-tremor-content">
+          Тема для всего приложения (на телефоне переключатель убран из шапки).
+        </Text>
+        <button
+          type="button"
+          className="mt-3 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis"
+          onClick={() => setTheme(dark ? "light" : "dark")}
+        >
+          {dark ? "Светлая тема" : "Тёмная тема"}
+        </button>
+      </Card>
+
       <EmeraldTabs
         className="mb-6"
         active={tab}
@@ -130,12 +161,12 @@ export function ProfileView() {
       {err ? <Text className="mb-3 text-rose-600">{err}</Text> : null}
 
       {tab === "password" ? (
-        <Card className="rounded-xl">
+        <Card className="max-w-full overflow-hidden rounded-xl">
           <Title className="!text-base">Изменение пароля</Title>
           <InfoBanner>
             Для изменения пароля необходимо ввести текущий пароль и новый пароль.
           </InfoBanner>
-          <div className="max-w-md space-y-4">
+          <div className="max-w-full space-y-4 overflow-hidden sm:max-w-md">
             <PasswordField
               label="Текущий пароль"
               value={oldPassword}
@@ -164,7 +195,7 @@ export function ProfileView() {
       ) : null}
 
       {tab === "email" ? (
-        <Card className="rounded-xl">
+        <Card className="max-w-full overflow-hidden rounded-xl">
           <Title className="!text-base">Изменение email</Title>
           <InfoBanner>
             Вы можете изменить или добавить email адрес для вашего профиля.
@@ -172,11 +203,11 @@ export function ProfileView() {
           <Text className="mb-4">
             <b>Текущий email:</b> {currentEmail}
           </Text>
-          <label className="block max-w-md text-sm">
+          <label className="block max-w-full text-sm sm:max-w-md">
             Новый email
             <input
               type="email"
-              className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              className="mt-1 w-full max-w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
             />
@@ -192,12 +223,12 @@ export function ProfileView() {
         </Card>
       ) : null}
 
-      <Card className="mt-6 rounded-xl">
+      <Card className="mt-6 max-w-full overflow-hidden rounded-xl">
         <InfoBanner>
-          Для возврата к отчетам используйте меню в боковой панели. Для выхода из
-          системы нажмите «Выйти» внизу боковой панели.
+          Для возврата к отчётам используйте меню. Выход — кнопкой «Выйти» ниже
+          (на десктопе также внизу боковой панели).
         </InfoBanner>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex max-w-full flex-wrap gap-3 overflow-hidden">
           <Link
             href="/developer-projects"
             className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900"
@@ -206,7 +237,7 @@ export function ProfileView() {
           </Link>
           <button
             type="button"
-            className="rounded-md bg-[#fdecea] px-4 py-2 text-sm font-medium text-[#c62828]"
+            className="rounded-md bg-[#fdecea] px-4 py-2 text-sm font-medium text-[#c62828] dark:bg-red-950/60 dark:text-red-200 dark:hover:bg-red-900/70"
             onClick={() => {
               logout();
               router.push("/login");

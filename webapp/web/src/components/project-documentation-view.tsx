@@ -21,11 +21,10 @@ import {
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
 import { isSingleProjectSelection } from "@/lib/chart-labels";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -145,9 +144,16 @@ function ProjectDocumentationScreen({
   showDelayTab: boolean;
 }) {
   const [tab, setTab] = useState<TabId>("main");
-  const [filters, setFilters] = useState(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    syncBoth,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "project-documentation" });
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [dateReady, setDateReady] = useState(false);
   const [data, setData] = useState<ProjectDocumentationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,57 +176,49 @@ function ProjectDocumentationScreen({
     return () => obs.disconnect();
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const payload = await fetchPayload({
-        projects: filters.projects,
-        section: filters.section,
-        period: filters.period === "Все месяцы" ? undefined : filters.period,
-        granularity: filters.granularity,
-        report_date: filters.reportDate || undefined,
-        view_mode: filters.viewMode,
-        tab,
-      });
-      setData(payload);
-      if (!dateReady && payload.filters.applied.report_date) {
-        setFilters((prev) => ({
-          ...prev,
-          reportDate: payload.filters.applied.report_date,
-        }));
-        setDateReady(true);
+  const load = useCallback(
+    async (next: typeof INITIAL, nextTab: TabId) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const payload = await fetchPayload({
+          projects: next.projects,
+          section: next.section,
+          period: next.period === "Все месяцы" ? undefined : next.period,
+          granularity: next.granularity,
+          report_date: next.reportDate || undefined,
+          view_mode: next.viewMode,
+          tab: nextTab,
+        });
+        setData(payload);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        setData(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchPayload, filters, tab, dateReady]);
+    },
+    [fetchPayload],
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(applied, tab);
+  }, [applied, tab, load]);
+
+  useEffect(() => {
+    const reportDate = data?.filters.applied.report_date;
+    if (reportDate && !applied.reportDate) {
+      syncBoth({ reportDate });
+    }
+  }, [data?.filters.applied.report_date, applied.reportDate, syncBoth]);
 
   const selectClass = FILTER_SELECT_CLASS;
 
-  // Дата из адреса приоритетнее подстановки из ответа API
-  useUrlFilterState(
-    filters,
-    INITIAL,
-    (patch) => setFilters((f) => ({ ...f, ...patch })),
-    {
-      onRestore: (restored) => {
-        if (restored.reportDate) setDateReady(true);
-      },
-      navId: "project-documentation",
-    },
-  );
-
-  const appliedReportDate = data?.filters.applied.report_date || INITIAL.reportDate;
-  const resetFilters = () =>
-    setFilters({ ...INITIAL, reportDate: appliedReportDate });
+  const appliedReportDate =
+    data?.filters.applied.report_date || applied.reportDate || INITIAL.reportDate;
+  const resetFilters = () => {
+    syncBoth({ ...INITIAL, reportDate: appliedReportDate });
+  };
   const viewModeLabel = (id: string) =>
     (data?.filters.view_modes ?? []).find((m) => m.id === id)?.label ?? id;
   const activeFilters = buildFilterChips(
@@ -404,9 +402,11 @@ function ProjectDocumentationScreen({
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
-        onReset={activeFilters.length ? resetFilters : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? resetFilters : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset onClick={resetFilters} />
         {tab === "main" ? (
           <FilterFieldsRow cols={3}>
             <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects, section: "Все" }))} />

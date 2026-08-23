@@ -21,10 +21,9 @@ import {
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import { BddsPlanFactEditor } from "@/components/bdds-plan-fact-editor";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -119,7 +118,16 @@ function statusBulletClass(valueMln: number): string {
 }
 
 export function BddsPlanFactView() {
-  const [filters, setFilters] = useState<Filters>(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    syncBoth,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "bdds-plan-fact" });
   const [data, setData] = useState<BddsPlanFactPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,29 +139,29 @@ export function BddsPlanFactView() {
     "chart",
   );
 
-  const singleProject = filters.projects.length === 1;
-  const editorProject = singleProject ? filters.projects[0] : null;
+  const singleProject = applied.projects.length === 1;
+  const editorProject = singleProject ? applied.projects[0] : null;
 
   const editorFilters = useMemo(
     () => ({
       project: editorProject ?? undefined,
-      date_from: filters.date_from || undefined,
-      date_to: filters.date_to || undefined,
-      group: filters.group,
-      view: filters.view,
-      dev_base: filters.dev_base,
-      hide_deviation: filters.hide_deviation,
-      hide_zero: filters.hide_zero,
+      date_from: applied.date_from || undefined,
+      date_to: applied.date_to || undefined,
+      group: applied.group,
+      view: applied.view,
+      dev_base: applied.dev_base,
+      hide_deviation: applied.hide_deviation,
+      hide_zero: applied.hide_zero,
     }),
     [
       editorProject,
-      filters.date_from,
-      filters.date_to,
-      filters.group,
-      filters.view,
-      filters.dev_base,
-      filters.hide_deviation,
-      filters.hide_zero,
+      applied.date_from,
+      applied.date_to,
+      applied.group,
+      applied.view,
+      applied.dev_base,
+      applied.hide_deviation,
+      applied.hide_zero,
     ],
   );
 
@@ -195,20 +203,23 @@ export function BddsPlanFactView() {
   useEffect(() => {
     if (singleProject) return;
     const controller = new AbortController();
-    void load(filters, controller.signal);
+    void load(applied, controller.signal);
     return () => controller.abort();
-  }, [filters, load, singleProject]);
+  }, [applied, load, singleProject]);
 
   useEffect(() => {
     if (!data?.filters) return;
-    setFilters((state) => {
-      const applied = data.filters.applied;
-      const nextFrom = applied.date_from ?? "";
-      const nextTo = applied.date_to ?? "";
-      if (state.date_from === nextFrom && state.date_to === nextTo) return state;
-      return { ...state, date_from: nextFrom, date_to: nextTo };
-    });
-  }, [data?.filters.applied.date_from, data?.filters.applied.date_to]);
+    const nextFrom = data.filters.applied.date_from ?? "";
+    const nextTo = data.filters.applied.date_to ?? "";
+    if (applied.date_from === nextFrom && applied.date_to === nextTo) return;
+    syncBoth({ date_from: nextFrom, date_to: nextTo });
+  }, [
+    data?.filters.applied.date_from,
+    data?.filters.applied.date_to,
+    applied.date_from,
+    applied.date_to,
+    syncBoth,
+  ]);
 
   const zeroToggleEnabled = filters.group === "month";
   const hideZero = filters.hide_zero ?? true;
@@ -285,12 +296,6 @@ export function BddsPlanFactView() {
     };
   }, [data?.status_rows]);
 
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((s) => ({ ...s, ...patch })),
-    { navId: "bdds-plan-fact" },
-  );
-
   const optionLabel = (
     items: Array<{ id: string; label: string }> | undefined,
     id: string,
@@ -333,9 +338,11 @@ export function BddsPlanFactView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
-        onReset={activeFilters.length ? () => setFilters(INITIAL) : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset onClick={() => setFilters(INITIAL)} />
         <FilterChipMulti
           label="Проект"
           values={filters.projects}

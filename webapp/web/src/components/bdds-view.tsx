@@ -23,7 +23,6 @@ import {
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -44,7 +43,7 @@ import {
   multiFilterChips,
   type ActiveFilter,
 } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 
 type Filters = {
@@ -367,6 +366,7 @@ type FinanceViewConfig = {
   planSeries: string;
   factSeries: string;
   sheetName: string;
+  navId?: string;
   fetchPayload: (query: BddsQuery) => Promise<BddsPayload>;
 };
 
@@ -375,11 +375,20 @@ const BDDS_CONFIG: FinanceViewConfig = {
   planSeries: "БДДС план",
   factSeries: "БДДС факт",
   sheetName: "БДДС",
+  navId: "bdds",
   fetchPayload: fetchBdds,
 };
 
 export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig }) {
-  const [filters, setFilters] = useState<Filters>(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: config.navId ?? "bdds" });
   const [data, setData] = useState<BddsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -412,14 +421,8 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
   }, [config]);
 
   useEffect(() => {
-    void load(filters);
-  }, [filters, load]);
-
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((state) => ({ ...state, ...patch })),
-    { navId: "bdds" },
-  );
+    void load(applied);
+  }, [applied, load]);
 
   const periodLabel = data?.labels.period ?? "Месяц";
   const zeroToggleEnabled = filters.group === "month" && filters.view === "monthly";
@@ -537,15 +540,6 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
     };
   };
 
-  const dirty =
-    filters.projects.length > 0 ||
-    filters.date_from !== "" ||
-    filters.date_to !== "" ||
-    filters.group !== "month" ||
-    filters.view !== "monthly" ||
-    filters.hide_zero !== null ||
-    filters.show_deviation;
-
   const groupLabel =
     (data?.filters.groups ?? []).find((g) => g.id === filters.group)?.label ??
     filters.group;
@@ -610,9 +604,11 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
         open={filtersOpen}
         onToggle={() => setFiltersOpen((state) => !state)}
         activeFilters={activeFilters}
-        onReset={dirty ? () => setFilters(INITIAL) : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterChipMulti
           label="Проект"
           values={filters.projects}

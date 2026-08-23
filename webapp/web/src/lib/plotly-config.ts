@@ -26,6 +26,8 @@ export const PLOTLY_CONFIG = {
   displayModeBar: true,
   displaylogo: false,
   scrollZoom: true,
+  /** Двойной клик — сброс масштаба (BUG-029+). */
+  doubleClick: "reset" as const,
   locale: "ru",
   modeBarButtons: PLOTLY_MODEBAR_BUTTONS as unknown as string[][],
   modeBarButtonsToRemove: [...PLOTLY_MODEBAR_REMOVE],

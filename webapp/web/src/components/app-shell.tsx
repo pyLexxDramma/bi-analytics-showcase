@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { AskAiButton, AskAiTitleChip } from "@/components/ask-ai-button";
+import { AskAiButton } from "@/components/ask-ai-button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
@@ -12,7 +12,7 @@ import {
 } from "@/components/dashboard-loading";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { ReportsSearchSheet } from "@/components/reports-search-sheet";
-import { ShortcutsHelp, openShortcutsHelp } from "@/components/shortcuts-help";
+import { ShortcutsHelp } from "@/components/shortcuts-help";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { findNavItem } from "@/lib/nav";
 import { pushRecentReport } from "@/lib/recent-reports";
@@ -157,38 +157,14 @@ export function AppShell({
 
       {menuOpen ? (
         <div
-          className="bi-safe-area fixed inset-0 z-50 flex flex-col bg-[#f8f9fb] dark:bg-dark-tremor-background lg:hidden"
+          className="bi-safe-area fixed inset-x-0 top-0 z-50 flex flex-col bg-[#f8f9fb] dark:bg-dark-tremor-background lg:hidden"
+          style={{
+            bottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))",
+          }}
           role="dialog"
           aria-modal="true"
           aria-label="Меню"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-dark-tremor-border">
-            <span className="text-sm font-bold text-[#1f2937] dark:text-dark-tremor-content-strong">
-              Меню
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  tapFeedback();
-                  setMenuOpen(false);
-                  setReportsOpen(true);
-                }}
-                className="inline-flex h-11 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-              >
-                <span aria-hidden>🔎</span>
-                Поиск
-              </button>
-              <button
-                type="button"
-                onClick={closeMenu}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-200 bg-white text-lg font-semibold text-[#1f2937] dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-                aria-label="Закрыть меню"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             <AppSidebar
               onNavigate={closeMenu}
@@ -206,35 +182,18 @@ export function AppShell({
           aria-hidden={showLoading || undefined}
         >
           <header className="mb-5 flex items-start justify-between gap-2 sm:mb-8 sm:items-center sm:gap-3">
-            <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  tapFeedback();
-                  setMenuOpen(true);
-                }}
-                className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-lg font-semibold text-tremor-content-emphasis shadow-tremor-input lg:hidden dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis"
-                aria-label="Открыть меню"
-                aria-expanded={menuOpen}
-              >
-                ☰
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-start gap-2">
-                  <h1 className="min-w-0 flex-1 break-words text-lg font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
-                    {title}
-                  </h1>
-                  <AskAiTitleChip />
-                </div>
-                {subtitle ? (
-                  <p className="mt-1 break-words text-sm text-tremor-content dark:text-dark-tremor-content sm:text-tremor-default">
-                    {subtitle}
-                  </p>
-                ) : null}
-                <DataFreshnessBadge />
-              </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="min-w-0 break-words text-lg font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
+                {title}
+              </h1>
+              {subtitle ? (
+                <p className="mt-1 break-words text-sm text-tremor-content dark:text-dark-tremor-content sm:text-tremor-default">
+                  {subtitle}
+                </p>
+              ) : null}
+              <DataFreshnessBadge />
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="hidden shrink-0 items-center gap-2 lg:flex">
               <AskAiButton />
               <button
                 type="button"
@@ -245,7 +204,7 @@ export function AppShell({
                     : "Растянуть отчёт во всю ширину экрана"
                 }
                 aria-pressed={wide}
-                className="hidden h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
               >
                 <span aria-hidden>{wide ? "><" : "<>"}</span>
                 <span className="sr-only">Ширина полотна</span>
@@ -259,7 +218,7 @@ export function AppShell({
                     : "Компактные строки — больше данных на экран"
                 }
                 aria-pressed={density === "compact"}
-                className="hidden h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
               >
                 <span aria-hidden>{density === "compact" ? "☰" : "≡"}</span>
                 <span className="sr-only">Плотность строк</span>
@@ -268,7 +227,7 @@ export function AppShell({
                 type="button"
                 onClick={openCommandPalette}
                 title="Поиск по отчётам"
-                className="hidden items-center gap-2 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                className="inline-flex items-center gap-2 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
               >
                 <span aria-hidden>🔎</span>
                 Поиск
@@ -278,17 +237,8 @@ export function AppShell({
               </button>
               <button
                 type="button"
-                onClick={openShortcutsHelp}
-                title="Горячие клавиши"
-                className="hidden h-10 w-10 items-center justify-center rounded-tremor-default border border-tremor-border bg-tremor-background text-tremor-default text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle lg:inline-flex dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
-              >
-                <span aria-hidden>?</span>
-                <span className="sr-only">Горячие клавиши</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setTheme(dark ? "light" : "dark")}
-                className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle sm:px-3 sm:text-tremor-default"
+                className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
               >
                 {dark ? "☀ Светлая" : "🌙 Тёмная"}
               </button>
@@ -312,9 +262,12 @@ export function AppShell({
         </div>
         {showLoading ? <DashboardSkeleton wide={!mobile} /> : null}
         <MobileTabBar
-          onOpenMenu={() => setMenuOpen(true)}
+          onOpenMenu={() => setMenuOpen((open) => !open)}
           menuOpen={menuOpen}
-          onOpenReports={() => setReportsOpen(true)}
+          onOpenSearch={() => {
+            setMenuOpen(false);
+            setReportsOpen(true);
+          }}
         />
         <ReportsSearchSheet
           open={reportsOpen}

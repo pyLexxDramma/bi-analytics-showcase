@@ -15,13 +15,12 @@ import {
   FilterChecksRow,
   FilterField,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
+  FILTER_DATE_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
 import { isSingleProjectSelection } from "@/lib/chart-labels";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import { DownloadTableButton } from "@/components/download-table-button";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
@@ -495,7 +494,15 @@ function DetailTable({
 export function WorkingDocumentationView() {
   const [tab, setTab] = useState<TabId>("main");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "working-documentation" });
   const [data, setData] = useState<WorkingDocumentationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -507,21 +514,21 @@ export function WorkingDocumentationView() {
     let cancelled = false;
     const allStatuses = data?.filters.statuses ?? [];
     const statusParam =
-      filters.statuses.length &&
+      applied.statuses.length &&
       allStatuses.length &&
-      filters.statuses.length !== allStatuses.length
-        ? filters.statuses.join("|")
+      applied.statuses.length !== allStatuses.length
+        ? applied.statuses.join("|")
         : undefined;
     const q: WorkingDocumentationQuery = {
-      projects: filters.projects,
-      section: joinMulti(filters.sections),
+      projects: applied.projects,
+      section: joinMulti(applied.sections),
       status: statusParam,
-      period_mode: filters.periodMode,
-      date_from: filters.dateFrom || undefined,
-      date_to: filters.dateTo || undefined,
-      metric_mode: filters.metricMode,
-      show_forecast: filters.showForecast,
-      view_mode: filters.viewMode,
+      period_mode: applied.periodMode,
+      date_from: applied.dateFrom || undefined,
+      date_to: applied.dateTo || undefined,
+      metric_mode: applied.metricMode,
+      show_forecast: applied.showForecast,
+      view_mode: applied.viewMode,
       tab,
     };
     setLoading(true);
@@ -543,15 +550,15 @@ export function WorkingDocumentationView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tab,
-    filters.projects,
-    filters.sections,
-    filters.statuses,
-    filters.periodMode,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.metricMode,
-    filters.showForecast,
-    filters.viewMode,
+    applied.projects,
+    applied.sections,
+    applied.statuses,
+    applied.periodMode,
+    applied.dateFrom,
+    applied.dateTo,
+    applied.metricMode,
+    applied.showForecast,
+    applied.viewMode,
   ]);
 
   const kpis = data?.kpis;
@@ -568,18 +575,6 @@ export function WorkingDocumentationView() {
     (kpis?.total_sections != null && issuedProduction != null
       ? Math.max(0, Number(kpis.total_sections) - Number(issuedProduction))
       : null);
-
-  const resetFilters = () => {
-    setFilters({
-      ...INITIAL,
-    });
-  };
-
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((f) => ({ ...f, ...patch })),
-    { navId: "working-documentation" },
-  );
 
   const viewModeLabel = (id: string) =>
     (data?.filters.view_modes ?? []).find((m) => m.id === id)?.label ?? id;
@@ -629,9 +624,11 @@ export function WorkingDocumentationView() {
         onToggle={() => setFiltersOpen((v) => !v)}
         title={tab === "main" ? "План выдачи РД — фильтры" : "Фильтры"}
         activeFilters={activeFilters}
-        onReset={activeFilters.length ? resetFilters : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset onClick={resetFilters} />
         <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects }))} />
         <FilterFieldsRow cols={3}>
           <FilterChipMulti label="Раздел" options={data?.filters.sections ?? []} values={filters.sections} onChange={(sections) => setFilters((f) => ({ ...f, sections }))} />
@@ -643,7 +640,7 @@ export function WorkingDocumentationView() {
             <FilterField label="С">
               <input
                 type="date"
-                className={FILTER_SELECT_CLASS}
+                className={FILTER_DATE_CLASS}
                 value={filters.dateFrom}
                 min={data?.filters.plan_date_min ?? undefined}
                 max={data?.filters.plan_date_max ?? undefined}
@@ -655,7 +652,7 @@ export function WorkingDocumentationView() {
             <FilterField label="По">
               <input
                 type="date"
-                className={FILTER_SELECT_CLASS}
+                className={FILTER_DATE_CLASS}
                 value={filters.dateTo}
                 min={data?.filters.plan_date_min ?? undefined}
                 max={data?.filters.plan_date_max ?? undefined}
@@ -849,7 +846,7 @@ export function WorkingDocumentationView() {
 
               <div
                 ref={tablesRef}
-                className={`scroll-mt-4 ${
+                className={`scroll-mt-4 border-t border-tremor-border pt-6 mt-2 dark:border-dark-tremor-border ${
                   mobilePane === "tables" ? "block" : "hidden lg:block"
                 }`}
               >
@@ -858,7 +855,7 @@ export function WorkingDocumentationView() {
                 columns={data?.detail_columns ?? []}
                 rows={data?.detail_rows ?? []}
                 fileStem="rd_detail"
-                onReset={activeFilters.length ? resetFilters : undefined}
+                onReset={activeFilters.length ? reset : undefined}
               />
               </div>
             </>
@@ -918,7 +915,7 @@ export function WorkingDocumentationView() {
 
               <div
                 ref={tablesRef}
-                className={`scroll-mt-4 ${
+                className={`scroll-mt-4 border-t border-tremor-border pt-6 mt-2 dark:border-dark-tremor-border ${
                   mobilePane === "tables" ? "block" : "hidden lg:block"
                 }`}
               >
@@ -927,7 +924,7 @@ export function WorkingDocumentationView() {
                 columns={data?.delay.detail_columns ?? data?.detail_columns ?? []}
                 rows={data?.delay.detail_rows ?? data?.detail_rows ?? []}
                 fileStem="rd_delay_detail"
-                onReset={activeFilters.length ? resetFilters : undefined}
+                onReset={activeFilters.length ? reset : undefined}
               />
               </div>
             </>

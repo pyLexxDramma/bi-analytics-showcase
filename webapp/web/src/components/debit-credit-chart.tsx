@@ -192,7 +192,7 @@ export function DebitCreditChart({
           bargap: 0.28,
           showlegend: false,
           margin: compact
-            ? { l: 56, r: 16, t: 28, b: 120 }
+            ? { l: 36, r: 12, t: 28, b: 120 }
             : { l: 80, r: 40, t: 48, b: 140 },
           paper_bgcolor: "rgba(0,0,0,0)",
           plot_bgcolor: "rgba(0,0,0,0)",
@@ -354,7 +354,7 @@ export function DebitCreditChart({
         bargroupgap,
         showlegend: false,
         margin: compact
-          ? { l: 48, r: 16, t: stacked ? 36 : 28, b: 100 }
+          ? { l: 32, r: 12, t: stacked ? 36 : 28, b: 100 }
           : { l: 72, r: 40, t: 48, b: 120 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",

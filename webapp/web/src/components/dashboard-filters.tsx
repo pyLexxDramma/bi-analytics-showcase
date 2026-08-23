@@ -16,9 +16,12 @@ import type { ActiveFilter } from "@/lib/filters-summary";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 
-/** Shared select look — fixed height so all fields share one baseline. */
+/** Shared select/date look — fixed height, non-OS chrome, focus-visible only. */
 export const FILTER_SELECT_CLASS =
-  "bi-filters-select w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong disabled:opacity-50";
+  "bi-filters-select w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 text-tremor-default text-tremor-content-strong outline-none focus-visible:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong disabled:opacity-50";
+
+/** Date inputs: full visible date, same height as selects. */
+export const FILTER_DATE_CLASS = `${FILTER_SELECT_CLASS} bi-filters-date`;
 
 /** BDDS-style chip buttons for categorical filters. */
 export const FILTER_CHIP_CLASS =
@@ -202,7 +205,7 @@ function ChipSearch({
       onKeyDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       placeholder={`Поиск · ${count}`}
-      className="bi-filter-chip-search mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+      className="bi-filter-chip-search mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong outline-none focus-visible:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
     />
   );
 }
@@ -651,7 +654,7 @@ function MultiSelectDropdown({
               placeholder={`Поиск · ${options.length}`}
               aria-controls={listId}
               aria-activedescendant={`${listId}-${active}`}
-              className="mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-1.5 text-tremor-default text-tremor-content-strong outline-none focus:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
+              className="mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-1.5 text-tremor-default text-tremor-content-strong outline-none focus-visible:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
             />
           ) : null}
           <div className="mb-2 flex items-center gap-2 text-xs">
@@ -904,6 +907,9 @@ export function FiltersCard({
   activeCount,
   activeFilters,
   onReset,
+  onApply,
+  applyDisabled,
+  resetDisabled,
   children,
 }: {
   open: boolean;
@@ -913,6 +919,10 @@ export function FiltersCard({
   /** Чипы выбранных значений — mobile всегда; desktop — под заголовком панели. */
   activeFilters?: ActiveFilter[];
   onReset?: () => void;
+  /** BUG-010: зафиксировать черновик в URL/запрос. */
+  onApply?: () => void;
+  applyDisabled?: boolean;
+  resetDisabled?: boolean;
   children: ReactNode;
 }) {
   const mobile = useIsMobileViewport();
@@ -996,12 +1006,27 @@ export function FiltersCard({
           onClose={() => setSheetOpen(false)}
           title={title}
           onReset={onReset}
+          onApply={onApply}
+          applyDisabled={applyDisabled}
+          resetDisabled={resetDisabled}
         >
           <div className="bi-filters-body space-y-3">{children}</div>
         </FiltersSheet>
       </>
     );
   }
+
+  const actions =
+    onApply || onReset ? (
+      <div className="mt-3 flex flex-wrap gap-2">
+        {onApply ? (
+          <FiltersApply disabled={applyDisabled} onClick={onApply} />
+        ) : null}
+        {onReset ? (
+          <FiltersReset disabled={resetDisabled} onClick={onReset} />
+        ) : null}
+      </div>
+    ) : null;
 
   return (
     <div className="bi-filters-panel mb-6 rounded-xl border border-tremor-border bg-tremor-background p-4 dark:border-dark-tremor-border dark:bg-dark-tremor-background">
@@ -1022,7 +1047,29 @@ export function FiltersCard({
       {!open ? chipsRow : null}
       {open ? <div className="bi-filters-body mt-3 space-y-3">{children}</div> : null}
       {open && chips.length ? <div className="mt-3">{chipsRow}</div> : null}
+      {open ? actions : null}
     </div>
+  );
+}
+
+export function FiltersApply({
+  disabled,
+  onClick,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(event) => {
+        confirmFeedback();
+        onClick?.(event);
+      }}
+      className="rounded-tremor-default bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+      {...rest}
+    >
+      Применить
+    </button>
   );
 }
 

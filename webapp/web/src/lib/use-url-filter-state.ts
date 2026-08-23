@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { fetchMyDefaultFilters } from "@/lib/api";
 
 /**
@@ -12,6 +12,9 @@ import { fetchMyDefaultFilters } from "@/lib/api";
  *
  * Опционально `navId`: после URL подтягиваются default_filters роли
  * только для ключей, которых ещё нет в адресе.
+ *
+ * Отложенный режим (BUG-010): `useDeferredUrlFilters` — черновик в UI,
+ * в URL и запрос уходит только по «Применить».
  */
 
 const ARRAY_SEP = "|";
@@ -74,6 +77,23 @@ function coerceDefault(value: unknown, base: unknown): unknown {
   return String(value);
 }
 
+/** Сравнение срезов фильтров (массивы — поэлементно). */
+export function filtersEqual(a: FilterValues, b: FilterValues): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const av = a[key];
+    const bv = b[key];
+    if (Array.isArray(av) || Array.isArray(bv)) {
+      const aa = Array.isArray(av) ? av : [];
+      const bb = Array.isArray(bv) ? bv : [];
+      if (aa.length !== bb.length || aa.some((v, i) => v !== bb[i])) return false;
+      continue;
+    }
+    if (av !== bv) return false;
+  }
+  return true;
+}
+
 /** Что можно восстановить из текущего адреса (без побочных эффектов). */
 export function readFiltersFromUrl(initial: FilterValues): FilterValues {
   if (typeof window === "undefined") return {};
@@ -85,6 +105,35 @@ export function readFiltersFromUrl(initial: FilterValues): FilterValues {
     out[key] = decodeValue(raw, initial[key]);
   }
   return out;
+}
+
+function writeFiltersToUrl<T extends FilterValues>(
+  filters: T,
+  initial: T,
+  skip?: Array<keyof T & string>,
+): void {
+  const params = new URLSearchParams();
+  for (const key of Object.keys(initial)) {
+    if (skip?.includes(key as keyof T & string)) continue;
+    const value = filters[key];
+    const base = initial[key];
+    if (Array.isArray(value) && Array.isArray(base)) {
+      if (
+        value.length === base.length &&
+        value.every((v, i) => v === base[i])
+      ) {
+        continue;
+      }
+    } else if (value === base) {
+      continue;
+    }
+    const encoded = encodeValue(value);
+    if (encoded != null) params.set(key, encoded);
+  }
+  const query = params.toString();
+  const next = `${window.location.pathname}${query ? `?${query}` : ""}`;
+  if (next === `${window.location.pathname}${window.location.search}`) return;
+  window.history.replaceState(window.history.state, "", next);
 }
 
 export function useUrlFilterState<T extends FilterValues>(
@@ -156,27 +205,76 @@ export function useUrlFilterState<T extends FilterValues>(
 
   useEffect(() => {
     if (!restoredRef.current) return;
-    const params = new URLSearchParams();
-    for (const key of Object.keys(initialRef.current)) {
-      if (skipRef.current?.includes(key as keyof T & string)) continue;
-      const value = filters[key];
-      const base = initialRef.current[key];
-      if (Array.isArray(value) && Array.isArray(base)) {
-        if (
-          value.length === base.length &&
-          value.every((v, i) => v === base[i])
-        ) {
-          continue;
-        }
-      } else if (value === base) {
-        continue;
-      }
-      const encoded = encodeValue(value);
-      if (encoded != null) params.set(key, encoded);
-    }
-    const query = params.toString();
-    const next = `${window.location.pathname}${query ? `?${query}` : ""}`;
-    if (next === `${window.location.pathname}${window.location.search}`) return;
-    window.history.replaceState(window.history.state, "", next);
+    writeFiltersToUrl(filters, initialRef.current, skipRef.current);
   }, [filters]);
+}
+
+/**
+ * Черновик + применённый срез: UI меняет draft, refetch/URL — только после commit.
+ * Восстановление из URL и default_filters роли сразу заполняют оба слоя.
+ */
+export function useDeferredUrlFilters<T extends FilterValues>(
+  initial: T,
+  options: {
+    skip?: Array<keyof T & string>;
+    onRestore?: (restored: Partial<T>) => void;
+    navId?: string;
+  } = {},
+): {
+  draft: T;
+  setDraft: Dispatch<SetStateAction<T>>;
+  patchDraft: (patch: Partial<T>) => void;
+  applied: T;
+  commit: () => void;
+  reset: () => void;
+  /** Одновременно draft и applied (даты с сервера и т.п.). */
+  syncBoth: (patch: Partial<T>) => void;
+  /** draft отличается от applied */
+  pending: boolean;
+  /** есть что сбросить (applied ≠ initial или есть несохранённый draft) */
+  dirty: boolean;
+} {
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+  const [draft, setDraft] = useState<T>(initial);
+  const [applied, setApplied] = useState<T>(initial);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  const patchDraft = useCallback((patch: Partial<T>) => {
+    setDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const commit = useCallback(() => {
+    setApplied(draftRef.current);
+  }, []);
+
+  const reset = useCallback(() => {
+    const next = initialRef.current;
+    setDraft(next);
+    setApplied(next);
+  }, []);
+
+  const applyBoth = useCallback((patch: Partial<T>) => {
+    setDraft((prev) => ({ ...prev, ...patch }));
+    setApplied((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  useUrlFilterState(applied, initial, applyBoth, options);
+
+  const pending = !filtersEqual(draft, applied);
+  const dirty = !filtersEqual(applied, initial) || pending;
+
+  return {
+    draft,
+    setDraft,
+    patchDraft,
+    applied,
+    commit,
+    reset,
+    /** Одновременно draft и applied (восстановление дат с сервера и т.п.). */
+    syncBoth: applyBoth,
+    pending,
+    dirty,
+  };
 }

@@ -29,10 +29,9 @@ import {
   FilterChecksRow,
   FilterFieldsRow,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -210,7 +209,15 @@ function buildExport(data: ProjectSchedulePayload): ExportTable {
 }
 
 export function ProjectScheduleView() {
-  const [filters, setFilters] = useState(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "project-schedule" });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [data, setData] = useState<ProjectSchedulePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -223,21 +230,21 @@ export function ProjectScheduleView() {
   const [taskFilter, setTaskFilter] = useState<"all" | "delay">("all");
   const [detailRow, setDetailRow] = useState<ScheduleRow | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (next: typeof INITIAL) => {
     setLoading(true);
     setError(null);
     try {
       setData(
         await fetchProjectSchedule({
-          projects: filters.projects,
-          level: filters.level,
-          block: filters.block,
-          building: filters.building,
-          hide_completed: filters.hideCompleted,
-          only_delay: filters.onlyDelay,
-          show_reasons: filters.showReasons,
-          show_lots: filters.showLots,
-          label_pct: filters.labelPct,
+          projects: next.projects,
+          level: next.level,
+          block: next.block,
+          building: next.building,
+          hide_completed: next.hideCompleted,
+          only_delay: next.onlyDelay,
+          show_reasons: next.showReasons,
+          show_lots: next.showLots,
+          label_pct: next.labelPct,
         }),
       );
     } catch (cause) {
@@ -246,25 +253,18 @@ export function ProjectScheduleView() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(applied);
+  }, [applied, load]);
 
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((prev) => ({ ...prev, ...patch })),
-    { navId: "project-schedule" },
-  );
-
-  const dirty = JSON.stringify(filters) !== JSON.stringify(INITIAL);
   const metaError = data?.meta?.error as string | undefined;
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
-  const showLots = data?.filters.applied.show_lots ?? filters.showLots;
-  const showReasons = data?.filters.applied.show_reasons ?? filters.showReasons;
+  const showLots = data?.filters.applied.show_lots ?? applied.showLots;
+  const showReasons = data?.filters.applied.show_reasons ?? applied.showReasons;
   const multiProject = Boolean(
-    data?.filters.applied.multi_project ?? filters.projects.length !== 1,
+    data?.filters.applied.multi_project ?? applied.projects.length !== 1,
   );
 
   const columnLabels = useMemo(() => {
@@ -346,9 +346,11 @@ export function ProjectScheduleView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={activeFilters}
-        onReset={dirty ? () => setFilters(INITIAL) : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
         <FilterFieldsRow cols={5}>
           <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((prev) => ({ ...prev, projects, building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
@@ -461,7 +463,7 @@ export function ProjectScheduleView() {
               {rows.length === 0 ? (
                 <DashboardEmptyState
                   message={loading ? "Загрузка…" : "Нет строк по выбранным фильтрам."}
-                  onReset={!loading && dirty ? () => setFilters(INITIAL) : undefined}
+                  onReset={!loading && dirty ? reset : undefined}
                 />
               ) : (
                 <>

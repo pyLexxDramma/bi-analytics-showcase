@@ -11,11 +11,10 @@ import {
   FilterChipMulti,
   FilterFieldsRow,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { multiFilterChips } from "@/lib/filters-summary";
 import { useStickyHead } from "@/lib/use-sticky-head";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { MobileFilterChips, MobilePaneTabs, DashboardTableActions } from "@/components/mobile-ux";
@@ -282,7 +281,15 @@ function ControlPointsGroup({
 }
 
 export function ControlPointsView() {
-  const [selected, setSelected] = useState<string[]>([]);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(URL_INITIAL, { navId: "control-points" });
   const [data, setData] = useState<ControlPointsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,20 +311,19 @@ export function ControlPointsView() {
   }, []);
 
   useEffect(() => {
-    void load(selected);
-  }, [load, selected]);
+    void load(applied.projects);
+  }, [load, applied]);
 
-  const urlState = useMemo(() => ({ projects: selected }), [selected]);
-  useUrlFilterState(urlState, URL_INITIAL, (patch) => {
-    if (patch.projects) setSelected(patch.projects);
-  }, { navId: "control-points" });
+  const selected = filters.projects;
+  const setSelected = (projects: string[]) =>
+    setFilters((prev) => ({ ...prev, projects }));
 
   const projects = useMemo(() => {
     const rows = data?.projects ?? [];
-    if (!selected.length) return rows;
-    const allow = new Set(selected);
+    if (!applied.projects.length) return rows;
+    const allow = new Set(applied.projects);
     return rows.filter((row) => allow.has(row.project));
-  }, [data?.projects, selected]);
+  }, [data?.projects, applied.projects]);
 
   const mobileProjects = useMemo(() => {
     return projects.filter((row) => {
@@ -333,7 +339,7 @@ export function ControlPointsView() {
 
   const groups = data?.groups ?? [];
   const metaError = data?.meta.error;
-  const dirty = selected.length > 0;
+  const appliedDirty = applied.projects.length > 0;
   const activeGroupId =
     mobileGroup && groups.some((g) => g.id === mobileGroup)
       ? mobileGroup
@@ -345,9 +351,11 @@ export function ControlPointsView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((value) => !value)}
         activeFilters={multiFilterChips("projects", "Проект", selected, setSelected)}
-        onReset={dirty ? () => setSelected([]) : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset disabled={!dirty} onClick={() => setSelected([])} />
         <FilterFieldsRow cols={2}>
           <FilterChipMulti
             label="Проект"
@@ -365,11 +373,11 @@ export function ControlPointsView() {
           message={
             loading
               ? "Загрузка…"
-              : dirty
+              : appliedDirty
                 ? "Нет данных контрольных точек по выбранным фильтрам."
                 : "Нет данных контрольных точек. Сделайте ingest в админке."
           }
-          onReset={!loading && dirty ? () => setSelected([]) : undefined}
+          onReset={!loading && dirty ? reset : undefined}
         />
       ) : (
         <div className="space-y-6">

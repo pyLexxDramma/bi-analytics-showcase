@@ -20,10 +20,9 @@ import {
   FilterChecksRow,
   FilterFieldsRow,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -261,7 +260,15 @@ function SortHeader({
 }
 
 export function ApprovedBudgetView() {
-  const [filters, setFilters] = useState<Filters>(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "approved-budget" });
   const [data, setData] = useState<ApprovedBudgetPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -284,7 +291,7 @@ export function ApprovedBudgetView() {
     catch (cause) { setData(null); setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(filters); }, [filters, load]);
+  useEffect(() => { void load(applied); }, [applied, load]);
   const hideZero = filters.hide_zero ?? (filters.projects.length === 0 && filters.fiz === "Все");
   const toggleSort = (set: (next: SortState | ((value: SortState) => SortState)) => void) => (key: SortKey) => set((state) => state?.key === key ? (state.asc ? { key, asc: false } : null) : { key, asc: true });
   const sortRows = <T extends Record<string, unknown>>(rows: T[], sort: SortState) => !sort ? rows : [...rows].sort((a, b) => {
@@ -330,13 +337,7 @@ export function ApprovedBudgetView() {
           sheetName: "Утверждённый бюджет по проектам",
         }
       : null;
-  const dirty = filters.projects.length > 0 || filters.fiz !== "Все" || filters.hide_zero !== null || filters.show_deviation;
   const gauge = data?.gauge ?? { plan: 0, fact: 0, deviation: 0, plan_mlrd: 0, fact_mlrd: 0, deviation_mlrd: 0, fact_pct: 0, deviation_pct: 0, axis_max_mlrd: 0 };
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((state) => ({ ...state, ...patch })),
-    { navId: "approved-budget" },
-  );
   const activeFilters = buildFilterChips(
     filters,
     INITIAL,
@@ -353,9 +354,11 @@ export function ApprovedBudgetView() {
       open={filtersOpen}
       onToggle={() => setFiltersOpen((value) => !value)}
       activeFilters={activeFilters}
-      onReset={dirty ? () => setFilters(INITIAL) : undefined}
+      onApply={commit}
+      applyDisabled={!pending}
+      onReset={dirty ? reset : undefined}
+      resetDisabled={!dirty}
     >
-      <FiltersReset disabled={!dirty} onClick={() => setFilters(INITIAL)} />
       <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
       <FilterFieldsRow cols={2}>
         <FilterChipSelect label="ФИЗ" value={filters.fiz} options={["Все", ...(data?.filters.fiz ?? [])]} onChange={(fiz) => setFilters((state) => ({ ...state, fiz }))} />

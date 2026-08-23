@@ -26,15 +26,15 @@ html.dark {
   color: #f9fafb;
   --bi-status-ok: #6ee7b7;
   --bi-status-warn: #fbbf24;
-  --bi-status-risk: #fca5a5;
+  --bi-status-risk: #fecaca;
   --bi-status-neutral: #94a3b8;
   --bi-status-ok-bg: rgba(6, 78, 59, 0.35);
   --bi-status-warn-bg: rgba(120, 53, 15, 0.35);
-  --bi-status-risk-bg: rgba(127, 29, 29, 0.35);
+  --bi-status-risk-bg: rgba(127, 29, 29, 0.55);
   --bi-status-neutral-bg: rgba(30, 41, 59, 0.45);
   --bi-status-ok-border: rgba(52, 211, 153, 0.45);
   --bi-status-warn-border: rgba(251, 191, 36, 0.45);
-  --bi-status-risk-border: rgba(248, 113, 113, 0.45);
+  --bi-status-risk-border: rgba(248, 113, 113, 0.55);
   --bi-status-neutral-border: rgba(100, 116, 139, 0.55);
 }
 
@@ -111,18 +111,29 @@ html.dark tr.bi-row-alt:nth-child(even) > td {
 .bi-kpi-ok {
   border-color: var(--bi-status-ok-border);
   background: var(--bi-status-ok-bg);
+  color: var(--bi-status-ok);
 }
 .bi-kpi-warn {
   border-color: var(--bi-status-warn-border);
   background: var(--bi-status-warn-bg);
+  color: var(--bi-status-warn);
 }
 .bi-kpi-risk {
   border-color: var(--bi-status-risk-border);
   background: var(--bi-status-risk-bg);
+  color: var(--bi-status-risk);
 }
 .bi-kpi-neutral {
   border-color: var(--bi-status-neutral-border);
   background: var(--bi-status-neutral-bg);
+  color: var(--bi-status-neutral);
+}
+
+/* Ячейки таблиц со статусом риска — тот же контрастный цвет текста */
+td.bi-status-risk,
+th.bi-status-risk,
+.bi-kpi-risk .bi-status-risk {
+  color: var(--bi-status-risk);
 }
 
 /* Tremor Card/table: force readable text in both themes */
@@ -502,21 +513,33 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     overflow: auto;
   }
 
-  /* Fullscreen: скролл остаётся на .bi-table-scroll (не на хосте), иначе
-     sticky left (Проект/Подрядчик/Договор) и sticky head не работают.
-     Не задаём фиксированную height — иначе короткая матрица липнет к верху
-     с пустотой снизу; max-height + justify-center на обёртке центрируют. */
+  /* Fullscreen: шапка .bi-fs-chrome вне контента; таблица на оставшуюся высоту. */
   .bi-fs-active.bi-fs-table {
     overflow: hidden;
+  }
+
+  .bi-fs-active .bi-fs-body-table {
+    min-height: 0;
   }
 
   .bi-fs-active .bi-table-scroll {
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
-    height: auto;
-    max-height: calc(100vh - 2rem);
+    height: 100%;
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
+  }
+
+  /* График в fullscreen: хост на всю доступную высоту под chrome. */
+  .bi-fs-active.bi-fs-fill .bi-fs-body-fill .bi-plotly-host,
+  .bi-fs-active.bi-fs-fill .bi-fs-body-fill > * {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
   }
 
   .bi-sticky-head thead th {
@@ -563,6 +586,14 @@ html.dark .js-plotly-plot .modebar-btn.active path {
     background-color: #f8fafc;
   }
 
+  /* Hover подсвечивает всю строку, не только sticky-колонку */
+  .bi-sticky-col tbody tr:hover > td,
+  .bi-sticky-col tbody tr:hover > th,
+  .bi-table-scroll tbody tr:hover > td,
+  .bi-table-scroll tbody tr:hover > th {
+    background-color: #f1f5f9;
+  }
+
   .bi-sticky-col tbody tr:hover > td:first-child,
   .bi-sticky-col tbody tr:hover > th:first-child {
     background-color: #f1f5f9;
@@ -593,6 +624,13 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   html.dark .bi-sticky-col tbody tr:nth-child(odd) > td:first-child,
   html.dark .bi-sticky-col tbody tr:nth-child(odd) > th:first-child {
     background-color: #0f172a;
+  }
+
+  html.dark .bi-sticky-col tbody tr:hover > td,
+  html.dark .bi-sticky-col tbody tr:hover > th,
+  html.dark .bi-table-scroll tbody tr:hover > td,
+  html.dark .bi-table-scroll tbody tr:hover > th {
+    background-color: #1e293b;
   }
 
   html.dark .bi-sticky-col tbody tr:hover > td:first-child,
@@ -652,6 +690,49 @@ html.dark .js-plotly-plot .modebar-btn.active path {
 /* ===== Dashboard filters: уровни как main st.columns(N) ===== */
 .bi-filters-panel {
   box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+html.dark .bi-filters-panel {
+  border-color: rgb(71 85 105);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.4);
+}
+
+html.dark .bi-filters-panel:hover {
+  border-color: rgb(100 116 139);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* Info / warning callouts в finance-экранах: не «коричневые» в dark */
+html.dark [class*="border-amber-300"],
+html.dark [class*="border-amber-800"],
+html.dark [class*="border-amber-700"] {
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+html.dark [class*="bg-amber-50"],
+html.dark [class*="bg-amber-950"] {
+  background-color: rgba(120, 53, 15, 0.42);
+}
+
+html.dark [class*="text-amber-700"],
+html.dark [class*="text-amber-800"],
+html.dark [class*="text-amber-900"],
+html.dark [class*="text-amber-950"],
+html.dark [class*="text-amber-100"],
+html.dark [class*="text-amber-200"],
+html.dark [class*="text-amber-300"] {
+  color: #fde68a;
+}
+
+/* Plotly: фон графика = фон карточки в dark */
+html.dark .js-plotly-plot .bg,
+html.dark .js-plotly-plot .bglayer rect {
+  fill: rgb(17 24 39) !important;
+}
+
+html.dark .js-plotly-plot .gridlayer path {
+  stroke: rgba(100, 116, 139, 0.35) !important;
 }
 
 .bi-filters-grid {
@@ -718,6 +799,15 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   .bi-filters-check-label {
     font-size: 0.9375rem;
   }
+
+  /* Даты в фильтрах не переносятся и не ломают сетку на узком экране */
+  input[type="date"],
+  .bi-filters-field-control input[type="date"],
+  .bi-filters-date {
+    max-width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 639px) {
@@ -757,6 +847,93 @@ html.dark .js-plotly-plot .modebar-btn.active path {
   height: 2.5rem;
   box-sizing: border-box;
   margin-top: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  color-scheme: light;
+}
+
+html.dark .bi-filters-select {
+  color-scheme: dark;
+}
+
+/* Кастомный шеврон вместо OS-native стрелки */
+select.bi-filters-select {
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 0.75rem;
+}
+
+html.dark select.bi-filters-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Дата: полная ширина значения, без обрезки DD.MM.YYYY */
+input[type="date"].bi-filters-select,
+.bi-filters-date {
+  min-width: 10.75rem;
+  white-space: nowrap;
+  text-overflow: clip;
+  overflow: hidden;
+}
+
+/* Мышь: без кольца; клавиатура: только :focus-visible (BUG-021) */
+.bi-filters-select:focus {
+  outline: none;
+}
+
+.bi-filters-select:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+html.dark .bi-filters-select:focus-visible {
+  outline-color: #60a5fa;
+}
+
+/* Тонкие скроллбары: таблицы, сайдбар, фильтры */
+.bi-thin-scroll,
+.bi-table-scroll,
+.bi-filters-panel,
+.bi-filters-body,
+.bi-filter-chip-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+}
+
+.bi-thin-scroll::-webkit-scrollbar,
+.bi-table-scroll::-webkit-scrollbar,
+.bi-filters-panel::-webkit-scrollbar,
+.bi-filters-body::-webkit-scrollbar,
+.bi-filter-chip-list::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.bi-thin-scroll::-webkit-scrollbar-thumb,
+.bi-table-scroll::-webkit-scrollbar-thumb,
+.bi-filters-panel::-webkit-scrollbar-thumb,
+.bi-filters-body::-webkit-scrollbar-thumb,
+.bi-filter-chip-list::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.55);
+  border-radius: 999px;
+}
+
+html.dark .bi-thin-scroll,
+html.dark .bi-table-scroll,
+html.dark .bi-filters-panel,
+html.dark .bi-filters-body,
+html.dark .bi-filter-chip-list {
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+}
+
+html.dark .bi-thin-scroll::-webkit-scrollbar-thumb,
+html.dark .bi-table-scroll::-webkit-scrollbar-thumb,
+html.dark .bi-filters-panel::-webkit-scrollbar-thumb,
+html.dark .bi-filters-body::-webkit-scrollbar-thumb,
+html.dark .bi-filter-chip-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.55);
 }
 
 /* Чекбоксы — иконки на одной линии, под левым краем select своей колонки */
@@ -1857,7 +2034,6 @@ html.dark .bi-nav-active::before {
   }
 }
 
-/* «Спросить ИИ» — заметная переливающаяся кнопка в шапке дашборда */
 @keyframes ask-ai-flow {
   0% {
     background-position: 0% 50%;
@@ -1886,6 +2062,7 @@ html.dark .bi-nav-active::before {
   }
 }
 
+/* «Спросить ИИ» — градиент + glow (как на cloudpub / ai.conall.ru) */
 .ask-ai-btn {
   position: relative;
   isolation: isolate;
@@ -1908,6 +2085,7 @@ html.dark .bi-nav-active::before {
   animation:
     ask-ai-flow 5s ease infinite,
     ask-ai-glow 2.8s ease-in-out infinite;
+  transition: filter 0.15s ease, transform 0.15s ease;
 }
 
 .ask-ai-btn::before {
@@ -1942,10 +2120,12 @@ html.dark .bi-nav-active::before {
   .ask-ai-btn::before {
     animation: none;
   }
+
   .ask-ai-btn {
     background: linear-gradient(120deg, #0ea5e9, #10b981);
     box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);
   }
+
   .bi-sheet-panel,
   .bi-sheet-backdrop,
   .bi-skeleton {

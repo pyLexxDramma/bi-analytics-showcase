@@ -19,12 +19,11 @@ import {
   FilterChipMulti,
   FilterChipSelect,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
+  FILTER_DATE_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -114,21 +113,29 @@ const DC_W_CONTRACT = "9rem";
 const DC_LEFT_2 = `calc(${DC_W_PROJECT} + ${DC_W_CONTRACTOR})`;
 
 const DC_BORDER = "border border-[#64748b] dark:border-[#94a3b8]";
-const DC_TH = `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-center text-[1rem] font-semibold leading-snug align-middle dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
-const DC_TD = `${DC_BORDER} bg-white px-2 py-2 text-center text-[1.125rem] leading-snug align-middle text-[#0f172a] dark:bg-[#111827] dark:text-[#f1f5f9]`;
-const DC_TD_ALT = `${DC_BORDER} bg-[#eef2f7] px-2 py-2 text-center text-[1.125rem] leading-snug align-middle text-[#0f172a] dark:bg-[#0b1220] dark:text-[#f1f5f9]`;
+const DC_TH = `${DC_BORDER} bg-[#dbe7f3] px-2 py-2 text-center text-[0.9375rem] font-semibold leading-snug align-middle dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
+const DC_TD = `${DC_BORDER} bg-white px-2 py-1.5 text-center text-[1rem] leading-snug align-middle text-[#0f172a] dark:bg-[#111827] dark:text-[#f1f5f9]`;
+const DC_TD_ALT = `${DC_BORDER} bg-[#eef2f7] px-2 py-1.5 text-center text-[1rem] leading-snug align-middle text-[#0f172a] dark:bg-[#0b1220] dark:text-[#f1f5f9]`;
 const DC_WRAP =
   "whitespace-normal [overflow-wrap:break-word] [word-break:normal] hyphens-manual";
 const DC_STICKY_SHADOW =
   "shadow-[7px_0_10px_-6px_rgba(15,23,42,0.4)] dark:shadow-[7px_0_10px_-6px_rgba(0,0,0,0.7)]";
-const DC_NUM = `${DC_BORDER} whitespace-nowrap px-2 py-2 text-center text-[1.125rem] tabular-nums align-middle`;
+const DC_NUM = `${DC_BORDER} whitespace-nowrap px-2 py-1.5 text-center text-[1rem] tabular-nums align-middle`;
 const DC_FOOT =
-  `${DC_BORDER} bg-[#dbe7f3] px-2 py-2.5 text-center text-[1.125rem] font-semibold align-middle dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
+  `${DC_BORDER} bg-[#dbe7f3] px-2 py-2 text-center text-[1rem] font-semibold align-middle dark:bg-[hsl(209,55%,14%)] dark:text-[#f8fafc]`;
 const DC_FOOT_W =
   `calc(${DC_W_PROJECT} + ${DC_W_CONTRACTOR} + ${DC_W_CONTRACT})`;
 
 export function DebitCreditView() {
-  const [filters, setFilters] = useState<Filters>(initial);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(initial, { navId: "debit-credit" });
   const [data, setData] = useState<DebitCreditPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,19 +175,15 @@ export function DebitCreditView() {
   }, []);
 
   useEffect(() => {
-    const delayMs = filters.contract_q ? 320 : 0;
-    const timer = window.setTimeout(() => {
-      void load(filters);
-    }, delayMs);
-    return () => window.clearTimeout(timer);
-  }, [filters, load]);
+    void load(applied);
+  }, [applied, load]);
 
   const contractOptions =
     data?.filters.contract_nos?.length
       ? data.filters.contract_nos
       : contractOptionsRef.current;
 
-  const stacked = filters.display_view === "С группировкой";
+  const stacked = applied.display_view === "С группировкой";
   const chartAggregation = data?.chart.aggregation ?? "by_contractor";
 
   // Сортировка только для мобильных карточек: таблица на desktop идёт в порядке API
@@ -293,12 +296,6 @@ export function DebitCreditView() {
     };
   }, [data]);
 
-  useUrlFilterState(
-    filters, initial,
-    (patch) => setFilters((s) => ({ ...s, ...patch })),
-    { navId: "debit-credit" },
-  );
-
   const activeFilters = buildFilterChips(
     filters,
     initial,
@@ -322,9 +319,11 @@ export function DebitCreditView() {
         open={open}
         onToggle={() => setOpen((v) => !v)}
         activeFilters={activeFilters}
-        onReset={activeFilters.length ? () => setFilters(initial) : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset onClick={() => setFilters(initial)} />
         <FilterFieldsRow cols={5}>
           <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
           <FilterChipSelect label="Подрядчик" value={filters.contractor} options={data?.filters.contractors ?? ["Все"]} onChange={(contractor) => setFilters((s) => ({ ...s, contractor }))} />
@@ -342,7 +341,7 @@ export function DebitCreditView() {
             <div className="grid grid-cols-2 gap-1">
               <input
                 type="date"
-                className={FILTER_SELECT_CLASS}
+                className={FILTER_DATE_CLASS}
                 min={data?.filters.date_min ?? undefined}
                 max={data?.filters.date_max ?? undefined}
                 value={filters.date_from}
@@ -353,7 +352,7 @@ export function DebitCreditView() {
               />
               <input
                 type="date"
-                className={FILTER_SELECT_CLASS}
+                className={FILTER_DATE_CLASS}
                 min={data?.filters.date_min ?? undefined}
                 max={data?.filters.date_max ?? undefined}
                 value={filters.date_to}
@@ -373,9 +372,6 @@ export function DebitCreditView() {
         </FilterFieldsRow>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} договоров`}
-          {data?.meta.version_id != null
-            ? ` · version_id=${data.meta.version_id}`
-            : ""}
         </Text>
         {data?.meta.warning ? (
           <Text className="mt-1 text-amber-700 dark:text-amber-300">
@@ -393,11 +389,7 @@ export function DebitCreditView() {
       <DashboardInsight
         text={
           data?.meta.rows != null
-            ? `${data.meta.rows} договоров${
-                data.meta.version_id != null
-                  ? ` · version_id=${data.meta.version_id}`
-                  : ""
-              }`
+            ? `${data.meta.rows} договоров`
             : null
         }
       />
@@ -545,7 +537,7 @@ export function DebitCreditView() {
                       <td className={numStripe}>{mln(row.fulfilled)}</td>
                       <td className={numStripe}>{mln(row.advance)}</td>
                       <td
-                        className={`${DC_BORDER} px-2 py-2 text-center text-[1.25rem] align-middle ${toneCellClass(row.advance_tone)}`}
+                        className={`${DC_BORDER} px-2 py-1.5 text-center text-[1.125rem] align-middle ${toneCellClass(row.advance_tone)}`}
                         title="Допущения по авансированию"
                       >
                         {toneDot(row.advance_tone) || "—"}
@@ -553,7 +545,7 @@ export function DebitCreditView() {
                       <td className={numStripe}>{mln(row.ks2)}</td>
                       <td className={numStripe}>{mln(row.balance)}</td>
                       <td
-                        className={`${DC_BORDER} whitespace-nowrap px-2 py-2 text-center text-[1.125rem] tabular-nums align-middle ${toneCellClass(row.advance_tone)}`}
+                        className={`${DC_BORDER} whitespace-nowrap px-2 py-1.5 text-center text-[1rem] tabular-nums align-middle ${toneCellClass(row.advance_tone)}`}
                       >
                         {toneDot(row.advance_tone)} {mln(row.advance_ks2)}
                       </td>
@@ -584,7 +576,7 @@ export function DebitCreditView() {
                     {mln(data?.totals.advance)}
                   </td>
                   <td
-                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-center text-[1.25rem] align-middle ${toneCellSolid(data?.totals.advance_tone)}`}
+                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2 text-center text-[1.125rem] align-middle ${toneCellSolid(data?.totals.advance_tone)}`}
                     title="Допущения по авансированию"
                   >
                     {toneDot(data?.totals.advance_tone) || "—"}
@@ -596,7 +588,7 @@ export function DebitCreditView() {
                     {mln(data?.totals.balance)}
                   </td>
                   <td
-                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2.5 text-center text-[1.125rem] tabular-nums align-middle ${toneCellSolid(data?.totals.advance_tone)}`}
+                    className={`sticky bottom-0 z-[11] ${DC_BORDER} px-2 py-2 text-center text-[1rem] tabular-nums align-middle ${toneCellSolid(data?.totals.advance_tone)}`}
                   >
                     {toneDot(data?.totals.advance_tone)}{" "}
                     {mln(data?.totals.advance_ks2)}
@@ -637,7 +629,7 @@ export function DebitCreditView() {
         {!data?.rows.length ? (
           <DashboardEmptyState
             message="Нет строк"
-            onReset={activeFilters.length ? () => setFilters(initial) : undefined}
+            onReset={dirty ? reset : undefined}
           />
         ) : (
           <>

@@ -22,7 +22,6 @@ import {
   FilterFieldsRow,
   FILTER_SELECT_CLASS,
   FiltersCard,
-  FiltersReset,
 } from "@/components/dashboard-filters";
 import {
   ExecutiveDynamicsChart,
@@ -36,7 +35,7 @@ import {
   MobileMetricGrid,
 } from "@/components/mobile-entity-card";
 import { buildFilterChips } from "@/lib/filters-summary";
-import { useUrlFilterState } from "@/lib/use-url-filter-state";
+import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -104,7 +103,16 @@ function fmtLate(days: number | null | undefined): string {
 }
 
 export function ExecutiveDocsParityView() {
-  const [filters, setFilters] = useState<Filters>(INITIAL);
+  const {
+    draft: filters,
+    setDraft: setFilters,
+    applied,
+    commit,
+    reset,
+    syncBoth,
+    pending,
+    dirty,
+  } = useDeferredUrlFilters(INITIAL, { navId: "executive-docs" });
   const [data, setData] = useState<ExecutiveDocsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,36 +145,28 @@ export function ExecutiveDocsParityView() {
   }, []);
 
   useEffect(() => {
-    void load(filters);
-  }, [filters, load]);
+    void load(applied);
+  }, [applied, load]);
 
   useEffect(() => {
     if (
       data?.filters.date_min &&
       data.filters.date_max &&
-      !filters.date_from &&
-      !filters.date_to
+      !applied.date_from &&
+      !applied.date_to
     ) {
-      setFilters((current) => {
-        if (current.date_from || current.date_to) return current;
-        return {
-          ...current,
-          date_from: data.filters.date_min!,
-          date_to: data.filters.date_max!,
-        };
+      syncBoth({
+        date_from: data.filters.date_min,
+        date_to: data.filters.date_max,
       });
     }
-  }, [data?.filters.date_max, data?.filters.date_min, filters.date_from, filters.date_to]);
-
-  // Даты из адреса важнее автоподстановки периода: эффект выше заполняет их,
-  // только пока обе пустые
-  useUrlFilterState(
-    filters, INITIAL,
-    (patch) => setFilters((state) => ({ ...state, ...patch })),
-    { navId: "executive-docs" },
-  );
-
-  const reset = () => setFilters(INITIAL);
+  }, [
+    data?.filters.date_max,
+    data?.filters.date_min,
+    applied.date_from,
+    applied.date_to,
+    syncBoth,
+  ]);
 
   // Период по умолчанию подставляется из данных — чипы сравниваем с ним
   const activeFilters = buildFilterChips(
@@ -235,9 +235,11 @@ export function ExecutiveDocsParityView() {
         open={filtersOpen}
         onToggle={() => setFiltersOpen((v) => !v)}
         activeFilters={activeFilters}
-        onReset={activeFilters.length ? reset : undefined}
+        onApply={commit}
+        applyDisabled={!pending}
+        onReset={dirty ? reset : undefined}
+        resetDisabled={!dirty}
       >
-        <FiltersReset onClick={reset} />
         <FilterFieldsRow cols={5}>
           <FilterChipMulti
             label="Проект"
@@ -301,9 +303,6 @@ export function ExecutiveDocsParityView() {
         </FilterChecksRow>
         <Text className="mt-3">
           {loading ? "загрузка…" : `${data?.meta.rows ?? 0} документов`}
-          {data?.meta.version_id != null
-            ? ` · version_id=${data.meta.version_id}`
-            : ""}
         </Text>
         {data?.meta.warning ? (
           <Text className="mt-1 text-amber-700 dark:text-amber-300">

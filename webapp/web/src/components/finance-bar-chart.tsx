@@ -172,7 +172,7 @@ export function FinanceBarChart({
   const chartWidth = Math.max(
     fullscreen ? viewport.width - 48 : 0,
     rows.length * slotPx * Math.max(seriesCount, showForecast ? 3 : 2) +
-      (compact ? 56 : 96),
+      (compact ? 40 : 96),
   );
   // При отклонении ось уходит в минус — выше блок, иначе мелкие суммы
   // (десятки млн при шкале до тысяч) сливаются с линией нуля.
@@ -388,11 +388,11 @@ export function FinanceBarChart({
       : []),
   ];
 
-  const yAxisWidth = compact ? 48 : 72;
+  const yAxisWidth = compact ? 32 : 72;
   const chartMargin = {
     top: compact ? 28 : 72,
     right: 12,
-    left: 8,
+    left: compact ? 0 : 8,
     bottom:
       (angled ? 64 : 28) + (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
   };

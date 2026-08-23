@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, Text, Title } from "@tremor/react";
 import { EmeraldTabs } from "@/components/settings/emerald-tabs";
 import { InfoBanner, SETTINGS_TABLE } from "@/components/settings/form-bits";
+import { FILTER_SELECT_CLASS } from "@/components/dashboard-filters";
 import {
   deleteSettingsFilter,
   fetchSettingsFilters,
@@ -17,6 +18,9 @@ import {
   reportDisplayName,
   sameReport,
 } from "@/lib/settings-filters-display";
+
+const ADMIN_SELECT = `${FILTER_SELECT_CLASS} mt-1`;
+const ADMIN_SELECT_INLINE = FILTER_SELECT_CLASS;
 
 export function AdminFiltersPanel() {
   const [subTab, setSubTab] = useState("setup");
@@ -204,13 +208,13 @@ export function AdminFiltersPanel() {
 
       {subTab === "setup" ? (
         <div className="space-y-6">
-          <Card className="rounded-xl">
+          <Card className="max-w-full overflow-hidden rounded-xl">
             <Title className="!text-base">Настройка фильтров</Title>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="text-sm">
+            <div className="mt-4 grid max-w-full gap-4 overflow-hidden md:grid-cols-2">
+              <label className="min-w-0 max-w-full text-sm">
                 Роль *
                 <select
-                  className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className={`${ADMIN_SELECT} max-w-full`}
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                 >
@@ -221,10 +225,10 @@ export function AdminFiltersPanel() {
                   ))}
                 </select>
               </label>
-              <label className="text-sm">
+              <label className="min-w-0 max-w-full text-sm">
                 Отчет *
                 <select
-                  className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className={`${ADMIN_SELECT} max-w-full`}
                   value={form.report_name}
                   onChange={(e) =>
                     setForm({ ...form, report_name: e.target.value })
@@ -240,10 +244,10 @@ export function AdminFiltersPanel() {
                   ))}
                 </select>
               </label>
-              <label className="text-sm">
+              <label className="min-w-0 max-w-full text-sm">
                 Ключ фильтра *
                 <input
-                  className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className={`${ADMIN_SELECT} max-w-full`}
                   value={form.filter_key}
                   onChange={(e) =>
                     setForm({ ...form, filter_key: e.target.value })
@@ -255,10 +259,10 @@ export function AdminFiltersPanel() {
                   Streamlit: project, year, org и т.п.).
                 </span>
               </label>
-              <label className="text-sm">
+              <label className="min-w-0 max-w-full text-sm">
                 Тип фильтра *
                 <select
-                  className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className={`${ADMIN_SELECT} max-w-full`}
                   value={form.filter_type}
                   onChange={(e) =>
                     setForm({ ...form, filter_type: e.target.value })
@@ -275,7 +279,7 @@ export function AdminFiltersPanel() {
             <label className="mt-4 block text-sm">
               Значение фильтра
               <input
-                className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                className={ADMIN_SELECT}
                 value={form.filter_value}
                 onChange={(e) =>
                   setForm({ ...form, filter_value: e.target.value })
@@ -298,7 +302,7 @@ export function AdminFiltersPanel() {
               <label className="text-sm">
                 Роль для просмотра
                 <select
-                  className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className={ADMIN_SELECT}
                   value={viewRole}
                   onChange={(e) => setViewRole(e.target.value)}
                 >
@@ -313,7 +317,7 @@ export function AdminFiltersPanel() {
               <label className="text-sm">
                 Отчет для просмотра
                 <select
-                  className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  className={ADMIN_SELECT}
                   value={viewReport}
                   onChange={(e) => setViewReport(e.target.value)}
                 >
@@ -366,7 +370,7 @@ export function AdminFiltersPanel() {
             <Title className="mt-6 !text-base">Удаление фильтра</Title>
             <div className="mt-3 grid gap-4 md:grid-cols-3">
               <select
-                className="rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                className={ADMIN_SELECT_INLINE}
                 value={delForm.role}
                 onChange={(e) =>
                   setDelForm({ ...delForm, role: e.target.value, filter_key: "" })
@@ -379,7 +383,7 @@ export function AdminFiltersPanel() {
                 ))}
               </select>
               <select
-                className="rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                className={ADMIN_SELECT_INLINE}
                 value={delForm.report_name}
                 onChange={(e) =>
                   setDelForm({ ...delForm, report_name: e.target.value, filter_key: "" })
@@ -392,7 +396,7 @@ export function AdminFiltersPanel() {
                 ))}
               </select>
               <select
-                className="rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                className={ADMIN_SELECT_INLINE}
                 value={delForm.filter_key}
                 onChange={(e) =>
                   setDelForm({ ...delForm, filter_key: e.target.value })
@@ -472,7 +476,7 @@ export function AdminFiltersPanel() {
             <label className="text-sm">
               Исходная роль
               <select
-                className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                className={ADMIN_SELECT}
                 value={copyForm.source_role}
                 onChange={(e) =>
                   setCopyForm({ ...copyForm, source_role: e.target.value })
@@ -488,7 +492,7 @@ export function AdminFiltersPanel() {
             <label className="text-sm">
               Целевая роль
               <select
-                className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                className={ADMIN_SELECT}
                 value={copyForm.target_role}
                 onChange={(e) =>
                   setCopyForm({ ...copyForm, target_role: e.target.value })
@@ -505,7 +509,7 @@ export function AdminFiltersPanel() {
           <label className="mt-4 block text-sm">
             Отчет (оставьте «Все» для копирования всех)
             <select
-              className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+              className={ADMIN_SELECT}
               value={copyForm.report_name}
               onChange={(e) =>
                 setCopyForm({ ...copyForm, report_name: e.target.value })

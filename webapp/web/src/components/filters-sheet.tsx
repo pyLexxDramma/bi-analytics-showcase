@@ -7,7 +7,7 @@ import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 /**
  * Mobile v2: панель фильтров на телефоне — лист снизу.
  * Открывается на половину экрана, тянется до полного, закрывается свайпом вниз,
- * по backdrop и по Esc. Кнопки «Сбросить»/«Готово» закреплены снизу.
+ * по backdrop и по Esc. Кнопки «Сбросить»/«Готово»|«Применить» закреплены снизу.
  *
  * Используется только на `<lg` (см. `FiltersCard`), desktop-аккордеон не меняется.
  */
@@ -16,12 +16,18 @@ export function FiltersSheet({
   onClose,
   title,
   onReset,
+  onApply,
+  applyDisabled,
+  resetDisabled,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   onReset?: () => void;
+  onApply?: () => void;
+  applyDisabled?: boolean;
+  resetDisabled?: boolean;
   children: ReactNode;
 }) {
   const [mounted, setMounted] = useState(false);
@@ -106,6 +112,7 @@ export function FiltersSheet({
             <button
               type="button"
               className="bi-sheet-btn-ghost"
+              disabled={resetDisabled}
               onClick={() => {
                 confirmFeedback();
                 onReset();
@@ -117,12 +124,14 @@ export function FiltersSheet({
           <button
             type="button"
             className="bi-sheet-btn-primary"
+            disabled={onApply ? applyDisabled : false}
             onClick={() => {
               confirmFeedback();
+              onApply?.();
               onClose();
             }}
           >
-            Готово
+            {onApply ? "Применить" : "Готово"}
           </button>
         </div>
       </div>
