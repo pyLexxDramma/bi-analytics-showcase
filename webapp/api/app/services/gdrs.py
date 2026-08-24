@@ -363,10 +363,13 @@ def build_gdrs_payload(
     # Контрагенты: fact ∪ plan без полного gdrs_contractor_filter_options (тяжёлый).
     contractor_options: list[str] = []
     if "contractor_name" in long_fact.columns:
+        _fact_ctr = long_fact
+        if kontr_index is not None:
+            _fact_ctr = g.gdrs_filter_fact_kontr_intersection(_fact_ctr, kontr_index)
         contractor_options = sorted(
             {
                 str(x).strip()
-                for x in long_fact["contractor_name"].dropna().unique()
+                for x in _fact_ctr["contractor_name"].dropna().unique()
                 if str(x).strip()
             }
         )
@@ -403,10 +406,17 @@ def build_gdrs_payload(
 
     plan = _plan_loader(pd.Timestamp(_plan_snap).normalize())
     if plan is not None and not plan.empty and "contractor_name" in plan.columns:
-        for name in plan["contractor_name"].dropna().unique():
-            s = str(name).strip()
-            if s and s not in contractor_options:
-                contractor_options.append(s)
+        for _, prow in plan.drop_duplicates(subset=["contractor_name"]).iterrows():
+            s = str(prow.get("contractor_name") or "").strip()
+            if not s or s in contractor_options:
+                continue
+            if kontr_index is not None and not g.gdrs_contractor_in_kontr(
+                str(prow.get("contractor_id") or ""),
+                s,
+                kontr_index,
+            ):
+                continue
+            contractor_options.append(s)
         contractor_options = sorted(contractor_options)
 
     weekly_plan_by_week: dict[int, pd.DataFrame] = {}
@@ -453,6 +463,7 @@ def build_gdrs_payload(
         plan_as_of=pd.Timestamp(_plan_snap).normalize(),
         plan_aggregate_loader=_plan_loader,
         resursi_all_fact=long_fact,
+        dogovor_records=dog_records,
     )
 
     period_label = ""

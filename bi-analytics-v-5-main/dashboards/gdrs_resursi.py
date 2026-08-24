@@ -53,7 +53,7 @@ from bisect import bisect_right
 from datetime import datetime as _dt
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 import numpy as np
 import pandas as pd
@@ -1236,7 +1236,10 @@ def gdrs_contractor_plan_eligible(
     project_name: str = "",
     plan_as_of: Optional[pd.Timestamp] = None,
 ) -> bool:
-    """План из Dogovor: без расторжения до plan_as_of. Kontr/resursi не требуются."""
+    """План из Dogovor: контрагент есть в 1C_Kontr и договор не расторгнут на plan_as_of."""
+    if kontr is not None and (kontr.ids or kontr.norm_names):
+        if not gdrs_contractor_in_kontr(contractor_id, contractor_name, kontr):
+            return False
     if plan_as_of is not None and term_index is not None:
         if gdrs_contractor_terminated_as_of(
             project_id,
@@ -1780,15 +1783,112 @@ def load_plan_from_dogovor(
         de = df["date_end"]
         ds = df["date_start"]
         dt = df["date_termination"]
-        # Истёкшие: date_end раньше начала ISO-недели месяца снапшота (как в 1С:
-        # план действует до недели окончания договора включительно, не до конца недели).
-        week_start = _gdrs_plan_expiry_week_start(snap)
-        expired = de.notna() & (de > sentinel) & (de.dt.normalize() < week_start)
+        # Истёкшие: date_end раньше первого дня месяца снапшота. Договор, который
+        # заканчивается в августе (напр. 13-СКА/26, 19.08), даёт план на весь август.
+        month_lo = pd.Timestamp(snap.year, snap.month, 1)
+        expired = de.notna() & (de > sentinel) & (de.dt.normalize() < month_lo)
         not_started = ds.notna() & (ds > sentinel) & (ds.dt.normalize() > snap)
         terminated = dt.notna() & (dt > sentinel) & (dt.dt.normalize() <= snap)
         drop = expired | not_started | terminated
         df.loc[drop, ["plan_workers", "plan_equipment"]] = np.nan
     return df
+
+
+def _history_sum_in_range(prepped, date_from: pd.Timestamp, date_to: pd.Timestamp) -> float:
+    """Сумма точек истории с датой внутри [date_from, date_to]. Скаляр без дат — 0."""
+    if prepped is None or prepped[0] != "h":
+        return 0.0
+    lo = pd.Timestamp(date_from).normalize()
+    hi = pd.Timestamp(date_to).normalize()
+    total = 0.0
+    for ts, cnt in zip(prepped[1], prepped[2]):
+        d = pd.Timestamp(ts).normalize()
+        if lo <= d <= hi:
+            total += float(cnt)
+    return total
+
+
+def gdrs_plan_history_period_frame(
+    *,
+    dogovor_records: dict[str, list[dict]] | None = None,
+    date_from: Optional[pd.Timestamp] = None,
+    date_to: Optional[pd.Timestamp] = None,
+) -> pd.DataFrame:
+    """План за период = сумма Количество_Людей/Техники с датой внутри месяца.
+
+    Не срез «сколько людей на конец месяца» и не среднее недельных срезов:
+    каждая запись выдачи в интервале складывается (СК МДС: 15+15+15+15+6 = 66).
+    date_end не отсекает строки — график в JSON сам задаёт месяц выдачи
+    (23-СКА/26: окончание в июне, выдачи 15+15 в июле).
+    Файл — последний Dogovor, как в load_plan_aggregate. Нет точек в месяце → пусто
+    (стоячий план вроде Ориентир 39 остаётся на среднем срезов).
+    """
+    empty_cols = [
+        "project_id", "contractor_id", "project_name", "contractor_name",
+        "plan_workers", "plan_equipment",
+    ]
+    if not dogovor_records or date_from is None or date_to is None:
+        return pd.DataFrame(columns=empty_cols)
+    if not pd.notna(date_from) or not pd.notna(date_to):
+        return pd.DataFrame(columns=empty_cols)
+    latest = max(
+        dogovor_records.keys(),
+        key=lambda s: (_dogovor_snapshot_sort_key(s), str(s)),
+    )
+    data = dogovor_records.get(latest) or []
+    lo = pd.Timestamp(date_from).normalize()
+    hi = pd.Timestamp(date_to).normalize()
+    rows: list[dict[str, Any]] = []
+    for r in data:
+        if not isinstance(r, dict):
+            continue
+        sw = _history_sum_in_range(_prep_history(r.get("Количество_Людей")), lo, hi)
+        se = _history_sum_in_range(_prep_history(r.get("Количество_Техники")), lo, hi)
+        if sw <= 0 and se <= 0:
+            continue
+        rows.append(
+            {
+                "project_id": str(r.get("ID_Проекта") or "").strip(),
+                "contractor_id": str(r.get("ID_Контрагента") or "").strip(),
+                "project_name": str(r.get("Наименование_Проекта") or "").strip(),
+                "contractor_name": str(r.get("Наименование_Контрагента") or "").strip(),
+                "contract_name": str(r.get("Наименование_Договора") or "").strip(),
+                "contract_number": str(r.get("Номер_Договора") or "").strip(),
+                "plan_workers": sw,
+                "plan_equipment": se,
+            }
+        )
+    if not rows:
+        return pd.DataFrame(columns=empty_cols)
+    raw = pd.DataFrame(rows)
+    raw["__key__"] = _dogovor_row_contract_keys(raw)
+    parts: list[dict[str, Any]] = []
+    for keys, chunk in raw.groupby(
+        ["project_id", "contractor_id", "__key__"], dropna=False
+    ):
+        pid, cid, _ck = keys
+        merged = _merge_dogovor_primary_ds_plan(chunk)
+        parts.append(
+            {
+                "project_id": pid,
+                "contractor_id": cid,
+                "project_name": str(chunk["project_name"].iloc[0] or ""),
+                "contractor_name": str(chunk["contractor_name"].iloc[0] or ""),
+                "plan_workers": merged.get("plan_workers", np.nan),
+                "plan_equipment": merged.get("plan_equipment", np.nan),
+            }
+        )
+    out = pd.DataFrame(parts)
+    if out.empty:
+        return pd.DataFrame(columns=empty_cols)
+    return out.groupby(
+        ["project_id", "contractor_id"], dropna=False, as_index=False
+    ).agg(
+        project_name=("project_name", "first"),
+        contractor_name=("contractor_name", "first"),
+        plan_workers=("plan_workers", "sum"),
+        plan_equipment=("plan_equipment", "sum"),
+    )
 
 
 def load_plan_from_spravochniki(
@@ -1872,6 +1972,28 @@ def _source_file_date(path) -> Optional[pd.Timestamp]:
         return pd.Timestamp(year=int(yyyy), month=int(mm), day=int(dd))
     except ValueError:
         return None
+
+
+def gdrs_skud_as_of(
+    date_to: Optional[pd.Timestamp] = None,
+    fact: Optional[pd.DataFrame] = None,
+) -> pd.Timestamp:
+    """Последний день, который можно брать в среднее СКУД.
+
+    Не считаем дни после сегодня и после даты выгрузки resursi (в файле они 0).
+    """
+    caps = [pd.Timestamp.now().normalize()]
+    if date_to is not None and pd.notna(date_to):
+        caps.append(pd.Timestamp(date_to).normalize())
+    if fact is not None and not getattr(fact, "empty", True) and "__source_file" in fact.columns:
+        snaps: list[pd.Timestamp] = []
+        for name in fact["__source_file"].astype(str).unique():
+            fd = _source_file_date(name)
+            if fd is not None and pd.notna(fd):
+                snaps.append(pd.Timestamp(fd).normalize())
+        if snaps:
+            caps.append(max(snaps))
+    return min(caps)
 
 
 def _resursi_snapshot_sort_key(path) -> tuple[pd.Timestamp, int]:
@@ -2988,7 +3110,7 @@ def _gdrs_bucket_calendar_days(
     else:
         period_end = b
     start = max(b, lo)
-    end = min(period_end, hi)
+    end = min(period_end, hi, pd.Timestamp.now().normalize())
     if end < start:
         return []
     return [pd.Timestamp(d).normalize() for d in pd.date_range(start, end, freq="D")]
@@ -3478,16 +3600,20 @@ def _gdrs_week_groups(
     *,
     date_from: Optional[pd.Timestamp] = None,
     date_to: Optional[pd.Timestamp] = None,
+    as_of: Optional[pd.Timestamp] = None,
 ) -> tuple[pd.Series, dict[int, int]]:
     """Недели 1..6 в таблице ГДРС.
 
     Для одного календарного месяца — ISO-недели (пн–вс) внутри месяца, как надстрока
     «1 неделя»… в resursi.csv 1С. Иначе — порядковые ISO-недели по факту в выборке.
+    Знаменатель недели — только дни до as_of (без будущих нулей).
     """
     dates = pd.to_datetime(dates, errors="coerce")
     if _gdrs_single_calendar_month(date_from, date_to):
         lo = pd.Timestamp(date_from).normalize()
         hi = pd.Timestamp(date_to).normalize()
+        if as_of is not None and pd.notna(as_of):
+            hi = min(hi, pd.Timestamp(as_of).normalize())
         week_idx = dates.map(
             lambda x: _gdrs_calendar_week_num(x, lo) if pd.notna(x) else 0
         ).astype(int)
@@ -4042,10 +4168,21 @@ def _skud_agg_per_pair(
     date_to: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
     """СКУД (среднее за день) по паре проект×контрагент для режима month_avg или week:N."""
-    total_days = int(fact["date"].dt.normalize().nunique())
-    pair_cols = _gdrs_pair_group_cols(fact)
+    as_of = gdrs_skud_as_of(date_to, fact)
+    work = fact.copy()
+    work["date"] = pd.to_datetime(work["date"], errors="coerce")
+    work = work[work["date"].notna() & (work["date"].dt.normalize() <= as_of)]
+    if work.empty:
+        pair_cols = _gdrs_pair_group_cols(fact)
+        empty = fact[pair_cols].drop_duplicates().copy() if pair_cols and not fact.empty else pd.DataFrame()
+        if empty.empty:
+            return pd.DataFrame(columns=(pair_cols or []) + ["skud_val"])
+        empty["skud_val"] = 0.0
+        return empty
+    total_days = int(work["date"].dt.normalize().nunique())
+    pair_cols = _gdrs_pair_group_cols(work)
     skud_sum = (
-        fact.groupby(pair_cols, dropna=False)["fact"]
+        work.groupby(pair_cols, dropna=False)["fact"]
         .sum()
         .reset_index(name="skud_sum")
     )
@@ -4055,11 +4192,11 @@ def _skud_agg_per_pair(
         return skud_sum[pair_cols + ["skud_val"]]
 
     week_idx, days_per_week = _gdrs_week_groups(
-        fact["date"], date_from=date_from, date_to=date_to
+        work["date"], date_from=date_from, date_to=date_to, as_of=as_of
     )
-    fact = fact.assign(week=week_idx)
+    work = work.assign(week=week_idx)
     week_sum = (
-        fact.groupby(pair_cols + ["week"], dropna=False)["fact"]
+        work.groupby(pair_cols + ["week"], dropna=False)["fact"]
         .sum()
         .reset_index(name="daily_sum")
     )
@@ -4310,6 +4447,7 @@ def build_main_table(
     plan_as_of: Optional[pd.Timestamp] = None,
     plan_aggregate_loader: Optional[Callable[[pd.Timestamp], pd.DataFrame]] = None,
     resursi_all_fact: Optional[pd.DataFrame] = None,
+    dogovor_records: Optional[dict[str, list[dict]]] = None,
 ) -> pd.DataFrame:
     """Сборка главной таблицы (Скрин 11): Контрагент × недели × отклонение × дельта.
 
@@ -4321,7 +4459,9 @@ def build_main_table(
     - Неделя = ISO-неделя; нумерация в порядке возрастания внутри выборки (1..6 для месяца).
     - weekly_avg(подрядчик, неделя) = ∑ daily / N_дней_в_неделе_в_выборке.
     - skud: по `skud_agg` — среднее за день за период (month_avg) или weekly_avg выбранной недели (week:N).
-    - plan: из plan-таблицы 1С на срез `plan_agg` (конец недели или конец периода).
+    - plan: из plan-таблицы 1С на срез `plan_agg`. «Среднее за месяц» в одном
+      календарном месяце: сумма выдач Количество_* с датой в месяце (если есть),
+      иначе среднее недельных срезов.
     - deviation = skud − План (факт − план); delta_pct = (deviation / План) × 100 (при План≠0).
   """
     if long_fact is None:
@@ -4338,6 +4478,12 @@ def build_main_table(
     fact = _gdrs_add_pair_keys(fact, kontr_index, dedupe_fact=True)
     # После Kontr: каноническое имя может появиться только здесь — стоп-лист по contractor_name.
     fact = gdrs_drop_excluded_contractors(fact)
+    fact = gdrs_filter_fact_kontr_intersection(fact, kontr_index)
+    _skud_as_of = gdrs_skud_as_of(date_to, fact)
+    if fact is not None and not fact.empty and "date" in fact.columns:
+        fact = fact.copy()
+        fact["date"] = pd.to_datetime(fact["date"], errors="coerce")
+        fact = fact[fact["date"].notna() & (fact["date"].dt.normalize() <= _skud_as_of)]
 
     plan_work = plan.copy() if plan is not None and not plan.empty else pd.DataFrame()
     if not plan_work.empty:
@@ -4347,24 +4493,9 @@ def build_main_table(
     plan_col = "plan_workers" if vid.casefold() == "рабочие" else "plan_equipment"
     by_id, by_id_name, by_norm = _build_plan_lookup(plan_work, plan_col)
 
-    # Эталон (AI_DATA_RULES §70): состав строк отчёта = пересечение other_*_resursi ∩ 1C_Kontr.
-    # План берётся из Dogovor, но контрагент попадает в отчёт только если он присутствует
-    # в resursi. Иначе plan-only контрагенты из Dogovor (например, есть в Kontr, но нет в
-    # resursi) протекают в отчёт. Набор допустимых контрагентов — по ключу `_gk_ctr`
-    # (id/имя из Kontr) из ПОЛНОГО resursi (все месяцы), а не только выбранного периода.
-    _resursi_ctr_keys: Optional[set] = None
-    _membership_src = resursi_all_fact if resursi_all_fact is not None else long_fact
-    if _membership_src is not None and not _membership_src.empty:
-        _mem = _membership_src
-        if "vid_resursa" in _mem.columns:
-            _mem = _mem[_mem["vid_resursa"].astype(str).str.casefold() == vid.casefold()]
-        _mem_cols = [c for c in ("contractor_id", "contractor_name") if c in _mem.columns]
-        if _mem is not None and not _mem.empty and _mem_cols:
-            _mem = _mem[_mem_cols].drop_duplicates()
-            _mem = _gdrs_add_pair_keys(_mem, kontr_index, dedupe_fact=False)
-            _mem = gdrs_drop_excluded_contractors(_mem)
-            if _mem is not None and not _mem.empty and "_gk_ctr" in _mem.columns:
-                _resursi_ctr_keys = set(_mem["_gk_ctr"].astype(str))
+    # Строки отчёта: (факт СКУД ∩ 1C_Kontr) ∪ (план Dogovor ∩ 1C_Kontr).
+    # Plan-only (есть договор, нет СКУД) оставляем — иначе пропадает «Ориентир».
+    # Факт без Kontr (Курскрегионпроект, Марафон, НГС эксперт) уже отсечён выше.
 
     _plan_snap = pd.Timestamp(plan_as_of).normalize() if plan_as_of is not None and pd.notna(plan_as_of) else (
         pd.Timestamp(date_to).normalize() if date_to is not None and pd.notna(date_to) else None
@@ -4378,7 +4509,7 @@ def build_main_table(
         fact = fact.copy()
         fact["date"] = pd.to_datetime(fact["date"])
         week_idx, days_per_week = _gdrs_week_groups(
-            fact["date"], date_from=date_from, date_to=date_to
+            fact["date"], date_from=date_from, date_to=date_to, as_of=_skud_as_of
         )
         fact["week"] = week_idx
 
@@ -4465,10 +4596,16 @@ def build_main_table(
             pass
         plan_pairs_df["_plan_val"] = pd.to_numeric(plan_pairs_df[plan_col], errors="coerce").fillna(0.0)
         plan_pairs_df = plan_pairs_df[plan_pairs_df["_plan_val"] > 0]
-        # Эталон resursi ∩ Kontr: plan-only контрагента добавляем, только если он есть в resursi.
-        if _resursi_ctr_keys is not None and not plan_pairs_df.empty and "_gk_ctr" in plan_pairs_df.columns:
+        if kontr_index is not None and not plan_pairs_df.empty:
             plan_pairs_df = plan_pairs_df[
-                plan_pairs_df["_gk_ctr"].astype(str).isin(_resursi_ctr_keys)
+                plan_pairs_df.apply(
+                    lambda r: gdrs_contractor_in_kontr(
+                        str(r.get("contractor_id", "")),
+                        str(r.get("contractor_name", "")),
+                        kontr_index,
+                    ),
+                    axis=1,
+                )
             ]
         if not plan_pairs_df.empty:
             plan_ids = (
@@ -4669,6 +4806,32 @@ def build_main_table(
         _w_cols = [f"w{wn}" for wn in _week_nums]
         rows["plan"] = rows[_p_cols].mean(axis=1).round(0)
         rows["skud"] = rows[_w_cols].mean(axis=1).round(0)
+        if (
+            dogovor_records
+            and date_from is not None
+            and date_to is not None
+            and _gdrs_single_calendar_month(date_from, date_to)
+        ):
+            _hist_df = gdrs_plan_history_period_frame(
+                dogovor_records=dogovor_records,
+                date_from=pd.Timestamp(date_from),
+                date_to=pd.Timestamp(date_to),
+            )
+            if _hist_df is not None and not _hist_df.empty:
+                _hlu = _build_plan_lookup(_hist_df, plan_col)
+                _hsum = rows.apply(
+                    lambda r, _lookup=_hlu: _lookup_plan(
+                        str(r.get("project_id", "")),
+                        str(r.get("contractor_id", "")),
+                        str(r.get("project_name", "")),
+                        str(r.get("contractor_name", "")),
+                        _lookup[0],
+                        _lookup[1],
+                        _lookup[2],
+                    ),
+                    axis=1,
+                ).astype(float)
+                rows["plan"] = np.where(_hsum > 0, _hsum, rows["plan"]).round(0)
         rows["deviation"] = (rows["skud"] - rows["plan"]).round(0)
         rows["delta_pct"] = rows.apply(
             lambda r: ((r["skud"] - r["plan"]) / r["plan"] * 100.0)
