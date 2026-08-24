@@ -45012,9 +45012,10 @@ def _pred_crit_overdue_unresolved_mask(df: pd.DataFrame) -> pd.Series:
     return critical & overdue_open
 
 
-# Тема предписания в TESSA Name обычно короткая («Замена сендвич панелей»).
-# Длинный текст — это формулировка замечания, которую кладут в Name вместо Comment.
-_PRED_NAME_TITLE_MAX_LEN = 55
+# Тема предписания в TESSA Name — короткое/среднее название задачи
+# (в т.ч. «Отсутствует лабораторное подтверждение…», ~90 символов).
+# Стены текста 150+ — формулировка замечания, которую кладут в Name вместо Comment.
+_PRED_NAME_TITLE_MAX_LEN = 120
 _PRED_NAME_COMMENT_RE = re.compile(
     r"(?is)"
     r"(в ходе выполнения|не в соответствии|предоставить|восстановить|"
