@@ -308,13 +308,42 @@ def _zos_rank(name: object) -> int:
     return 2
 
 
-def _pick_zos_row(frame: pd.DataFrame, task_col: str) -> pd.Series | None:
+DEFAULT_METRIC_TASK = "ЗОС"
+
+
+def resolve_metric_task() -> str:
+    """Задача для KPI из админки (`baseline_plan_task_for_metrics`), по умолчанию ЗОС."""
+    try:
+        from app.services.users_bridge import import_settings_module
+
+        value = import_settings_module().get_setting("baseline_plan_task_for_metrics")
+    except Exception:  # noqa: BLE001
+        return DEFAULT_METRIC_TASK
+    return (value or "").strip() or DEFAULT_METRIC_TASK
+
+
+def _pick_metric_row(
+    frame: pd.DataFrame, task_col: str, metric_task: str
+) -> pd.Series | None:
     if frame is None or frame.empty or task_col not in frame.columns:
         return None
-    names = frame[task_col].astype(str)
-    exact = frame.loc[names.str.strip().str.casefold() == "зос"]
-    if not exact.empty:
-        return exact.iloc[0]
+    names = frame[task_col].astype(str).str.strip()
+    task = (metric_task or "").strip()
+
+    if task:
+        exact = frame.loc[names.str.casefold() == task.casefold()]
+        if not exact.empty:
+            return exact.iloc[0]
+        if not _is_zos_task(task):
+            # Настроена своя задача: ищем по вхождению, но на ЗОС не откатываемся —
+            # иначе плитки молча покажут KPI совсем другой задачи.
+            try:
+                rx = re.compile(re.escape(task), flags=re.IGNORECASE)
+            except re.error:
+                return None
+            cand = frame.loc[names.map(lambda x: bool(rx.search(str(x))))]
+            return cand.iloc[0] if not cand.empty else None
+
     zos = frame.loc[names.map(_is_zos_task)].copy()
     if zos.empty:
         return None
@@ -626,7 +655,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             },
         },
         "kpis": {
-            "metric_task": "ЗОС",
+            "metric_task": DEFAULT_METRIC_TASK,
             "max_abs_dev_days": 0,
             "plates": [],
         },
@@ -660,12 +689,14 @@ def build_baseline_deviation_payload(
     show_dur: bool = True,
     label_mode: str | None = "name",
 ) -> dict[str, Any]:
+    metric_task = resolve_metric_task()
     cache_key = (
         f"v9|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
-        f"|lm={label_mode or 'name'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
+        f"|lm={label_mode or 'name'}|mt={metric_task}"
+        f"|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
     cached = cache_get("baseline-deviation", cache_key, max_age_sec=3600)
     if cached is not None:
@@ -895,7 +926,7 @@ def build_baseline_deviation_payload(
                     if not diffs.empty:
                         max_abs = int(round(float(diffs.abs().max())))
                         max_abs_global = max(max_abs_global, max_abs)
-            zrow = _pick_zos_row(scope, task_col)
+            zrow = _pick_metric_row(scope, task_col, metric_task)
             plan_end = _fmt_date(zrow.get("base end")) if zrow is not None else None
             fact_end = _fmt_date(zrow.get("plan end")) if zrow is not None else None
             dev_days = None
@@ -1300,7 +1331,7 @@ def build_baseline_deviation_payload(
                 },
             },
             "kpis": {
-                "metric_task": "ЗОС",
+                "metric_task": metric_task,
                 "max_abs_dev_days": max_abs_global,
                 "plates": plates,
             },

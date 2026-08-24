@@ -705,6 +705,28 @@ def get_report_config(
     }
 
 
+@router.get("/msp-task-options")
+def get_msp_task_options(
+    authorization: str | None = Header(default=None),
+):
+    """Допустимые значения для «задача для KPI» — задачи MSP нужного уровня."""
+    _require_admin(authorization)
+    from app.services.msp_tasks import list_metric_task_options
+
+    settings_mod = import_settings_module()
+    current = settings_mod.get_setting("baseline_plan_task_for_metrics") or ""
+    try:
+        return list_metric_task_options(current)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "options": [],
+            "level": None,
+            "task_column": None,
+            "current": current.strip(),
+            "hint": f"Не удалось получить список задач MSP: {exc}",
+        }
+
+
 @router.put("/report-config")
 def put_report_config(
     body: ReportConfigBody,

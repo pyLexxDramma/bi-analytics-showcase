@@ -7,6 +7,7 @@ import { EmeraldTabs } from "@/components/settings/emerald-tabs";
 import { SETTINGS_TABLE } from "@/components/settings/form-bits";
 import {
   deleteSettingsUser,
+  fetchMspTaskOptions,
   fetchReportConfig,
   fetchSettingsLogs,
   fetchSettingsRoles,
@@ -17,6 +18,7 @@ import {
   postSettingsUser,
   putReportConfig,
   putUserProjects,
+  type MspTaskOptions,
   type SettingsLogRow,
   type SettingsRole,
   type SettingsUser,
@@ -42,6 +44,7 @@ export function AdminSystemPanel() {
   const [config, setConfig] = useState<Record<string, string>>({});
   const [configDesc, setConfigDesc] = useState<Record<string, string>>({});
   const [configDefaults, setConfigDefaults] = useState<Record<string, string>>({});
+  const [taskOptions, setTaskOptions] = useState<MspTaskOptions | null>(null);
   const [usersQuery, setUsersQuery] = useState("");
   const [logsQuery, setLogsQuery] = useState("");
 
@@ -121,7 +124,18 @@ export function AdminSystemPanel() {
   }, []);
 
   const loadConfig = useCallback(async () => {
-    const data = await fetchReportConfig();
+    // Параллельно и одним рендером: иначе поле задачи сначала рисуется как
+    // текстовый инпут и только через пару секунд превращается в select.
+    const [data, options] = await Promise.all([
+      fetchReportConfig(),
+      fetchMspTaskOptions().catch((e: unknown) => ({
+        options: [],
+        level: null,
+        task_column: null,
+        current: "",
+        hint: e instanceof Error ? e.message : String(e),
+      })),
+    ]);
     const defaults = data.defaults || {};
     setConfigDefaults(defaults);
     setConfig({
@@ -136,6 +150,7 @@ export function AdminSystemPanel() {
         "",
     });
     setConfigDesc(data.descriptions);
+    setTaskOptions(options);
   }, []);
 
   useEffect(() => {
@@ -194,6 +209,22 @@ export function AdminSystemPanel() {
       ]),
     };
   }, [logs]);
+
+  const taskValue = (config.baseline_plan_task_for_metrics || "ЗОС").trim();
+
+  // Сохранённая задача может отсутствовать в текущей выгрузке MSP (сменился
+  // снимок, переименовали задачу) — держим её в списке, чтобы select не сбросил
+  // настройку на первый попавшийся вариант при простом открытии вкладки.
+  const taskSelectItems = useMemo(() => {
+    const items = (taskOptions?.options || []).map((o) => ({
+      name: o.name,
+      level: o.level as number | null,
+    }));
+    if (taskValue && !items.some((i) => i.name === taskValue)) {
+      items.unshift({ name: taskValue, level: null });
+    }
+    return items;
+  }, [taskOptions, taskValue]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -712,29 +743,31 @@ export function AdminSystemPanel() {
         <div className="space-y-6">
           <Card className="rounded-xl">
             <Title className="!text-base">Email администратора</Title>
-            <input
-              className="mt-3 w-full max-w-lg rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-              placeholder="например, admin@company.ru"
-              value={config.admin_notification_email || ""}
-              onChange={(e) =>
-                setConfig({ ...config, admin_notification_email: e.target.value })
-              }
-            />
-            <button
-              type="button"
-              disabled={busy}
-              className="mt-3 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-              onClick={() =>
-                void run(async () => {
-                  await putReportConfig({
-                    admin_notification_email: config.admin_notification_email,
-                  });
-                  setMsg("Сохранено.");
-                })
-              }
-            >
-              Сохранить email администратора
-            </button>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                className="w-full min-w-0 rounded-md border border-gray-200 px-3 py-2 sm:max-w-lg sm:flex-1 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                placeholder="например, admin@company.ru"
+                value={config.admin_notification_email || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, admin_notification_email: e.target.value })
+                }
+              />
+              <button
+                type="button"
+                disabled={busy}
+                className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 sm:w-auto sm:shrink-0"
+                onClick={() =>
+                  void run(async () => {
+                    await putReportConfig({
+                      admin_notification_email: config.admin_notification_email,
+                    });
+                    setMsg("Сохранено.");
+                  })
+                }
+              >
+                Сохранить email администратора
+              </button>
+            </div>
           </Card>
 
           <Card className="rounded-xl">
@@ -744,32 +777,64 @@ export function AdminSystemPanel() {
             <Text className="mt-1 text-xs text-gray-500">
               {configDesc.baseline_plan_task_for_metrics}
             </Text>
-            <input
-              className="mt-3 w-full max-w-lg rounded-md border border-gray-200 px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-              value={config.baseline_plan_task_for_metrics || "ЗОС"}
-              onChange={(e) =>
-                setConfig({
-                  ...config,
-                  baseline_plan_task_for_metrics: e.target.value,
-                })
-              }
-            />
-            <button
-              type="button"
-              disabled={busy}
-              className="mt-3 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-              onClick={() =>
-                void run(async () => {
-                  await putReportConfig({
-                    baseline_plan_task_for_metrics:
-                      config.baseline_plan_task_for_metrics || "ЗОС",
-                  });
-                  setMsg("Сохранено.");
-                })
-              }
-            >
-              Сохранить задачу для метрик
-            </button>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+              {taskOptions && taskOptions.options.length > 0 ? (
+                <select
+                  className="w-full min-w-0 rounded-md border border-gray-200 px-3 py-2 sm:max-w-lg sm:flex-1 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  value={taskValue}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      baseline_plan_task_for_metrics: e.target.value,
+                    })
+                  }
+                >
+                  {taskSelectItems.map((item) => (
+                    <option key={item.name} value={item.name}>
+                      {item.level != null
+                        ? `Уровень ${item.level} — ${item.name}`
+                        : item.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="w-full min-w-0 rounded-md border border-gray-200 px-3 py-2 sm:max-w-lg sm:flex-1 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                  value={taskValue}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      baseline_plan_task_for_metrics: e.target.value,
+                    })
+                  }
+                />
+              )}
+              <button
+                type="button"
+                disabled={busy}
+                className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 sm:w-auto sm:shrink-0"
+                onClick={() =>
+                  void run(async () => {
+                    await putReportConfig({
+                      baseline_plan_task_for_metrics: taskValue,
+                    });
+                    setMsg("Сохранено.");
+                  })
+                }
+              >
+                Сохранить задачу для метрик
+              </button>
+            </div>
+            {taskOptions?.hint ? (
+              <Text className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                {taskOptions.hint} Значение можно ввести вручную.
+              </Text>
+            ) : taskOptions && taskOptions.options.length > 0 ? (
+              <Text className="mt-2 text-xs text-gray-500">
+                Задач уровня {taskOptions.level} в текущей выгрузке MSP:{" "}
+                {taskOptions.options.length}.
+              </Text>
+            ) : null}
           </Card>
 
           <Card className="rounded-xl">

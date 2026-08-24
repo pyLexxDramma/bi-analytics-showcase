@@ -2060,6 +2060,33 @@ export async function postEnsureFresh(
   return postAdminAction(`/api/admin/ensure-fresh${qs}`, token) as Promise<EnsureFreshResult>;
 }
 
+export type IngestFileInfo = {
+  file: string;
+  type?: string;
+  rows?: number;
+  incremental?: boolean;
+};
+
+export type IngestResult = {
+  ok?: boolean;
+  loaded?: number;
+  skipped?: number;
+  loaded_files?: IngestFileInfo[];
+  warnings?: string[];
+  errors?: string[];
+  version_id?: number | null;
+  active_version_id?: number | null;
+};
+
+export type FtpSyncResult = {
+  ok?: boolean;
+  skipped?: boolean;
+  /** Относительные пути реально скачанных (новых/изменённых) файлов. */
+  downloaded?: string[];
+  skipped_same_size?: number;
+  errors?: string[];
+};
+
 export type AdminSyncResult = {
   ok: boolean;
   async?: boolean;
@@ -2069,6 +2096,15 @@ export type AdminSyncResult = {
   files?: number;
   errors?: string[];
   detail?: string;
+  /** POST /api/admin/sync — FTP → web/ → БД. */
+  ftp?: FtpSyncResult;
+  ingest?: IngestResult | null;
+  /** POST /api/admin/ingest — только web/ → БД, поля ingest на верхнем уровне. */
+  loaded?: number;
+  skipped?: number;
+  loaded_files?: IngestFileInfo[];
+  warnings?: string[];
+  version_id?: number | null;
   [key: string]: unknown;
 };
 
@@ -2486,6 +2522,18 @@ export async function putReportConfig(
   values: Record<string, string | undefined>,
 ): Promise<{ ok: boolean }> {
   return apiPut("/api/settings/report-config", values, { headers: authHeaders() });
+}
+
+export type MspTaskOptions = {
+  options: { level: number; name: string }[];
+  level: number | null;
+  task_column: string | null;
+  current: string;
+  hint: string | null;
+};
+
+export async function fetchMspTaskOptions(): Promise<MspTaskOptions> {
+  return apiGet("/api/settings/msp-task-options", {}, { headers: authHeaders() });
 }
 
 export type AskAiLinkRequest = {
