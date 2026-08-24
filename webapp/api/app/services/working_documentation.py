@@ -103,6 +103,110 @@ def _status_counts_from_detail(detail_tbl: pd.DataFrame, mod: ModuleType) -> dic
     return counts
 
 
+def _tessa_status_keys(mod: ModuleType) -> dict[str, str]:
+    return {
+        "production": getattr(mod, "_RD_TESSA_STATUS_PRODUCTION", "Выдано в производство работ"),
+        "review": getattr(mod, "_RD_TESSA_STATUS_REVIEW", "На рассмотрении у ГИП"),
+        "rework": getattr(mod, "_RD_TESSA_STATUS_REWORK", "Возвращено на доработку"),
+        "not_issued": getattr(mod, "_RD_TESSA_STATUS_NOT_ISSUED", "Не выдано"),
+    }
+
+
+def _canon_rd_status(mod: ModuleType, raw: object) -> str | None:
+    fn = getattr(mod, "_rd_canonical_tessa_rd_status", None)
+    if callable(fn):
+        return fn(raw)
+    s = str(raw or "").strip()
+    return s or None
+
+
+def _sel_has_status(sel: list[str], label: str, mod: ModuleType) -> bool:
+    if not sel or not label:
+        return False
+    expanded = mod._rd_status_filter_expand([label])
+    return any(mod._rd_status_label_matches_filter(s, expanded) for s in sel)
+
+
+def _sel_is_not_issued_only(sel: list[str], mod: ModuleType) -> bool:
+    keys = _tessa_status_keys(mod)
+    return bool(sel) and all(
+        _sel_has_status([s], keys["not_issued"], mod) for s in sel
+    )
+
+
+def _not_issued_residual(plan_n: int, tz_counts: dict[str, int], keys: dict[str, str]) -> int:
+    """Как карточка без фильтра: план − TESSA «Выдано в производство»."""
+    prod_n = int((tz_counts or {}).get(keys["production"], 0) or 0)
+    return max(0, int(plan_n) - prod_n)
+
+
+def _pie_for_not_issued_residual(
+    n: int,
+    tz_counts: dict[str, int],
+    keys: dict[str, str],
+    not_issued_label: str,
+) -> dict[str, int]:
+    review_n = int((tz_counts or {}).get(keys["review"], 0) or 0)
+    rework_n = int((tz_counts or {}).get(keys["rework"], 0) or 0)
+    plain_n = max(0, int(n) - review_n - rework_n)
+    out: dict[str, int] = {}
+    if review_n > 0:
+        out[keys["review"]] = review_n
+    if rework_n > 0:
+        out[keys["rework"]] = rework_n
+    if plain_n > 0:
+        out[not_issued_label] = plain_n
+    return out
+
+
+def _align_detail_to_not_issued_n(
+    detail_tbl: pd.DataFrame,
+    target: int,
+    mod: ModuleType,
+) -> pd.DataFrame:
+    """Таблица «Не выдано» = тот же остаток, что и карточка (без лишней строки джойна)."""
+    if detail_tbl is None or getattr(detail_tbl, "empty", True) or int(target) < 0:
+        return detail_tbl
+    if int(len(detail_tbl)) <= int(target):
+        return detail_tbl
+    cipher_col = "Шифр" if "Шифр" in detail_tbl.columns else None
+    kept = detail_tbl
+    if cipher_col:
+        fake = pd.DataFrame({"_c": detail_tbl[cipher_col]}, index=detail_tbl.index)
+        issued = _issued_mask_from_tessa_status(mod, fake, None, "_c")
+        drop = issued.reindex(detail_tbl.index).fillna(False)
+        if bool(drop.any()):
+            kept = detail_tbl.loc[~drop].copy()
+    if int(len(kept)) > int(target):
+        kept = kept.iloc[: int(target)].copy()
+    return kept.reset_index(drop=True)
+
+
+def _sel_is_not_issued_family(sel: list[str], mod: ModuleType) -> bool:
+    """Срез без «Выдано в производство»: Не выдано / ГИП / доработка."""
+    if not sel:
+        return False
+    keys = _tessa_status_keys(mod)
+    family = (keys["not_issued"], keys["review"], keys["rework"])
+    return all(any(_sel_has_status([s], lab, mod) for lab in family) for s in sel)
+
+
+def _detail_status_mask(detail_tbl: pd.DataFrame, sel: list[str], mod: ModuleType) -> pd.Series:
+    """Маска строк детализации под фильтр статуса.
+
+    «Не выдано» = всё, что не выдано в производство: сам статус, рассмотрение
+    у ГИП, возврат на доработку и пустой статус.
+    """
+    if detail_tbl.empty or "Статус" not in detail_tbl.columns:
+        return pd.Series(False, index=detail_tbl.index)
+    keys = _tessa_status_keys(mod)
+    raw = detail_tbl["Статус"]
+    if _sel_is_not_issued_only(sel, mod):
+        return raw.map(lambda x: _canon_rd_status(mod, x) != keys["production"]).fillna(True)
+    expanded = mod._rd_status_filter_expand(sel)
+    return raw.map(lambda x: mod._rd_status_label_matches_filter(x, expanded)).fillna(False)
+
+
 def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
     return {
         "meta": {
@@ -909,7 +1013,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v22-rd-status-exec-kpi",
+            "v24-rd-not-issued-residual",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1059,14 +1163,53 @@ def build_working_documentation_payload(
             except Exception:
                 pass
 
-        if sel_statuses and status_opts and set(sel_statuses) != set(status_opts):
-            expanded = mod._rd_status_filter_expand(sel_statuses)
-            if not detail_tbl.empty and "Статус" in detail_tbl.columns:
-                detail_tbl = detail_tbl[
-                    detail_tbl["Статус"]
-                    .map(lambda x: mod._rd_status_label_matches_filter(x, expanded))
-                    .fillna(False)
+        plan_n_before_status = int(len(plan_df))
+        tz_counts: dict[str, int] = {}
+        try:
+            tz_counts = {
+                str(k): int(v) for k, v in (mod._count_rd_pie_tz(applied_projects) or {}).items()
+            }
+        except Exception:
+            tz_counts = {}
+        status_filtered = bool(
+            sel_statuses and status_opts and set(sel_statuses) != set(status_opts)
+        )
+        if status_filtered and not detail_tbl.empty and "Статус" in detail_tbl.columns:
+            # ГИП / доработка — карточки TESSA, не рыхлый джойн с планом.
+            keys = _tessa_status_keys(mod)
+            if not _sel_is_not_issued_only(sel_statuses, mod) and (
+                _sel_has_status(sel_statuses, keys["review"], mod)
+                or _sel_has_status(sel_statuses, keys["rework"], mod)
+            ):
+                try:
+                    tessa_only = mod._build_tessa_rd_detail_table(
+                        selected_projects=applied_projects
+                    )
+                    if tessa_only is not None and not tessa_only.empty and "Статус" in tessa_only.columns:
+                        tessa_hit = tessa_only.loc[
+                            _detail_status_mask(tessa_only, sel_statuses, mod)
+                        ].copy()
+                        if not tessa_hit.empty:
+                            detail_tbl = tessa_hit
+                except Exception:
+                    pass
+            if "Статус" in detail_tbl.columns:
+                detail_tbl = detail_tbl.loc[
+                    _detail_status_mask(detail_tbl, sel_statuses, mod)
                 ].copy()
+            plan_df = mod._rd_plan_df_filter_by_detail(
+                plan_df,
+                detail_tbl,
+                proj_col,
+                code_col,
+                name_col,
+                pc.get("full_cipher"),
+            )
+            if _sel_is_not_issued_only(sel_statuses, mod):
+                ni_n = _not_issued_residual(
+                    plan_n_before_status, tz_counts, _tessa_status_keys(mod)
+                )
+                detail_tbl = _align_detail_to_not_issued_n(detail_tbl, ni_n, mod)
                 plan_df = mod._rd_plan_df_filter_by_detail(
                     plan_df,
                     detail_tbl,
@@ -1075,8 +1218,7 @@ def build_working_documentation_payload(
                     name_col,
                     pc.get("full_cipher"),
                 )
-
-        if not detail_tbl.empty:
+        elif not detail_tbl.empty:
             detail_tbl = mod._rd_plan_detail_filter_by_plan(
                 plan_df,
                 detail_tbl,
@@ -1086,12 +1228,6 @@ def build_working_documentation_payload(
                 pc.get("full_cipher"),
             )
 
-        status_filtered = bool(
-            sel_statuses and status_opts and set(sel_statuses) != set(status_opts)
-        )
-        # При фильтре статуса вселенная — отфильтрованная TESSA-таблица (как в
-        # детализации), а не plan_df после рыхлого джойна: иначе «Всего» раздувается,
-        # а «Выдано» берётся из pie по всему проекту.
         if status_filtered and not detail_tbl.empty:
             total_sections = int(len(detail_tbl))
         else:
@@ -1110,21 +1246,17 @@ def build_working_documentation_payload(
                 if int(v) > 0
             }
         else:
-            try:
-                tz = mod._count_rd_pie_tz(applied_projects)
-                tz_sum = sum(int(v) for v in tz.values())
-                if tz_sum > 0:
-                    total_units = total_sections if total_sections > 0 else 1
-                    capped = dict(tz)
-                    if tz_sum > total_units > 0:
-                        sc = float(total_units) / float(tz_sum)
-                        capped = {k: max(int(round(float(v) * sc)), 0) for k, v in tz.items()}
-                    not_iss = max(total_units - sum(int(v) for v in capped.values()), 0)
-                    pie_counts = {k: int(v) for k, v in capped.items() if int(v) > 0}
-                    if not_iss > 0:
-                        pie_counts[not_issued] = not_iss
-            except Exception:
-                pie_counts = {}
+            tz_sum = sum(int(v) for v in tz_counts.values())
+            if tz_sum > 0:
+                total_units = total_sections if total_sections > 0 else 1
+                capped = dict(tz_counts)
+                if tz_sum > total_units > 0:
+                    sc = float(total_units) / float(tz_sum)
+                    capped = {k: max(int(round(float(v) * sc)), 0) for k, v in tz_counts.items()}
+                not_iss = max(total_units - sum(int(v) for v in capped.values()), 0)
+                pie_counts = {k: int(v) for k, v in capped.items() if int(v) > 0}
+                if not_iss > 0:
+                    pie_counts[not_issued] = not_iss
 
         status_mix = [
             {"name": k, "value": v, "color": _PIE_COLORS.get(k, "#7F8C8D")}
@@ -1132,11 +1264,8 @@ def build_working_documentation_payload(
             if v > 0
         ]
 
-        # Сводные KPI: «Выдано в производство» + «всего − выдано».
-        try:
-            _prod_key = getattr(mod, "_RD_TESSA_STATUS_PRODUCTION", "Выдано в производство работ")
-        except Exception:
-            _prod_key = "Выдано в производство работ"
+        keys = _tessa_status_keys(mod)
+        _prod_key = keys["production"]
         issued_production = int(pie_counts.get(_prod_key, 0) or 0)
         if issued_production <= 0 and pie_counts:
             for _k, _v in pie_counts.items():
@@ -1144,6 +1273,43 @@ def build_working_documentation_payload(
                     issued_production = int(_v)
                     break
         not_issued_kpi = max(0, int(total_sections) - int(issued_production))
+
+        # Срез «не выдано»: ГИП и доработка тоже не выданы → выдано всегда 0,
+        # всего = не выдано = число документов среза (TESSA для ГИП/доработки).
+        if status_filtered and _sel_is_not_issued_family(sel_statuses, mod):
+            n = int(total_sections)
+            if _sel_has_status(sel_statuses, keys["review"], mod) and not _sel_is_not_issued_only(
+                sel_statuses, mod
+            ):
+                tz_n = int(tz_counts.get(keys["review"], 0) or 0)
+                if tz_n > 0:
+                    n = tz_n
+            elif _sel_has_status(sel_statuses, keys["rework"], mod) and not _sel_is_not_issued_only(
+                sel_statuses, mod
+            ):
+                tz_n = int(tz_counts.get(keys["rework"], 0) or 0)
+                if tz_n > 0:
+                    n = tz_n
+            elif _sel_is_not_issued_only(sel_statuses, mod):
+                n = _not_issued_residual(plan_n_before_status, tz_counts, keys)
+            total_sections = n
+            issued_production = 0
+            not_issued_kpi = n
+            if _sel_is_not_issued_only(sel_statuses, mod):
+                pie_counts = _pie_for_not_issued_residual(n, tz_counts, keys, not_issued)
+            else:
+                pie_counts = {
+                    k: v
+                    for k, v in (pie_counts or {not_issued: n}).items()
+                    if "производств" not in str(k).casefold()
+                }
+            if not pie_counts and n > 0:
+                pie_counts = {not_issued: n}
+            status_mix = [
+                {"name": k, "value": v, "color": _PIE_COLORS.get(k, "#7F8C8D")}
+                for k, v in pie_counts.items()
+                if v > 0
+            ]
 
         # Monthly bars — накопительный стек на конец каждого месяца (как ТЗ / скрин):
         # зелёный = «Выдано в производство» к as_of;
