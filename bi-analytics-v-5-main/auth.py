@@ -41,15 +41,9 @@ REPORT_ROLES = ["manager", "analyst", "rp", "financier", "gip", "admin", "supera
 # Администраторы и суперадмины всегда видят все отчёты.
 # typing.FrozenSet не используем — на части окружений (Streamlit Cloud) импорт падает.
 _ROLE_REPORT_DENYLIST: Dict[str, frozenset] = {
-    "manager": frozenset(
-        {
-            "БДДС",
-            "БДР",
-            "Бюджет план/факт",
-            "Утвержденный бюджет",
-            "Дебиторская и кредиторская задолженность подрядчиков",
-        }
-    ),
+    # «Менеджер» видит все отчёты; ограничение роли — только на редактирование
+    # (см. _FINANCE_TABLE_EDIT_ROLES, _FTP_DATA_SYNC_ROLES, ADMIN_ROLES).
+    "manager": frozenset(),
     "analyst": frozenset(),
     "rp": frozenset(),
     "financier": frozenset(),
@@ -59,15 +53,15 @@ _ROLE_REPORT_DENYLIST: Dict[str, frozenset] = {
 # Если для отчёта задан allowlist — отчёт виден только перечисленным ролям (плюс admin/superadmin).
 _REPORT_ROLE_ALLOWLIST: Dict[str, frozenset] = {
     "Девелоперские проекты": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
-    "БДДС": frozenset({"analyst", "rp", "financier", "admin", "superadmin"}),
-    "БДР": frozenset({"analyst", "rp", "financier", "admin", "superadmin"}),
-    "Бюджет план/факт": frozenset({"analyst", "rp", "financier", "admin", "superadmin"}),
-    "Утвержденный бюджет": frozenset({"analyst", "rp", "financier", "admin", "superadmin"}),
+    "БДДС": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
+    "БДР": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
+    "Бюджет план/факт": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
+    "Утвержденный бюджет": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
     "БДДС (утверждённый/прогнозный)": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
     "Прогнозный БДДС": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
     "Прогнозный бюджет": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
-    "Дебиторская и кредиторская задолженность": frozenset({"analyst", "rp", "financier", "admin", "superadmin"}),
-    "Дебиторская и кредиторская задолженность подрядчиков": frozenset({"analyst", "rp", "financier", "admin", "superadmin"}),
+    "Дебиторская и кредиторская задолженность": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
+    "Дебиторская и кредиторская задолженность подрядчиков": frozenset({"manager", "analyst", "rp", "financier", "admin", "superadmin"}),
     "Причины отклонений": frozenset({"manager", "analyst", "rp", "gip", "financier", "admin", "superadmin"}),
     "Отклонение от базового плана": frozenset({"manager", "analyst", "rp", "gip", "financier", "admin", "superadmin"}),
     "Контрольные точки": frozenset({"manager", "analyst", "rp", "gip", "financier", "admin", "superadmin"}),
@@ -86,6 +80,13 @@ _REPORT_ROLE_ALLOWLIST: Dict[str, frozenset] = {
     "Неустраненные предписания": frozenset({"manager", "analyst", "rp", "admin", "superadmin"}),
     "Просрочка выдачи РД": frozenset({"manager", "analyst", "rp", "gip", "financier", "admin", "superadmin"}),
     "Просрочка выдачи ПД": frozenset({"manager", "analyst", "rp", "gip", "financier", "admin", "superadmin"}),
+}
+
+# Разовые доборы role_reports для уже созданных БД: {role_code: имя миграции}.
+# ensure_roles_seeded не трогает роль, у которой уже есть строки, поэтому смена
+# политики доступа в коде сама по себе до существующей users.db не доезжает.
+_ROLE_FULL_ACCESS_MIGRATIONS: Dict[str, str] = {
+    "manager": "manager_all_reports_v1",
 }
 
 # Роли с правом редактирования таблиц БДДС / «Прогнозный бюджет» (лоты, суммы, даты).
@@ -261,6 +262,30 @@ def filter_reports_for_role(role: str, report_names: List[str]) -> List[str]:
     return out
 
 
+def _apply_role_full_access_migrations(cur, nav_ids: List[str]) -> None:
+    """Разово выдать роли все экраны каталога, не перетирая ручные правки админа."""
+    if not nav_ids:
+        return
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS rbac_migrations (
+            name TEXT PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    for role_code, marker in _ROLE_FULL_ACCESS_MIGRATIONS.items():
+        cur.execute("SELECT 1 FROM rbac_migrations WHERE name = ?", (marker,))
+        if cur.fetchone() is not None:
+            continue
+        for nav_id in nav_ids:
+            cur.execute(
+                "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
+                (role_code, nav_id),
+            )
+        cur.execute("INSERT OR IGNORE INTO rbac_migrations (name) VALUES (?)", (marker,))
+
+
 def ensure_roles_seeded(nav_screens: Optional[Dict[str, Dict]] = None) -> None:
     """Создать системные роли и role_reports из ROLES + legacy allowlists."""
     if nav_screens:
@@ -349,6 +374,8 @@ def ensure_roles_seeded(nav_screens: Optional[Dict[str, Dict]] = None) -> None:
                     "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
                     (r, nav_id),
                 )
+
+    _apply_role_full_access_migrations(cur, nav_ids)
     conn.commit()
     conn.close()
 

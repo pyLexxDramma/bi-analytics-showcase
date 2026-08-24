@@ -60,9 +60,14 @@ export function AppShell({
   const pathname = usePathname();
   const mobile = useIsMobileViewport();
   const navItem = findNavItem(pathname);
-  const [accessDenied, setAccessDenied] = useState(
-    () => !!(navItem && !canAccessReport(navItem.id)),
-  );
+  // На SSR localStorage нет → canAccessReport() всегда false. Если считать доступ
+  // в initial state, сервер рисует «Нет доступа», клиент — сам отчёт: hydration
+  // mismatch и вспышка баннера на каждом экране. Считаем уже после mount.
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  useEffect(() => {
+    setAccessDenied(!!(navItem && !canAccessReport(navItem.id)));
+  }, [navItem]);
   const showLoading = useDelayedLoading(
     !accessDenied && loading,
     mobile ? 400 : 1000,

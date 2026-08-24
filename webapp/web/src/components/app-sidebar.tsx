@@ -11,6 +11,7 @@ import {
 } from "@/lib/nav";
 import {
   getAuthSession,
+  hasAdminAccess,
   isAdminRole,
   logout,
   canAccessReport,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-token";
 import { loadDataStatus } from "@/lib/data-status-store";
+import { saveLastIngestReport } from "@/lib/last-ingest-report";
 import {
   ApiError,
   downloadSnapshotExport,
@@ -322,12 +324,15 @@ export function AppSidebar({
           result.active_version_id ??
           (result.db as { active_version_id?: unknown } | undefined)
             ?.active_version_id;
+        // Страница сейчас перезагрузится — список файлов уедет в админку.
+        saveLastIngestReport({ ok: true, job_id: job.id, ...result } as AdminSyncResult);
         setSyncNote(
           viaIngest
             ? `OK · БД пересобрана · версия ${String(vid ?? "—")}`
             : `OK · файлов ${String(result.files ?? "—")} · версия ${String(vid ?? "—")}`,
         );
       } else {
+        saveLastIngestReport(r);
         setSyncNote(
           r.ok
             ? viaIngest
@@ -568,17 +573,19 @@ export function AppSidebar({
             >
               Настройки профиля
             </Link>
-            <Link
-              href="/settings/admin"
-              {...navProps}
-              className={`rounded-md border px-3 py-2.5 ${
-                isActive("/settings/admin")
-                  ? "bi-nav-active"
-                  : "border-gray-200 bg-white hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
-              }`}
-            >
-              Административная панель
-            </Link>
+            {hasAdminAccess(session) ? (
+              <Link
+                href="/settings/admin"
+                {...navProps}
+                className={`rounded-md border px-3 py-2.5 ${
+                  isActive("/settings/admin")
+                    ? "bi-nav-active"
+                    : "border-gray-200 bg-white hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                }`}
+              >
+                Административная панель
+              </Link>
+            ) : null}
           </div>
         </section>
 
