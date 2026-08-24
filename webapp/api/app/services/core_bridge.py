@@ -203,6 +203,36 @@ def prepare_web_db() -> str:
     return db_path
 
 
+def import_web_loader() -> ModuleType:
+    """`web_loader` из core с подхватом правок по mtime.
+
+    CORE лежит вне watch uvicorn --reload: без сверки mtime правки ETL (состав
+    diagnostics, причины пропуска файлов) не видны до ручного рестарта API.
+    """
+    prepare_core_env()
+    path = (CORE_APP_DIR / "web_loader.py").resolve()
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = None
+    existing = sys.modules.get("web_loader")
+    if existing is not None and getattr(existing, "__bi_web_loader_mtime__", None) == mtime:
+        return existing
+    sys.modules.pop("web_loader", None)
+    spec = importlib.util.spec_from_file_location("web_loader", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    module.__bi_web_loader_mtime__ = mtime  # type: ignore[attr-defined]
+    sys.modules["web_loader"] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop("web_loader", None)
+        raise
+    return module
+
+
 def import_dashboard_module(name: str) -> ModuleType:
     """dashboards.<name> без выполнения dashboards/__init__.py (тянет streamlit UI)."""
     ensure_streamlit_stub()

@@ -10,8 +10,15 @@ import {
   postAdminSync,
   type AdminDataStatus,
   type AdminSyncResult,
+  type IngestFileInfo,
+  type IngestResult,
 } from "@/lib/api";
 import { getAdminToken, setAdminToken } from "@/lib/admin-token";
+import {
+  readLastIngestReport,
+  saveLastIngestReport,
+  type LastIngestReport,
+} from "@/lib/last-ingest-report";
 
 function formatMtime(ts: number | null | undefined): string {
   if (ts == null || !Number.isFinite(ts)) return "—";
@@ -32,6 +39,131 @@ async function waitJob(token: string, jobId: string, onTick?: (s: string) => voi
   throw new Error("Таймаут ожидания job");
 }
 
+function FileList({
+  title,
+  tone,
+  items,
+  note,
+}: {
+  title: string;
+  tone: "emerald" | "amber" | "rose";
+  items: string[];
+  /** Счётчик ETL может быть больше списка — говорим об этом прямо. */
+  note?: string | null;
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "text-emerald-700 dark:text-emerald-300"
+      : tone === "amber"
+        ? "text-amber-700 dark:text-amber-300"
+        : "text-rose-700 dark:text-rose-300";
+  if (!items.length && !note) return null;
+  return (
+    <div className="mt-4">
+      <Text className={`font-medium ${toneClass}`}>
+        {title}: {items.length}
+      </Text>
+      {items.length ? (
+        <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-md bg-tremor-background-muted p-3 text-xs dark:bg-dark-tremor-background-muted">
+          {items.map((line, i) => (
+            <li key={`${line}-${i}`} className="break-all font-mono">
+              {line}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {note ? <Text className="mt-1 text-xs text-gray-500">{note}</Text> : null}
+    </div>
+  );
+}
+
+function describeIngestFile(f: IngestFileInfo): string {
+  const parts: string[] = [];
+  if (f.type) parts.push(f.type);
+  if (f.rows != null) parts.push(`${f.rows} строк`);
+  if (f.incremental) parts.push("без изменений");
+  return parts.length ? `${f.file} — ${parts.join(", ")}` : f.file;
+}
+
+function SyncResultCard({ result, at }: { result: AdminSyncResult; at?: number }) {
+  // /api/admin/sync кладёт ingest во вложенный объект, /api/admin/ingest — в корень.
+  const ingest: IngestResult = (result.ingest as IngestResult) ?? (result as IngestResult);
+  const downloaded = Array.isArray(result.ftp?.downloaded) ? result.ftp.downloaded : [];
+  const loadedFiles = ingest.loaded_files || [];
+  const warnings = ingest.warnings || [];
+  const errors = result.errors || ingest.errors || [];
+  const versionId = ingest.version_id ?? result.version_id ?? null;
+
+  // Счётчики ETL и детальные списки могут разойтись (файл посчитан, но без
+  // строки диагностики) — показываем остаток явно, чтобы не выглядело потерей.
+  const loadedCount = ingest.loaded ?? loadedFiles.length;
+  const skippedCount = ingest.skipped ?? 0;
+  const loadedGap = Math.max(0, loadedCount - loadedFiles.length);
+  const skippedGap = Math.max(0, skippedCount - warnings.length - errors.length);
+
+  return (
+    <Card
+      className={`rounded-xl border-l-4 ${
+        result.ok ? "border-l-emerald-500" : "border-l-rose-500"
+      }`}
+    >
+      <Title className="!text-base">
+        {at ? "Последняя загрузка" : result.ok ? "Загрузка завершена" : null}
+        {!at && !result.ok ? "Загрузка завершена с ошибками" : null}
+        {at ? ` · ${new Date(at).toLocaleString("ru-RU")}` : null}
+      </Title>
+      <Text className="mt-1">
+        Скачано с FTP: <b>{downloaded.length}</b> · загружено в БД:{" "}
+        <b>{loadedCount}</b> · пропущено: <b>{skippedCount}</b>
+        {versionId != null ? (
+          <>
+            {" "}
+            · версия <b>{versionId}</b>
+          </>
+        ) : null}
+      </Text>
+
+      <FileList title="Скачано с FTP" tone="emerald" items={downloaded} />
+      <FileList
+        title="Загружено в БД"
+        tone="emerald"
+        items={loadedFiles.map(describeIngestFile)}
+        note={
+          loadedGap
+            ? `Ещё ${loadedGap} файл(ов) учтены счётчиком, но пришли без детализации.`
+            : null
+        }
+      />
+      <FileList
+        title="Пропущено / предупреждения"
+        tone="amber"
+        items={warnings}
+        note={
+          skippedGap
+            ? `Ещё ${skippedGap} файл(ов) пропущены без пояснения.`
+            : null
+        }
+      />
+      <FileList title="Ошибки" tone="rose" items={errors} />
+
+      {!downloaded.length && !loadedFiles.length ? (
+        <Text className="mt-4 text-xs text-gray-500">
+          Список файлов не вернулся — подробности в полном ответе ниже.
+        </Text>
+      ) : null}
+
+      <details className="mt-4">
+        <summary className="cursor-pointer text-xs text-gray-500">
+          Полный ответ API
+        </summary>
+        <pre className="mt-2 max-h-96 overflow-auto rounded-md bg-tremor-background-muted p-3 text-xs dark:bg-dark-tremor-background-muted">
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      </details>
+    </Card>
+  );
+}
+
 export function AdminDataSyncSection() {
   const [status, setStatus] = useState<AdminDataStatus | null>(null);
   const [health, setHealth] = useState<{
@@ -47,7 +179,13 @@ export function AdminDataSyncSection() {
   const [ingesting, setIngesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<AdminSyncResult | null>(null);
+  const [lastReport, setLastReport] = useState<LastIngestReport | null>(null);
   const [jobHint, setJobHint] = useState<string | null>(null);
+
+  const publishResult = useCallback((result: AdminSyncResult) => {
+    setSyncResult(result);
+    saveLastIngestReport(result);
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -69,6 +207,7 @@ export function AdminDataSyncSection() {
 
   useEffect(() => {
     setToken(getAdminToken());
+    setLastReport(readLastIngestReport());
     void refresh();
   }, [refresh]);
 
@@ -103,14 +242,14 @@ export function AdminDataSyncSection() {
         const job = await waitJob(token.trim(), result.job_id, (s) =>
           setJobHint(`job ${result.job_id}: ${s}`),
         );
-        setSyncResult({
+        publishResult({
           ok: job.status === "ok",
           job_id: job.id,
           ...(typeof job.result === "object" && job.result ? (job.result as object) : {}),
           error: job.error,
         } as AdminSyncResult);
       } else {
-        setSyncResult(result);
+        publishResult(result);
       }
       await refresh();
     } catch (e) {
@@ -144,14 +283,14 @@ export function AdminDataSyncSection() {
         const job = await waitJob(token.trim(), result.job_id, (s) =>
           setJobHint(`job ${result.job_id}: ${s}`),
         );
-        setSyncResult({
+        publishResult({
           ok: job.status === "ok",
           job_id: job.id,
           ...(typeof job.result === "object" && job.result ? (job.result as object) : {}),
           error: job.error,
         } as AdminSyncResult);
       } else {
-        setSyncResult(result);
+        publishResult(result);
       }
       await refresh();
     } catch (e) {
@@ -275,11 +414,9 @@ export function AdminDataSyncSection() {
       ) : null}
 
       {syncResult ? (
-        <Card className="rounded-xl border-l-4 border-l-emerald-500">
-          <pre className="overflow-x-auto rounded-md bg-tremor-background-muted p-3 text-xs dark:bg-dark-tremor-background-muted">
-            {JSON.stringify(syncResult, null, 2)}
-          </pre>
-        </Card>
+        <SyncResultCard result={syncResult} />
+      ) : lastReport ? (
+        <SyncResultCard result={lastReport.result} at={lastReport.at} />
       ) : null}
     </div>
   );

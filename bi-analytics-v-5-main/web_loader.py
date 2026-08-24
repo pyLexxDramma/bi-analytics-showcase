@@ -2312,6 +2312,9 @@ def load_all_from_web(progress=None) -> Dict:
                 # ── Пропускаем ненужные файлы ──────────────────────────────
                 if file_type_by_name == "skip":
                     result["skipped"] += 1
+                    result["warnings"].append(
+                        _format_skip_reason(rel_path, "тип файла не используется дашбордом")
+                    )
                     continue
 
                 # ── JSON файлы из 1С ─────────────────────────────────────────
@@ -2392,6 +2395,9 @@ def load_all_from_web(progress=None) -> Dict:
                         })
                     else:
                         result["skipped"] += 1
+                        result["warnings"].append(
+                            _format_skip_reason(rel_path, "справочник 1С пуст или не распознан")
+                        )
                     continue
 
                 if file_type_by_name == "budget_json":
@@ -2428,6 +2434,9 @@ def load_all_from_web(progress=None) -> Dict:
                         })
                     else:
                         result["skipped"] += 1
+                        result["warnings"].append(
+                            _format_skip_reason(rel_path, "1С «данные» пусты или не распознаны")
+                        )
                     continue
 
                 # ── TESSA файлы ──────────────────────────────────────────────
@@ -2452,6 +2461,9 @@ def load_all_from_web(progress=None) -> Dict:
                         })
                     else:
                         result["skipped"] += 1
+                        result["warnings"].append(
+                            _format_skip_reason(rel_path, "TESSA (задачи) пуст или не распознан")
+                        )
                     continue
 
                 if file_type_by_name == "tessa":
@@ -2474,6 +2486,9 @@ def load_all_from_web(progress=None) -> Dict:
                         })
                     else:
                         result["skipped"] += 1
+                        result["warnings"].append(
+                            _format_skip_reason(rel_path, "TESSA пуст или не распознан")
+                        )
                     continue
 
                 # ── Справочники CSV (KrStates, DocStates) ────────────────────
@@ -2489,8 +2504,17 @@ def load_all_from_web(progress=None) -> Dict:
                             ref_key = "docstates"
                         st.session_state[f"reference_{ref_key}"] = ref_df
                         result["loaded"] += 1
+                        result["diagnostics"].append({
+                            "file": rel_path,
+                            "type": f"reference_{ref_key}",
+                            "rows": int(len(ref_df)),
+                            "columns": [str(c) for c in ref_df.columns[:25]],
+                        })
                     else:
                         result["skipped"] += 1
+                        result["warnings"].append(
+                            _format_skip_reason(rel_path, "справочник CSV пуст или не прочитан")
+                        )
                     continue
 
                 # ── RD/PD plan файлы (other_*_rd.csv | other_*_pd.csv) ──────
@@ -2554,6 +2578,9 @@ def load_all_from_web(progress=None) -> Dict:
                         })
                     else:
                         result["skipped"] += 1
+                        result["warnings"].append(
+                            _format_skip_reason(rel_path, f"{_doc_kind} пуст или не распознан")
+                        )
                     continue
 
                 # ── Загружаем через data_loader ─────────────────────────────
@@ -2590,6 +2617,9 @@ def load_all_from_web(progress=None) -> Dict:
                 # Пропускаем skip-файлы (могли определиться только по колонкам)
                 if file_type == "skip":
                     result["skipped"] += 1
+                    result["warnings"].append(
+                        _format_skip_reason(rel_path, "тип файла не используется дашбордом")
+                    )
                     continue
 
                 if file_type == "unknown":
