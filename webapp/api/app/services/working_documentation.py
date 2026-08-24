@@ -53,6 +53,56 @@ _PIE_COLORS = {
 _RENDERERS_MOD = "dashboards._renderers_rd"
 
 
+def _parse_detail_date(mod: ModuleType, series: pd.Series) -> pd.Series:
+    parse = getattr(mod, "_rd_parse_chart_date_cell", None)
+    if callable(parse):
+        return series.map(parse)
+    return pd.to_datetime(series, errors="coerce", dayfirst=True)
+
+
+def _plan_slice_from_detail(detail_tbl: pd.DataFrame, mod: ModuleType) -> pd.DataFrame:
+    """План/факт только по отфильтрованным строкам детализации — без рыхлого джойна."""
+    if detail_tbl is None or getattr(detail_tbl, "empty", True):
+        return pd.DataFrame(columns=["_plan_dt", "_tessa_production_dt"])
+    plan_col = "Дата выдачи разделов по Договору"
+    prod_col = "Дата выдачи в производство работ"
+    out = pd.DataFrame(index=detail_tbl.index)
+    if plan_col in detail_tbl.columns:
+        out["_plan_dt"] = _parse_detail_date(mod, detail_tbl[plan_col])
+    else:
+        out["_plan_dt"] = pd.NaT
+    if prod_col in detail_tbl.columns:
+        prod_dt = _parse_detail_date(mod, detail_tbl[prod_col])
+    else:
+        prod_dt = pd.Series(pd.NaT, index=detail_tbl.index)
+    canon = getattr(mod, "_rd_canonical_tessa_rd_status", None)
+    prod_key = getattr(mod, "_RD_TESSA_STATUS_PRODUCTION", "Выдано в производство работ")
+    if "Статус" in detail_tbl.columns and callable(canon):
+        issued = detail_tbl["Статус"].map(lambda x: canon(x) == prod_key).fillna(False)
+        prod_dt = prod_dt.where(issued, pd.NaT)
+    out["_tessa_production_dt"] = prod_dt
+    return out
+
+
+def _status_counts_from_detail(detail_tbl: pd.DataFrame, mod: ModuleType) -> dict[str, int]:
+    """Счётчики статусов по уже отфильтрованной детальной таблице (TESSA)."""
+    if detail_tbl is None or getattr(detail_tbl, "empty", True):
+        return {}
+    if "Статус" not in detail_tbl.columns:
+        return {}
+    canon = getattr(mod, "_rd_canonical_tessa_rd_status", None)
+    counts: dict[str, int] = {}
+    for raw in detail_tbl["Статус"].tolist():
+        label = canon(raw) if callable(canon) else None
+        if not label:
+            s = str(raw or "").strip()
+            if not s or s.casefold() in _BLANK:
+                continue
+            label = s
+        counts[label] = counts.get(label, 0) + 1
+    return counts
+
+
 def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
     return {
         "meta": {
@@ -664,6 +714,8 @@ def _exec_kpis(
     dynamics: list[dict[str, Any]],
     selected_projects: list[str] | None,
     total_sections: int,
+    *,
+    status_filtered: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     today = date.today()
     pt = float(total_sections)
@@ -675,10 +727,12 @@ def _exec_kpis(
             if d <= today:
                 pd_fb = float(row["plan"])
                 fd_fb = float(row["fact"])
-    try:
-        rd_summ = mod._compute_rd_exec_summary_from_csv_tessa(selected_projects)
-    except Exception:
-        rd_summ = None
+    rd_summ = None
+    if not status_filtered:
+        try:
+            rd_summ = mod._compute_rd_exec_summary_from_csv_tessa(selected_projects)
+        except Exception:
+            rd_summ = None
     try:
         pd_fb, fd_fb, _dev_plan_minus_fact = mod._rd_kpi_plan_fact_deviation_today(
             today=today,
@@ -689,16 +743,17 @@ def _exec_kpis(
         )
     except Exception:
         pass
-    try:
-        tz = mod._count_rd_pie_tz(selected_projects)
-        fd_tessa = float(
-            int(tz.get(mod._RD_TESSA_STATUS_PRODUCTION, 0))
-            + int(tz.get(mod._RD_TESSA_STATUS_REVIEW, 0))
-        )
-        if fd_tessa > 0:
-            fd_fb = fd_tessa
-    except Exception:
-        pass
+    if not status_filtered:
+        try:
+            tz = mod._count_rd_pie_tz(selected_projects)
+            fd_tessa = float(
+                int(tz.get(mod._RD_TESSA_STATUS_PRODUCTION, 0))
+                + int(tz.get(mod._RD_TESSA_STATUS_REVIEW, 0))
+            )
+            if fd_tessa > 0:
+                fd_fb = fd_tessa
+        except Exception:
+            pass
 
     # Как у пользователя и на ПД: факт − план; отставание — отрицательное.
     dev_fb = float(fd_fb - pd_fb)
@@ -854,7 +909,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v20-rd-monthly-overdue-ui",
+            "v22-rd-status-exec-kpi",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1031,7 +1086,16 @@ def build_working_documentation_payload(
                 pc.get("full_cipher"),
             )
 
-        total_sections = int(len(plan_df))
+        status_filtered = bool(
+            sel_statuses and status_opts and set(sel_statuses) != set(status_opts)
+        )
+        # При фильтре статуса вселенная — отфильтрованная TESSA-таблица (как в
+        # детализации), а не plan_df после рыхлого джойна: иначе «Всего» раздувается,
+        # а «Выдано» берётся из pie по всему проекту.
+        if status_filtered and not detail_tbl.empty:
+            total_sections = int(len(detail_tbl))
+        else:
+            total_sections = int(len(plan_df))
         if not detail_tbl.empty:
             overdue, avg_delay = mod._rd_delay_section_overdue_kpis(detail_tbl)
         else:
@@ -1039,21 +1103,28 @@ def build_working_documentation_payload(
 
         # Pie
         pie_counts: dict[str, int] = {}
-        try:
-            tz = mod._count_rd_pie_tz(applied_projects)
-            tz_sum = sum(int(v) for v in tz.values())
-            if tz_sum > 0:
-                total_units = total_sections if total_sections > 0 else 1
-                capped = dict(tz)
-                if tz_sum > total_units > 0:
-                    sc = float(total_units) / float(tz_sum)
-                    capped = {k: max(int(round(float(v) * sc)), 0) for k, v in tz.items()}
-                not_iss = max(total_units - sum(int(v) for v in capped.values()), 0)
-                pie_counts = {k: int(v) for k, v in capped.items() if int(v) > 0}
-                if not_iss > 0:
-                    pie_counts[not_issued] = not_iss
-        except Exception:
-            pie_counts = {}
+        if status_filtered and not detail_tbl.empty:
+            pie_counts = {
+                k: int(v)
+                for k, v in _status_counts_from_detail(detail_tbl, mod).items()
+                if int(v) > 0
+            }
+        else:
+            try:
+                tz = mod._count_rd_pie_tz(applied_projects)
+                tz_sum = sum(int(v) for v in tz.values())
+                if tz_sum > 0:
+                    total_units = total_sections if total_sections > 0 else 1
+                    capped = dict(tz)
+                    if tz_sum > total_units > 0:
+                        sc = float(total_units) / float(tz_sum)
+                        capped = {k: max(int(round(float(v) * sc)), 0) for k, v in tz.items()}
+                    not_iss = max(total_units - sum(int(v) for v in capped.values()), 0)
+                    pie_counts = {k: int(v) for k, v in capped.items() if int(v) > 0}
+                    if not_iss > 0:
+                        pie_counts[not_issued] = not_iss
+            except Exception:
+                pie_counts = {}
 
         status_mix = [
             {"name": k, "value": v, "color": _PIE_COLORS.get(k, "#7F8C8D")}
@@ -1061,8 +1132,7 @@ def build_working_documentation_payload(
             if v > 0
         ]
 
-        # Сводные KPI: «Выдано в производство» + «всего − выдано» (как на скрине заказчика).
-        # «Всего разделов» не трогаем — тот же total_sections = len(plan_df).
+        # Сводные KPI: «Выдано в производство» + «всего − выдано».
         try:
             _prod_key = getattr(mod, "_RD_TESSA_STATUS_PRODUCTION", "Выдано в производство работ")
         except Exception:
@@ -1218,13 +1288,23 @@ def build_working_documentation_payload(
         else:
             monthly_exc = None
 
-        dynamics = _build_dynamics(plan_df, mod)
+        dyn_src = (
+            _plan_slice_from_detail(detail_tbl, mod)
+            if status_filtered and not detail_tbl.empty
+            else plan_df
+        )
+        dynamics = _build_dynamics(dyn_src, mod)
         exec_kpis, dynamics = _exec_kpis(
-            mod, plan_df, dynamics, applied_projects, total_sections
+            mod,
+            dyn_src,
+            dynamics,
+            applied_projects,
+            total_sections,
+            status_filtered=status_filtered,
         )
         if show_fc:
             dynamics = _attach_forecast_from_fact(
-                dynamics, plan_df, today=date.today()
+                dynamics, dyn_src, today=date.today()
             )
         else:
             dynamics = [{**r, "forecast": None} for r in dynamics]
