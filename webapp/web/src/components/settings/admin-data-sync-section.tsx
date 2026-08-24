@@ -14,6 +14,7 @@ import {
   type IngestResult,
 } from "@/lib/api";
 import { getAdminToken, setAdminToken } from "@/lib/admin-token";
+import { hasAdminAccess } from "@/lib/auth";
 import {
   readLastIngestReport,
   saveLastIngestReport,
@@ -181,6 +182,9 @@ export function AdminDataSyncSection() {
   const [syncResult, setSyncResult] = useState<AdminSyncResult | null>(null);
   const [lastReport, setLastReport] = useState<LastIngestReport | null>(null);
   const [jobHint, setJobHint] = useState<string | null>(null);
+  // /api/admin/* пускает и по сессии (_check_ops_access), токен — только для
+  // машинного доступа. Считаем после монтирования: localStorage нет при SSR.
+  const [sessionOps, setSessionOps] = useState(false);
 
   const publishResult = useCallback((result: AdminSyncResult) => {
     setSyncResult(result);
@@ -208,8 +212,11 @@ export function AdminDataSyncSection() {
   useEffect(() => {
     setToken(getAdminToken());
     setLastReport(readLastIngestReport());
+    setSessionOps(hasAdminAccess());
     void refresh();
   }, [refresh]);
+
+  const opsDisabled = syncing || ingesting || (!token.trim() && !sessionOps);
 
   const onSync = async () => {
     const fileHint =
@@ -371,7 +378,7 @@ export function AdminDataSyncSection() {
 
       <Card className="rounded-xl">
         <label className="block text-sm">
-          <Text>Admin token</Text>
+          <Text>Admin token {sessionOps ? "(не нужен под вашей сессией)" : ""}</Text>
           <input
             type="password"
             className="mt-1 w-full max-w-md rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
@@ -380,6 +387,11 @@ export function AdminDataSyncSection() {
             autoComplete="off"
           />
         </label>
+        <Text className="mt-1 text-xs text-gray-500">
+          {sessionOps
+            ? "Вы вошли администратором — кнопки работают по сессии. Токен нужен только для машинного доступа."
+            : "Без сессии администратора укажите WEBAPP_ADMIN_TOKEN сервера."}
+        </Text>
         <label className="mt-3 flex items-center gap-2 text-sm">
           <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
           <Text>Force FTP</Text>
@@ -389,7 +401,7 @@ export function AdminDataSyncSection() {
             type="button"
             className="rounded-tremor-default bg-emerald-600 px-4 py-2 font-medium text-white disabled:opacity-60"
             onClick={() => void onSync()}
-            disabled={syncing || ingesting || !token.trim()}
+            disabled={opsDisabled}
           >
             {syncing ? "FTP+БД…" : "FTP → web → БД"}
           </button>
@@ -397,7 +409,7 @@ export function AdminDataSyncSection() {
             type="button"
             className="rounded-tremor-default border border-tremor-border px-4 py-2 font-medium disabled:opacity-60 dark:border-dark-tremor-border"
             onClick={() => void onIngest()}
-            disabled={syncing || ingesting || !token.trim()}
+            disabled={opsDisabled}
           >
             {ingesting ? "Ingest…" : "Только web → БД"}
           </button>
