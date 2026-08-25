@@ -83,22 +83,22 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
 
   if (variant === "chip") {
     return (
-      <div className="inline-flex max-w-full flex-col items-start gap-0.5 lg:hidden">
+      <div className="inline-flex max-w-full flex-col items-end gap-0.5 lg:hidden">
         <button
           type="button"
           onClick={() => void run()}
           disabled={busy}
           title="Спросить ИИ по этому дашборду"
           aria-label="Спросить ИИ по этому дашборду"
-          className="ask-ai-btn inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-bold transition disabled:cursor-wait"
+          className="ask-ai-btn inline-flex h-10 shrink-0 items-center gap-1.5 rounded-tremor-default px-3 text-sm font-bold transition disabled:cursor-wait"
         >
-          <span aria-hidden className="text-[11px] leading-none">
+          <span aria-hidden className="text-sm leading-none">
             ✦
           </span>
-          <span>{busy ? "…" : "ИИ"}</span>
+          <span>{busy ? "…" : "Спросить ИИ"}</span>
         </button>
         {error ? (
-          <p className="max-w-[10rem] text-[10px] leading-tight text-red-600 dark:text-red-400">
+          <p className="max-w-[10rem] text-right text-[10px] leading-tight text-red-600 dark:text-red-400">
             {error}
           </p>
         ) : null}
@@ -134,7 +134,7 @@ export function AskAiButton() {
   return <AskAiControl variant="desktop" />;
 }
 
-/** Mobile: chip рядом с заголовком вкладки (опционально; основной вход — tab bar). */
+/** Mobile: переливающаяся кнопка в правом верхнем углу шапки (как desktop). */
 export function AskAiTitleChip() {
   return <AskAiControl variant="chip" />;
 }

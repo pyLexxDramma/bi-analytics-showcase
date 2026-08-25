@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { AskAiButton } from "@/components/ask-ai-button";
+import { AskAiButton, AskAiTitleChip } from "@/components/ask-ai-button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
@@ -219,6 +219,8 @@ export function AppShell({
               <DataFreshnessBadge />
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {/* Mobile: переливающаяся кнопка Ask AI по текущему дашборду */}
+              <AskAiTitleChip />
               <div className="hidden items-center gap-2 lg:flex">
                 <AskAiButton />
                 <button
