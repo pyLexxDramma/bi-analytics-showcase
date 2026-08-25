@@ -222,20 +222,51 @@ def _sel_is_not_issued_family(sel: list[str], mod: ModuleType) -> bool:
     return all(any(_sel_has_status([s], lab, mod) for lab in family) for s in sel)
 
 
+def _sel_covers_full_plan(sel: list[str], mod: ModuleType) -> bool:
+    """«Не выдано» (весь остаток) + «Выдано» = все разделы плана, как без фильтра статуса."""
+    if not sel:
+        return False
+    keys = _tessa_status_keys(mod)
+    return _sel_has_status(sel, keys["not_issued"], mod) and _sel_has_status(
+        sel, keys["production"], mod
+    )
+
+
+def _row_is_not_issued_residual(mod: ModuleType, raw_status: object, prod_key: str) -> bool:
+    """Остаток «Не выдано»: всё, кроме «Выдано в производство» (ГИП/доработка/пусто)."""
+    label = _canon_rd_status(mod, raw_status)
+    if not label:
+        return True
+    return label != prod_key
+
+
 def _detail_status_mask(detail_tbl: pd.DataFrame, sel: list[str], mod: ModuleType) -> pd.Series:
     """Маска строк детализации под фильтр статуса.
 
-    «Не выдано» = всё, что не выдано в производство: сам статус, рассмотрение
-    у ГИП, возврат на доработку и пустой статус.
+    «Не выдано» = весь остаток (не ушло в производство): сам статус, ГИП,
+    доработка и пустой статус — и при одиночном, и при мультивыборе.
+    Несколько статусов — объединение (OR), без сужения «Не выдано» до словаря.
     """
     if detail_tbl.empty or "Статус" not in detail_tbl.columns:
         return pd.Series(False, index=detail_tbl.index)
     keys = _tessa_status_keys(mod)
     raw = detail_tbl["Статус"]
+    prod_key = keys["production"]
     if _sel_is_not_issued_only(sel, mod):
-        return raw.map(lambda x: _canon_rd_status(mod, x) != keys["production"]).fillna(True)
-    expanded = mod._rd_status_filter_expand(sel)
-    return raw.map(lambda x: mod._rd_status_label_matches_filter(x, expanded)).fillna(False)
+        return raw.map(lambda x: _row_is_not_issued_residual(mod, x, prod_key)).fillna(True)
+
+    mask = pd.Series(False, index=detail_tbl.index)
+    for s in sel:
+        if _sel_has_status([s], keys["not_issued"], mod):
+            mask = mask | raw.map(
+                lambda x: _row_is_not_issued_residual(mod, x, prod_key)
+            ).fillna(True)
+        else:
+            expanded = mod._rd_status_filter_expand([s])
+            mask = mask | raw.map(
+                lambda x: mod._rd_status_label_matches_filter(x, expanded)
+            ).fillna(False)
+    return mask
 
 
 def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
@@ -1036,7 +1067,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v29-rd-pie-eq-total",
+            "v30-rd-not-issued-or-prod",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1213,11 +1244,14 @@ def build_working_documentation_payload(
             fitted_all = _fit_pie_to_total(
                 tz_counts, int(plan_n_before_status), keys, not_issued
             )
+            # Выравнивание длины только для одиночного статуса: мультивыбор —
+            # объединение срезов (OR), truncate ломал «Не выдано»+«Выдано» → 64/0.
+            _single_status = len([s for s in sel_statuses if str(s).strip()]) == 1
             if _sel_is_not_issued_only(sel_statuses, mod):
                 slice_n = _not_issued_residual(plan_n_before_status, tz_counts, keys)
-            elif _sel_has_status(sel_statuses, keys["review"], mod):
+            elif _single_status and _sel_has_status(sel_statuses, keys["review"], mod):
                 slice_n = int(fitted_all.get(keys["review"], 0) or 0)
-            elif _sel_has_status(sel_statuses, keys["rework"], mod):
+            elif _single_status and _sel_has_status(sel_statuses, keys["rework"], mod):
                 slice_n = int(fitted_all.get(keys["rework"], 0) or 0)
             else:
                 slice_n = 0
@@ -1334,6 +1368,14 @@ def build_working_documentation_payload(
                 }
             if not pie_counts and n > 0:
                 pie_counts = {not_issued: n}
+        elif status_filtered and _sel_covers_full_plan(sel_statuses, mod):
+            # Мультивыбор «Не выдано»+«Выдано» = тот же срез, что без статуса.
+            total_sections = int(plan_n_before_status)
+            pie_counts = _fit_pie_to_total(
+                tz_counts, int(total_sections), keys, not_issued
+            )
+            issued_production = int(pie_counts.get(_prod_key, 0) or 0)
+            not_issued_kpi = max(0, int(total_sections) - int(issued_production))
 
         pie_counts = _fit_pie_to_total(
             {**pie_counts, keys["production"]: int(issued_production)},
