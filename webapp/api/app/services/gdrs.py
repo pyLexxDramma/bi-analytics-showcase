@@ -360,12 +360,10 @@ def build_gdrs_payload(
     if dyn_lbl not in _DYN_OPTS:
         dyn_lbl = "День"
 
-    # Контрагенты: fact ∪ plan без полного gdrs_contractor_filter_options (тяжёлый).
+    # Контрагенты: fact ∪ plan (без ∩ Kontr — иначе пропадают #Н/Д из resursi).
     contractor_options: list[str] = []
     if "contractor_name" in long_fact.columns:
         _fact_ctr = long_fact
-        if kontr_index is not None:
-            _fact_ctr = g.gdrs_filter_fact_kontr_intersection(_fact_ctr, kontr_index)
         contractor_options = sorted(
             {
                 str(x).strip()

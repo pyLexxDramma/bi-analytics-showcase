@@ -4478,7 +4478,9 @@ def build_main_table(
     fact = _gdrs_add_pair_keys(fact, kontr_index, dedupe_fact=True)
     # После Kontr: каноническое имя может появиться только здесь — стоп-лист по contractor_name.
     fact = gdrs_drop_excluded_contractors(fact)
-    fact = gdrs_filter_fact_kontr_intersection(fact, kontr_index)
+    # СКУД как в resursi Excel: все строки файла (в т.ч. #Н/Д без UUID), без ∩ Kontr.
+    # Иначе Ленинский «Среднее за месяц» = 184 вместо 186 (теряются РЭГ / Курскрегионпроект).
+    # План по-прежнему через Dogovor ∩ Kontr ниже.
     _skud_as_of = gdrs_skud_as_of(date_to, fact)
     if fact is not None and not fact.empty and "date" in fact.columns:
         fact = fact.copy()
@@ -4493,9 +4495,8 @@ def build_main_table(
     plan_col = "plan_workers" if vid.casefold() == "рабочие" else "plan_equipment"
     by_id, by_id_name, by_norm = _build_plan_lookup(plan_work, plan_col)
 
-    # Строки отчёта: (факт СКУД ∩ 1C_Kontr) ∪ (план Dogovor ∩ 1C_Kontr).
+    # Строки: факт СКУД из resursi (как Excel) ∪ план Dogovor ∩ 1C_Kontr.
     # Plan-only (есть договор, нет СКУД) оставляем — иначе пропадает «Ориентир».
-    # Факт без Kontr (Курскрегионпроект, Марафон, НГС эксперт) уже отсечён выше.
 
     _plan_snap = pd.Timestamp(plan_as_of).normalize() if plan_as_of is not None and pd.notna(plan_as_of) else (
         pd.Timestamp(date_to).normalize() if date_to is not None and pd.notna(date_to) else None
@@ -4870,10 +4871,23 @@ def build_main_table(
         return pd.DataFrame()
 
     out_blocks: list[pd.DataFrame] = []
+    # «Среднее за месяц» = среднее недельных сумм проекта (как сумма ячеек в resursi),
+    # не сумма округлённых СКУД по контрагентам (там теряется 1–2 чел. на округлении).
+    _skud_from_week_means = bool(
+        _show_week_cols and _week_nums and gdrs_agg_week_num(skud_agg) is None
+    )
     for proj, chunk in rows.groupby("project_name", sort=True):
         block = chunk.sort_values("contractor_name").copy()
         plan_sum = float(block["plan"].sum())
-        skud_sum = float(block["skud"].sum())
+        if _skud_from_week_means:
+            skud_sum = float(
+                round(
+                    sum(float(block[f"w{wn}"].sum()) for wn in _week_nums)
+                    / max(1, len(_week_nums))
+                )
+            )
+        else:
+            skud_sum = float(block["skud"].sum())
         dev_sum = skud_sum - plan_sum
         sub = pd.DataFrame(
             [{
@@ -4910,7 +4924,15 @@ def build_main_table(
     body = pd.concat(out_blocks, ignore_index=True)
     sub_only = body[body["row_kind"] == "subtotal"]
     plan_total = float(sub_only["plan"].sum())
-    skud_total_v = float(sub_only["skud"].sum())
+    if _skud_from_week_means:
+        skud_total_v = float(
+            round(
+                sum(float(sub_only[f"w{wn}"].sum()) for wn in _week_nums)
+                / max(1, len(_week_nums))
+            )
+        )
+    else:
+        skud_total_v = float(sub_only["skud"].sum())
     dev_total = skud_total_v - plan_total
     grand = pd.DataFrame(
         [{
