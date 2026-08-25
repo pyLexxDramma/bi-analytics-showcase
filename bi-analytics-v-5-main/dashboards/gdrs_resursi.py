@@ -1785,8 +1785,18 @@ def load_plan_from_dogovor(
         dt = df["date_termination"]
         # Истёкшие: date_end раньше первого дня месяца снапшота. Договор, который
         # заканчивается в августе (напр. 13-СКА/26, 19.08), даёт план на весь август.
+        # Исключение: в JSON есть точки Количество_* с датой внутри месяца снапшота
+        # (23-СКА/26: окончание в июне, выдачи 15+15 в июле) — date_end не отсекает.
         month_lo = pd.Timestamp(snap.year, snap.month, 1)
         expired = de.notna() & (de > sentinel) & (de.dt.normalize() < month_lo)
+        hist_keeps = [
+            (
+                _history_sum_in_range(hist_w[i], month_lo, snap) > 0
+                or _history_sum_in_range(hist_e[i], month_lo, snap) > 0
+            )
+            for i in range(len(df))
+        ]
+        expired = expired & ~pd.Series(hist_keeps, index=df.index, dtype=bool)
         not_started = ds.notna() & (ds > sentinel) & (ds.dt.normalize() > snap)
         terminated = dt.notna() & (dt > sentinel) & (dt.dt.normalize() <= snap)
         drop = expired | not_started | terminated
@@ -4808,32 +4818,49 @@ def build_main_table(
         _w_cols = [f"w{wn}" for wn in _week_nums]
         rows["plan"] = rows[_p_cols].mean(axis=1).round(0)
         rows["skud"] = rows[_w_cols].mean(axis=1).round(0)
-        if (
-            dogovor_records
-            and date_from is not None
-            and date_to is not None
-            and _gdrs_single_calendar_month(date_from, date_to)
-        ):
-            _hist_df = gdrs_plan_history_period_frame(
-                dogovor_records=dogovor_records,
-                date_from=pd.Timestamp(date_from),
-                date_to=pd.Timestamp(date_to),
+    # План «Среднее за месяц» в одном календарном месяце: сумма выдач Количество_*
+    # с датой в месяце (СК МДС 15+15+15+15+6=66). Не зависит от колонок недель /
+    # выбранной недели СКУД — иначе остаётся срез date_end (СК МДС → 21).
+    if (
+        dogovor_records
+        and date_from is not None
+        and date_to is not None
+        and _gdrs_single_calendar_month(date_from, date_to)
+        and gdrs_agg_week_num(plan_agg) is None
+    ):
+        _hist_df = gdrs_plan_history_period_frame(
+            dogovor_records=dogovor_records,
+            date_from=pd.Timestamp(date_from),
+            date_to=pd.Timestamp(date_to),
+        )
+        if _hist_df is not None and not _hist_df.empty:
+            _hlu = _build_plan_lookup(_hist_df, plan_col)
+            _hsum = rows.apply(
+                lambda r, _lookup=_hlu: _lookup_plan(
+                    str(r.get("project_id", "")),
+                    str(r.get("contractor_id", "")),
+                    str(r.get("project_name", "")),
+                    str(r.get("contractor_name", "")),
+                    _lookup[0],
+                    _lookup[1],
+                    _lookup[2],
+                ),
+                axis=1,
+            ).astype(float)
+            rows["plan"] = np.where(_hsum > 0, _hsum, rows["plan"]).round(0)
+            rows["deviation"] = (rows["skud"] - rows["plan"]).round(0)
+            rows["delta_pct"] = rows.apply(
+                lambda r: ((r["skud"] - r["plan"]) / r["plan"] * 100.0)
+                if r["plan"] not in (0.0, None) and float(r["plan"]) != 0.0
+                else np.nan,
+                axis=1,
             )
-            if _hist_df is not None and not _hist_df.empty:
-                _hlu = _build_plan_lookup(_hist_df, plan_col)
-                _hsum = rows.apply(
-                    lambda r, _lookup=_hlu: _lookup_plan(
-                        str(r.get("project_id", "")),
-                        str(r.get("contractor_id", "")),
-                        str(r.get("project_name", "")),
-                        str(r.get("contractor_name", "")),
-                        _lookup[0],
-                        _lookup[1],
-                        _lookup[2],
-                    ),
-                    axis=1,
-                ).astype(float)
-                rows["plan"] = np.where(_hsum > 0, _hsum, rows["plan"]).round(0)
+    elif (
+        _show_week_cols
+        and _week_nums
+        and gdrs_agg_week_num(plan_agg) is None
+        and gdrs_agg_week_num(skud_agg) is None
+    ):
         rows["deviation"] = (rows["skud"] - rows["plan"]).round(0)
         rows["delta_pct"] = rows.apply(
             lambda r: ((r["skud"] - r["plan"]) / r["plan"] * 100.0)
