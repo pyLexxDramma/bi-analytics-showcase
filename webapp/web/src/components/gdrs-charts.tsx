@@ -302,12 +302,20 @@ export function GdrsContractorsPieChart({
     const txtIn = compact ? baseTxt : Math.round(baseTxt * 1.5);
     const txtOut = compact ? baseTxt - 1 : Math.round((baseTxt - 1) * 1.5);
     const height = compact
-      ? 300
+      ? 340
       : fullscreen
-        ? Math.max(720, Math.min(window.innerHeight - 32, 980))
+        ? Math.max(760, Math.min(window.innerHeight - 32, 980))
         : hasOutside
-          ? 820
+          ? 880
           : 780;
+    // Вынесенные подписи мелких долей не должны обрезаться краем карточки.
+    const pieMargin = compact
+      ? hasOutside
+        ? { l: 36, r: 36, t: 48, b: 48 }
+        : { l: 8, r: 8, t: 8, b: 8 }
+      : hasOutside
+        ? { l: 56, r: 56, t: 72, b: 64 }
+        : { l: 8, r: 8, t: 24, b: 24 };
     return {
       data: [
         {
@@ -322,7 +330,10 @@ export function GdrsContractorsPieChart({
           textinfo: "text" as const,
           textposition: positions,
           insidetextorientation: "horizontal" as const,
-          automargin: false,
+          automargin: hasOutside,
+          ...(hasOutside && !compact
+            ? { domain: { x: [0.08, 0.92], y: [0.1, 0.9] } }
+            : {}),
           marker: {
             colors: [...PIE_COLORS],
             line: { color: theme.dark ? "rgba(15,23,42,0.9)" : "#ffffff", width: 1 },
@@ -335,9 +346,7 @@ export function GdrsContractorsPieChart({
       ],
       layout: {
         height,
-        margin: compact
-          ? { l: 8, r: 8, t: 8, b: 8 }
-          : { l: 8, r: 8, t: 24, b: 24 },
+        margin: pieMargin,
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
