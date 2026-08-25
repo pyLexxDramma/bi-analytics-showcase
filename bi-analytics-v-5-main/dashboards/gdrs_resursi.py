@@ -3246,8 +3246,8 @@ def gdrs_dynamics_build_series(
             return load_plan_aggregate(dogovor_paths, sprav_paths, snapshot_date=snap)
     dyn_from = pd.Timestamp(date_from).normalize()
     dyn_to = pd.Timestamp(date_to).normalize()
-    f2 = gdrs_filter_fact_by_termination(fact_df, term_index)
-    f2 = f2.copy()
+    # Факт динамики = resursi без отсечения по расторжению (как матрица СКУД / Excel).
+    f2 = fact_df.copy()
     f2["date"] = pd.to_datetime(f2["date"])
     f2["bucket"] = gdrs_dynamics_assign_buckets(
         f2["date"], agg_kind, date_from=dyn_from, date_to=dyn_to
@@ -4474,12 +4474,13 @@ def build_main_table(
         projects=projects,
         contractors=contractors,
     )
-    fact = gdrs_filter_fact_by_termination(fact, term_index)
+    # СКУД = resursi как в Excel: не режем по заявкам расторжения Dogovor
+    # (ПАКС после «акта возврата» ещё есть в августовском resursi → иначе 184 вместо 186).
+    # Расторжение остаётся на плане (gdrs_apply_kontr_plan_gate / plan eligible).
     fact = _gdrs_add_pair_keys(fact, kontr_index, dedupe_fact=True)
     # После Kontr: каноническое имя может появиться только здесь — стоп-лист по contractor_name.
     fact = gdrs_drop_excluded_contractors(fact)
     # СКУД как в resursi Excel: все строки файла (в т.ч. #Н/Д без UUID), без ∩ Kontr.
-    # Иначе Ленинский «Среднее за месяц» = 184 вместо 186 (теряются РЭГ / Курскрегионпроект).
     # План по-прежнему через Dogovor ∩ Kontr ниже.
     _skud_as_of = gdrs_skud_as_of(date_to, fact)
     if fact is not None and not fact.empty and "date" in fact.columns:
@@ -4990,7 +4991,7 @@ def build_summary_table(
         projects=projects,
         contractors=contractors,
     )
-    fact = gdrs_filter_fact_by_termination(fact, term_index)
+    # Факт СКУД без расторжения Dogovor — паритет с resursi Excel.
     if fact.empty:
         return pd.DataFrame()
 
@@ -5681,10 +5682,7 @@ def _gdrs_cached_enriched_fact(
     )
     long_fact = enrich_gdrs_fact_project_ids(long_fact, dogovor_records=dog)
     long_fact = gdrs_apply_kontr_contractor_names(long_fact, kontr_index)
-    term_index = _gdrs_cached_termination_index(
-        int(version_id), db_mtime, dogovor_sources_sig
-    )
-    long_fact = gdrs_filter_fact_by_termination(long_fact, term_index)
+    # Факт СКУД не режем по расторжению Dogovor (ПАКС ещё в августовском resursi).
     long_fact = gdrs_drop_excluded_contractors(long_fact)
     return long_fact
 
