@@ -235,7 +235,7 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
             "Department",
         ],
     )
-    # Наименование: только короткое TESSA Name. Не Comment и не «N от дата Предписания».
+    # Наименование: полный текст TESSA Name (без обрезки). Не Comment / DocDescription.
     name_col = _column(
         renderer,
         pred,

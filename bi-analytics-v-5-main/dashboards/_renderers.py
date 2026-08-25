@@ -45012,59 +45012,6 @@ def _pred_crit_overdue_unresolved_mask(df: pd.DataFrame) -> pd.Series:
     return critical & overdue_open
 
 
-# Тема предписания в TESSA Name — короткое/среднее название задачи
-# (в т.ч. «Отсутствует лабораторное подтверждение…», ~90 символов).
-# Стены текста 150+ — формулировка замечания, которую кладут в Name вместо Comment.
-_PRED_NAME_TITLE_MAX_LEN = 120
-_PRED_NAME_COMMENT_RE = re.compile(
-    r"(?is)"
-    r"(в ходе выполнения|не в соответствии|предоставить|восстановить|"
-    r"выполнить работы|котлован|поврежден|допущено поврежден|"
-    r"выполнен монтаж|вдоль блока)"
-)
-
-
-def _pred_is_name_stub(value) -> bool:
-    """Заглушки/пометки в TESSA Name («нарушения», опечатки) — не название задачи."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return True
-    s = str(value).strip()
-    if not s:
-        return True
-    sl = s.casefold()
-    if sl in {"nan", "none", "nat", "<na>", "—", "-"}:
-        return True
-    # Частые заглушки вместо темы предписания (и опечатки вроде «нрушения»).
-    if re.fullmatch(r"н+а?р+у?ш+ени[ея]?", sl):
-        return True
-    if sl in {"нарушения", "нрушения", "нарушение", "наррушения", "нарушене", "наруш"}:
-        return True
-    return False
-
-
-def _pred_is_comment_like_name(value: str) -> bool:
-    """Name = текст замечания/комментарий, а не короткое название задачи."""
-    s = str(value or "").strip()
-    if not s:
-        return False
-    if len(s) > _PRED_NAME_TITLE_MAX_LEN:
-        return True
-    if s.count(". ") >= 1:
-        return True
-    return bool(_PRED_NAME_COMMENT_RE.search(s))
-
-
-_PRED_DOC_CAPTION_RE = re.compile(
-    r"^\S+ от \d{2}\.\d{2}\.\d{4}\s+Предписания$",
-    re.IGNORECASE,
-)
-
-
-def _pred_is_doc_caption(value: str) -> bool:
-    """Автоподпись карточки («22 от 01.10.2025 Предписания») — не название задачи."""
-    return bool(_PRED_DOC_CAPTION_RE.match(str(value or "").strip()))
-
-
 def _pred_resolve_display_name(
     row,
     name_col: str | None = None,
@@ -45072,11 +45019,12 @@ def _pred_resolve_display_name(
     comment_col: str | None = None,
 ) -> str:
     """
-    «Наименование» = короткое TESSA Name (тема задачи).
+    «Наименование» = полный текст TESSA Name, без обрезки и без эвристик.
 
-    Не показываем: Comment, длинный текст замечания, заглушку «нарушения»,
-    автоподпись DocDescription («N от дата Предписания»).
+    Comment / DocDescription не подставляем (это не колонка «Наименование»).
     """
+    del doc_desc_col, comment_col  # API совместимость; в UI не используем
+
     def _pick(col) -> str:
         if not col:
             return ""
@@ -45087,15 +45035,7 @@ def _pred_resolve_display_name(
         return _clean_display_str(raw, empty="")
 
     name = _pick(name_col)
-    comment = _pick(comment_col)
-    if name and not _pred_is_name_stub(name) and not _pred_is_doc_caption(name):
-        if comment and name.casefold() == comment.casefold():
-            name = ""
-        elif _pred_is_comment_like_name(name):
-            name = ""
-        else:
-            return name
-    return "—"
+    return name if name else "—"
 
 
 def _pred_build_detail_table_df(
