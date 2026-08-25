@@ -80,6 +80,7 @@ class CreateRoleBody(BaseModel):
     reports: list[str] = Field(default_factory=list)
     projects: list[str] = Field(default_factory=list)
     can_admin: bool = False
+    ui_acl: dict[str, dict] | None = None
 
 
 class UpdateRoleBody(BaseModel):
@@ -87,6 +88,7 @@ class UpdateRoleBody(BaseModel):
     reports: list[str] | None = None
     projects: list[str] | None = None
     can_admin: bool | None = None
+    ui_acl: dict[str, dict] | None = None
 
 
 class UserProjectsBody(BaseModel):
@@ -123,6 +125,15 @@ def report_catalog(authorization: str | None = Header(default=None)):
     return {"items": items}
 
 
+@router.get("/ui-catalog")
+def ui_catalog(authorization: str | None = Header(default=None)):
+    """Каталог filter_key / widget_id для админки UI ACL."""
+    _require_admin(authorization)
+    from app.services.report_ui_catalog import list_ui_catalog
+
+    return {"items": list_ui_catalog()}
+
+
 @router.get("/roles")
 def list_roles(authorization: str | None = Header(default=None)):
     _require_admin(authorization)
@@ -143,6 +154,7 @@ def create_role(
         body.reports,
         can_admin=body.can_admin,
         projects=body.projects,
+        ui_acl=body.ui_acl,
     )
     if not ok:
         raise HTTPException(
@@ -166,6 +178,7 @@ def update_role(
         reports=body.reports,
         projects=body.projects,
         can_admin=body.can_admin,
+        ui_acl=body.ui_acl,
     )
     if not ok:
         raise HTTPException(status_code=400, detail=err or "Ошибка обновления роли")

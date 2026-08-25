@@ -22,6 +22,7 @@ import {
 } from "@/lib/filter-presets";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
+import { AclFilterGate } from "@/lib/use-report-ui-acl";
 import { usePathname, useRouter } from "next/navigation";
 
 /** Shared select/date look — fixed height, non-OS chrome, focus-visible only. */
@@ -338,12 +339,15 @@ export function FilterChipSelect({
   options,
   onChange,
   disabled,
+  filterKey,
 }: {
   label?: ReactNode;
   value: string;
   options: FilterChipOption[];
   onChange: (next: string) => void;
   disabled?: boolean;
+  /** Ключ UI ACL (report-ui-catalog); без ключа — всегда виден. */
+  filterKey?: string;
 }) {
   const normalized = useMemo(() => options.map(normChipOption), [options]);
   const pinKey = useMemo(
@@ -458,15 +462,18 @@ export function FilterChipSelect({
       <div className="bi-filters-field-control lg:hidden">{chips}</div>
     </>
   );
-  if (label == null) return body;
-  return (
-    <div className="bi-filters-field text-sm">
-      <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
-        {label}
-      </span>
-      {body}
-    </div>
-  );
+  const field =
+    label == null ? (
+      body
+    ) : (
+      <div className="bi-filters-field text-sm">
+        <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
+          {label}
+        </span>
+        {body}
+      </div>
+    );
+  return <AclFilterGate filterKey={filterKey}>{field}</AclFilterGate>;
 }
 
 /**
@@ -759,6 +766,7 @@ export function FilterChipMulti({
   onChange,
   allLabel = "Все",
   disabled,
+  filterKey,
 }: {
   label?: ReactNode;
   values: string[];
@@ -766,6 +774,7 @@ export function FilterChipMulti({
   onChange: (next: string[]) => void;
   allLabel?: string;
   disabled?: boolean;
+  filterKey?: string;
 }) {
   const opts = useMemo(
     () => options.filter((o) => o && o !== allLabel),
@@ -888,15 +897,18 @@ export function FilterChipMulti({
       <div className="bi-filters-field-control lg:hidden">{chips}</div>
     </>
   );
-  if (label == null) return body;
-  return (
-    <div className="bi-filters-field text-sm">
-      <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
-        {label}
-      </span>
-      {body}
-    </div>
-  );
+  const field =
+    label == null ? (
+      body
+    ) : (
+      <div className="bi-filters-field text-sm">
+        <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
+          {label}
+        </span>
+        {body}
+      </div>
+    );
+  return <AclFilterGate filterKey={filterKey}>{field}</AclFilterGate>;
 }
 
 type Cols = 2 | 3 | 4 | 5;
@@ -1301,17 +1313,21 @@ export function FilterChecksRow({
 export function FilterField({
   label,
   children,
+  filterKey,
 }: {
   label: ReactNode;
   children: ReactNode;
+  filterKey?: string;
 }) {
   return (
-    <label className="bi-filters-field text-sm">
-      <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
-        {label}
-      </span>
-      <div className="bi-filters-field-control">{children}</div>
-    </label>
+    <AclFilterGate filterKey={filterKey}>
+      <label className="bi-filters-field text-sm">
+        <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
+          {label}
+        </span>
+        <div className="bi-filters-field-control">{children}</div>
+      </label>
+    </AclFilterGate>
   );
 }
 
@@ -1319,25 +1335,31 @@ export function FilterCheck({
   label,
   className = "",
   onChange,
+  filterKey,
   ...input
-}: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  label: ReactNode;
+  filterKey?: string;
+}) {
   return (
-    <label
-      className={`bi-filters-check flex items-start gap-2 text-sm text-tremor-content-strong dark:text-dark-tremor-content-strong ${
-        input.disabled ? "opacity-50" : ""
-      } ${className}`}
-    >
-      <input
-        type="checkbox"
-        className="bi-filters-check-input"
-        onChange={(event) => {
-          tapFeedback();
-          onChange?.(event);
-        }}
-        {...input}
-      />
-      <span className="bi-filters-check-label leading-snug">{label}</span>
-    </label>
+    <AclFilterGate filterKey={filterKey}>
+      <label
+        className={`bi-filters-check flex items-start gap-2 text-sm text-tremor-content-strong dark:text-dark-tremor-content-strong ${
+          input.disabled ? "opacity-50" : ""
+        } ${className}`}
+      >
+        <input
+          type="checkbox"
+          className="bi-filters-check-input"
+          onChange={(event) => {
+            tapFeedback();
+            onChange?.(event);
+          }}
+          {...input}
+        />
+        <span className="bi-filters-check-label leading-snug">{label}</span>
+      </label>
+    </AclFilterGate>
   );
 }
 

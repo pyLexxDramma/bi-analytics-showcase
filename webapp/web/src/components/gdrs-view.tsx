@@ -26,6 +26,7 @@ import {
 import { buildFilterChips, filterChip } from "@/lib/filters-summary";
 import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import { tapFeedback } from "@/lib/haptics";
+import { AclWidgetGate } from "@/lib/use-report-ui-acl";
 import { AppShell } from "@/components/app-shell";
 import { DashboardInsight } from "@/components/dashboard-insight";
 import { DownloadTableButton } from "@/components/download-table-button";
@@ -708,14 +709,15 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         resetDisabled={!dirty}
       >
         <FilterFieldsRow cols={5}>
-          <FilterChipMulti label="Проект" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
-          <FilterChipMulti label="Контрагент" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((s) => ({ ...s, contractors }))} />
-          <FilterChipMulti label="Месяц" options={data?.filters.months ?? []} values={filters.months} onChange={(months) => setFilters((s) => ({ ...s, months }))} />
-          <FilterChipSelect label="План" value={filters.plan_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(plan_agg) => setFilters((s) => ({ ...s, plan_agg }))} />
-          <FilterChipSelect label="СКУД" value={filters.skud_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(skud_agg) => setFilters((s) => ({ ...s, skud_agg }))} />
+          <FilterChipMulti filterKey="projects" label="Проект" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
+          <FilterChipMulti filterKey="contractors" label="Контрагент" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((s) => ({ ...s, contractors }))} />
+          <FilterChipMulti filterKey="months" label="Месяц" options={data?.filters.months ?? []} values={filters.months} onChange={(months) => setFilters((s) => ({ ...s, months }))} />
+          <FilterChipSelect filterKey="plan_agg" label="План" value={filters.plan_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(plan_agg) => setFilters((s) => ({ ...s, plan_agg }))} />
+          <FilterChipSelect filterKey="skud_agg" label="СКУД" value={filters.skud_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(skud_agg) => setFilters((s) => ({ ...s, skud_agg }))} />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>
           <FilterCheck
+            filterKey="only_with_plan"
             label="Только с планом"
             checked={filters.only_with_plan}
             onChange={(e) =>
@@ -777,6 +779,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             mobilePane === "charts" ? "block" : "hidden lg:block"
           }`}
         >
+        <AclWidgetGate widgetId="chart_projects">
         <Card className="rounded-xl">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
             ГДРС по выбранным проектам
@@ -802,7 +805,9 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             )}
           </FullscreenPanel>
         </Card>
+        </AclWidgetGate>
 
+        <AclWidgetGate widgetId="table_projects">
         <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <DashboardTableTitle className="mb-0 border-0 px-0 py-0">
             ГДРС по выбранным проектам
@@ -944,7 +949,9 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             />
           </DashboardTableActions>
         </Card>
+        </AclWidgetGate>
 
+        <AclWidgetGate widgetId="pie">
         <FullscreenPanel fill>
           {(zoomed) => <Card className="rounded-xl">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -958,7 +965,9 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             </div>
           </Card>}
         </FullscreenPanel>
+        </AclWidgetGate>
 
+        <AclWidgetGate widgetId="matrix">
         <Card className="hidden rounded-xl lg:block">
           <DashboardTableTitle className="mb-0 border-0 px-0 py-0">
             {matrixTitle}
@@ -1306,6 +1315,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             />
           </DashboardTableActions>
         </Card>
+        </AclWidgetGate>
 
         <Card className="rounded-xl">
           <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
@@ -1338,6 +1348,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           </FullscreenPanel>
         </Card>
 
+        <AclWidgetGate widgetId="dynamics">
         <ChartTableSyncProvider>
         <FullscreenPanel
           fill
@@ -1482,6 +1493,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           </DashboardTableActions>
         </Card>
         </ChartTableSyncProvider>
+        </AclWidgetGate>
 
         <Card className="hidden overflow-x-auto rounded-xl lg:block">
           <DashboardTableTitle className="mb-0 border-0 px-0 py-0">

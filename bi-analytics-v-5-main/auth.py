@@ -385,6 +385,7 @@ def list_roles() -> List[Dict]:
     ensure_roles_seeded()
     conn = sqlite3.connect(DB_PATH)
     _ensure_role_projects_table(conn)
+    _ensure_role_report_ui_acl_tables(conn)
     cur = conn.cursor()
     cur.execute(
         """
@@ -417,6 +418,7 @@ def list_roles() -> List[Dict]:
                 "can_admin": bool(can_admin),
                 "reports": reports,
                 "projects": projects,
+                "ui_acl": _ui_acl_payload_for_role(cur, code),
                 "created_at": created_at,
             }
         )
@@ -439,6 +441,7 @@ def create_role(
     *,
     can_admin: bool = False,
     projects: Optional[List[str]] = None,
+    ui_acl: Optional[Dict] = None,
 ) -> bool:
     """Создать кастомную роль. False если код занят / невалиден."""
     r = _normalize_role(code)
@@ -453,6 +456,7 @@ def create_role(
     try:
         conn = sqlite3.connect(DB_PATH)
         _ensure_role_projects_table(conn)
+        _ensure_role_report_ui_acl_tables(conn)
         cur = conn.cursor()
         cur.execute(
             """
@@ -480,6 +484,8 @@ def create_role(
                 "INSERT OR IGNORE INTO role_projects (role_code, project_name) VALUES (?, ?)",
                 (r, pname),
             )
+        if ui_acl is not None:
+            _apply_ui_acl_dict(cur, r, ui_acl)
         conn.commit()
         conn.close()
         return True
@@ -494,6 +500,7 @@ def update_role(
     reports: Optional[List[str]] = None,
     can_admin: Optional[bool] = None,
     projects: Optional[List[str]] = None,
+    ui_acl: Optional[Dict] = None,
 ) -> Tuple[bool, str]:
     """Обновить роль. Возвращает (ok, error_message)."""
     r = _normalize_role(code)
@@ -505,6 +512,7 @@ def update_role(
     try:
         conn = sqlite3.connect(DB_PATH)
         _ensure_role_projects_table(conn)
+        _ensure_role_report_ui_acl_tables(conn)
         cur = conn.cursor()
         if label is not None:
             lab = str(label).strip()
@@ -523,16 +531,19 @@ def update_role(
                 return False, "Нельзя менять список отчётов у admin/superadmin"
             catalog = set(_all_known_report_ids())
             cur.execute("DELETE FROM role_reports WHERE role_code = ?", (r,))
+            kept: List[str] = []
             for rid in reports:
                 rid_s = str(rid).strip()
                 if not rid_s:
                     continue
                 if catalog and rid_s not in catalog:
                     continue
+                kept.append(rid_s)
                 cur.execute(
                     "INSERT OR IGNORE INTO role_reports (role_code, report_id) VALUES (?, ?)",
                     (r, rid_s),
                 )
+            _prune_ui_acl_for_reports(cur, r, set(kept))
         if projects is not None:
             if r in ("superadmin", "admin"):
                 conn.close()
@@ -548,6 +559,11 @@ def update_role(
                     "INSERT OR IGNORE INTO role_projects (role_code, project_name) VALUES (?, ?)",
                     (r, pname),
                 )
+        if ui_acl is not None:
+            if r in ("superadmin", "admin"):
+                conn.close()
+                return False, "У admin/superadmin UI ACL не ограничивается"
+            _apply_ui_acl_dict(cur, r, ui_acl)
         conn.commit()
         conn.close()
         return True, ""
@@ -574,6 +590,13 @@ def delete_role(code: str) -> Tuple[bool, str]:
             conn.close()
             return False, "Есть пользователи с этой ролью"
         cur.execute("DELETE FROM role_reports WHERE role_code = ?", (r,))
+        try:
+            _ensure_role_report_ui_acl_tables(conn)
+            cur.execute("DELETE FROM role_report_filters WHERE role_code = ?", (r,))
+            cur.execute("DELETE FROM role_report_widgets WHERE role_code = ?", (r,))
+            cur.execute("DELETE FROM role_projects WHERE role_code = ?", (r,))
+        except sqlite3.Error:
+            pass
         cur.execute("DELETE FROM roles WHERE code = ?", (r,))
         conn.commit()
         conn.close()
@@ -974,6 +997,240 @@ def _ensure_role_projects_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+
+
+def _ensure_role_report_ui_acl_tables(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS role_report_filters (
+            role_code TEXT NOT NULL,
+            report_id TEXT NOT NULL,
+            filter_key TEXT NOT NULL,
+            PRIMARY KEY (role_code, report_id, filter_key),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS role_report_widgets (
+            role_code TEXT NOT NULL,
+            report_id TEXT NOT NULL,
+            widget_id TEXT NOT NULL,
+            PRIMARY KEY (role_code, report_id, widget_id),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def _ui_acl_keys_for(
+    cur: sqlite3.Cursor,
+    table: str,
+    col: str,
+    role_code: str,
+    report_id: str,
+) -> Optional[List[str]]:
+    """None = нет строк = unrestricted; иначе allowlist."""
+    cur.execute(
+        f"SELECT {col} FROM {table} WHERE role_code = ? AND report_id = ? ORDER BY {col}",
+        (role_code, report_id),
+    )
+    rows = [str(x[0]) for x in cur.fetchall() if x and x[0]]
+    return rows if rows else None
+
+
+def _ui_acl_payload_for_role(cur: sqlite3.Cursor, role_code: str) -> Dict[str, Dict]:
+    """report_id → {filters: list|null, widgets: list|null}. Только экраны с ограничениями."""
+    out: Dict[str, Dict] = {}
+    cur.execute(
+        """
+        SELECT DISTINCT report_id FROM role_report_filters WHERE role_code = ?
+        UNION
+        SELECT DISTINCT report_id FROM role_report_widgets WHERE role_code = ?
+        """,
+        (role_code, role_code),
+    )
+    report_ids = [str(r[0]) for r in cur.fetchall() if r and r[0]]
+    for rid in sorted(report_ids):
+        out[rid] = {
+            "filters": _ui_acl_keys_for(
+                cur, "role_report_filters", "filter_key", role_code, rid
+            ),
+            "widgets": _ui_acl_keys_for(
+                cur, "role_report_widgets", "widget_id", role_code, rid
+            ),
+        }
+    return out
+
+
+def _replace_ui_acl_keys(
+    cur: sqlite3.Cursor,
+    table: str,
+    col: str,
+    role_code: str,
+    report_id: str,
+    keys: Optional[List[str]],
+) -> None:
+    cur.execute(
+        f"DELETE FROM {table} WHERE role_code = ? AND report_id = ?",
+        (role_code, report_id),
+    )
+    if keys is None:
+        return
+    seen = set()
+    for raw in keys:
+        key = str(raw or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        cur.execute(
+            f"INSERT OR IGNORE INTO {table} (role_code, report_id, {col}) VALUES (?, ?, ?)",
+            (role_code, report_id, key),
+        )
+
+
+def _apply_ui_acl_dict(cur: sqlite3.Cursor, role_code: str, ui_acl: Dict) -> None:
+    """ui_acl: { report_id: { filters: list|null, widgets: list|null } }.
+    null dimension = unrestricted (delete rows). Missing report key = leave as-is.
+    """
+    if not isinstance(ui_acl, dict):
+        return
+    for report_id, payload in ui_acl.items():
+        rid = str(report_id or "").strip()
+        if not rid or not isinstance(payload, dict):
+            continue
+        if "filters" in payload:
+            keys = payload.get("filters")
+            _replace_ui_acl_keys(
+                cur,
+                "role_report_filters",
+                "filter_key",
+                role_code,
+                rid,
+                None if keys is None else list(keys or []),
+            )
+        if "widgets" in payload:
+            keys = payload.get("widgets")
+            _replace_ui_acl_keys(
+                cur,
+                "role_report_widgets",
+                "widget_id",
+                role_code,
+                rid,
+                None if keys is None else list(keys or []),
+            )
+
+
+def _prune_ui_acl_for_reports(
+    cur: sqlite3.Cursor, role_code: str, keep: set
+) -> None:
+    cur.execute(
+        "SELECT DISTINCT report_id FROM role_report_filters WHERE role_code = ?",
+        (role_code,),
+    )
+    for (rid,) in cur.fetchall():
+        if str(rid) not in keep:
+            cur.execute(
+                "DELETE FROM role_report_filters WHERE role_code = ? AND report_id = ?",
+                (role_code, rid),
+            )
+    cur.execute(
+        "SELECT DISTINCT report_id FROM role_report_widgets WHERE role_code = ?",
+        (role_code,),
+    )
+    for (rid,) in cur.fetchall():
+        if str(rid) not in keep:
+            cur.execute(
+                "DELETE FROM role_report_widgets WHERE role_code = ? AND report_id = ?",
+                (role_code, rid),
+            )
+
+
+def get_role_report_filters(role: str, report_id: str) -> Optional[List[str]]:
+    """Allowlist filter keys. None = unrestricted (no rows or admin)."""
+    r = _normalize_role(role)
+    rid = str(report_id or "").strip()
+    if not r or not rid or r in ("superadmin", "admin"):
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_role_report_ui_acl_tables(conn)
+        cur = conn.cursor()
+        keys = _ui_acl_keys_for(cur, "role_report_filters", "filter_key", r, rid)
+        conn.close()
+        return keys
+    except sqlite3.Error:
+        return None
+
+
+def get_role_report_widgets(role: str, report_id: str) -> Optional[List[str]]:
+    """Allowlist widget ids. None = unrestricted (no rows or admin)."""
+    r = _normalize_role(role)
+    rid = str(report_id or "").strip()
+    if not r or not rid or r in ("superadmin", "admin"):
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_role_report_ui_acl_tables(conn)
+        cur = conn.cursor()
+        keys = _ui_acl_keys_for(cur, "role_report_widgets", "widget_id", r, rid)
+        conn.close()
+        return keys
+    except sqlite3.Error:
+        return None
+
+
+def set_role_report_filters(
+    role: str, report_id: str, keys: Optional[List[str]]
+) -> Tuple[bool, str]:
+    """keys=None → unrestricted (clear rows). Non-empty list → allowlist only those."""
+    r = _normalize_role(role)
+    rid = str(report_id or "").strip()
+    if not r or not rid:
+        return False, "Роль или отчёт не указаны"
+    if r in ("superadmin", "admin"):
+        return False, "У admin/superadmin UI ACL не ограничивается"
+    if _role_row(r) is None:
+        return False, "Роль не найдена"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_role_report_ui_acl_tables(conn)
+        cur = conn.cursor()
+        _replace_ui_acl_keys(
+            cur, "role_report_filters", "filter_key", r, rid, keys
+        )
+        conn.commit()
+        conn.close()
+        return True, ""
+    except sqlite3.Error as exc:
+        return False, str(exc)
+
+
+def set_role_report_widgets(
+    role: str, report_id: str, keys: Optional[List[str]]
+) -> Tuple[bool, str]:
+    """keys=None → unrestricted (clear rows). Non-empty list → allowlist only those."""
+    r = _normalize_role(role)
+    rid = str(report_id or "").strip()
+    if not r or not rid:
+        return False, "Роль или отчёт не указаны"
+    if r in ("superadmin", "admin"):
+        return False, "У admin/superadmin UI ACL не ограничивается"
+    if _role_row(r) is None:
+        return False, "Роль не найдена"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_role_report_ui_acl_tables(conn)
+        cur = conn.cursor()
+        _replace_ui_acl_keys(
+            cur, "role_report_widgets", "widget_id", r, rid, keys
+        )
+        conn.commit()
+        conn.close()
+        return True, ""
+    except sqlite3.Error as exc:
+        return False, str(exc)
 
 
 def get_role_projects(role: str) -> Optional[List[str]]:

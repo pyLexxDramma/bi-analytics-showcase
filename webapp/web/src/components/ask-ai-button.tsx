@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { postAskAiLink } from "@/lib/api";
 import {
@@ -20,7 +20,8 @@ import { tapFeedback } from "@/lib/haptics";
 
 type AskAiVariant = "desktop" | "chip";
 
-function AskAiControl({ variant }: { variant: AskAiVariant }) {
+/** Shared action for desktop header, chip and mobile tab bar. */
+export function useAskAiAction() {
   const pathname = usePathname();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -33,10 +34,12 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
 
   const nav = findNavItem(pathname);
   const screen = nav ? ASK_AI_SCREENS[nav.id] : undefined;
-  if (!screen || !nav) return null;
-  if (!canAccessReport(nav.id, session)) return null;
+  const available = Boolean(
+    nav && screen && canAccessReport(nav.id, session),
+  );
 
-  const onClick = async () => {
+  const run = useCallback(async () => {
+    if (!nav || !screen) return;
     tapFeedback();
     setError(null);
     if (!isAuthenticated()) {
@@ -69,14 +72,21 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
     } finally {
       setBusy(false);
     }
-  };
+  }, [nav, screen, router]);
+
+  return { available, busy, error, run };
+}
+
+function AskAiControl({ variant }: { variant: AskAiVariant }) {
+  const { available, busy, error, run } = useAskAiAction();
+  if (!available) return null;
 
   if (variant === "chip") {
     return (
       <div className="inline-flex max-w-full flex-col items-start gap-0.5 lg:hidden">
         <button
           type="button"
-          onClick={() => void onClick()}
+          onClick={() => void run()}
           disabled={busy}
           title="Спросить ИИ по этому дашборду"
           aria-label="Спросить ИИ по этому дашборду"
@@ -100,7 +110,7 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
     <div className="hidden lg:flex lg:flex-col lg:items-end lg:gap-1">
       <button
         type="button"
-        onClick={() => void onClick()}
+        onClick={() => void run()}
         disabled={busy}
         title="Спросить ИИ по этому дашборду"
         className="ask-ai-btn inline-flex h-11 items-center gap-2 rounded-tremor-default px-4 text-tremor-default transition disabled:cursor-wait"
@@ -124,7 +134,7 @@ export function AskAiButton() {
   return <AskAiControl variant="desktop" />;
 }
 
-/** Mobile: chip рядом с заголовком вкладки. */
+/** Mobile: chip рядом с заголовком вкладки (опционально; основной вход — tab bar). */
 export function AskAiTitleChip() {
   return <AskAiControl variant="chip" />;
 }

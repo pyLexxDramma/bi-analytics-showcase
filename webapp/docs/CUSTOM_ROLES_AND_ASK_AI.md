@@ -28,6 +28,7 @@
 | Разрезка по проектам (роль + пользователь) | ✅ фаза 2 |
 | Ask AI catalog / link учитывает проекты роли/юзера | ✅ фаза 2 |
 | `GET /api/ask-ai/my-screens` (полный scope user) | ✅ |
+| UI ACL: allowlist фильтров/виджетов на дашборде (роль×отчёт) | ✅ |
 | Полный паритет Streamlit main с табличной матрицей | ❌ позже |
 | In-app assistant tools ACL | ❌ позже |
 

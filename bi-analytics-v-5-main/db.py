@@ -197,6 +197,31 @@ def init_all_tables(st_callback=None):
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_role_projects_role ON role_projects (role_code)"
     )
+    # UI ACL: allowlist фильтров/виджетов на дашборде (пусто = без ограничений).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS role_report_filters (
+            role_code TEXT NOT NULL,
+            report_id TEXT NOT NULL,
+            filter_key TEXT NOT NULL,
+            PRIMARY KEY (role_code, report_id, filter_key),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS role_report_widgets (
+            role_code TEXT NOT NULL,
+            report_id TEXT NOT NULL,
+            widget_id TEXT NOT NULL,
+            PRIMARY KEY (role_code, report_id, widget_id),
+            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_role_report_filters_role ON role_report_filters (role_code)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_role_report_widgets_role ON role_report_widgets (role_code)"
+    )
 
     conn.commit()
 

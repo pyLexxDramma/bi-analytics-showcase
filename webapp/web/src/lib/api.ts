@@ -2389,6 +2389,11 @@ export async function fetchSettingsLogs(params: {
   return apiGet("/api/settings/logs", params, { headers: authHeaders() });
 }
 
+export type RoleUiAclEntry = {
+  filters: string[] | null;
+  widgets: string[] | null;
+};
+
 export type SettingsRole = {
   code: string;
   label: string;
@@ -2396,7 +2401,16 @@ export type SettingsRole = {
   can_admin?: boolean;
   reports?: string[];
   projects?: string[];
+  /** report_id → allowlists; отсутствует / null keys = без ограничений */
+  ui_acl?: Record<string, RoleUiAclEntry>;
   created_at?: string | null;
+};
+
+export type ReportUiCatalogScreen = {
+  nav_id: string;
+  title: string;
+  filters: Array<{ id: string; label: string }>;
+  widgets: Array<{ id: string; label: string }>;
 };
 
 export async function fetchSettingsRoles(): Promise<{
@@ -2411,11 +2425,32 @@ export async function fetchReportCatalog(): Promise<{
   return apiGet("/api/settings/report-catalog", {}, { headers: authHeaders() });
 }
 
+export async function fetchUiCatalog(): Promise<{
+  items: ReportUiCatalogScreen[];
+}> {
+  return apiGet("/api/settings/ui-catalog", {}, { headers: authHeaders() });
+}
+
+export async function fetchReportUiAcl(navId: string): Promise<{
+  ok: boolean;
+  nav_id: string;
+  filters: string[] | null;
+  widgets: string[] | null;
+}> {
+  return apiGet(
+    "/api/auth/ui-acl",
+    { nav_id: navId },
+    { headers: authHeaders() },
+  );
+}
+
 export async function postSettingsRole(body: {
   code: string;
   label: string;
   reports?: string[];
+  projects?: string[];
   can_admin?: boolean;
+  ui_acl?: Record<string, RoleUiAclEntry>;
 }): Promise<{ ok: boolean; item: SettingsRole }> {
   return apiPost("/api/settings/roles", body, { headers: authHeaders() });
 }
@@ -2427,6 +2462,7 @@ export async function patchSettingsRole(
     reports?: string[];
     projects?: string[];
     can_admin?: boolean;
+    ui_acl?: Record<string, RoleUiAclEntry>;
   },
 ): Promise<{ ok: boolean; item: SettingsRole }> {
   return apiPatch(`/api/settings/roles/${encodeURIComponent(code)}`, body, {

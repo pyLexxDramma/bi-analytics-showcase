@@ -81,3 +81,24 @@ def default_filters(
     elif allowed is not None and "projects" not in filters:
         filters["projects"] = list(allowed)
     return {"ok": True, "nav_id": nav_id, "filters": filters}
+
+
+@router.get("/ui-acl")
+def ui_acl(
+    nav_id: str = Query(..., min_length=1),
+    authorization: str | None = Header(default=None),
+):
+    """Allowlist фильтров/виджетов для роли текущего пользователя.
+    null = без ограничений (все видны).
+    """
+    user = require_active_user(authorization)
+    role = str(user.get("role") or "")
+    auth = import_auth()
+    filters = auth.get_role_report_filters(role, nav_id)
+    widgets = auth.get_role_report_widgets(role, nav_id)
+    return {
+        "ok": True,
+        "nav_id": nav_id,
+        "filters": filters,
+        "widgets": widgets,
+    }

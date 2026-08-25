@@ -7,20 +7,68 @@ import {
   deleteSettingsRole,
   fetchReportCatalog,
   fetchSettingsRoles,
+  fetchUiCatalog,
   patchSettingsRole,
   postSettingsRole,
+  type ReportUiCatalogScreen,
+  type RoleUiAclEntry,
   type SettingsRole,
 } from "@/lib/api";
+
+type UiAclMap = Record<string, RoleUiAclEntry>;
+
+function cloneUiAcl(src: UiAclMap | undefined): UiAclMap {
+  if (!src) return {};
+  const out: UiAclMap = {};
+  for (const [rid, entry] of Object.entries(src)) {
+    out[rid] = {
+      filters: entry.filters == null ? null : [...entry.filters],
+      widgets: entry.widgets == null ? null : [...entry.widgets],
+    };
+  }
+  return out;
+}
+
+function isKeyChecked(
+  entry: RoleUiAclEntry | undefined,
+  dim: "filters" | "widgets",
+  key: string,
+): boolean {
+  const list = entry?.[dim];
+  if (list == null) return true;
+  return list.includes(key);
+}
+
+function toggleKeyInList(
+  current: string[] | null,
+  catalogIds: string[],
+  key: string,
+  checked: boolean,
+): string[] | null {
+  const base = current == null ? [...catalogIds] : [...current];
+  const next = checked
+    ? base.includes(key)
+      ? base
+      : [...base, key]
+    : base.filter((k) => k !== key);
+  if (next.length === catalogIds.length && catalogIds.every((id) => next.includes(id))) {
+    return null;
+  }
+  return next;
+}
 
 export function AdminRolesPanel() {
   const [roles, setRoles] = useState<SettingsRole[]>([]);
   const [catalog, setCatalog] = useState<
     Array<{ id: string; title: string; path: string }>
   >([]);
+  const [uiCatalog, setUiCatalog] = useState<ReportUiCatalogScreen[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [reports, setReports] = useState<string[]>([]);
   const [projectsText, setProjectsText] = useState("");
+  const [uiAcl, setUiAcl] = useState<UiAclMap>({});
+  const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [newCode, setNewCode] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -28,12 +76,14 @@ export function AdminRolesPanel() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [rolesData, catalogData] = await Promise.all([
+    const [rolesData, catalogData, uiCat] = await Promise.all([
       fetchSettingsRoles(),
       fetchReportCatalog(),
+      fetchUiCatalog(),
     ]);
     setRoles(rolesData.items);
     setCatalog(catalogData.items);
+    setUiCatalog(uiCat.items);
   }, []);
 
   useEffect(() => {
@@ -52,11 +102,20 @@ export function AdminRolesPanel() {
     setLabel(current.label);
     setReports([...(current.reports || [])]);
     setProjectsText((current.projects || []).join("\n"));
+    setUiAcl(cloneUiAcl(current.ui_acl));
+    setExpandedReport(null);
   }, [current]);
+
+  const uiByNav = useMemo(() => {
+    const m = new Map<string, ReportUiCatalogScreen>();
+    for (const row of uiCatalog) m.set(row.nav_id, row);
+    return m;
+  }, [uiCatalog]);
 
   const lockedReports =
     current?.code === "admin" || current?.code === "superadmin";
   const lockedProjects = lockedReports;
+  const lockedUiAcl = lockedReports;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -73,9 +132,74 @@ export function AdminRolesPanel() {
 
   const toggleReport = (id: string) => {
     if (lockedReports) return;
-    setReports((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    setReports((prev) => {
+      if (prev.includes(id)) {
+        setUiAcl((acl) => {
+          const next = { ...acl };
+          delete next[id];
+          return next;
+        });
+        if (expandedReport === id) setExpandedReport(null);
+        return prev.filter((x) => x !== id);
+      }
+      return [...prev, id];
+    });
+  };
+
+  const toggleUiKey = (
+    reportId: string,
+    dim: "filters" | "widgets",
+    key: string,
+    checked: boolean,
+  ) => {
+    if (lockedUiAcl) return;
+    const screen = uiByNav.get(reportId);
+    if (!screen) return;
+    const catalogIds = (dim === "filters" ? screen.filters : screen.widgets).map(
+      (x) => x.id,
     );
+    setUiAcl((prev) => {
+      const entry = prev[reportId] || { filters: null, widgets: null };
+      const nextList = toggleKeyInList(entry[dim], catalogIds, key, checked);
+      return {
+        ...prev,
+        [reportId]: { ...entry, [dim]: nextList },
+      };
+    });
+  };
+
+  const buildUiAclPayload = (): UiAclMap => {
+    const out: UiAclMap = {};
+    for (const rid of reports) {
+      const entry = uiAcl[rid];
+      if (!entry) continue;
+      if (entry.filters == null && entry.widgets == null) continue;
+      out[rid] = {
+        filters: entry.filters,
+        widgets: entry.widgets,
+      };
+    }
+    // Clear ACL for unchecked reports / unrestricted
+    for (const rid of Object.keys(uiAcl)) {
+      if (!reports.includes(rid)) {
+        out[rid] = { filters: null, widgets: null };
+      }
+    }
+    // Ensure every report with prior ACL that is now unrestricted is cleared
+    for (const rid of reports) {
+      const entry = uiAcl[rid];
+      if (!entry) {
+        if (current?.ui_acl?.[rid]) {
+          out[rid] = { filters: null, widgets: null };
+        }
+        continue;
+      }
+      out[rid] = {
+        filters: entry.filters,
+        widgets: entry.widgets,
+      };
+    }
+    return out;
   };
 
   return (
@@ -85,7 +209,7 @@ export function AdminRolesPanel() {
         <InfoBanner>
           Системные роли создаются автоматически. Кастомную роль можно удалить,
           только если на неё не назначены пользователи. У admin/superadmin список
-          отчётов не сокращается.
+          отчётов не сокращается. Фильтры/виджеты: пустой allowlist = все видны.
         </InfoBanner>
         {msg ? <Text className="mt-2 text-emerald-700">{msg}</Text> : null}
         {err ? <Text className="mt-2 text-red-600">{err}</Text> : null}
@@ -180,26 +304,118 @@ export function AdminRolesPanel() {
             {lockedReports ? (
               <InfoBanner>Список отчётов для admin/superadmin фиксирован.</InfoBanner>
             ) : null}
-            <div className="mt-2 grid max-h-80 gap-2 overflow-y-auto sm:grid-cols-2">
+            <div className="mt-2 space-y-2">
               {catalog.map((item) => {
                 const checked = reports.includes(item.id);
+                const screen = uiByNav.get(item.id);
+                const open = expandedReport === item.id && checked;
                 return (
-                  <label
+                  <div
                     key={item.id}
-                    className="flex cursor-pointer items-start gap-2 rounded-md border border-gray-100 px-2 py-1.5 text-sm dark:border-dark-tremor-border"
+                    className="rounded-md border border-gray-100 dark:border-dark-tremor-border"
                   >
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={checked}
-                      disabled={lockedReports || busy}
-                      onChange={() => toggleReport(item.id)}
-                    />
-                    <span>
-                      <span className="font-medium">{item.title}</span>
-                      <span className="block text-xs text-gray-500">{item.id}</span>
-                    </span>
-                  </label>
+                    <div className="flex items-start gap-2 px-2 py-1.5 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={checked}
+                        disabled={lockedReports || busy}
+                        onChange={() => toggleReport(item.id)}
+                      />
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        disabled={!checked || !screen}
+                        onClick={() =>
+                          setExpandedReport((cur) =>
+                            cur === item.id ? null : item.id,
+                          )
+                        }
+                      >
+                        <span className="font-medium">{item.title}</span>
+                        <span className="block text-xs text-gray-500">
+                          {item.id}
+                          {screen ? " · фильтры/виджеты" : ""}
+                        </span>
+                      </button>
+                    </div>
+                    {open && screen ? (
+                      <div className="border-t border-gray-100 px-3 py-2 dark:border-dark-tremor-border">
+                        {lockedUiAcl ? (
+                          <Text className="text-xs text-gray-500">
+                            UI ACL для admin/superadmin не ограничивается.
+                          </Text>
+                        ) : (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <Text className="mb-1 text-xs font-medium">
+                                Фильтры (все = без ограничений)
+                              </Text>
+                              <div className="max-h-40 space-y-1 overflow-y-auto">
+                                {screen.filters.map((f) => (
+                                  <label
+                                    key={f.id}
+                                    className="flex items-center gap-2 text-xs"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      disabled={busy}
+                                      checked={isKeyChecked(
+                                        uiAcl[item.id],
+                                        "filters",
+                                        f.id,
+                                      )}
+                                      onChange={(e) =>
+                                        toggleUiKey(
+                                          item.id,
+                                          "filters",
+                                          f.id,
+                                          e.target.checked,
+                                        )
+                                      }
+                                    />
+                                    {f.label}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <Text className="mb-1 text-xs font-medium">
+                                Виджеты / графики
+                              </Text>
+                              <div className="max-h-40 space-y-1 overflow-y-auto">
+                                {screen.widgets.map((w) => (
+                                  <label
+                                    key={w.id}
+                                    className="flex items-center gap-2 text-xs"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      disabled={busy}
+                                      checked={isKeyChecked(
+                                        uiAcl[item.id],
+                                        "widgets",
+                                        w.id,
+                                      )}
+                                      onChange={(e) =>
+                                        toggleUiKey(
+                                          item.id,
+                                          "widgets",
+                                          w.id,
+                                          e.target.checked,
+                                        )
+                                      }
+                                    />
+                                    {w.label}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -239,6 +455,7 @@ export function AdminRolesPanel() {
                     label: label.trim(),
                     reports: lockedReports ? undefined : reports,
                     projects: lockedProjects ? undefined : projects,
+                    ui_acl: lockedUiAcl ? undefined : buildUiAclPayload(),
                   });
                   await load();
                   setMsg("Сохранено.");

@@ -17,6 +17,7 @@ import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { ReportsSearchSheet } from "@/components/reports-search-sheet";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { ReportAccessProvider } from "@/lib/report-access-context";
+import { ReportUiAclProvider } from "@/lib/use-report-ui-acl";
 import { findNavItem } from "@/lib/nav";
 import { pushRecentReport } from "@/lib/recent-reports";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -294,7 +295,13 @@ export function AppShell({
               </div>
             ) : (
               <ReportAccessProvider allowed>
-                <PullRefreshProvider>{children}</PullRefreshProvider>
+                {navItem ? (
+                  <ReportUiAclProvider navId={navItem.id}>
+                    <PullRefreshProvider>{children}</PullRefreshProvider>
+                  </ReportUiAclProvider>
+                ) : (
+                  <PullRefreshProvider>{children}</PullRefreshProvider>
+                )}
               </ReportAccessProvider>
             )}
           </div>

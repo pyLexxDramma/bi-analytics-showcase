@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAskAiAction } from "@/components/ask-ai-button";
 import { findNavItem } from "@/lib/nav";
 import { tapFeedback } from "@/lib/haptics";
 
@@ -72,6 +73,7 @@ export function MobileTabBar({
 }) {
   const pathname = usePathname();
   const [canScrollUp, setCanScrollUp] = useState(false);
+  const askAi = useAskAiAction();
 
   useEffect(() => {
     const sync = () => {
@@ -88,7 +90,9 @@ export function MobileTabBar({
   }, []);
 
   const searchActive = Boolean(findNavItem(pathname)) && !menuOpen;
-  const aiActive = pathname.startsWith("/ai-assistant");
+  const aiActive = askAi.available
+    ? askAi.busy
+    : pathname.startsWith("/ai-assistant");
   const profileActive = pathname.startsWith("/settings");
 
   const externalAi = process.env.NEXT_PUBLIC_AI_MODE === "full";
@@ -132,29 +136,50 @@ export function MobileTabBar({
         <span className="bi-tabbar-label">Поиск</span>
       </button>
 
-      <Link
-        href={aiHref}
-        target={externalAi ? "_blank" : undefined}
-        rel={externalAi ? "noopener noreferrer" : undefined}
-        onClick={() => tapFeedback()}
-        className={itemClass(aiActive)}
-        aria-current={aiActive ? "page" : undefined}
-      >
-        <span className="bi-tabbar-icon">
-          <IconAi />
-          {externalAi ? (
+      {askAi.available ? (
+        <button
+          type="button"
+          onClick={() => void askAi.run()}
+          disabled={askAi.busy}
+          className={itemClass(aiActive)}
+          title="Спросить ИИ по этому дашборду"
+          aria-label="Спросить ИИ по этому дашборду"
+        >
+          <span className="bi-tabbar-icon">
+            <IconAi />
             <span className="bi-tabbar-ext" aria-hidden>
               ↗
             </span>
-          ) : null}
-        </span>
-        <span className="bi-tabbar-label">
-          ИИ
-          {externalAi ? (
-            <span className="sr-only"> (откроется в новой вкладке)</span>
-          ) : null}
-        </span>
-      </Link>
+          </span>
+          <span className="bi-tabbar-label">
+            {askAi.busy ? "…" : "ИИ"}
+          </span>
+        </button>
+      ) : (
+        <Link
+          href={aiHref}
+          target={externalAi ? "_blank" : undefined}
+          rel={externalAi ? "noopener noreferrer" : undefined}
+          onClick={() => tapFeedback()}
+          className={itemClass(aiActive)}
+          aria-current={aiActive ? "page" : undefined}
+        >
+          <span className="bi-tabbar-icon">
+            <IconAi />
+            {externalAi ? (
+              <span className="bi-tabbar-ext" aria-hidden>
+                ↗
+              </span>
+            ) : null}
+          </span>
+          <span className="bi-tabbar-label">
+            ИИ
+            {externalAi ? (
+              <span className="sr-only"> (откроется в новой вкладке)</span>
+            ) : null}
+          </span>
+        </Link>
+      )}
 
       <Link
         href="/settings/profile"

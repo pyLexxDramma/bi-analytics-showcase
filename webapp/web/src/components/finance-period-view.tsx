@@ -11,6 +11,7 @@ import {
   withRuPlanFactDeviation,
 } from "@/lib/chart-ru";
 import { FilterChipMulti, FilterChipSelect } from "@/components/dashboard-filters";
+import { AclFilterGate, AclWidgetGate } from "@/lib/use-report-ui-acl";
 import {
   MobileCardStack,
   MobileEntityCard,
@@ -100,11 +101,13 @@ export function FinancePeriodView({
       <Card className="mb-6 rounded-xl">
         <div className="grid gap-3 md:grid-cols-4">
           <FilterChipMulti
+            filterKey="projects"
             label="Проект"
             values={filters.projects}
             options={data?.filters.projects ?? []}
             onChange={(projects) => setFilters((state) => ({ ...state, projects }))}
           />
+          <AclFilterGate filterKey="date_from">
           <label className="block text-sm">
             <Text>Дата с</Text>
             <input
@@ -118,6 +121,8 @@ export function FinancePeriodView({
               }
             />
           </label>
+          </AclFilterGate>
+          <AclFilterGate filterKey="date_to">
           <label className="block text-sm">
             <Text>Дата по</Text>
             <input
@@ -131,7 +136,8 @@ export function FinancePeriodView({
               }
             />
           </label>
-          <FilterChipSelect label="Вид" value={filters.view} options={[{ value: "monthly", label: "По месяцам" }, { value: "cumulative", label: "Накопительно" }]} onChange={(view) => setFilters((state) => ({ ...state, view: view as Filters["view"] }))} />
+          </AclFilterGate>
+          <FilterChipSelect filterKey="view" label="Вид" value={filters.view} options={[{ value: "monthly", label: "По месяцам" }, { value: "cumulative", label: "Накопительно" }]} onChange={(view) => setFilters((state) => ({ ...state, view: view as Filters["view"] }))} />
         </div>
         <Text className="mt-3">
           Режим данных: <b>{data?.meta.data_mode ?? "…"}</b> ·{" "}
@@ -148,6 +154,7 @@ export function FinancePeriodView({
       ) : null}
 
       <div className="space-y-6">
+        <AclWidgetGate widgetId="kpi">
         <Grid numItemsSm={2} numItemsLg={4} className="gap-6">
           {kpiCards.map(([cardTitle, metric]) => (
             <Card key={cardTitle} className="rounded-xl">
@@ -158,6 +165,7 @@ export function FinancePeriodView({
             </Card>
           ))}
         </Grid>
+        </AclWidgetGate>
 
         <MobilePaneTabs
           value={mobilePane}
@@ -179,6 +187,7 @@ export function FinancePeriodView({
         </div>
 
         <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
+          <AclWidgetGate widgetId="chart_period">
           <Card className="rounded-xl">
             <Title className="!text-tremor-content-strong dark:!text-dark-tremor-content-strong">
               План и факт расходов
@@ -198,22 +207,27 @@ export function FinancePeriodView({
               showTooltip={false}
             />
           </Card>
+          </AclWidgetGate>
         </div>
 
         <div className={mobilePane === "periods" ? "block" : "hidden lg:block"}>
           <Grid numItemsLg={2} className="gap-6">
+            <AclWidgetGate widgetId="table_period">
             <PeriodTable
               title="По периодам"
               rows={data?.period_rows ?? []}
               label="period"
               totals={kpis}
             />
+            </AclWidgetGate>
+            <AclWidgetGate widgetId="table_project">
             <PeriodTable
               title="По проектам"
               rows={data?.project_rows ?? []}
               label="project"
               totals={kpis}
             />
+            </AclWidgetGate>
           </Grid>
         </div>
       </div>

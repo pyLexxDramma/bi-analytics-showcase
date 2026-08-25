@@ -626,11 +626,11 @@ export function WorkingDocumentationView() {
         onReset={dirty ? reset : undefined}
         resetDisabled={!dirty}
       >
-        <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects }))} />
+        <FilterChipMulti filterKey="projects" label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects }))} />
         <FilterFieldsRow cols={3}>
-          <FilterChipMulti label="Раздел" options={data?.filters.sections ?? []} values={filters.sections} onChange={(sections) => setFilters((f) => ({ ...f, sections }))} />
-          <FilterChipSelect label="Период" value={filters.periodMode} options={data?.filters.period_modes ?? [INITIAL.periodMode]} onChange={(periodMode) => setFilters((f) => ({ ...f, periodMode }))} />
-          <FilterChipMulti label="Статус" options={data?.filters.statuses ?? []} values={filters.statuses} onChange={(statuses) => setFilters((f) => ({ ...f, statuses }))} />
+          <FilterChipMulti filterKey="sections" label="Раздел" options={data?.filters.sections ?? []} values={filters.sections} onChange={(sections) => setFilters((f) => ({ ...f, sections }))} />
+          <FilterChipSelect filterKey="periodMode" label="Период" value={filters.periodMode} options={data?.filters.period_modes ?? [INITIAL.periodMode]} onChange={(periodMode) => setFilters((f) => ({ ...f, periodMode }))} />
+          <FilterChipMulti filterKey="statuses" label="Статус" options={data?.filters.statuses ?? []} values={filters.statuses} onChange={(statuses) => setFilters((f) => ({ ...f, statuses }))} />
         </FilterFieldsRow>
         {filters.periodMode !== "Весь период (за всё время)" ? (
           <FilterFieldsRow cols={3}>
@@ -663,14 +663,15 @@ export function WorkingDocumentationView() {
         ) : null}
         {tab === "delay" ? (
           <FilterFieldsRow cols={3}>
-            <FilterChipSelect label="Отображение" value={filters.viewMode} options={(data?.filters.view_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(viewMode) => setFilters((f) => ({ ...f, viewMode }))} />
+            <FilterChipSelect filterKey="viewMode" label="Отображение" value={filters.viewMode} options={(data?.filters.view_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(viewMode) => setFilters((f) => ({ ...f, viewMode }))} />
             <div />
             <div />
           </FilterFieldsRow>
         ) : null}
-        <FilterChipSelect label="Метрика" value={filters.metricMode} options={data?.filters.metric_modes ?? ["Количество разделов", "% от общего объёма"]} onChange={(metricMode) => setFilters((f) => ({ ...f, metricMode }))} />
+        <FilterChipSelect filterKey="metricMode" label="Метрика" value={filters.metricMode} options={data?.filters.metric_modes ?? ["Количество разделов", "% от общего объёма"]} onChange={(metricMode) => setFilters((f) => ({ ...f, metricMode }))} />
         <FilterChecksRow cols={3}>
           <FilterCheck
+            filterKey="showForecast"
             label="Показать прогнозную дату выдачи разделов"
             checked={filters.showForecast}
             onChange={(e) =>
