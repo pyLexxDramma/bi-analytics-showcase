@@ -2156,10 +2156,79 @@ html.dark .bi-nav-active::before {
   opacity: 0.75;
 }
 
+.report-bug-btn:disabled {
+  filter: grayscale(0.25);
+  opacity: 0.75;
+}
+
+/* «Сообщить об ошибке» — красный акцент, только desktop */
+.report-bug-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 1px rgba(69, 10, 10, 0.35);
+  background: linear-gradient(
+    120deg,
+    #dc2626,
+    #ef4444,
+    #b91c1c,
+    #f87171,
+    #dc2626
+  );
+  background-size: 280% 280%;
+  animation:
+    ask-ai-flow 5s ease infinite,
+    report-bug-glow 2.8s ease-in-out infinite;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+@keyframes report-bug-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.3),
+      0 4px 14px rgba(220, 38, 38, 0.45),
+      0 0 28px rgba(185, 28, 28, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.45),
+      0 6px 20px rgba(239, 68, 68, 0.55),
+      0 0 36px rgba(153, 27, 27, 0.4);
+  }
+}
+
+.report-bug-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 65%
+  );
+  background-size: 220% 100%;
+  animation: ask-ai-flow 2.4s linear infinite;
+  pointer-events: none;
+}
+
+.report-bug-btn:hover:not(:disabled) {
+  filter: brightness(1.08) saturate(1.1);
+  transform: translateY(-1px);
+}
+
 /* Системная настройка «меньше движения» отключает всю мобильную анимацию */
 @media (prefers-reduced-motion: reduce) {
   .ask-ai-btn,
-  .ask-ai-btn::before {
+  .ask-ai-btn::before,
+  .report-bug-btn,
+  .report-bug-btn::before {
     animation: none;
   }
 

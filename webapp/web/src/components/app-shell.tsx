@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AskAiButton, AskAiTitleChip } from "@/components/ask-ai-button";
+import { ReportBugButton } from "@/components/report-bug-button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
@@ -249,6 +250,7 @@ export function AppShell({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <AskAiButton />
+                <ReportBugButton pageTitle={title} />
                 <button
                   type="button"
                   onClick={toggleWide}
