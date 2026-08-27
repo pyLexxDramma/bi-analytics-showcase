@@ -18,12 +18,6 @@ import {
   saveAuthSession,
   type AuthUser,
 } from "@/lib/auth";
-import {
-  applyThemeClass,
-  readTheme,
-  writeTheme,
-  type ThemeMode,
-} from "@/lib/theme";
 
 export function ProfileView() {
   const router = useRouter();
@@ -36,11 +30,6 @@ export function ProfileView() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    setDark(readTheme() === "dark");
-  }, []);
 
   useEffect(() => {
     // migrate legacy demo → admin/superadmin, then refresh from users.db
@@ -60,12 +49,6 @@ export function ProfileView() {
         }
       });
   }, []);
-
-  const setTheme = (mode: ThemeMode) => {
-    setDark(mode === "dark");
-    writeTheme(mode);
-    applyThemeClass(mode);
-  };
 
   const onPassword = async () => {
     setMsg(null);
@@ -132,20 +115,6 @@ export function ProfileView() {
         username={user?.username || "—"}
         roleLabel={user?.role_label || "—"}
       />
-
-      <Card className="mb-6 max-w-full overflow-hidden rounded-xl">
-        <Title className="!text-base">Оформление</Title>
-        <Text className="mt-1 text-sm text-tremor-content dark:text-dark-tremor-content">
-          Тема для всего приложения (на телефоне переключатель убран из шапки).
-        </Text>
-        <button
-          type="button"
-          className="mt-3 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis"
-          onClick={() => setTheme(dark ? "light" : "dark")}
-        >
-          {dark ? "Светлая тема" : "Тёмная тема"}
-        </button>
-      </Card>
 
       <EmeraldTabs
         className="mb-6"

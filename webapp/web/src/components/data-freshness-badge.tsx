@@ -17,7 +17,7 @@ function formatStamp(raw: string): string {
  * Свежесть данных рядом с заголовком: на скриншоте отчёта должно быть видно,
  * на какую дату построен отчёт. Клик — обновить статус (без version_id в UI).
  */
-export function DataFreshnessBadge() {
+export function DataFreshnessBadge({ inline = false }: { inline?: boolean }) {
   const status = useDataStatus();
   const [detail, setDetail] = useState(false);
   const freshness = status?.freshness;
@@ -35,7 +35,7 @@ export function DataFreshnessBadge() {
     : "border-tremor-border bg-tremor-background-subtle text-tremor-content dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content";
 
   return (
-    <span className="relative mt-1.5 inline-block">
+    <span className={`relative inline-block ${inline ? "min-w-0 max-w-full shrink" : "mt-1.5"}`}>
       <button
         type="button"
         data-walk-mask="freshness"
@@ -44,10 +44,10 @@ export function DataFreshnessBadge() {
           void loadDataStatus(true);
           setDetail((v) => !v);
         }}
-        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${tone}`}
+        className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${tone} ${inline ? "min-w-0" : ""}`}
       >
-        <span aria-hidden>{freshness.stale ? "⚠" : "🕘"}</span>
-        {text}
+        <span aria-hidden className="shrink-0">{freshness.stale ? "⚠" : "🕘"}</span>
+        <span className={inline ? "truncate" : undefined}>{text}</span>
       </button>
       {detail ? (
         <span

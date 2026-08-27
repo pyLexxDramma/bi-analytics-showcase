@@ -7,18 +7,11 @@ import type { ReactNode } from "react";
  * Если `text` пустой — ничего не рендерим.
  */
 export function DashboardInsight({
-  text,
-  className = "",
+  text: _text,
+  className: _className = "",
 }: {
   text: ReactNode | null | undefined;
   className?: string;
 }) {
-  if (text == null || text === false || text === "") return null;
-  const empty = typeof text === "string" ? !text.trim() : false;
-  if (empty) return null;
-  return (
-    <div className={`bi-dashboard-insight mb-3 ${className}`} role="status">
-      {text}
-    </div>
-  );
+  return null;
 }

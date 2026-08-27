@@ -83,7 +83,7 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
 
   if (variant === "chip") {
     return (
-      <div className="inline-flex max-w-full flex-col items-end gap-0.5 lg:hidden">
+      <div className="inline-flex max-w-full flex-col items-start gap-0.5 lg:hidden">
         <button
           type="button"
           onClick={() => void run()}
@@ -98,7 +98,7 @@ function AskAiControl({ variant }: { variant: AskAiVariant }) {
           <span>{busy ? "…" : "Спросить ИИ"}</span>
         </button>
         {error ? (
-          <p className="max-w-[10rem] text-right text-[10px] leading-tight text-red-600 dark:text-red-400">
+          <p className="max-w-[10rem] text-left text-[10px] leading-tight text-red-600 dark:text-red-400">
             {error}
           </p>
         ) : null}

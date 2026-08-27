@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AskAiButton, AskAiTitleChip } from "@/components/ask-ai-button";
 import { AppSidebar } from "@/components/app-sidebar";
-import { CommandPalette, openCommandPalette } from "@/components/command-palette";
+import { CommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
 import { ReportBreadcrumbs } from "@/components/report-breadcrumbs";
 import { ShortcutsHelp } from "@/components/shortcuts-help";
@@ -61,6 +61,9 @@ export function AppShell({
   const pathname = usePathname();
   const mobile = useIsMobileViewport();
   const navItem = findNavItem(pathname);
+  const showDataFreshness =
+    !pathname.startsWith("/settings/profile") &&
+    !pathname.startsWith("/settings/admin");
   // На SSR localStorage нет → canAccessReport() всегда false. Если считать доступ
   // в initial state, сервер рисует «Нет доступа», клиент — сам отчёт: hydration
   // mismatch и вспышка баннера на каждом экране. Считаем уже после mount.
@@ -205,23 +208,46 @@ export function AppShell({
           } ${showLoading ? "pointer-events-none select-none" : ""}`}
           aria-hidden={showLoading || undefined}
         >
-          <header className="mb-5 flex items-start justify-between gap-2 sm:mb-8 sm:items-center sm:gap-3">
-            <div className="min-w-0 flex-1">
-              <ReportBreadcrumbs />
-              <h1 className="min-w-0 break-words text-lg font-bold tracking-tight text-tremor-content-strong sm:text-2xl dark:text-dark-tremor-content-strong">
+          <header className="mb-5 sm:mb-8">
+            <div className="lg:hidden">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  {showDataFreshness ? <DataFreshnessBadge inline /> : null}
+                  <AskAiTitleChip />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTheme(dark ? "light" : "dark")}
+                  className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                  aria-label={dark ? "Включить светлую тему" : "Включить тёмную тему"}
+                >
+                  {dark ? "☀ Светлая" : "🌙 Тёмная"}
+                </button>
+              </div>
+              <h1 className="mt-3 w-full text-center text-lg font-bold tracking-tight text-tremor-content-strong dark:text-dark-tremor-content-strong">
                 {title}
               </h1>
               {subtitle ? (
-                <p className="mt-1 break-words text-sm text-tremor-content dark:text-dark-tremor-content sm:text-tremor-default">
+                <p className="mt-1 text-center text-sm text-tremor-content dark:text-dark-tremor-content">
                   {subtitle}
                 </p>
               ) : null}
-              <DataFreshnessBadge />
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {/* Mobile: переливающаяся кнопка Ask AI по текущему дашборду */}
-              <AskAiTitleChip />
-              <div className="hidden items-center gap-2 lg:flex">
+
+            <div className="hidden items-center justify-between gap-3 lg:flex">
+              <div className="min-w-0 flex-1">
+                <ReportBreadcrumbs />
+                <h1 className="min-w-0 break-words text-2xl font-bold tracking-tight text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                  {title}
+                </h1>
+                {subtitle ? (
+                  <p className="mt-1 break-words text-tremor-default text-tremor-content dark:text-dark-tremor-content">
+                    {subtitle}
+                  </p>
+                ) : null}
+                {showDataFreshness ? <DataFreshnessBadge /> : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
                 <AskAiButton />
                 <button
                   type="button"
@@ -253,25 +279,13 @@ export function AppShell({
                 </button>
                 <button
                   type="button"
-                  onClick={openCommandPalette}
-                  title="Поиск по отчётам"
-                  className="inline-flex items-center gap-2 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                  onClick={() => setTheme(dark ? "light" : "dark")}
+                  className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
+                  aria-label={dark ? "Включить светлую тему" : "Включить тёмную тему"}
                 >
-                  <span aria-hidden>🔎</span>
-                  Поиск
-                  <kbd className="rounded border border-tremor-border px-1.5 py-0.5 text-xs text-tremor-content dark:border-dark-tremor-border dark:text-dark-tremor-content">
-                    Ctrl K
-                  </kbd>
+                  {dark ? "☀ Светлая" : "🌙 Тёмная"}
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setTheme(dark ? "light" : "dark")}
-                className="shrink-0 rounded-tremor-default border border-tremor-border bg-tremor-background px-2.5 py-2 text-sm font-medium text-tremor-content-emphasis shadow-tremor-input transition hover:bg-tremor-background-subtle dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle sm:px-3 sm:text-tremor-default"
-                aria-label={dark ? "Включить светлую тему" : "Включить тёмную тему"}
-              >
-                {dark ? "☀ Светлая" : "🌙 Тёмная"}
-              </button>
             </div>
           </header>
           <div

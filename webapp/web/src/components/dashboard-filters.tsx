@@ -17,7 +17,6 @@ import type { ActiveFilter } from "@/lib/filters-summary";
 import {
   deleteFilterPreset,
   listFilterPresets,
-  saveFilterPreset,
   type FilterPreset,
 } from "@/lib/filter-presets";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
@@ -1001,23 +1000,6 @@ export function FiltersCard({
       </div>
     ) : null;
 
-  const savePresetBtn =
-    navId && onApply ? (
-      <button
-        type="button"
-        className="text-xs text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
-        onClick={() => {
-          const name = window.prompt("Название среза фильтров:", "Мой срез");
-          if (!name) return;
-          saveFilterPreset(navId, name, window.location.search.replace(/^\?/, ""));
-          setPresets(listFilterPresets(navId));
-          confirmFeedback();
-        }}
-      >
-        Сохранить срез
-      </button>
-    ) : null;
-
   const chips = activeFilters ?? [];
   const chipsRow =
     chips.length > 0 ? (
@@ -1091,7 +1073,6 @@ export function FiltersCard({
           </button>
           {chipsRow}
           {presetsRow}
-          {savePresetBtn ? <div className="mb-2">{savePresetBtn}</div> : null}
         </div>
         <FiltersSheet
           open={sheetOpen}
@@ -1150,11 +1131,9 @@ export function FiltersCard({
         </button>
         {!open ? chipsRow : null}
         {!open ? presetsRow : null}
-        {!open && savePresetBtn ? <div className="mt-2">{savePresetBtn}</div> : null}
         {open ? <div className="bi-filters-body mt-3 space-y-3">{children}</div> : null}
         {open && chips.length ? <div className="mt-3">{chipsRow}</div> : null}
         {open ? presetsRow : null}
-        {open && savePresetBtn ? <div className="mt-2">{savePresetBtn}</div> : null}
         {open ? actions : null}
       </div>
       {stickyPending && onApply ? (
