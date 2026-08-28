@@ -35,7 +35,7 @@ export function DataFreshnessBadge({ inline = false }: { inline?: boolean }) {
     : "border-tremor-border bg-tremor-background-subtle text-tremor-content dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle dark:text-dark-tremor-content";
 
   return (
-    <span className={`relative inline-block ${inline ? "min-w-0 max-w-full shrink" : "mt-1.5"}`}>
+    <span className={`relative inline-block ${inline ? "mx-auto min-w-0 max-w-full" : "mt-1.5"}`}>
       <button
         type="button"
         data-walk-mask="freshness"
