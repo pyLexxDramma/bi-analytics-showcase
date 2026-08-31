@@ -257,7 +257,7 @@ export function DebitCreditChart({
     const contractorRows = rows as DebitCreditContractorChartRow[];
     const n = Math.max(1, contractorRows.length);
     const labels = contractorRows.map((row) => row.label);
-    const ticktext = labels.map(wrapTickLabel);
+    const ticktext = labels.map((label) => wrapTickLabel(label));
     const seriesOrder = stacked
       ? [SERIES.positive, SERIES.ks2, SERIES.advance]
       : [SERIES.advance, SERIES.ks2, SERIES.positive, SERIES.negative];
