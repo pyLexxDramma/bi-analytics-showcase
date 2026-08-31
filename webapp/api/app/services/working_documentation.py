@@ -1067,7 +1067,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v30-rd-not-issued-or-prod",
+            "v31-rd-cipher-norm-join",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),

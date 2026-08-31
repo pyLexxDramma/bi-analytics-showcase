@@ -18171,6 +18171,38 @@ def _rd_csv_cell_str(val: Any) -> str:
     return s
 
 
+def _rd_cipher_match_key(val: Any) -> str:
+    """Ключ сопоставления полного шифра РД: casefold + кириллица→латиница + ','→'.'.
+
+    TESSA часто пишет суффикс Latin ``A`` (``…-АС5-A``), план other_*_rd.csv —
+    Cyrillic ``А`` (``…-АС5-А``). Без нормализации join по полному шифру
+    промахивается и падает на неоднозначный short-cipher fallback.
+    """
+    s = _rd_csv_cell_str(val)
+    if not s:
+        return ""
+    t = s.casefold().replace("\xa0", " ").replace(",", ".")
+    # _CONTRACT_NO_HOMOGLYPHS объявлен ниже по файлу; дублируем локально,
+    # чтобы ключ шифра не зависел от порядка определений.
+    _homo = str.maketrans(
+        {
+            "\u0430": "a",
+            "\u0441": "c",
+            "\u0435": "e",
+            "\u043d": "h",
+            "\u043a": "k",
+            "\u043c": "m",
+            "\u043e": "o",
+            "\u0440": "p",
+            "\u0442": "t",
+            "\u0445": "x",
+            "\u0443": "y",
+            "\u0432": "v",
+        }
+    )
+    return t.translate(_homo)
+
+
 def _rd_format_contract_no(val: Any) -> str:
     """RD-06: номер договора целым числом — без хвоста «.0» и научной нотации.
 
@@ -19027,40 +19059,51 @@ def _build_rd_work_doc_detail_table(
     if not isinstance(pc, dict):
         pc = {}
 
-    # Индексы TESSA: шифр / полный шифр → список (proj_key, idx).
+    # Индексы TESSA: полный шифр (нормализованный) / (шифр, имя).
     # Проект сопоставляем толерантно (_project_norm_key_matches_msp_keys),
     # иначе «Дмитровский»↔«Дмитровский 1» даёт все строки «Не выдано».
     # Каждая карточка — не более одного раза (1 план ↔ 1 TESSA).
+    # Short-cipher-only fallback НЕ используем: у «АС»/«КЖ» десятки карточек,
+    # из‑за этого DocNumber цепляется к чужому «Шифр полный» (напр. АС-КПП).
     by_pn: dict[tuple[str, str], list[tuple[str, int]]] = {}
     by_fc: dict[str, list[tuple[str, int]]] = {}
-    by_cipher: dict[str, list[tuple[str, int]]] = {}
     used_tessa: set[int] = set()
     if not tessa_tbl.empty:
         for _ti, _tr in tessa_tbl.iterrows():
             _pk = _project_filter_norm_key(_tr.get("Проект", ""))
             _cc = str(_tr.get("Шифр", "") or "").strip().casefold()
             _nm = str(_tr.get("Наименование разделов работ", "") or "").strip().casefold()
-            _fc = str(_tr.get("Шифр полный", "") or "").strip().casefold()
-            if _fc and _fc not in ("nan", "none"):
+            _fc = _rd_cipher_match_key(_tr.get("Шифр полный", ""))
+            if _fc:
                 by_fc.setdefault(_fc, []).append((_pk, _ti))
             if _cc:
                 by_pn.setdefault((_cc, _nm), []).append((_pk, _ti))
-                by_cipher.setdefault(_cc, []).append((_pk, _ti))
 
-    def _pick_tessa(pk: str, candidates: list[tuple[str, int]] | None) -> int | None:
+    def _pick_tessa(
+        pk: str,
+        candidates: list[tuple[str, int]] | None,
+        *,
+        unique_only: bool = False,
+    ) -> int | None:
         if not candidates:
             return None
         _pk_set = {pk} if pk else set()
+        hits: list[int] = []
         for _tpk, _ti in candidates:
             if _ti in used_tessa:
                 continue
             if not _pk_set:
-                return _ti
+                hits.append(_ti)
+                continue
             if _project_norm_key_matches_msp_keys(_tpk, _pk_set) or (
                 _tpk and _project_norm_key_matches_msp_keys(pk, {_tpk})
             ):
-                return _ti
-        return None
+                hits.append(_ti)
+        if not hits:
+            return None
+        if unique_only and len(hits) != 1:
+            return None
+        return hits[0]
 
     out_rows: list[dict[str, Any]] = []
     for _i, row in csv_df.iterrows():
@@ -19083,12 +19126,16 @@ def _build_rd_work_doc_detail_table(
 
         pk = _project_filter_norm_key(proj)
         tessa_idx = None
-        if full_c:
-            tessa_idx = _pick_tessa(pk, by_fc.get(full_c.casefold()))
-        if tessa_idx is None:
-            tessa_idx = _pick_tessa(pk, by_pn.get((cipher.casefold(), sect.casefold())))
+        _fc_key = _rd_cipher_match_key(full_c)
+        if _fc_key:
+            tessa_idx = _pick_tessa(pk, by_fc.get(_fc_key))
         if tessa_idx is None and cipher:
-            tessa_idx = _pick_tessa(pk, by_cipher.get(cipher.casefold()))
+            # Имя+шифр только если уникальная карточка под проектом.
+            tessa_idx = _pick_tessa(
+                pk,
+                by_pn.get((cipher.casefold(), sect.casefold())),
+                unique_only=True,
+            )
 
         plan_s = (
             row["_plan_dt"].strftime("%d.%m.%Y")
@@ -19112,12 +19159,21 @@ def _build_rd_work_doc_detail_table(
             _plan_from_t = str(tr.get("Дата выдачи разделов по Договору", "") or "").strip()
             _fc_from_t = str(tr.get("Прогнозная дата выдачи разделов", "") or "").strip()
             _tessa_proj = str(tr.get("Проект", "") or "").strip()
+            _tessa_full = str(tr.get("Шифр полный", "") or "").strip()
             # Не оставляем GUID, если в TESSA уже есть человекочитаемое имя.
             _proj_out = proj
             if _is_uuid_like(_proj_out) and _tessa_proj and not _is_uuid_like(_tessa_proj):
                 _proj_out = _tessa_proj
             elif not _proj_out:
                 _proj_out = _tessa_proj
+            # Полный шифр: при совпадении ключей показываем TESSA InternalID
+            # (как в исходнике), иначе — план.
+            _full_out = full_c
+            if _tessa_full and (
+                not full_c
+                or _rd_cipher_match_key(_tessa_full) == _rd_cipher_match_key(full_c)
+            ):
+                _full_out = _tessa_full
             out_rows.append(
                 {
                     "Проект": _proj_out,
@@ -19128,7 +19184,7 @@ def _build_rd_work_doc_detail_table(
                         or contract_no_csv
                     ),
                     "Шифр": cipher or str(tr.get("Шифр", "") or ""),
-                    "Шифр полный": full_c or str(tr.get("Шифр полный", "") or ""),
+                    "Шифр полный": _full_out or _tessa_full,
                     "Версия": str(tr.get("Версия", "") or ""),
                     "Статус": str(tr.get("Статус", "") or _RD_TESSA_STATUS_NOT_ISSUED),
                     "Дата выдачи разделов по Договору": (
