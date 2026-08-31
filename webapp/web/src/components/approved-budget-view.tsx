@@ -17,9 +17,7 @@ import { useRefreshTick } from "@/lib/refresh-context";
 import {
   FilterCheck,
   FilterChipMulti,
-  FilterChipSelect,
   FilterChecksRow,
-  FilterFieldsRow,
   FiltersCard,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
@@ -30,10 +28,10 @@ import { DashboardInsight } from "@/components/dashboard-insight";
 
 type SortKey = "period" | "project" | "plan" | "fact" | "remainder" | "deviation" | "completion_pct" | "contract_coverage_pct";
 type SortState = { key: SortKey; asc: boolean } | null;
-type Filters = { projects: string[]; fiz: string; hide_zero: boolean | null; show_deviation: boolean };
+type Filters = { projects: string[]; hide_zero: boolean | null; show_deviation: boolean };
 type ProjectMetric = "plan" | "fact" | "remainder" | "deviation" | "completion_pct" | "contract_coverage_pct";
 
-const INITIAL: Filters = { projects: [], fiz: "Все", hide_zero: null, show_deviation: true };
+const INITIAL: Filters = { projects: [], hide_zero: null, show_deviation: true };
 const CELL = "border border-[#cbd5e1] dark:border-[#7a9ec4]";
 const HEAD = "border border-[#cbd5e1] bg-[#e8f0fe] px-3 py-2 text-xs font-semibold uppercase text-[#111827] dark:border-[#7a9ec4] dark:bg-[#16283a] dark:text-[#f0f4f8]";
 const TABLE = "min-w-full border-collapse border-2 border-[#94a3b8] text-center text-tremor-default dark:border-[#7a9ec4]";
@@ -281,12 +279,13 @@ export function ApprovedBudgetView() {
   const load = useCallback(async (next: Filters) => {
     setLoading(true); setError(null);
     const hideZeroEffective =
-      next.hide_zero ?? (next.projects.length === 0 && next.fiz === "Все");
+      next.hide_zero ?? next.projects.length === 0;
     try {
       setData(
         await fetchApprovedBudget({
-          ...next,
+          projects: next.projects,
           hide_zero: hideZeroEffective,
+          show_deviation: next.show_deviation,
         }),
       );
     }
@@ -294,7 +293,7 @@ export function ApprovedBudgetView() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(applied); }, [applied, load, refreshTick]);
-  const hideZero = filters.hide_zero ?? (filters.projects.length === 0 && filters.fiz === "Все");
+  const hideZero = filters.hide_zero ?? filters.projects.length === 0;
   const toggleSort = (set: (next: SortState | ((value: SortState) => SortState)) => void) => (key: SortKey) => set((state) => state?.key === key ? (state.asc ? { key, asc: false } : null) : { key, asc: true });
   const sortRows = <T extends Record<string, unknown>>(rows: T[], sort: SortState) => !sort ? rows : [...rows].sort((a, b) => {
     const av = a[sort.key]; const bv = b[sort.key];
@@ -345,7 +344,6 @@ export function ApprovedBudgetView() {
     INITIAL,
     [
       { key: "projects", name: "Проект" },
-      { key: "fiz", name: "ФИЗ" },
       { key: "show_deviation", name: "Отклонение", kind: "flag" },
       { key: "hide_zero", name: "Нулевые месяцы", kind: "flag" },
     ],
@@ -364,10 +362,6 @@ export function ApprovedBudgetView() {
       resetDisabled={!dirty}
     >
       <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((state) => ({ ...state, projects }))} />
-      <FilterFieldsRow cols={2}>
-        <FilterChipSelect label="ФИЗ" value={filters.fiz} options={["Все", ...(data?.filters.fiz ?? [])]} onChange={(fiz) => setFilters((state) => ({ ...state, fiz }))} />
-        <div />
-      </FilterFieldsRow>
       <FilterChecksRow cols={2}>
         <FilterCheck label="Показать отклонение" checked={filters.show_deviation} onChange={(event) => setFilters((state) => ({ ...state, show_deviation: event.target.checked }))} />
         <FilterCheck label="Скрывать месяцы, где план и факт равны 0" checked={hideZero} onChange={(event) => setFilters((state) => ({ ...state, hide_zero: event.target.checked }))} />
