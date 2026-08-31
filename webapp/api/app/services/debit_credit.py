@@ -466,15 +466,15 @@ def build_debit_credit_payload(
     contract_dates = pd.to_datetime(view.contract_date, errors="coerce")
     if getattr(contract_dates.dtype, "tz", None) is not None:
         contract_dates = contract_dates.dt.tz_convert("UTC").dt.tz_localize(None)
+    date_mask = pd.Series(True, index=view.index)
     if date_from:
-        view = view[
-            contract_dates.isna() | contract_dates.ge(pd.Timestamp(date_from))
-        ]
+        date_mask &= contract_dates.isna() | contract_dates.ge(pd.Timestamp(date_from))
     if date_to:
-        view = view[
-            contract_dates.isna()
-            | contract_dates.lt(pd.Timestamp(date_to) + pd.Timedelta(days=1))
-        ]
+        date_mask &= contract_dates.isna() | contract_dates.lt(
+            pd.Timestamp(date_to) + pd.Timedelta(days=1)
+        )
+    if date_from or date_to:
+        view = view.loc[date_mask]
 
     # Исключительный кейс: Все проекты + Все подрядчики + без фильтра договора
     # → агрегация только по типу суммы. Но «С группировкой» остаётся

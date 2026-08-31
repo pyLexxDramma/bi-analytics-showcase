@@ -1824,14 +1824,10 @@ def gdrs_plan_history_period_frame(
     date_from: Optional[pd.Timestamp] = None,
     date_to: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
-    """План за период = сумма Количество_Людей/Техники с датой внутри месяца.
+    """Legacy: сумма точек Количество_* с датой в месяце (не UI «Среднее за месяц»).
 
-    Не срез «сколько людей на конец месяца» и не среднее недельных срезов:
-    каждая запись выдачи в интервале складывается (СК МДС: 15+15+15+15+6 = 66).
-    date_end не отсекает строки — график в JSON сам задаёт месяц выдачи
-    (23-СКА/26: окончание в июне, выдачи 15+15 в июле).
-    Файл — последний Dogovor, как в load_plan_aggregate. Нет точек в месяце → пусто
-    (стоячий план вроде Ориентир 39 остаётся на среднем срезов).
+    UI берёт среднее недельных срезов / snapshot. date_end не отсекает строки —
+    график JSON сам задаёт месяц выдачи (23-СКА/26: окончание в июне, выдачи в июле).
     """
     empty_cols = [
         "project_id", "contractor_id", "project_name", "contractor_name",
@@ -4238,7 +4234,7 @@ def gdrs_matrix_show_week_columns(
 def gdrs_matrix_week_labels(
     date_from: pd.Timestamp,
     date_to: pd.Timestamp,
-    dates: pd.Series,
+    dates: Optional[pd.Series] = None,
 ) -> list[str]:
     """Подписи недель 1–N (N ≤ 6) с диапазоном дат (для шапки таблицы)."""
     lo = pd.Timestamp(date_from).normalize()
@@ -4246,7 +4242,19 @@ def gdrs_matrix_week_labels(
     week_nums = gdrs_week_numbers_in_period(lo, hi)
     if not week_nums:
         return [f"{i} нед" for i in range(1, 7)]
-    dts = pd.to_datetime(dates, errors="coerce").dropna()
+    # Будущий месяц без факта: dates=None / пусто / скалярный NaT — не падать.
+    if dates is None:
+        dts = pd.Series(dtype="datetime64[ns]")
+    else:
+        dts = pd.to_datetime(dates, errors="coerce")
+        if not isinstance(dts, pd.Series):
+            dts = (
+                pd.Series([dts], dtype="datetime64[ns]")
+                if pd.notna(dts)
+                else pd.Series(dtype="datetime64[ns]")
+            )
+        else:
+            dts = dts.dropna()
     if not dts.empty:
         dts = dts[(dts >= lo) & (dts <= hi)]
     week_idx, _ = (
@@ -4485,13 +4493,14 @@ def build_main_table(
         contractors=contractors,
     )
     # СКУД = resursi как в Excel: не режем по заявкам расторжения Dogovor
-    # (ПАКС после «акта возврата» ещё есть в августовском resursi → иначе 184 вместо 186).
+    # (ПАКС после «акта возврата» ещё есть в августовском resursi).
     # Расторжение остаётся на плане (gdrs_apply_kontr_plan_gate / plan eligible).
     fact = _gdrs_add_pair_keys(fact, kontr_index, dedupe_fact=True)
     # После Kontr: каноническое имя может появиться только здесь — стоп-лист по contractor_name.
     fact = gdrs_drop_excluded_contractors(fact)
-    # СКУД как в resursi Excel: все строки файла (в т.ч. #Н/Д без UUID), без ∩ Kontr.
-    # План по-прежнему через Dogovor ∩ Kontr ниже.
+    # В отчёте только контрагенты из справочника 1С_Kontr
+    # (Курскрегионпроект / Марафон АО / НГС эксперт и пр. из resursi без Kontr — скрыть).
+    fact = gdrs_filter_fact_kontr_intersection(fact, kontr_index)
     _skud_as_of = gdrs_skud_as_of(date_to, fact)
     if fact is not None and not fact.empty and "date" in fact.columns:
         fact = fact.copy()
@@ -4506,7 +4515,7 @@ def build_main_table(
     plan_col = "plan_workers" if vid.casefold() == "рабочие" else "plan_equipment"
     by_id, by_id_name, by_norm = _build_plan_lookup(plan_work, plan_col)
 
-    # Строки: факт СКУД из resursi (как Excel) ∪ план Dogovor ∩ 1C_Kontr.
+    # Строки: факт СКУД ∩ 1C_Kontr ∪ план Dogovor ∩ 1C_Kontr.
     # Plan-only (есть договор, нет СКУД) оставляем — иначе пропадает «Ориентир».
 
     _plan_snap = pd.Timestamp(plan_as_of).normalize() if plan_as_of is not None and pd.notna(plan_as_of) else (
@@ -4818,49 +4827,6 @@ def build_main_table(
         _w_cols = [f"w{wn}" for wn in _week_nums]
         rows["plan"] = rows[_p_cols].mean(axis=1).round(0)
         rows["skud"] = rows[_w_cols].mean(axis=1).round(0)
-    # План «Среднее за месяц» в одном календарном месяце: сумма выдач Количество_*
-    # с датой в месяце (СК МДС 15+15+15+15+6=66). Не зависит от колонок недель /
-    # выбранной недели СКУД — иначе остаётся срез date_end (СК МДС → 21).
-    if (
-        dogovor_records
-        and date_from is not None
-        and date_to is not None
-        and _gdrs_single_calendar_month(date_from, date_to)
-        and gdrs_agg_week_num(plan_agg) is None
-    ):
-        _hist_df = gdrs_plan_history_period_frame(
-            dogovor_records=dogovor_records,
-            date_from=pd.Timestamp(date_from),
-            date_to=pd.Timestamp(date_to),
-        )
-        if _hist_df is not None and not _hist_df.empty:
-            _hlu = _build_plan_lookup(_hist_df, plan_col)
-            _hsum = rows.apply(
-                lambda r, _lookup=_hlu: _lookup_plan(
-                    str(r.get("project_id", "")),
-                    str(r.get("contractor_id", "")),
-                    str(r.get("project_name", "")),
-                    str(r.get("contractor_name", "")),
-                    _lookup[0],
-                    _lookup[1],
-                    _lookup[2],
-                ),
-                axis=1,
-            ).astype(float)
-            rows["plan"] = np.where(_hsum > 0, _hsum, rows["plan"]).round(0)
-            rows["deviation"] = (rows["skud"] - rows["plan"]).round(0)
-            rows["delta_pct"] = rows.apply(
-                lambda r: ((r["skud"] - r["plan"]) / r["plan"] * 100.0)
-                if r["plan"] not in (0.0, None) and float(r["plan"]) != 0.0
-                else np.nan,
-                axis=1,
-            )
-    elif (
-        _show_week_cols
-        and _week_nums
-        and gdrs_agg_week_num(plan_agg) is None
-        and gdrs_agg_week_num(skud_agg) is None
-    ):
         rows["deviation"] = (rows["skud"] - rows["plan"]).round(0)
         rows["delta_pct"] = rows.apply(
             lambda r: ((r["skud"] - r["plan"]) / r["plan"] * 100.0)
@@ -4868,6 +4834,8 @@ def build_main_table(
             else np.nan,
             axis=1,
         )
+    # План «Среднее за месяц» = среднее срезов / стоячий headcount (как СКУД — люди/день).
+    # Не сумма точек выдачи Количество_* в месяце (раньше СК МДС 15+15+…→66).
     rows["row_kind"] = "row"
 
     rows = _gdrs_collapse_rows_by_contractor_key(rows, kontr_index)

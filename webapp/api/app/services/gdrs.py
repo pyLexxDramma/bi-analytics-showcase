@@ -360,10 +360,12 @@ def build_gdrs_payload(
     if dyn_lbl not in _DYN_OPTS:
         dyn_lbl = "День"
 
-    # Контрагенты: fact ∪ plan (без ∩ Kontr — иначе пропадают #Н/Д из resursi).
+    # Контрагенты: fact ∩ 1С_Kontr ∪ plan ∩ 1С_Kontr.
     contractor_options: list[str] = []
     if "contractor_name" in long_fact.columns:
         _fact_ctr = long_fact
+        if kontr_index is not None:
+            _fact_ctr = g.gdrs_filter_fact_kontr_intersection(_fact_ctr, kontr_index)
         contractor_options = sorted(
             {
                 str(x).strip()
@@ -571,11 +573,10 @@ def build_gdrs_payload(
     week_plan_keys: list[str] = []
     week_skud_keys: list[str] = []
     if show_week_cols:
-        date_series = (
-            long_fact_period["date"]
-            if long_fact_period is not None and not long_fact_period.empty
-            else None
-        )
+        if long_fact_period is not None and not long_fact_period.empty and "date" in long_fact_period.columns:
+            date_series = long_fact_period["date"]
+        else:
+            date_series = pd.Series(dtype="datetime64[ns]")
         week_labels = list(
             g.gdrs_matrix_week_labels(date_from, date_to, date_series) or []
         )
@@ -619,6 +620,8 @@ def build_gdrs_payload(
         fact_dyn = fact_dyn[
             fact_dyn["vid_resursa"].astype(str).str.casefold() == vid.casefold()
         ]
+    if kontr_index is not None and not fact_dyn.empty:
+        fact_dyn = g.gdrs_filter_fact_kontr_intersection(fact_dyn, kontr_index)
     if sel_projects and not fact_dyn.empty:
         fact_dyn = labels.filter_dataframe_by_project_labels(
             fact_dyn, sel_projects, col="project_name"
