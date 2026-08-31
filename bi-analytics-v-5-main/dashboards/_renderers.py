@@ -35623,9 +35623,13 @@ def _pd_cipher_filled_mask(df: pd.DataFrame) -> tuple[Optional[str], pd.Series]:
     )
     if not cipher_col or cipher_col not in df.columns:
         return cipher_col, pd.Series(False, index=df.index)
-    cs = df[cipher_col].astype(str).str.strip()
-    ok = cs.ne("") & ~cs.str.lower().isin(("nan", "none", "-", "—", "null"))
-    return cipher_col, ok
+    raw = df[cipher_col]
+    # float NaN: astype(str)→"nan", но .str.isin на NA → NA → ~isin True (ложный шифр).
+    filled = raw.notna()
+    cs = raw.astype(str).str.strip()
+    blank = ("", "nan", "none", "-", "—", "null", "<na>")
+    ok = filled & cs.ne("") & ~cs.str.casefold().isin(blank)
+    return cipher_col, ok.fillna(False)
 
 
 def _pd_cumsum_by_granularity(dates, row_mask, gran_key: str):

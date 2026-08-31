@@ -127,9 +127,13 @@ def _cipher_mask(df: pd.DataFrame) -> tuple[str | None, pd.Series]:
     )
     if not cipher_col or cipher_col not in df.columns:
         return cipher_col, pd.Series(False, index=df.index)
-    cs = df[cipher_col].astype(str).str.strip()
-    ok = cs.ne("") & ~cs.str.lower().isin(("nan", "none", "-", "—", "null", "<na>"))
-    return cipher_col, ok
+    raw = df[cipher_col]
+    # float NaN → astype(str) даёт "nan", но .str.isin на NA даёт NA → ~isin = True
+    # (ложный «заполненный» шифр). Как в таблице строк — только notna + не blank.
+    filled = raw.notna()
+    cs = raw.astype(str).str.strip()
+    ok = filled & cs.ne("") & ~cs.str.casefold().isin(_BLANK)
+    return cipher_col, ok.fillna(False)
 
 
 def _parent_is_pd_stage(parent_name: str) -> bool:
@@ -837,7 +841,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v17-pd-monthly-due-ontime|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v18-pd-cipher-notna|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
