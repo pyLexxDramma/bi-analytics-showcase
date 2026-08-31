@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Баг-репорт — BI Analytics</title>
+<style>
+  :root { --accent:#2a6fdb; --border:#d6dbe3; --muted:#6b7280; --bg:#f4f6f9; --req:#c0392b; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); margin:0; color:#1c2430; }
+  .wrap { max-width:760px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  fieldset { border:1px solid var(--border); border-radius:10px; background:#fff; padding:18px 20px; margin:0 0 18px; }
+  legend { font-weight:600; padding:0 8px; font-size:1.05rem; }
+  label { display:block; font-weight:500; margin:14px 0 4px; }
+  label:first-of-type { margin-top:4px; }
+  .req::after { content:" *"; color:var(--req); }
+  .hint { font-weight:400; color:var(--muted); font-size:.85rem; margin:2px 0 6px; }
+  input[type=text], input[type=datetime-local], select, textarea {
+    width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:7px; font-size:.95rem; font-family:inherit; background:#fff;
+  }
+  textarea { min-height:84px; resize:vertical; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
+  .radio-row, .check-row { display:flex; align-items:flex-start; gap:8px; margin:7px 0; font-weight:400; cursor:pointer; }
+  .radio-row input, .check-row input { margin-top:3px; flex:none; }
+  .radio-row small, .check-row small { display:block; color:var(--muted); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+  @media (max-width:600px){ .grid2 { grid-template-columns:1fr; } }
+  .note { background:#f0f5ff; border:1px solid #c4d6f6; border-radius:8px; padding:10px 14px; font-size:.9rem; margin-bottom:18px; }
+  .warn { background:#fff6ec; border-color:#f0d6b0; }
+  button[type=submit] { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:13px 26px; font-size:1.05rem; font-weight:600; cursor:pointer; width:100%; }
+  button[type=submit]:disabled { opacity:.6; cursor:wait; }
+  #result { margin-top:16px; padding:14px 16px; border-radius:8px; display:none; }
+  #result.ok { display:block; background:#eafaf0; border:1px solid #b6e2c5; }
+  #result.err { display:block; background:#fdeeee; border:1px solid #eec0c0; }
+  .againrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .againbtn { border:none; border-radius:8px; padding:10px 16px; font-size:.95rem; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
+  .againbtn.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+  input.missing, select.missing, textarea.missing { border-color:var(--req); outline:1px solid var(--req); }
+  .filelist { font-size:.88rem; color:var(--muted); margin-top:6px; }
+  #section5[hidden] { display:none !important; }
+  #report_other_wrap[hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Баг-репорт — BI Analytics</h1>
+  <p class="sub">Одна заявка — один дефект. Если проблем несколько, отправьте форму несколько раз.</p>
+  <div class="note warn">Для <b>нового</b> отчёта, фильтра или метрики эта форма не подходит — такие запросы обсуждаются отдельным брифом.</div>
+
+  <form id="bugform" novalidate>
+    <fieldset>
+      <legend>Кто заполняет</legend>
+      <label class="req" for="reporter">ФИО и роль</label>
+      <input type="text" id="reporter" required placeholder="Например: Алексей Янчуркин, руководитель">
+    </fieldset>
+
+    <fieldset>
+      <legend>1. Тип проблемы</legend>
+      <label class="radio-row"><input type="radio" name="btype" value="Интерфейс" required><span><b>Интерфейс</b><small>Вёрстка, цвета, подписи, легенда, обрезание текста, фильтры как элементы экрана, кнопки, навигация. Цифры при этом могут быть верными.</small></span></label>
+      <label class="radio-row"><input type="radio" name="btype" value="Проблема с данными"><span><b>Проблема с данными</b><small>Неверные или неполные значения, расхождение с источником или другим отчётом, ошибка формулы или фильтрации, неверные данные в экспорте.</small></span></label>
+      <label class="radio-row"><input type="radio" name="btype" value="Другое"><span><b>Другое</b><small>Доступ и роли, скорость работы, ошибка системы, загрузка данных, ИИ-помощник, админпанель.</small></span></label>
+
+      <label for="subtype">Подтип <span class="hint" style="display:inline">(если ясно)</span></label>
+      <select id="subtype">
+        <option value="">— не выбран —</option>
+        <option>Отображение</option>
+        <option>Сходимость (не совпадает с источником)</option>
+        <option>Расчёт / фильтр данных</option>
+        <option>Выгрузка (CSV / PNG)</option>
+        <option>Вёрстка / визуал</option>
+        <option>Навигация / управление</option>
+        <option>Доступ / роли</option>
+        <option>Производительность</option>
+        <option>Ошибка / недоступность</option>
+        <option>ИИ-помощник</option>
+        <option>Иное</option>
+      </select>
+
+      <label for="whytype">Почему выбран этот тип <span class="hint" style="display:inline">(необязательно — подставится само)</span></label>
+      <textarea id="whytype" placeholder="Заполняется автоматически по типу; можно уточнить вручную."></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. Где наблюдается проблема</legend>
+      <div class="grid2">
+        <div>
+          <label class="req" for="menugroup">Группа / раздел меню</label>
+          <select id="menugroup" required>
+            <option value="">— выберите —</option>
+            <option>Девелоперские проекты</option>
+            <option>Предписания</option>
+            <option>ИД</option>
+            <option>ГДРС</option>
+            <option>Проектные работы</option>
+            <option>Финансы</option>
+            <option>Сроки</option>
+            <option>AI-аналитика</option>
+            <option>Админпанель</option>
+            <option>Другое</option>
+          </select>
+        </div>
+        <div>
+          <label class="req" for="report">Название отчёта или экрана</label>
+          <select id="report" required>
+            <option value="">— сначала выберите группу —</option>
+          </select>
+          <div id="report_other_wrap" hidden>
+            <label for="report_other">Уточните название</label>
+            <input type="text" id="report_other" placeholder="Как в меню">
+          </div>
+        </div>
+        <div>
+          <label class="req" for="block">Блок на экране</label>
+          <select id="block" required>
+            <option value="">— выберите —</option>
+            <option>Таблица</option>
+            <option>График</option>
+            <option>KPI</option>
+            <option>Фильтры</option>
+            <option>Экспорт</option>
+            <option>Чат</option>
+            <option>Иное</option>
+          </select>
+        </div>
+        <div>
+          <label for="element">Колонка, ряд, серия или подпись</label>
+          <input type="text" id="element" placeholder="Например: колонка «Отклонение»">
+        </div>
+        <div>
+          <label class="req" for="contour">Контур</label>
+          <select id="contour" required>
+            <option value="">— выберите —</option>
+            <option>Боевой</option>
+            <option>Тестовый</option>
+            <option>Не знаю</option>
+          </select>
+        </div>
+        <div>
+          <label class="req" for="whendt">Дата и время наблюдения</label>
+          <input type="datetime-local" id="whendt" required>
+        </div>
+        <div>
+          <label for="browser">Браузер и устройство</label>
+          <input type="text" id="browser" placeholder="Chrome, ПК / телефон">
+        </div>
+        <div>
+          <label for="role">Учётная запись / роль</label>
+          <input type="text" id="role" placeholder="Логин или роль">
+        </div>
+      </div>
+      <label for="filters">Фильтры на момент проблемы <span class="hint" style="display:inline">(обязательно, если отчёт с фильтрами)</span></label>
+      <textarea id="filters" placeholder="Проект: …&#10;Период: …&#10;Подрядчик: …&#10;№ договора: …&#10;Другие: …"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. Суть проблемы</legend>
+      <label class="req" for="actual">Что происходит сейчас — фактическое поведение</label>
+      <textarea id="actual" required placeholder="Опишите, что видите, без догадок о причине."></textarea>
+
+      <label class="req" for="expected">Ожидаемое поведение</label>
+      <textarea id="expected" required placeholder="Как должно быть по согласованному правилу или по смыслу экрана."></textarea>
+
+      <label>Чем подтверждается ожидание</label>
+      <label class="check-row"><input type="checkbox" name="proof" value="Так было на согласованном эталоне / в брифе"><span>Так было на согласованном эталоне / в брифе</span></label>
+      <label class="check-row"><input type="checkbox" name="proof" value="Так в источнике (1С, MSP, TESSA, CSV)"><span>Так в источнике (1С, MSP, TESSA, CSV)</span></label>
+      <label class="check-row"><input type="checkbox" name="proof" value="Так на другом отчёте при тех же фильтрах"><span>Так на другом отчёте при тех же фильтрах</span></label>
+      <label class="check-row"><input type="checkbox" name="proof" value="Так было до недавнего обновления"><span>Так было до недавнего обновления</span></label>
+      <input type="text" id="proofnote" placeholder="Уточнение: какой файл / отчёт / когда сломалось" style="margin-top:6px">
+
+      <label class="req">Насколько мешает работе</label>
+      <label class="radio-row"><input type="radio" name="severity" value="Блокирует работу" required><span><b>Блокирует работу</b><small>Отчётом нельзя пользоваться по назначению.</small></span></label>
+      <label class="radio-row"><input type="radio" name="severity" value="Сильно мешает"><span><b>Сильно мешает</b><small>Решение принимается с оговоркой или обходом.</small></span></label>
+      <label class="radio-row"><input type="radio" name="severity" value="Заметно, но есть обход"><span><b>Заметно, но есть обход</b><small>Можно работать, но неудобно или нужно сверять вручную.</small></span></label>
+      <label class="radio-row"><input type="radio" name="severity" value="Косметика"><span><b>Косметика</b><small>На цифры и решение не влияет.</small></span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. Сценарий воспроизведения</legend>
+      <label class="req" for="steps">Шаги — по одному действию на строку</label>
+      <p class="hint">Так, чтобы другой человек без переписки повторил то же самое.</p>
+      <textarea id="steps" required placeholder="1. Открыть систему, войти под ролью …&#10;2. Перейти в группу … → отчёт …&#10;3. Выбрать фильтры: проект …, период …&#10;4. Открыть блок / нажать …&#10;5. Увидеть: …" style="min-height:120px"></textarea>
+
+      <label class="req">Воспроизводится</label>
+      <label class="radio-row"><input type="radio" name="repro" value="Всегда, при указанных шагах" required><span>Всегда, при указанных шагах</span></label>
+      <label class="radio-row"><input type="radio" name="repro" value="Иногда"><span>Иногда</span></label>
+      <label class="radio-row"><input type="radio" name="repro" value="Только у меня / у части пользователей"><span>Только у меня / у части пользователей</span></label>
+      <label class="radio-row"><input type="radio" name="repro" value="Не удалось повторить, видели один раз"><span>Не удалось повторить, видели один раз</span></label>
+
+      <label for="conditions">Дополнительные условия</label>
+      <input type="text" id="conditions" placeholder="После обновления данных / только на конкретном проекте / как часто…">
+    </fieldset>
+
+    <fieldset id="section5" hidden>
+      <legend>5. Данные для сверки</legend>
+      <p class="hint">Только для типа «Проблема с данными».</p>
+      <label class="req" for="wrongvalue">Какая цифра на экране неверна</label>
+      <input type="text" id="wrongvalue" placeholder="Значение, единица, строка или ячейка">
+      <label class="req" for="rightvalue">Какая цифра ожидается и откуда взята</label>
+      <input type="text" id="rightvalue" placeholder="Значение и источник">
+      <label class="req" for="source">Источник сверки</label>
+      <select id="source">
+        <option value="">— выберите —</option>
+        <option>1С</option>
+        <option>MSP</option>
+        <option>TESSA</option>
+        <option>CSV</option>
+        <option>Другой отчёт BI</option>
+        <option>Excel заказчика</option>
+      </select>
+      <label for="sourcefile">Имя файла выгрузки или дата комплекта</label>
+      <input type="text" id="sourcefile" placeholder="Например: комплект за 22.08.2026">
+      <label for="rule">Правило расчёта, если известно</label>
+      <input type="text" id="rule" placeholder="Формула или словесное правило">
+    </fieldset>
+
+    <fieldset>
+      <legend>6. Скриншоты и вложения</legend>
+      <p class="hint">На кадре должны быть видны: название отчёта, фильтры и место дефекта. Можно приложить эталон. До 8 файлов, каждый до 9 МБ.</p>
+      <input type="file" id="files" multiple accept="image/*,.csv,.xlsx,.xls,.pdf,.png">
+      <div class="filelist" id="filelist"></div>
+      <label for="filedesc">Что на кадрах / зачем приложены файлы</label>
+      <textarea id="filedesc" placeholder="Скриншот 1 — …&#10;Файл 2 — эталон из 1С"></textarea>
+      <label for="nofiles">Если файлов нет — почему</label>
+      <input type="text" id="nofiles" placeholder="Нет доступа к экрану / дефект в файле экспорта / иное">
+    </fieldset>
+
+    <button type="submit" id="sendbtn">Отправить заявку</button>
+    <div id="result"></div>
+  </form>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const MAX_FILES = 8, MAX_SIZE = 9 * 1024 * 1024;
+const CTX_FIELDS = ['reporter','menugroup','contour','browser','role','filters','whytype','btype','subtype','block'];
+
+const REPORTS_BY_GROUP = {
+  'Девелоперские проекты': ['Девелоперские проекты'],
+  'Предписания': ['Предписания по подрядчикам'],
+  'ИД': ['Исполнительная документация'],
+  'ГДРС': ['ГДРС (люди)', 'ГДРС (техника)'],
+  'Проектные работы': ['Проектная документация', 'Рабочая документация'],
+  'Финансы': [
+    'БДДС (расходы)',
+    'БДР (расходы)',
+    'Утверждённый бюджет план/факт',
+    'БДДС расходы (план, факт, уточненный план)',
+    'Дебиторская и кредиторская задолженность подрядчиков',
+  ],
+  'Сроки': [
+    'Контрольные точки',
+    'График проекта',
+    'Причины отклонений',
+    'Отклонение от базового плана',
+  ],
+  'AI-аналитика': ['ИИ помощник'],
+  'Админпанель': ['Административная панель'],
+  'Другое': [],
+};
+
+const WHY_BY_TYPE = {
+  'Интерфейс': 'Проблема в отображении или управлении экраном; цифры при этом могут быть верными.',
+  'Проблема с данными': 'Неверные или неполные значения / расхождение с источником при тех же фильтрах.',
+  'Другое': 'Проблема вне типового UI/данных: доступ, скорость, система, загрузка, ИИ или админка.',
+};
+
+function reportValue() {
+  const sel = $('report').value;
+  if (sel === '__other__') return $('report_other').value.trim();
+  return sel;
+}
+
+function fillReportOptions(group, preferred) {
+  const sel = $('report');
+  const list = REPORTS_BY_GROUP[group] || [];
+  sel.innerHTML = '';
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = group ? '— выберите отчёт —' : '— сначала выберите группу —';
+  sel.appendChild(ph);
+  list.forEach(name => {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = name;
+    sel.appendChild(o);
+  });
+  const other = document.createElement('option');
+  other.value = '__other__';
+  other.textContent = 'Другое…';
+  sel.appendChild(other);
+
+  if (preferred) {
+    const match = [...sel.options].find(o => o.value === preferred);
+    if (match) {
+      sel.value = preferred;
+      $('report_other_wrap').hidden = true;
+      $('report_other').value = '';
+    } else {
+      sel.value = '__other__';
+      $('report_other_wrap').hidden = false;
+      $('report_other').value = preferred;
+    }
+  } else {
+    $('report_other_wrap').hidden = true;
+    $('report_other').value = '';
+  }
+}
+
+function syncWhyType(force) {
+  const t = document.querySelector('input[name=btype]:checked')?.value;
+  if (!t) return;
+  const cur = $('whytype').value.trim();
+  const canned = Object.values(WHY_BY_TYPE);
+  if (force || !cur || canned.includes(cur)) {
+    $('whytype').value = WHY_BY_TYPE[t] || '';
+  }
+}
+
+function syncDataSection() {
+  const isData = document.querySelector('input[name=btype]:checked')?.value === 'Проблема с данными';
+  $('section5').hidden = !isData;
+  ['wrongvalue','rightvalue','source'].forEach(id => {
+    $(id).required = isData;
+    if (!isData) $(id).value = id === 'source' ? '' : $(id).value;
+  });
+}
+
+function resetForm() {
+  $('bugform').reset();
+  $('filelist').textContent = '';
+  $('report_other_wrap').hidden = true;
+  fillReportOptions('', '');
+  syncDataSection();
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  $('whendt').value = d.toISOString().slice(0,16);
+}
+
+function submitUrl() {
+  const q = new URLSearchParams(location.search);
+  const api = (q.get('api') || '').replace(/\/$/, '');
+  return (api || '') + '/api/bugform/submit';
+}
+
+function autoTitle(actual, report) {
+  const line = (actual || '').trim().split(/\n/)[0] || report || 'Баг-репорт';
+  return line.slice(0, 140);
+}
+
+$('menugroup').addEventListener('change', () => {
+  fillReportOptions($('menugroup').value, '');
+});
+$('report').addEventListener('change', () => {
+  const other = $('report').value === '__other__';
+  $('report_other_wrap').hidden = !other;
+  if (!other) $('report_other').value = '';
+});
+
+document.querySelectorAll('input[name=btype]').forEach(r => r.addEventListener('change', () => {
+  syncWhyType(false);
+  syncDataSection();
+}));
+
+(() => {
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  $('whendt').value = d.toISOString().slice(0,16);
+})();
+
+(() => {
+  const q = new URLSearchParams(location.search);
+  const menugroup = q.get('menugroup') || '';
+  const report = q.get('report') || '';
+  if (q.get('reporter')) $('reporter').value = q.get('reporter');
+  if (menugroup) $('menugroup').value = menugroup;
+  fillReportOptions(menugroup, report);
+  ['block','element','contour','browser','role','filters','whytype'].forEach(id => {
+    const v = q.get(id);
+    if (v) $(id).value = v;
+  });
+  const btype = q.get('btype');
+  if (btype) {
+    const radio = document.querySelector(`input[name=btype][value="${CSS.escape(btype)}"]`);
+    if (radio) radio.checked = true;
+  }
+  syncDataSection();
+  if (!$('whytype').value.trim()) syncWhyType(true);
+
+  const prefilled = Boolean(menugroup || report || q.get('reporter') || q.get('contour'));
+  if (!prefilled) return;
+  document.querySelectorAll('input[required], select[required], textarea[required]').forEach(el => {
+    const mark = () => {
+      const val = el.id === 'report' ? reportValue() : el.value.trim();
+      el.classList.toggle('missing', !val);
+    };
+    mark();
+    el.addEventListener('input', mark);
+    el.addEventListener('change', mark);
+  });
+})();
+
+$('files').addEventListener('change', () => {
+  const fs = [...$('files').files];
+  const bad = fs.filter(f => f.size > MAX_SIZE).map(f => f.name);
+  let msg = fs.length > MAX_FILES ? `⚠️ Больше ${MAX_FILES} файлов — лишние не уйдут. ` : '';
+  if (bad.length) msg += `⚠️ Слишком большие (>9 МБ): ${bad.join(', ')}`;
+  $('filelist').textContent = msg || fs.map(f => f.name).join(' · ');
+});
+
+const readB64 = f => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res({ name: f.name, mime: f.type || 'application/octet-stream', data: r.result.split(',')[1] });
+  r.onerror = rej;
+  r.readAsDataURL(f);
+});
+
+$('bugform').addEventListener('submit', async e => {
+  e.preventDefault();
+  const form = $('bugform'), result = $('result');
+  result.className = ''; result.textContent = '';
+
+  if ($('report').value === '__other__' && !$('report_other').value.trim()) {
+    result.className = 'err';
+    result.textContent = 'Укажите название отчёта или выберите из списка.';
+    return;
+  }
+  if (!reportValue()) {
+    $('report').reportValidity();
+    return;
+  }
+  if (!form.checkValidity()) { form.reportValidity(); return; }
+
+  const files = [...$('files').files].filter(f => f.size <= MAX_SIZE).slice(0, MAX_FILES);
+  if (!files.length && !$('nofiles').value.trim()) {
+    result.className = 'err';
+    result.textContent = 'Приложите хотя бы один скриншот или заполните поле «Если файлов нет — почему».';
+    return;
+  }
+
+  syncWhyType(false);
+  const btype = document.querySelector('input[name=btype]:checked').value;
+  const report = reportValue();
+  const actual = $('actual').value.trim();
+
+  const btn = $('sendbtn');
+  btn.disabled = true; btn.textContent = 'Отправляем…';
+  try {
+    const payload = {
+      key: new URLSearchParams(location.search).get('k') || '',
+      reporter: $('reporter').value.trim(),
+      btype,
+      subtype: $('subtype').value,
+      whytype: $('whytype').value.trim() || WHY_BY_TYPE[btype] || '',
+      menugroup: $('menugroup').value,
+      report,
+      block: $('block').value,
+      element: $('element').value.trim(),
+      contour: $('contour').value,
+      whendt: $('whendt').value,
+      browser: $('browser').value.trim(),
+      role: $('role').value.trim(),
+      filters: $('filters').value.trim(),
+      title: autoTitle(actual, report),
+      actual,
+      expected: $('expected').value.trim(),
+      proof: [...document.querySelectorAll('input[name=proof]:checked')].map(c => c.value),
+      proofnote: $('proofnote').value.trim(),
+      severity: document.querySelector('input[name=severity]:checked').value,
+      steps: $('steps').value.trim(),
+      repro: document.querySelector('input[name=repro]:checked').value,
+      conditions: $('conditions').value.trim(),
+      wrongvalue: $('wrongvalue').value.trim(),
+      rightvalue: $('rightvalue').value.trim(),
+      source: $('source').value,
+      sourcefile: $('sourcefile').value.trim(),
+      rule: $('rule').value.trim(),
+      filedesc: $('filedesc').value.trim(),
+      nofiles: $('nofiles').value.trim(),
+      attachments: await Promise.all(files.map(readB64)),
+    };
+    const resp = await fetch(submitUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || data.detail || ('Ошибка сервера ' + resp.status));
+
+    const ctx = {
+      reporter: $('reporter').value,
+      menugroup: $('menugroup').value,
+      report: report,
+      contour: $('contour').value,
+      browser: $('browser').value,
+      role: $('role').value,
+      filters: $('filters').value,
+      whytype: $('whytype').value,
+      btype,
+      subtype: $('subtype').value,
+      block: $('block').value,
+    };
+    result.className = 'ok';
+    result.innerHTML = `✅ Заявка <b>${data.bug_id || ''}</b> зарегистрирована. Спасибо! Мы взяли её в разбор.
+      <div class="againrow">
+        <button type="button" class="againbtn" id="againsame">➕ Ещё баг по этому же отчёту</button>
+        <button type="button" class="againbtn secondary" id="againnew">Другой отчёт</button>
+      </div>`;
+    resetForm();
+    $('againsame').addEventListener('click', () => {
+      $('reporter').value = ctx.reporter;
+      $('menugroup').value = ctx.menugroup;
+      fillReportOptions(ctx.menugroup, ctx.report);
+      $('contour').value = ctx.contour;
+      $('browser').value = ctx.browser;
+      $('role').value = ctx.role;
+      $('filters').value = ctx.filters;
+      $('whytype').value = ctx.whytype;
+      $('subtype').value = ctx.subtype;
+      $('block').value = ctx.block;
+      const radio = document.querySelector(`input[name=btype][value="${CSS.escape(ctx.btype)}"]`);
+      if (radio) radio.checked = true;
+      syncWhyType(false);
+      syncDataSection();
+      result.className = ''; result.textContent = '';
+      document.querySelector('fieldset').scrollIntoView({ behavior: 'smooth' });
+    });
+    $('againnew').addEventListener('click', () => {
+      result.className = ''; result.textContent = '';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  } catch (err) {
+    result.className = 'err';
+    result.textContent = '❌ Не удалось отправить: ' + err.message + '. Попробуйте ещё раз или напишите нам напрямую.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Отправить заявку';
+  }
+});
+</script>
+</body>
+</html>

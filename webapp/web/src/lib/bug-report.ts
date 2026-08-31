@@ -2,15 +2,16 @@ import { collectAskAiFiltersFromSearch } from "@/lib/ask-ai-reports";
 import type { AuthUser } from "@/lib/auth";
 import { accordionIdForPath, findNavItem, REPORT_TOP_TAB } from "@/lib/nav";
 
-const DEFAULT_BUG_FORM_URL =
-  "https://winbot.taild98f9b.ts.net:8443/bugform?k=f21915ba03f6a71d";
+/** Локальная форма (public/bugform); submit через /api/bugform/submit → winbot. */
+const DEFAULT_BUG_FORM_PATH = "/bugform/index.html";
+const DEFAULT_BUG_FORM_KEY = "f21915ba03f6a71d";
 
 export type BugReportContext = {
   menugroup: string;
   report: string;
 };
 
-/** Значения menugroup — строго как в analytics_bug_form / form.html */
+/** Значения menugroup — строго как в public/bugform/index.html */
 export function resolveBugReportContext(
   pathname: string,
   pageTitle?: string,
@@ -125,9 +126,23 @@ export function buildBugReportUrl(input: {
   pathname: string;
   search: string;
 }): string {
+  const configured = process.env.NEXT_PUBLIC_BUG_FORM_URL?.trim();
   const base =
-    process.env.NEXT_PUBLIC_BUG_FORM_URL?.trim() || DEFAULT_BUG_FORM_URL;
-  const url = new URL(base);
+    configured ||
+    (typeof window !== "undefined"
+      ? `${window.location.origin}${DEFAULT_BUG_FORM_PATH}`
+      : DEFAULT_BUG_FORM_PATH);
+  const url = new URL(base, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+
+  if (!url.searchParams.get("k")) {
+    url.searchParams.set("k", DEFAULT_BUG_FORM_KEY);
+  }
+
+  // Локально Next :3000 и API :8000 — форма должна знать, куда слать submit
+  const apiBase = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/$/, "");
+  if (apiBase) {
+    url.searchParams.set("api", apiBase);
+  }
 
   const reporter = formatBugReportReporter(input.user);
   if (reporter) url.searchParams.set("reporter", reporter);

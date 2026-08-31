@@ -189,3 +189,10 @@ ENSURE_FRESH_MARKER = Path(
 # XCA Ask AI: подписанная ссылка /ask (см. DASHBOARD_ASK_AI_INTEGRATION.md)
 XCA_ASK_BASE_URL = (os.environ.get("XCA_ASK_BASE_URL") or "").strip().rstrip("/")
 XCA_ASK_SECRET = (os.environ.get("XCA_ASK_SECRET") or "").strip()
+
+# Баг-форма: UI в Next public/bugform, submit проксируется на winbot
+BUG_FORM_SUBMIT_URL = (
+    os.environ.get("BUG_FORM_SUBMIT_URL")
+    or "https://winbot.taild98f9b.ts.net:8443/bugform/submit"
+).strip()
+BUG_FORM_KEY = (os.environ.get("BUG_FORM_KEY") or "f21915ba03f6a71d").strip()

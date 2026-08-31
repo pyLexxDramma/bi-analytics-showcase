@@ -21,6 +21,7 @@ from app.routers import (
     bdds,
     bdds_plan_fact,
     bdr,
+    bugform,
     control_points,
     debit_credit,
     developer_projects,
@@ -71,6 +72,7 @@ app.include_router(admin.router)
 app.include_router(assistant.router)
 app.include_router(ask_ai.router)
 app.include_router(ask_ai.legacy_router)
+app.include_router(bugform.router)
 
 
 @app.get("/api/health")

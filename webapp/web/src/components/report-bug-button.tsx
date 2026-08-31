@@ -116,13 +116,6 @@ export function ReportBugButton({ pageTitle }: { pageTitle?: string }) {
                   </li>
                   <li>
                     <span className="font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                      Заголовок
-                    </span>
-                    {" — "}
-                    одна короткая фраза: что не так.
-                  </li>
-                  <li>
-                    <span className="font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
                       Фактически
                     </span>
                     {" — "}
@@ -159,7 +152,8 @@ export function ReportBugButton({ pageTitle }: { pageTitle?: string }) {
                   <strong className="font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
                     как должно работать
                   </strong>
-                  . Скриншот — если помогает.
+                  . Скриншот — если помогает. Блок «Данные для сверки» появится
+                  только при типе «Проблема с данными».
                 </p>
               </div>
 
