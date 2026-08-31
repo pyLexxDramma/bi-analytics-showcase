@@ -374,8 +374,10 @@ export function RdMonthlyCumulativeChart({
       Math.max(plan[i], fact[i] + overdue[i], fact[i], overdue[i]),
     );
     const labelText = chronological.map((_, i) => {
-      const shown = factInc[i] > 0 ? factInc[i] : fact[i];
-      return shown > 0 ? `+${Math.round(shown)}` : "";
+      // Только прирост за месяц. Fallback на накопительный fact давал ложные «+N»
+      // (май/авг/окт без выдачи → +2/+8/+11) и сумму подписей 396 вместо ~375.
+      const inc = factInc[i];
+      return inc > 0 ? `+${Math.round(inc)}` : "";
     });
 
     return {
