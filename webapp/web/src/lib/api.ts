@@ -1623,6 +1623,8 @@ export type WorkingDocumentationPayload = {
       /** Выдано − план к дате (≥0 зелёный, <0 красный). */
       delta?: number;
     }>;
+    /** cumulative = overlay план/факт; stack_pct = доли месяца (%). */
+    monthly_mode?: "cumulative" | "stack_pct";
   };
   detail_rows: Array<Record<string, string | number | null>>;
   detail_columns: string[];
@@ -1645,6 +1647,18 @@ export type WorkingDocumentationPayload = {
       }>;
       range_start: string | null;
       range_end: string | null;
+    };
+    overdue_bars?: {
+      rows: Array<{
+        label: string;
+        overdue_cnt: number;
+        total_cnt: number;
+        overdue_pct: number;
+        value: number;
+        text: string;
+      }>;
+      use_pct: boolean;
+      x_title: string;
     };
     detail_rows: Array<Record<string, string | number | null>>;
     detail_columns: string[];

@@ -200,14 +200,17 @@ def _align_detail_to_not_issued_n(
         return detail_tbl
     if int(len(detail_tbl)) <= int(target):
         return detail_tbl
-    cipher_col = "Шифр" if "Шифр" in detail_tbl.columns else None
     kept = detail_tbl
-    if cipher_col:
-        fake = pd.DataFrame({"_c": detail_tbl[cipher_col]}, index=detail_tbl.index)
-        issued = _issued_mask_from_tessa_status(mod, fake, None, "_c")
-        drop = issued.reindex(detail_tbl.index).fillna(False)
-        if bool(drop.any()):
-            kept = detail_tbl.loc[~drop].copy()
+    # Уже отфильтрованная детализация имеет колонку «Статус» — режем по ней.
+    # Старый путь через _issued_mask_from_tessa_status(шифр) помечал почти все
+    # short-cipher как «выдано» и обнулял таблицу при фильтре «Не выдано».
+    if "Статус" in detail_tbl.columns:
+        keys = _tessa_status_keys(mod)
+        prod_key = keys["production"]
+        keep_mask = detail_tbl["Статус"].map(
+            lambda x: _row_is_not_issued_residual(mod, x, prod_key)
+        ).fillna(True)
+        kept = detail_tbl.loc[keep_mask].copy()
     if int(len(kept)) > int(target):
         kept = kept.iloc[: int(target)].copy()
     return kept.reset_index(drop=True)
@@ -240,12 +243,24 @@ def _row_is_not_issued_residual(mod: ModuleType, raw_status: object, prod_key: s
     return label != prod_key
 
 
+def _detail_no_tessa_card_mask(detail_tbl: pd.DataFrame) -> pd.Series:
+    """Строки плана other_*_rd без карточки TESSA (пустой ID документа)."""
+    if detail_tbl is None or getattr(detail_tbl, "empty", True):
+        return pd.Series(dtype=bool)
+    id_col = "ID документа в Тессе"
+    if id_col not in detail_tbl.columns:
+        return pd.Series(True, index=detail_tbl.index)
+    ids = detail_tbl[id_col].fillna("").astype(str).str.strip()
+    return ids.eq("") | ids.str.casefold().isin(_BLANK)
+
+
 def _detail_status_mask(detail_tbl: pd.DataFrame, sel: list[str], mod: ModuleType) -> pd.Series:
     """Маска строк детализации под фильтр статуса.
 
-    «Не выдано» = весь остаток (не ушло в производство): сам статус, ГИП,
-    доработка и пустой статус — и при одиночном, и при мультивыборе.
-    Несколько статусов — объединение (OR), без сужения «Не выдано» до словаря.
+    Одиночное «Не выдано» = разделы плана other_*_rd без карточки TESSA
+    (пустой ID) — то, что нужно графику просрочки и таблице при этом фильтре.
+    В мультивыборе «Не выдано» по-прежнему расширяется до остатка
+    (не ушло в производство: сам статус / ГИП / доработка / пусто).
     """
     if detail_tbl.empty or "Статус" not in detail_tbl.columns:
         return pd.Series(False, index=detail_tbl.index)
@@ -253,7 +268,7 @@ def _detail_status_mask(detail_tbl: pd.DataFrame, sel: list[str], mod: ModuleTyp
     raw = detail_tbl["Статус"]
     prod_key = keys["production"]
     if _sel_is_not_issued_only(sel, mod):
-        return raw.map(lambda x: _row_is_not_issued_residual(mod, x, prod_key)).fillna(True)
+        return _detail_no_tessa_card_mask(detail_tbl)
 
     mask = pd.Series(False, index=detail_tbl.index)
     for s in sel:
@@ -280,6 +295,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "title": "Рабочая документация",
             "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
             "parity": "main_working_documentation_rd_plan_tessa",
+            "wd_build": "v36-rd-metric-pct",
             "version_id": None,
             "error": error,
         },
@@ -321,11 +337,17 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "status_mix": [],
             "dynamics": [],
             "monthly": [],
+            "monthly_mode": "cumulative",
         },
         "detail_rows": [],
         "detail_columns": [],
         "delay": {
             "gantt": {"rows": [], "range_start": None, "range_end": None},
+            "overdue_bars": {
+                "rows": [],
+                "use_pct": False,
+                "x_title": "Количество просроченных разделов",
+            },
             "detail_rows": [],
             "detail_columns": [],
         },
@@ -533,6 +555,145 @@ def _cell(val: Any) -> str:
     if not s or s.casefold() in _BLANK:
         return ""
     return s
+
+
+def _build_delay_overdue_bars(
+    detail_tbl: pd.DataFrame,
+    mod: ModuleType,
+    *,
+    by_section: bool,
+    plan_df: pd.DataFrame | None,
+    proj_col: str | None,
+    use_pct: bool,
+) -> list[dict[str, Any]]:
+    """Столбцы просрочки для метрики «% / количество» (паритет `_render_rd_delay_overdue_bar_chart`)."""
+    if detail_tbl is None or getattr(detail_tbl, "empty", True):
+        return []
+    tbl = detail_tbl.copy()
+    drop_fn = getattr(mod, "_drop_rd_detail_empty_rows", None)
+    if callable(drop_fn):
+        try:
+            tbl = drop_fn(tbl)
+        except Exception:
+            pass
+    if tbl is None or getattr(tbl, "empty", True):
+        return []
+    dev_c = "Отклонение от даты по договору, дн"
+    if dev_c not in tbl.columns:
+        return []
+    dev_num = pd.to_numeric(tbl[dev_c], errors="coerce").fillna(0.0)
+    tbl["_dev_n"] = (-dev_num).clip(lower=0.0)
+    key_fn = getattr(mod, "_rd_delay_detail_section_keys", None)
+    if callable(key_fn):
+        try:
+            tbl["_sec_key"] = key_fn(tbl)
+        except Exception:
+            tbl["_sec_key"] = (
+                tbl.get("Шифр", pd.Series("", index=tbl.index)).fillna("").astype(str)
+                + "|"
+                + tbl.get("Наименование разделов работ", pd.Series("", index=tbl.index))
+                .fillna("")
+                .astype(str)
+            )
+    else:
+        tbl["_sec_key"] = (
+            tbl.get("Шифр", pd.Series("", index=tbl.index)).fillna("").astype(str)
+            + "|"
+            + tbl.get("Наименование разделов работ", pd.Series("", index=tbl.index))
+            .fillna("")
+            .astype(str)
+        )
+    if by_section:
+        tbl["_y"] = (
+            tbl.get("Шифр", pd.Series("", index=tbl.index)).fillna("").astype(str).str.strip()
+            + " "
+            + tbl.get("Наименование разделов работ", pd.Series("", index=tbl.index))
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        ).str.replace(r"\s+", " ", regex=True).str.strip()
+    else:
+        tbl["_y"] = (
+            tbl.get("Проект", pd.Series("", index=tbl.index)).fillna("").astype(str).str.strip()
+        )
+    tbl["_y"] = tbl["_y"].replace({"": "—", "nan": "—"})
+    sec_tbl = tbl.groupby(["_y", "_sec_key"], as_index=False).agg(_dev_max=("_dev_n", "max"))
+    sec_tbl["_overdue"] = sec_tbl["_dev_max"] > 0
+    if by_section:
+        chart = (
+            sec_tbl.groupby("_y", as_index=False)
+            .agg(
+                overdue_cnt=("_overdue", lambda s: int(s.sum())),
+                total_cnt=("_sec_key", "nunique"),
+            )
+            .rename(columns={"_y": "label"})
+        )
+    else:
+        chart = (
+            sec_tbl.groupby("_y", as_index=False)
+            .agg(overdue_cnt=("_overdue", lambda s: int(s.sum())))
+            .rename(columns={"_y": "label"})
+        )
+        totals: dict[str, int] = {}
+        tot_fn = getattr(mod, "_rd_plan_proj_section_counts", None)
+        if callable(tot_fn) and plan_df is not None:
+            try:
+                raw = tot_fn(plan_df, proj_col) or {}
+                totals = {str(k): int(v) for k, v in raw.items()}
+            except Exception:
+                totals = {}
+        norm_fn = getattr(mod, "_project_filter_norm_key", lambda x: str(x).strip().casefold())
+        chart["total_cnt"] = chart["label"].map(
+            lambda lbl: int(totals.get(norm_fn(lbl), 0) or 0)
+        )
+        miss = chart["total_cnt"] <= 0
+        if bool(miss.any()):
+            fb = (
+                sec_tbl.groupby("_y")["_sec_key"]
+                .nunique()
+                .rename("total_cnt")
+                .reset_index()
+                .rename(columns={"_y": "label"})
+            )
+            chart = chart.drop(columns=["total_cnt"], errors="ignore").merge(
+                fb, on="label", how="left"
+            )
+            chart["total_cnt"] = chart["total_cnt"].fillna(0).astype(int)
+    chart["overdue_cnt"] = np.where(
+        chart["total_cnt"] > 0,
+        np.minimum(chart["overdue_cnt"].astype(int), chart["total_cnt"].astype(int)),
+        chart["overdue_cnt"].astype(int),
+    )
+    chart["overdue_pct"] = np.where(
+        chart["total_cnt"] > 0,
+        chart["overdue_cnt"] / chart["total_cnt"] * 100.0,
+        0.0,
+    )
+    val_col = "overdue_pct" if use_pct else "overdue_cnt"
+    chart = chart[chart[val_col] > 0].copy()
+    if chart.empty:
+        return []
+    chart = chart.sort_values(val_col, ascending=False)
+    rows: list[dict[str, Any]] = []
+    for _, r in chart.iterrows():
+        ovd = int(r.get("overdue_cnt", 0) or 0)
+        tot = int(r.get("total_cnt", 0) or 0)
+        pct = float(r.get("overdue_pct", 0) or 0)
+        if use_pct:
+            text = f"{pct:.0f}% ({ovd} из {tot})" if tot > 0 else f"{pct:.0f}%"
+        else:
+            text = f"{ovd} из {tot} ({pct:.0f}%)" if tot > 0 else str(ovd)
+        rows.append(
+            {
+                "label": str(r.get("label") or "—"),
+                "overdue_cnt": ovd,
+                "total_cnt": tot,
+                "overdue_pct": round(pct, 1),
+                "value": round(pct, 1) if use_pct else ovd,
+                "text": text,
+            }
+        )
+    return rows
 
 
 def _month_label(period: Any) -> str:
@@ -1055,7 +1216,17 @@ def build_working_documentation_payload(
         show_fc = bool(show_forecast)
 
     metric = metric_mode if metric_mode in ("Количество разделов", "% от общего объёма") else "Количество разделов"
-    period = period_mode or "Весь период (за всё время)"
+    if metric_mode in ("sections", "count", "qty"):
+        metric = "Количество разделов"
+    elif metric_mode in ("pct", "percent", "%"):
+        metric = "% от общего объёма"
+    _period_raw = str(period_mode or "").strip()
+    if not _period_raw or _period_raw.casefold() in {"all", "весь период", "whole"}:
+        period = "Весь период (за всё время)"
+    elif _period_raw in ("Весь период (за всё время)", "Выбор диапазона дат"):
+        period = _period_raw
+    else:
+        period = _period_raw
     view = "section" if str(view_mode or "").casefold() in {"section", "по разделу"} else "project"
     tab_id = "delay" if str(tab or "").casefold() == "delay" else "main"
 
@@ -1067,7 +1238,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v31-rd-cipher-norm-join",
+            "v36-rd-metric-pct",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1248,7 +1419,8 @@ def build_working_documentation_payload(
             # объединение срезов (OR), truncate ломал «Не выдано»+«Выдано» → 64/0.
             _single_status = len([s for s in sel_statuses if str(s).strip()]) == 1
             if _sel_is_not_issued_only(sel_statuses, mod):
-                slice_n = _not_issued_residual(plan_n_before_status, tz_counts, keys)
+                # Число разделов плана без TESSA (не residual план−выдано).
+                slice_n = int(len(detail_tbl)) if detail_tbl is not None else 0
             elif _single_status and _sel_has_status(sel_statuses, keys["review"], mod):
                 slice_n = int(fitted_all.get(keys["review"], 0) or 0)
             elif _single_status and _sel_has_status(sel_statuses, keys["rework"], mod):
@@ -1350,7 +1522,7 @@ def build_working_documentation_payload(
             )
             n = int(total_sections)
             if _sel_is_not_issued_only(sel_statuses, mod):
-                n = _not_issued_residual(plan_n_before_status, tz_counts, keys)
+                n = int(total_sections)
             elif _sel_has_status(sel_statuses, keys["review"], mod):
                 n = int(fitted_all.get(keys["review"], 0) or n)
             elif _sel_has_status(sel_statuses, keys["rework"], mod):
@@ -1359,7 +1531,7 @@ def build_working_documentation_payload(
             issued_production = 0
             not_issued_kpi = n
             if _sel_is_not_issued_only(sel_statuses, mod):
-                pie_counts = _pie_for_not_issued_residual(n, tz_counts, keys, not_issued)
+                pie_counts = {not_issued: n} if n > 0 else {}
             else:
                 pie_counts = {
                     k: v
@@ -1404,6 +1576,8 @@ def build_working_documentation_payload(
         monthly_rows: list[dict[str, Any]] = []
         monthly_exc: str | None = None
         monthly_issued_n = 0
+        monthly_mode = "cumulative"
+        use_pct = str(metric).strip().startswith("%")
         try:
             month_df = plan_df[plan_df["_plan_dt"].notna()].copy()
             month_df["_rd_plan_n"] = 1.0
@@ -1477,48 +1651,74 @@ def build_working_documentation_payload(
             _fact_w = _fact_n[_w]
             _weights = pd.to_numeric(month_df.loc[_w, "_rd_plan_n"], errors="coerce").fillna(1.0)
             total_plan = float(_weights.sum())
-            use_pct = str(metric).strip().startswith("%")
-            periods = sorted({p for p in _plan_w.dt.to_period("M").tolist() if p is not pd.NaT})
-            _today = pd.Timestamp.today().normalize()
-            cur_m = pd.Period(_today, freq="M")
-            periods = [p for p in periods if p <= cur_m]
+            monthly_mode = "stack_pct" if use_pct else "cumulative"
             rows_m: list[dict[str, Any]] = []
-            prev_green = 0.0
-            for p in periods:
-                as_of = min(pd.Timestamp(p.end_time).normalize(), _today)
-                issued = _fact_w.notna() & (_fact_w <= as_of)
-                due = _plan_w <= as_of
-                future = _plan_w > as_of
-                done_v = float(_weights[issued].sum())
-                overdue_v = float(_weights[(~issued) & due].sum())
-                rest_v = float(_weights[(~issued) & future].sum())
-                # Страховка от округления: сегменты покрывают весь план.
-                covered = done_v + overdue_v + rest_v
-                if abs(covered - total_plan) > 0.05 and total_plan > 0:
-                    rest_v = max(0.0, total_plan - done_v - overdue_v)
-                plan_due = done_v + overdue_v
-                delta_v = done_v - plan_due  # = −overdue + early-issued-from-future
-                # early: issued & future plan → в done, не в plan_due
-                # equivalent: done_v - (total_plan - rest_v) = done_v - plan_due
-                fact_inc = max(0.0, done_v - prev_green)
-                prev_green = done_v
-                # План на дату месяца (накопительно): due = выдано + ещё не выдано, но уже должно.
-                plan_as_of = done_v + overdue_v
-                if use_pct and total_plan > 0:
-                    rows_m.append(
-                        {
-                            "month": str(p),
-                            "month_label": _month_label(p),
-                            "plan": round(plan_as_of / total_plan * 100, 1),
-                            "done": round(done_v / total_plan * 100, 1),
-                            "overdue": round(overdue_v / total_plan * 100, 1),
-                            "rest": round(rest_v / total_plan * 100, 1),
-                            "fact": round(done_v / total_plan * 100, 1),
-                            "fact_inc": round(fact_inc / total_plan * 100, 1),
-                            "delta": round(delta_v / total_plan * 100, 1),
-                        }
-                    )
-                else:
+
+            if use_pct:
+                # Паритет Streamlit: стек done/rest/overdue в % от плана месяца
+                # (не накопительный % «выполнения» поверх дат).
+                month_df = month_df.copy()
+                month_df["_rd_fact_n"] = np.where(
+                    issued_mask.reindex(month_df.index).fillna(False)
+                    | _fact_dt.reindex(month_df.index).notna(),
+                    pd.to_numeric(month_df["_rd_plan_n"], errors="coerce").fillna(1.0),
+                    0.0,
+                )
+                agg_fn = getattr(mod, "_rd_monthly_sections_aggregate", None)
+                monthly_fb = (
+                    agg_fn(month_df) if callable(agg_fn) else pd.DataFrame()
+                )
+                if monthly_fb is not None and not getattr(monthly_fb, "empty", True):
+                    for _, mr in monthly_fb.iterrows():
+                        p = mr.get("_month")
+                        plan_v = float(pd.to_numeric(mr.get("plan"), errors="coerce") or 0.0)
+                        done_v = float(pd.to_numeric(mr.get("done"), errors="coerce") or 0.0)
+                        overdue_v = float(
+                            pd.to_numeric(mr.get("overdue"), errors="coerce") or 0.0
+                        )
+                        if plan_v <= 0:
+                            continue
+                        overdue_v = min(overdue_v, plan_v)
+                        done_v = min(done_v, max(0.0, plan_v - overdue_v))
+                        rest_v = max(0.0, plan_v - done_v - overdue_v)
+                        rows_m.append(
+                            {
+                                "month": str(p),
+                                "month_label": _month_label(p),
+                                "plan": round(plan_v, 1),
+                                "done": round(done_v / plan_v * 100, 1),
+                                "overdue": round(overdue_v / plan_v * 100, 1),
+                                "rest": round(rest_v / plan_v * 100, 1),
+                                "fact": round(done_v / plan_v * 100, 1),
+                                "fact_inc": 0.0,
+                                "delta": 0.0,
+                            }
+                        )
+                monthly_rows = list(reversed(rows_m))
+            else:
+                periods = sorted(
+                    {p for p in _plan_w.dt.to_period("M").tolist() if p is not pd.NaT}
+                )
+                _today = pd.Timestamp.today().normalize()
+                cur_m = pd.Period(_today, freq="M")
+                periods = [p for p in periods if p <= cur_m]
+                prev_green = 0.0
+                for p in periods:
+                    as_of = min(pd.Timestamp(p.end_time).normalize(), _today)
+                    issued = _fact_w.notna() & (_fact_w <= as_of)
+                    due = _plan_w <= as_of
+                    future = _plan_w > as_of
+                    done_v = float(_weights[issued].sum())
+                    overdue_v = float(_weights[(~issued) & due].sum())
+                    rest_v = float(_weights[(~issued) & future].sum())
+                    covered = done_v + overdue_v + rest_v
+                    if abs(covered - total_plan) > 0.05 and total_plan > 0:
+                        rest_v = max(0.0, total_plan - done_v - overdue_v)
+                    plan_due = done_v + overdue_v
+                    delta_v = done_v - plan_due
+                    fact_inc = max(0.0, done_v - prev_green)
+                    prev_green = done_v
+                    plan_as_of = done_v + overdue_v
                     rows_m.append(
                         {
                             "month": str(p),
@@ -1532,10 +1732,11 @@ def build_working_documentation_payload(
                             "delta": delta_v,
                         }
                     )
-            monthly_rows = list(reversed(rows_m))
+                monthly_rows = list(reversed(rows_m))
         except Exception as exc:
             monthly_rows = []
             monthly_exc = str(exc)[:200]
+            monthly_mode = "cumulative"
         else:
             monthly_exc = None
 
@@ -1579,54 +1780,72 @@ def build_working_documentation_payload(
             detail_show = mod._drop_rd_detail_empty_rows(detail_show)
         detail_rows, detail_cols = _detail_to_rows(detail_show)
 
-        # Delay gantt
+        # Delay: date-Gantt при «Количество разделов»; столбцы %/кол-во просрочки при «%».
         gantt_rows: list[dict[str, Any]] = []
         range_start = range_end = None
+        overdue_bar_rows: list[dict[str, Any]] = []
         try:
-            gdf, _y = mod._rd_delay_build_date_rows(
-                detail_tbl if not detail_tbl.empty else pd.DataFrame(),
-                by_section=(view == "section"),
-                ts_report=pd.Timestamp(date.today()),
-                show_forecast=show_fc,
-            )
-            if not gdf.empty:
-                label_col = "Раздел" if view == "section" and "Раздел" in gdf.columns else (
-                    "Проект" if "Проект" in gdf.columns else gdf.columns[0]
+            gantt_src = detail_tbl if not detail_tbl.empty else pd.DataFrame()
+            if (
+                status_filtered
+                and _sel_is_not_issued_only(sel_statuses, mod)
+                and not gantt_src.empty
+            ):
+                gantt_src = gantt_src.loc[_detail_no_tessa_card_mask(gantt_src)].copy()
+            if use_pct:
+                overdue_bar_rows = _build_delay_overdue_bars(
+                    gantt_src,
+                    mod,
+                    by_section=(view == "section"),
+                    plan_df=plan_df,
+                    proj_col=proj_col,
+                    use_pct=True,
                 )
-                starts = []
-                ends = []
-                for _, r in gdf.iterrows():
-                    label = _cell(r.get(label_col))
-                    if not label or label in {"—", "-", "–", "−"}:
-                        continue
-                    start = r.get("_start_dt")
-                    bf = r.get("_bf_dt")
-                    fin = r.get("_fin_dt")
-                    delay_end = r.get("_delay_end_dt")
-                    starts.append(pd.Timestamp(start))
-                    for t in (bf, fin, delay_end):
-                        if t is not None and pd.notna(t):
-                            ends.append(pd.Timestamp(t))
-                    gantt_rows.append(
-                        {
-                            "label": label,
-                            "start": _iso(start),
-                            "base_finish": _iso(bf),
-                            "finish": _iso(fin),
-                            "delay_end": _iso(delay_end),
-                            "base_dur": float(r.get("_base_dur") or 0),
-                            "fact_dur": float(r.get("_fact_dur") or 0),
-                            "delay_dur": float(r.get("_delay_dur") or 0),
-                            "late_complete": bool(r.get("_late_complete") or False),
-                            "base_label": _cell(r.get("_lbl_yellow")),
-                            "fact_label": _cell(r.get("_lbl_green")),
-                            "delay_label": _cell(r.get("_lbl_red")),
-                        }
+            else:
+                gdf, _y = mod._rd_delay_build_date_rows(
+                    gantt_src,
+                    by_section=(view == "section"),
+                    ts_report=pd.Timestamp(date.today()),
+                    show_forecast=show_fc,
+                )
+                if not gdf.empty:
+                    label_col = "Раздел" if view == "section" and "Раздел" in gdf.columns else (
+                        "Проект" if "Проект" in gdf.columns else gdf.columns[0]
                     )
-                if starts:
-                    range_start = min(starts).strftime("%Y-%m-%d")
-                if ends:
-                    range_end = max(ends).strftime("%Y-%m-%d")
+                    starts = []
+                    ends = []
+                    for _, r in gdf.iterrows():
+                        label = _cell(r.get(label_col))
+                        if not label or label in {"—", "-", "–", "−"}:
+                            continue
+                        start = r.get("_start_dt")
+                        bf = r.get("_bf_dt")
+                        fin = r.get("_fin_dt")
+                        delay_end = r.get("_delay_end_dt")
+                        starts.append(pd.Timestamp(start))
+                        for t in (bf, fin, delay_end):
+                            if t is not None and pd.notna(t):
+                                ends.append(pd.Timestamp(t))
+                        gantt_rows.append(
+                            {
+                                "label": label,
+                                "start": _iso(start),
+                                "base_finish": _iso(bf),
+                                "finish": _iso(fin),
+                                "delay_end": _iso(delay_end),
+                                "base_dur": float(r.get("_base_dur") or 0),
+                                "fact_dur": float(r.get("_fact_dur") or 0),
+                                "delay_dur": float(r.get("_delay_dur") or 0),
+                                "late_complete": bool(r.get("_late_complete") or False),
+                                "base_label": _cell(r.get("_lbl_yellow")),
+                                "fact_label": _cell(r.get("_lbl_green")),
+                                "delay_label": _cell(r.get("_lbl_red")),
+                            }
+                        )
+                    if starts:
+                        range_start = min(starts).strftime("%Y-%m-%d")
+                    if ends:
+                        range_end = max(ends).strftime("%Y-%m-%d")
         except Exception:
             pass
 
@@ -1639,13 +1858,15 @@ def build_working_documentation_payload(
                 "doc_kind": "rd",
                 "title": "Рабочая документация",
                 "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
-            "parity": "main_working_documentation_rd_plan_tessa",
-            "version_id": int(vid),
-            "error": None,
-            "forecast_line": "v12",
-            "monthly_issued_n": monthly_issued_n,
-            "monthly_error": monthly_exc,
-        },
+                "parity": "main_working_documentation_rd_plan_tessa",
+                "wd_build": "v36-rd-metric-pct",
+                "version_id": int(vid),
+                "error": None,
+                "forecast_line": "v12",
+                "monthly_issued_n": monthly_issued_n,
+                "monthly_error": monthly_exc,
+                "monthly_mode": monthly_mode,
+            },
             "filters": {
                 "projects": projects,
                 "sections": ["Все"] + section_opts,
@@ -1684,6 +1905,7 @@ def build_working_documentation_payload(
                 "status_mix": status_mix,
                 "dynamics": dynamics,
                 "monthly": monthly_rows,
+                "monthly_mode": monthly_mode,
             },
             "detail_rows": detail_rows,
             "detail_columns": detail_cols,
@@ -1692,6 +1914,15 @@ def build_working_documentation_payload(
                     "rows": gantt_rows,
                     "range_start": range_start,
                     "range_end": range_end,
+                },
+                "overdue_bars": {
+                    "rows": overdue_bar_rows,
+                    "use_pct": bool(use_pct),
+                    "x_title": (
+                        "% просроченных разделов от объёма"
+                        if use_pct
+                        else "Количество просроченных разделов"
+                    ),
                 },
                 "detail_rows": detail_rows,
                 "detail_columns": detail_cols,

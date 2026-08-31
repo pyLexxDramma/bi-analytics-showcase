@@ -833,3 +833,247 @@ export function RdDelayGanttChart({
     </div>
   );
 }
+
+type OverdueBarRow = NonNullable<
+  WorkingDocumentationPayload["delay"]["overdue_bars"]
+>["rows"][number];
+
+/** Стек done / rest / overdue в % от плана месяца (метрика «% от общего объёма»). */
+export function RdMonthlyStackPctChart({
+  rows,
+  fullscreen = false,
+}: {
+  rows: MonthlyRow[];
+  fullscreen?: boolean;
+}) {
+  const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
+  const compact = mobile && !fullscreen;
+  const figure = useMemo(() => {
+    const chronological = [...rows].sort((a, b) => a.month.localeCompare(b.month));
+    const labels = chronological.map((r) => r.month_label);
+    const done = chronological.map((r) => Math.max(0, Number(r.done) || 0));
+    const rest = chronological.map((r) => Math.max(0, Number(r.rest) || 0));
+    const overdue = chronological.map((r) => Math.max(0, Number(r.overdue) || 0));
+    const yIdx = chronological.map((_, i) => i);
+    const height = fullscreen
+      ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
+      : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
+    const pctText = (v: number) => (v > 0 ? `${Math.round(v)}%` : "");
+    const barBase = {
+      type: "bar" as const,
+      orientation: "h" as const,
+      y: yIdx,
+      cliponaxis: false,
+      constraintext: "none" as const,
+      textposition: "auto" as const,
+      insidetextfont: { size: compact ? 11 : 14, color: "#ffffff" },
+      outsidetextfont: { size: compact ? 11 : 14, color: theme.label },
+    };
+    return {
+      data: [
+        {
+          ...barBase,
+          name: "Выполнено",
+          x: done,
+          text: done.map(pctText),
+          marker: { color: RD_MONTH_FACT },
+          customdata: labels,
+          hovertemplate: "<b>%{customdata}</b><br>Выполнено: %{x}%<extra></extra>",
+        },
+        {
+          ...barBase,
+          name: "План (остаток)",
+          x: rest,
+          text: rest.map(pctText),
+          marker: { color: RD_MONTH_PLAN },
+          customdata: labels,
+          hovertemplate: "<b>%{customdata}</b><br>Остаток плана: %{x}%<extra></extra>",
+        },
+        {
+          ...barBase,
+          name: CHART_RU.overdue,
+          x: overdue,
+          text: overdue.map(pctText),
+          marker: { color: RD_MONTH_OVERDUE },
+          customdata: labels,
+          hovertemplate: "<b>%{customdata}</b><br>Просрочено: %{x}%<extra></extra>",
+        },
+      ],
+      layout: {
+        height,
+        barmode: "stack" as const,
+        bargap: 0.28,
+        margin: compact
+          ? { l: 8, r: 24, t: 12, b: 96 }
+          : { l: 16, r: 28, t: 48, b: 96 },
+        paper_bgcolor: theme.paper,
+        plot_bgcolor: theme.plot,
+        legend: plotlyLegendUnderLeft({
+          fontSize: compact ? 11 : 12,
+          labelColor: theme.axis,
+          y: compact ? -0.28 : -0.12,
+        }),
+        xaxis: {
+          title: {
+            text: compact ? "" : "% РД (по месяцу плановой даты)",
+            font: { size: 12, color: theme.axis },
+          },
+          range: [0, 100],
+          ticksuffix: "%",
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
+          gridcolor: theme.grid,
+          zeroline: false,
+        },
+        yaxis: {
+          title: {
+            text: compact ? "" : "Месяц",
+            font: { size: 12, color: theme.axis },
+          },
+          tickmode: "array" as const,
+          tickvals: yIdx,
+          ticktext: labels,
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
+          automargin: true,
+        },
+        font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
+        modebar: {
+          bgcolor: "rgba(0,0,0,0)",
+          color: theme.axis,
+          activecolor: "#0f766e",
+        },
+      },
+      config: { ...PLOTLY_CONFIG },
+    };
+  }, [rows, fullscreen, theme, compact]);
+
+  if (!rows.length) {
+    return (
+      <div className="flex h-64 items-center justify-center text-sm text-tremor-content dark:text-dark-tremor-content">
+        Нет помесячных данных.
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-0 overflow-x-hidden">
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+    </div>
+  );
+}
+
+/** Горизонтальные столбцы просрочки (% или количество) вместо date-Gantt. */
+export function RdDelayOverdueBarChart({
+  rows,
+  xTitle,
+  usePct,
+  fullscreen = false,
+  hideProjectPrefix = false,
+}: {
+  rows: OverdueBarRow[];
+  xTitle: string;
+  usePct: boolean;
+  fullscreen?: boolean;
+  hideProjectPrefix?: boolean;
+}) {
+  const theme = useChartTheme();
+  const mobile = useIsMobileViewport();
+  const compact = mobile && !fullscreen;
+  const figure = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => Number(b.value) - Number(a.value));
+    const displayLabels = sorted.map((r) =>
+      stripProjectPrefixIfSingle(r.label, hideProjectPrefix),
+    );
+    const { keys: yLabels, texts: yTickTexts } = uniquePlotCategories(displayLabels);
+    const categoryOrder = [...yLabels].reverse();
+    const values = sorted.map((r) => Number(r.value) || 0);
+    const texts = sorted.map((r) => r.text || "");
+    const xMax = usePct ? 100 : Math.max(1, ...values) * 1.15;
+    const height = fullscreen
+      ? Math.max(420, Math.min(window.innerHeight * 0.55, 720))
+      : Math.max(compact ? 360 : 320, 80 + sorted.length * (compact ? 44 : 38));
+    return {
+      data: [
+        {
+          type: "bar" as const,
+          orientation: "h" as const,
+          y: yLabels,
+          x: values,
+          text: texts,
+          textposition: "outside" as const,
+          cliponaxis: false,
+          marker: {
+            color: values,
+            colorscale: [
+              [0, "#27AE60"],
+              [0.5, "#F1C40F"],
+              [1, "#C0392B"],
+            ],
+            cmin: 0,
+            cmax: usePct ? Math.max(...values, 100) : Math.max(...values, 1),
+            showscale: false,
+          },
+          hovertemplate: `<b>%{y}</b><br>%{text}<extra></extra>`,
+        },
+      ],
+      layout: {
+        height,
+        margin: compact
+          ? { l: 8, r: 96, t: 12, b: 56 }
+          : { l: 16, r: 120, t: 24, b: 64 },
+        paper_bgcolor: theme.paper,
+        plot_bgcolor: theme.plot,
+        showlegend: false,
+        xaxis: {
+          title: {
+            text: compact ? "" : xTitle,
+            font: { size: 12, color: theme.axis },
+          },
+          range: [0, xMax],
+          ticksuffix: usePct ? "%" : "",
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
+          gridcolor: theme.grid,
+          zeroline: false,
+        },
+        yaxis: {
+          categoryorder: "array" as const,
+          categoryarray: categoryOrder,
+          tickmode: "array" as const,
+          tickvals: yLabels,
+          ticktext: yTickTexts.map((t) => wrapAxisLabel(t, compact ? 18 : 28)),
+          tickfont: { size: compact ? 10 : 11, color: theme.axis },
+          automargin: true,
+        },
+        font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
+        modebar: {
+          bgcolor: "rgba(0,0,0,0)",
+          color: theme.axis,
+          activecolor: "#0f766e",
+        },
+      },
+      config: { ...PLOTLY_CONFIG },
+    };
+  }, [rows, xTitle, usePct, fullscreen, theme, compact, hideProjectPrefix]);
+
+  if (!rows.length) {
+    return <DashboardEmptyState message="Нет просрочки для выбранных фильтров." className="h-64" />;
+  }
+
+  return (
+    <div className="min-w-0 overflow-x-hidden">
+      <PlotlyFigure
+        data={figure.data}
+        layout={figure.layout}
+        config={figure.config}
+        useResizeHandler
+        style={{ width: "100%", height: "100%" }}
+      />
+    </div>
+  );
+}

@@ -40,9 +40,11 @@ import {
 import { tapFeedback } from "@/lib/haptics";
 import {
   RdDelayGanttChart,
+  RdDelayOverdueBarChart,
   RdDynamicsLineChart,
   RdExecutionPieChart,
   RdMonthlyCumulativeChart,
+  RdMonthlyStackPctChart,
 } from "@/components/working-documentation-charts";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 import {
@@ -560,6 +562,9 @@ export function WorkingDocumentationView() {
   const statusMix = data?.tremor.status_mix ?? [];
   const dynamics = data?.tremor.dynamics ?? [];
   const monthly = data?.tremor.monthly ?? [];
+  const monthlyMode = data?.tremor.monthly_mode ?? "cumulative";
+  const usePctMetric = String(filters.metricMode || "").trim().startsWith("%");
+  const overdueBars = data?.delay?.overdue_bars;
   const mobile = useIsMobileViewport();
   const issuedProduction =
     kpis?.issued_production ??
@@ -768,13 +773,22 @@ export function WorkingDocumentationView() {
               <FullscreenPanel fill className="mb-6" disabled={!monthly.length}>
                 {(zoomed) => (
                   <Card className="rounded-xl">
-                    <Title>Динамика по месяцам</Title>
+                    <Title>
+                      {monthlyMode === "stack_pct"
+                        ? "Динамика по месяцам (% по плану)"
+                        : "Динамика по месяцам"}
+                    </Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка.
-                      Справа «+N» — разделы, выданные в производство за этот месяц.
+                      {monthlyMode === "stack_pct"
+                        ? "Доли внутри плана месяца: зелёный — выполнено, жёлтый — остаток, красный — просрочено."
+                        : "Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка. Справа «+N» — разделы, выданные в производство за этот месяц."}
                     </Text>
                     <div className="mt-3">
-                      <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
+                      {monthlyMode === "stack_pct" ? (
+                        <RdMonthlyStackPctChart rows={monthly} fullscreen={zoomed} />
+                      ) : (
+                        <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
+                      )}
                     </div>
                   </Card>
                 )}
@@ -877,19 +891,36 @@ export function WorkingDocumentationView() {
               <FullscreenPanel
                 fill
                 className="mb-6"
-                disabled={!(data?.delay.gantt.rows.length ?? 0)}
+                disabled={
+                  usePctMetric
+                    ? !(overdueBars?.rows.length ?? 0)
+                    : !(data?.delay.gantt.rows.length ?? 0)
+                }
               >
                 {(zoomed) => (
                   <Card className="rounded-xl">
                     <Title>График Просрочка выдачи РД</Title>
                     <div className="mt-4">
-                      <RdDelayGanttChart
-                        rows={data?.delay.gantt.rows ?? []}
-                        rangeStart={data?.delay.gantt.range_start ?? null}
-                        rangeEnd={data?.delay.gantt.range_end ?? null}
-                        fullscreen={zoomed}
-                        hideProjectPrefix={isSingleProjectSelection(filters.projects)}
-                      />
+                      {usePctMetric ? (
+                        <RdDelayOverdueBarChart
+                          rows={overdueBars?.rows ?? []}
+                          xTitle={
+                            overdueBars?.x_title ??
+                            "% просроченных разделов от объёма"
+                          }
+                          usePct={overdueBars?.use_pct ?? true}
+                          fullscreen={zoomed}
+                          hideProjectPrefix={isSingleProjectSelection(filters.projects)}
+                        />
+                      ) : (
+                        <RdDelayGanttChart
+                          rows={data?.delay.gantt.rows ?? []}
+                          rangeStart={data?.delay.gantt.range_start ?? null}
+                          rangeEnd={data?.delay.gantt.range_end ?? null}
+                          fullscreen={zoomed}
+                          hideProjectPrefix={isSingleProjectSelection(filters.projects)}
+                        />
+                      )}
                     </div>
                   </Card>
                 )}
@@ -898,13 +929,22 @@ export function WorkingDocumentationView() {
               <FullscreenPanel fill className="mb-6" disabled={!monthly.length}>
                 {(zoomed) => (
                   <Card className="rounded-xl">
-                    <Title>Динамика по месяцам</Title>
+                    <Title>
+                      {monthlyMode === "stack_pct"
+                        ? "Динамика по месяцам (% по плану)"
+                        : "Динамика по месяцам"}
+                    </Title>
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
-                      Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка.
-                      Справа «+N» — разделы, выданные в производство за этот месяц.
+                      {monthlyMode === "stack_pct"
+                        ? "Доли внутри плана месяца: зелёный — выполнено, жёлтый — остаток, красный — просрочено."
+                        : "Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка. Справа «+N» — разделы, выданные в производство за этот месяц."}
                     </Text>
                     <div className="mt-3">
-                      <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
+                      {monthlyMode === "stack_pct" ? (
+                        <RdMonthlyStackPctChart rows={monthly} fullscreen={zoomed} />
+                      ) : (
+                        <RdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
+                      )}
                     </div>
                   </Card>
                 )}
