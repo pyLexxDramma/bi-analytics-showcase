@@ -567,7 +567,10 @@ export type BddsQuery = {
   show_deviation?: boolean;
 };
 
-export async function fetchBdds(query: BddsQuery = {}): Promise<BddsPayload> {
+export async function fetchBdds(
+  query: BddsQuery = {},
+  signal?: AbortSignal,
+): Promise<BddsPayload> {
   // hide_zero/show_deviation отправляем всегда: false здесь — осознанный выбор, не «фильтр не задан»
   const params: QueryParams = {
     projects: query.projects,
@@ -580,12 +583,18 @@ export async function fetchBdds(query: BddsQuery = {}): Promise<BddsPayload> {
   if (query.show_deviation !== undefined) {
     params.show_deviation = String(query.show_deviation);
   }
-  return apiGet<BddsPayload>("/api/bdds", params, { timeoutMs: BDDS_TIMEOUT_MS });
+  return apiGet<BddsPayload>("/api/bdds", params, {
+    timeoutMs: BDDS_TIMEOUT_MS,
+    signal,
+  });
 }
 
 export type BdrPayload = BddsPayload;
 
-export async function fetchBdr(query: BddsQuery = {}): Promise<BdrPayload> {
+export async function fetchBdr(
+  query: BddsQuery = {},
+  signal?: AbortSignal,
+): Promise<BdrPayload> {
   const params: QueryParams = {
     projects: query.projects,
     date_from: query.date_from,
@@ -597,7 +606,7 @@ export async function fetchBdr(query: BddsQuery = {}): Promise<BdrPayload> {
   if (query.show_deviation !== undefined) {
     params.show_deviation = String(query.show_deviation);
   }
-  return apiGet<BdrPayload>("/api/bdr", params, { timeoutMs: BDDS_TIMEOUT_MS });
+  return apiGet<BdrPayload>("/api/bdr", params, { timeoutMs: BDDS_TIMEOUT_MS, signal });
 }
 
 export type ApprovedBudgetPayload = {

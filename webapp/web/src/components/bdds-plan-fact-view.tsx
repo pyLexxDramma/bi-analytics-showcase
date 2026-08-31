@@ -211,9 +211,12 @@ export function BddsPlanFactView() {
 
   useEffect(() => {
     if (!data?.filters) return;
+    // Только заполнить пустые даты эффективным диапазоном сервера.
+    // Не перезаписывать выбор пользователя устаревшим ответом «весь период».
+    if (applied.date_from || applied.date_to) return;
     const nextFrom = data.filters.applied.date_from ?? "";
     const nextTo = data.filters.applied.date_to ?? "";
-    if (applied.date_from === nextFrom && applied.date_to === nextTo) return;
+    if (!nextFrom && !nextTo) return;
     syncBoth({ date_from: nextFrom, date_to: nextTo });
   }, [
     data?.filters.applied.date_from,

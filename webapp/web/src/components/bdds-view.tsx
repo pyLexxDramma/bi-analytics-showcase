@@ -8,6 +8,7 @@ import { FinanceBarChart } from "@/components/finance-bar-chart";
 import { ChartHint } from "@/components/chart-hint";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
 import {
+  ApiError,
   fetchBdds,
   type BddsQuery,
   type BddsGroup,
@@ -371,7 +372,7 @@ type FinanceViewConfig = {
   factSeries: string;
   sheetName: string;
   navId?: string;
-  fetchPayload: (query: BddsQuery) => Promise<BddsPayload>;
+  fetchPayload: (query: BddsQuery, signal?: AbortSignal) => Promise<BddsPayload>;
 };
 
 const BDDS_CONFIG: FinanceViewConfig = {
@@ -407,31 +408,38 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
   const toggleProjectSort = (key: SortKey) => toggleProjectSortRaw(key);
   const [mobilePane, setMobilePane] = useState<"chart" | "periods">("chart");
 
-  const load = useCallback(async (next: Filters) => {
+  const load = useCallback(async (next: Filters, signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
       setData(
-        await config.fetchPayload({
-          projects: next.projects,
-          date_from: next.date_from || undefined,
-          date_to: next.date_to || undefined,
-          group: next.group,
-          view: next.view,
-          hide_zero: next.hide_zero ?? undefined,
-          show_deviation: next.show_deviation,
-        }),
+        await config.fetchPayload(
+          {
+            projects: next.projects,
+            date_from: next.date_from || undefined,
+            date_to: next.date_to || undefined,
+            group: next.group,
+            view: next.view,
+            hide_zero: next.hide_zero ?? undefined,
+            show_deviation: next.show_deviation,
+          },
+          signal,
+        ),
       );
     } catch (cause) {
+      if (signal?.aborted) return;
+      if (cause instanceof ApiError && cause.aborted) return;
       setError(cause instanceof Error ? cause.message : String(cause));
       setData(null);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [config]);
 
   useEffect(() => {
-    void load(applied);
+    const controller = new AbortController();
+    void load(applied, controller.signal);
+    return () => controller.abort();
   }, [applied, load, refreshTick]);
 
   const periodLabel = data?.labels.period ?? "Месяц";
