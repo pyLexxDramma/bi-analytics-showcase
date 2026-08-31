@@ -781,7 +781,7 @@ export function WorkingDocumentationView() {
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
                       {monthlyMode === "stack_pct"
                         ? "Доли внутри плана месяца: зелёный — выполнено, жёлтый — остаток, красный — просрочено."
-                        : "Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка. Справа «+N» — разделы, выданные в производство за этот месяц."}
+                        : "Жёлтый план и зелёный факт полностью перекрываются. Справа: план · факт · разница (− красная / + зелёная)."}
                     </Text>
                     <div className="mt-3">
                       {monthlyMode === "stack_pct" ? (
@@ -937,7 +937,7 @@ export function WorkingDocumentationView() {
                     <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
                       {monthlyMode === "stack_pct"
                         ? "Доли внутри плана месяца: зелёный — выполнено, жёлтый — остаток, красный — просрочено."
-                        : "Накопительно: жёлтый — план на дату месяца, зелёный — факт, красный — просрочка. Справа «+N» — разделы, выданные в производство за этот месяц."}
+                        : "Жёлтый план и зелёный факт полностью перекрываются. Справа: план · факт · разница (− красная / + зелёная)."}
                     </Text>
                     <div className="mt-3">
                       {monthlyMode === "stack_pct" ? (

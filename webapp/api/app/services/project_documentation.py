@@ -137,12 +137,27 @@ def _cipher_mask(df: pd.DataFrame) -> tuple[str | None, pd.Series]:
 
 
 def _parent_is_pd_stage(parent_name: str) -> bool:
+    """Родитель этапа ПД: основная проектная документация, корректировка стадии П, экспертиза ПД.
+
+    Раньше «корректиров*» отсекались — из‑за этого Ленинский: 38 шифров block=ПД → 19 на дашборде,
+    а 18 просроченных корректировок не попадали в план/факт.
+    """
     s = str(parent_name or "").casefold()
-    if "этап" not in s or "проектная документация" not in s:
+    if "этап" not in s:
         return False
-    if "корректиров" in s or "рабоч" in s:
+    # Чистая РД без проектной стадии
+    if "рабоч" in s and "проектн" not in s:
         return False
-    return True
+    if "проектная документация" in s or "проектной документации" in s:
+        return True
+    if "корректиров" in s and "проектн" in s:
+        return True
+    return False
+
+
+def _block_is_pd(series: pd.Series) -> pd.Series:
+    b = series.astype(str).str.strip().str.casefold()
+    return b.eq("пд")
 
 
 def _immediate_parents(df: pd.DataFrame, level_col: str, name_col: str) -> pd.Series:
@@ -248,7 +263,16 @@ def _section_masks(df: pd.DataFrame) -> dict[str, Any]:
     if hier in df.columns:
         lv_struct = outline_level_numeric(df[hier])
         lv_task = lv_task.where(lv_task.notna(), lv_struct) if lv_task.notna().any() else lv_struct
-    tz = lv_task.eq(5) & parent_pd & cipher_m
+    block_col = cols["block"]
+    block_pd = (
+        _block_is_pd(df[block_col])
+        if block_col and block_col in df.columns
+        else empty
+    )
+    # Предпочтительно: ур.5 + шифр + block=ПД (основная + корректировка + экспертиза).
+    tz = lv_task.eq(5) & cipher_m & block_pd
+    if not tz.any():
+        tz = lv_task.eq(5) & parent_pd & cipher_m
     if not tz.any():
         tz = lv_task.eq(5) & ancestor_pd & cipher_m
     if not tz.any() and cipher_m.any():
@@ -298,8 +322,23 @@ def _find_schedule_start(df: pd.DataFrame) -> str | None:
 
 
 def _find_actual_finish(df: pd.DataFrame) -> str | None:
-    hit = _col(df, ["actual finish", "фактическое окончание", "окончание факт"])
-    return hit
+    """Только колонка фактического окончания — не путать с плановым «Окончание».
+
+    `_col(..., «окончание факт»)` по подстроке цеплял «Окончание» → все строки
+    считались завершёнными (Ленинский: fact=38 при 18×0%).
+    """
+    for c in df.columns:
+        cl = str(c).strip().casefold()
+        if ("actual" in cl or "фактичес" in cl or cl.startswith("факт")) and (
+            "finish" in cl or "оконч" in cl
+        ):
+            return str(c)
+    exact = {_normalize(x): str(x) for x in df.columns}
+    for cand in ("actual finish", "фактическое окончание", "окончание факт", "факт окончание"):
+        hit = exact.get(_normalize(cand))
+        if hit:
+            return hit
+    return None
 
 
 def _pick_finish(
@@ -352,6 +391,33 @@ def _cumsum_by_granularity(dates: pd.Series, row_mask: pd.Series, gran_key: str)
     daily = daily.sort_values("Дата")
     daily["Количество"] = daily["cnt"].cumsum()
     return daily[["Дата", "Количество"]]
+
+
+def _trim_pd_dynamics_after_full_fact(
+    dynamics: list[dict[str, Any]],
+    *,
+    plan_total: float,
+) -> list[dict[str, Any]]:
+    """Если все разделы уже 100% факт — не продлевать график плана/факта/прогноза дальше.
+
+    Иначе forward-fill + стык прогноза на дату отчёта рисуют горизонталь до «сегодня»
+    (как у Есипово-5: факт 100% в мае 2025 → линия до авг 2026).
+    """
+    if not dynamics or float(plan_total or 0) <= 0:
+        return dynamics
+    target = float(plan_total)
+    cut: int | None = None
+    for i, r in enumerate(dynamics):
+        try:
+            fact_v = float(r.get("fact") or 0.0)
+        except (TypeError, ValueError):
+            fact_v = 0.0
+        if fact_v + 1e-9 >= target:
+            cut = i
+            break
+    if cut is None:
+        return dynamics
+    return dynamics[: cut + 1]
 
 
 def _bucket_ts(ts: pd.Timestamp, gran_key: str) -> pd.Timestamp:
@@ -760,7 +826,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "files": 0,
             "doc_kind": "pd",
             "title": "Проектная документация",
-            "rule": "MSP ур.5 + шифр + этап «Проектная документация»",
+            "rule": "MSP ур.5 + шифр + block=ПД (осн./корректировка/экспертиза)",
             "parity": "main_project_documentation",
             "version_id": None,
             "error": error,
@@ -841,7 +907,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v18-pd-cipher-notna|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v21-pd-block-pd-af-fix|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1041,6 +1107,9 @@ def build_project_documentation_payload(
                 fact_at_report=float(fact_to_date),
                 gran_key=gran_key,
             )
+            dynamics = _trim_pd_dynamics_after_full_fact(
+                dynamics, plan_total=float(plan_total)
+            )
 
         nec = _necessary_productivity(
             float(plan_to_date - fact_to_date),
@@ -1063,7 +1132,8 @@ def build_project_documentation_payload(
         else:
             nec_val = float(nec)
 
-        tbl_mask = (plan_line | fcst_line).fillna(False)
+        # Таблица сроков — все разделы metrics (block=ПД), не только с парой start/finish.
+        tbl_mask = metrics.fillna(False)
         idx_sec = scoped.index[tbl_mask]
         cipher_col = masks.get("cipher_col")
         rows_out: list[dict[str, Any]] = []
@@ -1093,10 +1163,25 @@ def build_project_documentation_payload(
                 tbl["_bf"] = bf_bp.reindex(idx_sec).dt.normalize()
                 tbl["_sf"] = sf.reindex(idx_sec).dt.normalize()
                 tbl["_dev"] = (tbl["_bf"] - tbl["_sf"]).dt.days
-                tbl = (
-                    tbl.sort_values(["Проект", "_dev", "Раздел"], ascending=[True, False, True], kind="mergesort")
-                    .drop_duplicates(subset=["Проект", "Раздел"], keep="last")
-                )
+                # Не схлопывать одинаковые шифры основной ПД и корректировки —
+                # иначе 38 строк block=ПД → 20 в таблице.
+                hier_c = masks.get("hier_col") or masks.get("level_col")
+                name_c = masks.get("name_col")
+                if hier_c and name_c and hier_c in scoped.columns and name_c in scoped.columns:
+                    tbl["_stage"] = (
+                        _immediate_parents(scoped, hier_c, name_c)
+                        .reindex(idx_sec)
+                        .fillna("")
+                        .astype(str)
+                        .values
+                    )
+                else:
+                    tbl["_stage"] = ""
+                tbl = tbl.sort_values(
+                    ["Проект", "_dev", "Раздел", "_stage"],
+                    ascending=[True, False, True, True],
+                    kind="mergesort",
+                ).drop_duplicates(subset=["Проект", "Раздел", "_stage"], keep="last")
                 for i, (_, r) in enumerate(tbl.iterrows(), start=1):
                     days = pd.to_numeric(r["_dev"], errors="coerce")
                     days_i = int(round(float(days))) if pd.notna(days) else None
@@ -1143,9 +1228,8 @@ def build_project_documentation_payload(
             (delay_df["_pd_row_fact"] > 0) & (delay_df["_pd_row_overdue"] <= 0)
         ).astype(int)
         delay_df["_plan_end_dt"] = plan_fin
-        kpi_df = _dedupe_by_cipher(
-            delay_df, cipher_col=cipher_col if isinstance(cipher_col, str) else None, project_col=proj_col
-        )
+        # Не схлопывать шифры основной ПД и корректировки (разные этапы, один abbreviation).
+        kpi_df = delay_df
 
         gantt_rows: list[dict[str, Any]] = []
         cards: list[dict[str, Any]] = []
@@ -1244,9 +1328,7 @@ def build_project_documentation_payload(
                 msrc["_af"] = af_m.reindex(msrc.index) if isinstance(af_m, pd.Series) else pd.NaT
                 msrc["_bf"] = bf_m.reindex(msrc.index)
                 msrc["_sf"] = sf_m.reindex(msrc.index)
-                msrc = _dedupe_by_cipher(
-                    msrc, cipher_col=cipher_col if isinstance(cipher_col, str) else None, project_col=proj_col
-                )
+                # Без dedupe по шифру: корректировка и основная ПД — отдельные единицы плана.
                 # Накопительный срез на конец каждого месяца (как РД / ТЗ):
                 # жёлтый plan = срок наступил к as_of;
                 # зелёный fact = завершено вовремя;
@@ -1373,7 +1455,7 @@ def build_project_documentation_payload(
                 "files": 0,
                 "doc_kind": "pd",
                 "title": "Проектная документация",
-                "rule": "MSP ур.5 + шифр + этап «Проектная документация»",
+                "rule": "MSP ур.5 + шифр + block=ПД (осн./корректировка/экспертиза)",
                 "parity": "main_project_documentation",
                 "version_id": int(version_id),
                 "error": None,

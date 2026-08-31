@@ -33547,22 +33547,24 @@ def _pd_msp_ancestor_under_pd_stage(
 
 
 def _pd_msp_parent_is_pd_stage(parent_name: str) -> bool:
-    """Родитель ур.4 «Этап … Проектная документация» (без корректировок и смешанных этапов)."""
+    """Родитель этапа ПД: основная ПД, корректировка стадии П, экспертиза ПД."""
     s = str(parent_name or "").casefold()
-    if "этап" not in s or "проектная документация" not in s:
+    if "этап" not in s:
         return False
-    if "корректиров" in s:
+    if "рабоч" in s and "проектн" not in s:
         return False
-    if "рабоч" in s:
-        return False
-    return True
+    if "проектная документация" in s or "проектной документации" in s:
+        return True
+    if "корректиров" in s and "проектн" in s:
+        return True
+    return False
 
 
 def _pd_section_masks(df: pd.DataFrame) -> dict:
     """
-    Маски ПД по ТЗ:
-    - metrics / dynamics: задачи ур.5 под родителем ур.4 «Этап. Проектная
-      документация» с непустым «Шифр ПД и РД» (общее число разделов ПД).
+    Маски ПД:
+    - metrics / dynamics: ур.5 с шифром ПД/РД в block=ПД
+      (основная «Проектная документация» + корректировка + экспертиза).
     """
     hier_col, outline_col, level_col, name_col, block_col = _pd_msp_hierarchy_cols(df)
     cipher_col, cipher_ok = _pd_cipher_filled_mask(df)
@@ -33593,10 +33595,8 @@ def _pd_section_masks(df: pd.DataFrame) -> dict:
         if level_col and level_col in df.columns
         else pd.Series(np.nan, index=df.index)
     )
-    # Стек по outline (level structure): родитель ур.4 «Этап. Проектная документация».
     parent_names = _pd_msp_immediate_parent_names(df, hier_col, name_col)
     parent_pd_stage = parent_names.map(_pd_msp_parent_is_pd_stage)
-    # Уровень задачи: колонка «Уровень» (=5), иначе outline=5.
     lv_task = lv_num
     if outline_col and outline_col in df.columns:
         lv_struct = outline_level_numeric(df[outline_col])
@@ -33604,9 +33604,13 @@ def _pd_section_masks(df: pd.DataFrame) -> dict:
             lv_task = lv_struct
         else:
             lv_task = lv_task.where(lv_task.notna(), lv_struct)
-    tz_mask = lv_task.eq(5) & parent_pd_stage & cipher_m
+    block_pd = empty
+    if block_col and block_col in df.columns:
+        block_pd = df[block_col].astype(str).str.strip().str.casefold().eq("пд")
+    tz_mask = lv_task.eq(5) & cipher_m & block_pd
     if not tz_mask.any():
-        # Fallback: ур.5 в ветке ПД с шифром (если имя этапа в выгрузке отличается).
+        tz_mask = lv_task.eq(5) & parent_pd_stage & cipher_m
+    if not tz_mask.any():
         tz_mask = lv_task.eq(5) & ancestor_pd & cipher_m
     if not tz_mask.any() and cipher_m.any():
         tz_mask = cipher_m

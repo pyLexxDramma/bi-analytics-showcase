@@ -134,6 +134,13 @@ def _sel_is_not_issued_only(sel: list[str], mod: ModuleType) -> bool:
     )
 
 
+def _sel_is_production_only(sel: list[str], mod: ModuleType) -> bool:
+    keys = _tessa_status_keys(mod)
+    return bool(sel) and all(
+        _sel_has_status([s], keys["production"], mod) for s in sel
+    )
+
+
 def _not_issued_residual(plan_n: int, tz_counts: dict[str, int], keys: dict[str, str]) -> int:
     """Как карточка без фильтра: план − TESSA «Выдано в производство»."""
     prod_n = int((tz_counts or {}).get(keys["production"], 0) or 0)
@@ -295,7 +302,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "title": "Рабочая документация",
             "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
             "parity": "main_working_documentation_rd_plan_tessa",
-            "wd_build": "v36-rd-metric-pct",
+            "wd_build": "v39-rd-month-overlay-delta",
             "version_id": None,
             "error": error,
         },
@@ -1238,7 +1245,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v36-rd-metric-pct",
+            "v39-rd-month-overlay-delta",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1378,15 +1385,22 @@ def build_working_documentation_payload(
                 d1 = date.fromisoformat(date_to[:10])
                 pn = plan_df["_plan_dt"].dt.normalize().dt.date
                 plan_df = plan_df[plan_df["_plan_dt"].notna() & (pn >= d0) & (pn <= d1)].copy()
-                if not detail_tbl.empty and "Дата выдачи разделов по Договору" in detail_tbl.columns:
-                    dts = detail_tbl["Дата выдачи разделов по Договору"].map(mod._rd_parse_chart_date_cell)
-                    detail_tbl = detail_tbl.loc[
-                        dts.notna()
-                        & (dts.dt.normalize().dt.date >= d0)
-                        & (dts.dt.normalize().dt.date <= d1)
-                    ].reset_index(drop=True)
             except Exception:
                 pass
+
+        # Диапазон дат — по `_plan_dt` плана. Таблицу не режем по дате TESSA/договора
+        # (иначе detail пустеет, KPI/пирог остаются от plan, а строк нет — Дмитровский 08.2026).
+        if not detail_tbl.empty and not plan_df.empty:
+            detail_tbl = mod._rd_plan_detail_filter_by_plan(
+                plan_df,
+                detail_tbl,
+                proj_col,
+                code_col,
+                name_col,
+                pc.get("full_cipher"),
+            )
+        elif plan_df.empty:
+            detail_tbl = detail_tbl.iloc[0:0].copy() if not detail_tbl.empty else detail_tbl
 
         plan_n_before_status = int(len(plan_df))
         tz_counts: dict[str, int] = {}
@@ -1462,6 +1476,16 @@ def build_working_documentation_payload(
                     name_col,
                     pc.get("full_cipher"),
                 )
+            # plan ↔ detail один набор ключей (иначе KPI/таблица от detail, стек от plan).
+            if not detail_tbl.empty and not plan_df.empty:
+                detail_tbl = mod._rd_plan_detail_filter_by_plan(
+                    plan_df,
+                    detail_tbl,
+                    proj_col,
+                    code_col,
+                    name_col,
+                    pc.get("full_cipher"),
+                )
         elif not detail_tbl.empty:
             detail_tbl = mod._rd_plan_detail_filter_by_plan(
                 plan_df,
@@ -1474,6 +1498,10 @@ def build_working_documentation_payload(
 
         if status_filtered and not detail_tbl.empty:
             total_sections = int(len(detail_tbl))
+        elif status_filtered and detail_tbl.empty:
+            # Статус выбран, но строк нет — не подставлять len(plan) + fake pie.
+            total_sections = 0
+            plan_df = plan_df.iloc[0:0].copy()
         else:
             total_sections = int(len(plan_df))
         if not detail_tbl.empty:
@@ -1637,6 +1665,11 @@ def build_working_documentation_payload(
                     ) | month_df["_bucket"].isin(["Принято", "Передано подрядчику"])
                 except Exception:
                     pass
+            # После фильтра «Выдано в ПР» plan_df уже только выданные → весь стек зелёный.
+            if status_filtered and _sel_is_production_only(sel_statuses, mod):
+                issued_mask = pd.Series(True, index=month_df.index)
+            elif status_filtered and _sel_is_not_issued_family(sel_statuses, mod):
+                issued_mask = pd.Series(False, index=month_df.index)
             monthly_issued_n = int(issued_mask.fillna(False).sum())
             if issued_mask.any():
                 _fact_dt = _fact_dt.where(
@@ -1709,21 +1742,22 @@ def build_working_documentation_payload(
                     due = _plan_w <= as_of
                     future = _plan_w > as_of
                     done_v = float(_weights[issued].sum())
+                    # План = срок договора к as_of (не «факт+просрочка»).
+                    # Тогда опережение (выдано раньше срока) даёт Δ > 0.
+                    plan_due = float(_weights[due].sum())
                     overdue_v = float(_weights[(~issued) & due].sum())
                     rest_v = float(_weights[(~issued) & future].sum())
                     covered = done_v + overdue_v + rest_v
                     if abs(covered - total_plan) > 0.05 and total_plan > 0:
                         rest_v = max(0.0, total_plan - done_v - overdue_v)
-                    plan_due = done_v + overdue_v
                     delta_v = done_v - plan_due
                     fact_inc = max(0.0, done_v - prev_green)
                     prev_green = done_v
-                    plan_as_of = done_v + overdue_v
                     rows_m.append(
                         {
                             "month": str(p),
                             "month_label": _month_label(p),
-                            "plan": plan_as_of,
+                            "plan": plan_due,
                             "done": done_v,
                             "overdue": overdue_v,
                             "rest": rest_v,
@@ -1771,6 +1805,24 @@ def build_working_documentation_payload(
             monthly_rows[0]["delta"] = float(
                 round(float(exec_kpis.get("deviation_to_date") or 0))
             )
+        # Стек «Выдано в ПР» = KPI выдано (без красного хвоста от несовпавшего issued_mask).
+        if (
+            monthly_rows
+            and not use_pct
+            and status_filtered
+            and _sel_is_production_only(sel_statuses, mod)
+            and int(issued_production) > 0
+        ):
+            n = float(issued_production)
+            top = monthly_rows[0]
+            top["done"] = n
+            top["fact"] = n
+            top["overdue"] = 0.0
+            top["rest"] = 0.0
+            top["plan"] = n
+            top["fact_inc"] = n
+            top["delta"] = 0.0
+            monthly_issued_n = int(issued_production)
 
         detail_show = mod._rd_detail_prepare_for_display(
             detail_tbl.copy() if not detail_tbl.empty else pd.DataFrame(),
@@ -1859,7 +1911,7 @@ def build_working_documentation_payload(
                 "title": "Рабочая документация",
                 "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
                 "parity": "main_working_documentation_rd_plan_tessa",
-                "wd_build": "v36-rd-metric-pct",
+                "wd_build": "v39-rd-month-overlay-delta",
                 "version_id": int(vid),
                 "error": None,
                 "forecast_line": "v12",

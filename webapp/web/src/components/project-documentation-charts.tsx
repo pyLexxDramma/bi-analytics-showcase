@@ -166,13 +166,19 @@ export function PdDynamicsLineChart({
         ? 360
         : 420;
     const x = rows.map((r) => r.period_label || r.period);
-    const plan = rows.map((r) => r.plan_bp);
+    const plan = rows.map((r) =>
+      r.plan_bp == null || Number.isNaN(Number(r.plan_bp))
+        ? null
+        : Number(r.plan_bp),
+    );
     const forecast = rows.map((r) =>
       r.forecast == null || Number.isNaN(Number(r.forecast))
         ? null
         : Number(r.forecast),
     );
-    const fact = rows.map((r) => r.fact ?? 0);
+    const fact = rows.map((r) =>
+      r.fact == null || Number.isNaN(Number(r.fact)) ? null : Number(r.fact),
+    );
     const yMax = Math.max(
       1,
       ...plan.map((v) => Number(v) || 0),

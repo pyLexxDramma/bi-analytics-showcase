@@ -325,8 +325,9 @@ export function RdDynamicsLineChart({
   );
 }
 
-/** Накопительный overlay «Динамика по месяцам»: жёлтый план / зелёный факт / «+N» за месяц.
- * Порядок: ранний месяц снизу, последний сверху (Plotly y=0 снизу). */
+/** Накопительный overlay «Динамика по месяцам» / просрочка:
+ * жёлтый план и зелёный факт одной ширины (полное перекрытие);
+ * на конце: план (жёлтый) · факт (зелёный) · Δ (красный − / зелёный +). */
 export function RdMonthlyCumulativeChart({
   rows,
   fullscreen = false,
@@ -345,40 +346,39 @@ export function RdMonthlyCumulativeChart({
       if (r.fact != null) return Math.max(0, Number(r.fact) || 0);
       return Math.max(0, Number(r.done) || 0);
     });
-    const overdue = chronological.map((r) => Math.max(0, Number(r.overdue) || 0));
-    const factInc = chronological.map((r, i) => {
-      if (r.fact_inc != null) return Math.max(0, Number(r.fact_inc) || 0);
-      if (i === 0) return fact[i];
-      return Math.max(0, fact[i] - fact[i - 1]);
-    });
+    const delta = chronological.map((_, i) => fact[i] - plan[i]);
     const yIdx = chronological.map((_, i) => i);
-    const xMax = Math.max(1, ...plan, ...fact, ...overdue);
+    const xMax = Math.max(1, ...plan, ...fact);
+    const tipSize = compact ? 11 : 13;
+    const tipFamily = "Inter, system-ui, sans-serif";
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
       : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
 
-    const tipFont = compact ? 13 : 15;
-    const tipColor = theme.dark ? "#bbf7d0" : "#14532d";
-
+    const barW = 0.55;
     const barBase = {
       type: "bar" as const,
       orientation: "h" as const,
       y: yIdx,
       cliponaxis: false,
       constraintext: "none" as const,
+      width: barW,
       hovertemplate:
         "<b>%{customdata}</b><br>%{fullData.name} (накопительно): %{x}<extra></extra>",
     };
 
-    const labelX = chronological.map((_, i) =>
-      Math.max(plan[i], fact[i] + overdue[i], fact[i], overdue[i]),
-    );
-    const labelText = chronological.map((_, i) => {
-      // Только прирост за месяц. Fallback на накопительный fact давал ложные «+N»
-      // (май/авг/окт без выдачи → +2/+8/+11) и сумму подписей 396 вместо ~375.
-      const inc = factInc[i];
-      return inc > 0 ? `+${Math.round(inc)}` : "";
-    });
+    // Подписи справа от более длинной полосы: план · факт · Δ
+    const endX = chronological.map((_, i) => Math.max(plan[i], fact[i]));
+    const step = xMax * (compact ? 0.055 : 0.042);
+    const xPlan = endX.map((x) => x + step * 0.85);
+    const xFact = endX.map((x) => x + step * 2.35);
+    const xDelta = endX.map((x) => x + step * 3.9);
+    const fmtN = (v: number) => String(Math.round(v));
+    const fmtD = (v: number) => {
+      const n = Math.round(v);
+      if (n > 0) return `+${n}`;
+      return String(n);
+    };
 
     return {
       data: [
@@ -386,8 +386,7 @@ export function RdMonthlyCumulativeChart({
           ...barBase,
           name: CHART_RU.plan,
           x: plan,
-          marker: { color: RD_MONTH_PLAN, opacity: 0.88 },
-          width: 0.62,
+          marker: { color: RD_MONTH_PLAN, opacity: 0.92 },
           customdata: labels,
         },
         {
@@ -395,26 +394,56 @@ export function RdMonthlyCumulativeChart({
           name: CHART_RU.fact,
           x: fact,
           marker: { color: RD_MONTH_FACT, opacity: 0.96 },
-          width: 0.38,
-          customdata: labels,
-        },
-        {
-          ...barBase,
-          name: CHART_RU.overdue,
-          x: overdue,
-          base: fact,
-          marker: { color: RD_MONTH_OVERDUE, opacity: 0.95 },
-          width: 0.38,
           customdata: labels,
         },
         {
           type: "scatter",
           mode: "text",
-          x: labelX,
+          name: "План (число)",
+          x: xPlan,
           y: yIdx,
-          text: labelText,
-          textposition: "middle right",
-          textfont: { size: tipFont, color: tipColor, family: "Inter, system-ui, sans-serif" },
+          text: plan.map(fmtN),
+          textposition: "middle center",
+          textfont: { size: tipSize, color: RD_MONTH_PLAN, family: tipFamily },
+          cliponaxis: false,
+          hoverinfo: "skip",
+          showlegend: false,
+        },
+        {
+          type: "scatter",
+          mode: "text",
+          name: "Факт (число)",
+          x: xFact,
+          y: yIdx,
+          text: fact.map(fmtN),
+          textposition: "middle center",
+          textfont: { size: tipSize, color: RD_MONTH_FACT, family: tipFamily },
+          cliponaxis: false,
+          hoverinfo: "skip",
+          showlegend: false,
+        },
+        {
+          type: "scatter",
+          mode: "text",
+          name: "Δ−",
+          x: xDelta,
+          y: yIdx,
+          text: delta.map((d) => (d < 0 ? fmtD(d) : "")),
+          textposition: "middle center",
+          textfont: { size: tipSize, color: RD_MONTH_OVERDUE, family: tipFamily },
+          cliponaxis: false,
+          hoverinfo: "skip",
+          showlegend: false,
+        },
+        {
+          type: "scatter",
+          mode: "text",
+          name: "Δ+",
+          x: xDelta,
+          y: yIdx,
+          text: delta.map((d) => (d >= 0 ? fmtD(d) : "")),
+          textposition: "middle center",
+          textfont: { size: tipSize, color: RD_MONTH_FACT, family: tipFamily },
           cliponaxis: false,
           hoverinfo: "skip",
           showlegend: false,
@@ -425,8 +454,8 @@ export function RdMonthlyCumulativeChart({
         barmode: "overlay" as const,
         bargap: 0.28,
         margin: compact
-          ? { l: 8, r: 88, t: 12, b: 96 }
-          : { l: 16, r: 96, t: 48, b: 96 },
+          ? { l: 8, r: 118, t: 12, b: 96 }
+          : { l: 16, r: 132, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         legend: plotlyLegendUnderLeft({
@@ -439,7 +468,7 @@ export function RdMonthlyCumulativeChart({
             text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * (compact ? 1.38 : 1.22)],
+          range: [0, xMax * (compact ? 1.48 : 1.36)],
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
@@ -456,7 +485,7 @@ export function RdMonthlyCumulativeChart({
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           automargin: true,
         },
-        font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
+        font: { family: tipFamily, color: theme.axis },
         modebar: {
           bgcolor: "rgba(0,0,0,0)",
           color: theme.axis,
