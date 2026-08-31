@@ -384,8 +384,10 @@ def _prepare_frame(version_id: int) -> pd.DataFrame:
         )
     )
     balance = gross - adv_end
+    # UTC→naive: иначе фильтр периода падает (tz-aware vs Timestamp).
     dates = (
-        pd.to_datetime(work[date_col], errors="coerce", dayfirst=True)
+        pd.to_datetime(work[date_col], errors="coerce", dayfirst=True, utc=True)
+        .dt.tz_localize(None)
         if date_col
         else pd.Series(pd.NaT, index=work.index)
     )
@@ -461,14 +463,17 @@ def build_debit_credit_payload(
                 contract_q.strip().casefold(), na=False
             )
         ]
+    contract_dates = pd.to_datetime(view.contract_date, errors="coerce")
+    if getattr(contract_dates.dtype, "tz", None) is not None:
+        contract_dates = contract_dates.dt.tz_convert("UTC").dt.tz_localize(None)
     if date_from:
         view = view[
-            view.contract_date.isna() | view.contract_date.ge(pd.Timestamp(date_from))
+            contract_dates.isna() | contract_dates.ge(pd.Timestamp(date_from))
         ]
     if date_to:
         view = view[
-            view.contract_date.isna()
-            | view.contract_date.lt(pd.Timestamp(date_to) + pd.Timedelta(days=1))
+            contract_dates.isna()
+            | contract_dates.lt(pd.Timestamp(date_to) + pd.Timedelta(days=1))
         ]
 
     # Исключительный кейс: Все проекты + Все подрядчики + без фильтра договора

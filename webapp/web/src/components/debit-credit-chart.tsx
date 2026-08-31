@@ -88,24 +88,36 @@ function valueLabel(value: number, numbersOnly = false): string {
   return numbersOnly ? num : `${num} млн.руб`;
 }
 
-/** Как main `_dk_x_tick_labels`: wrap width 16, max 2 lines. */
-function wrapTickLabel(raw: string): string {
+/**
+ * Подписи оси X: перенос по словам.
+ * Для метрик («Всего выполненных обязательств по платежам») — до 4 строк,
+ * иначе как main `_dk_x_tick_labels` (width 16, max 2).
+ */
+function wrapTickLabel(raw: string, opts?: { width?: number; maxLines?: number }): string {
   const s = raw.trim();
   if (!s) return "";
+  const width = opts?.width ?? 16;
+  const maxLines = opts?.maxLines ?? 2;
   const words = s.split(/\s+/);
   const lines: string[] = [];
   let cur = "";
-  for (const w of words) {
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!;
     const next = cur ? `${cur} ${w}` : w;
-    if (next.length <= 16) {
+    if (next.length <= width) {
       cur = next;
-    } else {
-      if (cur) lines.push(cur);
-      cur = w;
-      if (lines.length >= 1) break;
+      continue;
     }
+    if (cur) lines.push(cur);
+    if (lines.length >= maxLines - 1) {
+      // Последняя строка — весь остаток, без обрезки «по платежам».
+      lines.push(words.slice(i).join(" "));
+      cur = "";
+      break;
+    }
+    cur = w;
   }
-  if (cur && lines.length < 2) lines.push(cur);
+  if (cur && lines.length < maxLines) lines.push(cur);
   return lines.join("<br>") || s;
 }
 
@@ -152,7 +164,10 @@ export function DebitCreditChart({
       const labels = rows.map((row) => row.label);
       const values = rows.map((row) => row.value);
       const colors = rows.map((row) => row.color);
-      const ticktext = labels.map(wrapTickLabel);
+      // Полные названия метрик, в т.ч. «…обязательств по платежам».
+      const ticktext = labels.map((label) =>
+        wrapTickLabel(label, { width: 18, maxLines: 4 }),
+      );
       const peak = Math.max(0.01, ...values.map((v) => Math.abs(v)));
       const negMin = Math.min(0, ...values);
       const yTop = peak * 1.14;
@@ -192,8 +207,8 @@ export function DebitCreditChart({
           bargap: 0.28,
           showlegend: false,
           margin: compact
-            ? { l: 36, r: 12, t: 28, b: 120 }
-            : { l: 80, r: 40, t: 48, b: 140 },
+            ? { l: 36, r: 12, t: 28, b: 150 }
+            : { l: 80, r: 40, t: 48, b: 180 },
           paper_bgcolor: "rgba(0,0,0,0)",
           plot_bgcolor: "rgba(0,0,0,0)",
           font: { family: "Inter, system-ui, sans-serif", color: theme.label },
@@ -206,7 +221,7 @@ export function DebitCreditChart({
             tickvals: labels,
             ticktext,
             tickangle: 0,
-            tickfont: { size: compact ? 11 : 12, color: theme.axis },
+            tickfont: { size: compact ? 10 : 12, color: theme.axis },
             automargin: true,
             ...PLOTLY_AXIS_LINE,
           },

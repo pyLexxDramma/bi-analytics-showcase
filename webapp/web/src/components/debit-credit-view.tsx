@@ -275,7 +275,7 @@ export function DebitCreditView() {
           "Подрядчик",
           "Договор",
           "Договор стоимость",
-          "Всего выполненных обязательств",
+          "Всего выполненных обязательств по платежам",
           "Аванс",
           "Допущения по авансированию",
           "Выполнено (КС-2)",
@@ -698,7 +698,7 @@ export function DebitCreditView() {
                     <MobileMetricGrid
                       columns={2}
                       items={[
-                        { label: "Обязательства", value: mln(filteredTotals.fulfilled) },
+                        { label: "Всего выполненных обязательств по платежам", value: mln(filteredTotals.fulfilled) },
                         { label: "Остаток", value: mln(filteredTotals.balance) },
                       ]}
                     />
@@ -752,7 +752,7 @@ export function DebitCreditView() {
                     <MobileMetricGrid
                       columns={2}
                       items={[
-                        { label: "Обязательства", value: mln(row.fulfilled) },
+                        { label: "Всего выполненных обязательств по платежам", value: mln(row.fulfilled) },
                         { label: "Остаток", value: mln(row.balance) },
                       ]}
                     />
@@ -794,7 +794,7 @@ export function DebitCreditView() {
                       { label: "Стоимость", value: mln(detailRow.contract_sum) },
                       { label: "Аванс", value: mln(detailRow.advance) },
                       { label: "КС-2", value: mln(detailRow.ks2) },
-                      { label: "Обязательства", value: mln(detailRow.fulfilled) },
+                      { label: "Всего выполненных обязательств по платежам", value: mln(detailRow.fulfilled) },
                       { label: "Остаток", value: mln(detailRow.balance) },
                       {
                         label: "Аванс − КС-2",
