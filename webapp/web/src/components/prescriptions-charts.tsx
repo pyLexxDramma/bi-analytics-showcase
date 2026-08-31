@@ -16,7 +16,13 @@ const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ),
 });
 
-type ByContractor = { contractor: string; total: number; overdue: number };
+type ByContractor = {
+  contractor: string;
+  total: number;
+  overdue: number;
+  /** Неустранённые — ключ сортировки диаграммы сверху вниз. */
+  unresolved?: number;
+};
 type ByStatus = { status: string; value: number; share_pct: number };
 type ByObject = { object: string; total: number } & Record<string, number | string>;
 
@@ -109,7 +115,19 @@ export function PrescriptionsContractorChart({
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
-    const ordered = [...rows].reverse();
+    // Сверху вниз: больше неустранённых → меньше. Plotly h-bar: первая категория внизу → reverse.
+    const ordered = [...rows]
+      .sort((a, b) => {
+        const aKey = a.unresolved ?? a.total ?? 0;
+        const bKey = b.unresolved ?? b.total ?? 0;
+        if (bKey !== aKey) return bKey - aKey;
+        const byTotal = (b.total ?? 0) - (a.total ?? 0);
+        if (byTotal !== 0) return byTotal;
+        const byOverdue = (b.overdue ?? 0) - (a.overdue ?? 0);
+        if (byOverdue !== 0) return byOverdue;
+        return String(a.contractor).localeCompare(String(b.contractor), "ru");
+      })
+      .reverse();
     const y = ordered.map((row) => row.contractor);
     const totals = ordered.map((row) => row.total);
     const overdues = ordered.map((row) => row.overdue);

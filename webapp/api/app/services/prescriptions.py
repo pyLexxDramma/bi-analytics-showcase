@@ -484,6 +484,7 @@ def build_prescriptions_payload(
     stop_work = int((~view["_resolved"] & view["_stop_work"]).sum())
     non_overdue = int(pd.to_numeric(view["_overdue_days"], errors="coerce").fillna(0).le(0).sum())
 
+    # Диаграмма: сверху вниз по убыванию неустранённых (не по крит./просроч.).
     contractors_chart = (
         view.assign(
             _contractor=(
@@ -491,17 +492,18 @@ def build_prescriptions_payload(
                 if contractor_col
                 else "—"
             ),
-            _crit_od=(view["_critical"] & view["_overdue_open"]).astype(int),
+            _unresolved=(~view["_resolved"].astype(bool)).astype(int),
         )
         .groupby("_contractor", as_index=False)
         .agg(
             total=("_contractor", "size"),
             overdue=("_overdue_open", "sum"),
-            crit_overdue=("_crit_od", "sum"),
+            unresolved=("_unresolved", "sum"),
         )
         .sort_values(
-            ["crit_overdue", "overdue", "total", "_contractor"],
+            ["unresolved", "total", "overdue", "_contractor"],
             ascending=[False, False, False, True],
+            kind="mergesort",
         )
     )
     pie = renderer._pred_build_status_pie_df(view)
@@ -606,6 +608,7 @@ def build_prescriptions_payload(
                     "contractor": str(row["_contractor"]),
                     "total": int(row["total"]),
                     "overdue": int(row["overdue"]),
+                    "unresolved": int(row["unresolved"]),
                 }
                 for _, row in contractors_chart.iterrows()
             ],

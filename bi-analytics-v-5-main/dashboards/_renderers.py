@@ -48488,24 +48488,28 @@ def dashboard_predpisania(df):
         )
         if chart_group_col and not chart_df.empty:
             _cnt_col = "Неустранено" if hide_resolved else "Всего"
+            _chart_work = chart_df.assign(
+                _unresolved_flag=(~chart_df["_resolved"].astype(bool)).astype(int)
+            )
             grp = (
-                chart_df.groupby(chart_group_col, as_index=False)
+                _chart_work.groupby(chart_group_col, as_index=False)
                 .agg(
                     **{
                         _cnt_col: (chart_group_col, "size"),
                         "Просрочено": ("_overdue_open", "sum"),
-                        "КритПросроч": ("_crit_overdue_open", "sum"),
+                        "НеустраненоСорт": ("_unresolved_flag", "sum"),
                         "Мин_дата": ("_issue_date", "min"),
                         "Макс_дата": ("_issue_date", "max"),
                     }
                 )
             )
+            # Сверху вниз: больше неустранённых → меньше (не крит./просроч.).
             grp["_sort_name"] = grp[chart_group_col].astype(str).str.casefold()
             grp = grp.sort_values(
-                ["КритПросроч", "Просрочено", _cnt_col, "_sort_name"],
+                ["НеустраненоСорт", _cnt_col, "Просрочено", "_sort_name"],
                 ascending=[False, False, False, True],
                 kind="mergesort",
-            ).drop(columns=["_sort_name"]).reset_index(drop=True)
+            ).drop(columns=["_sort_name", "НеустраненоСорт"]).reset_index(drop=True)
             # Plotly h-bar: первая строка — внизу; крупнейшие значения — сверху.
             grp = grp.iloc[::-1].reset_index(drop=True)
             _y_cat_order = grp[chart_group_col].astype(str).tolist()

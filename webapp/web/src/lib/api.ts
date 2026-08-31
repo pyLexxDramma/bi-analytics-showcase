@@ -1876,6 +1876,7 @@ export type PrescriptionsPayload = {
       contractor: string;
       total: number;
       overdue: number;
+      unresolved?: number;
     }>;
     by_status: Array<{
       name: string;
