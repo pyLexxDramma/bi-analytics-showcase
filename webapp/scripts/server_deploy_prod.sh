@@ -77,14 +77,21 @@ _upsert_env NEXT_PUBLIC_AI_MODE "full"
 _upsert_env XCA_ASK_SECRET "${XCA_ASK_SECRET:-}"
 _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 
-# Trello bug report (bug_report/ в core)
+# Trello bug report (bug_report/ в core).
+# Пустой export TRELLO_*= перекрывает значения из .env при docker compose —
+# поэтому пустые переменные снимаем (unset), непустые пишем в .env.
 for _trelo_key in TRELLO_API_KEY TRELLO_TOKEN TRELLO_BOARD_ID \
   TRELLO_LIST_URGENT TRELLO_LIST_BUG TRELLO_LIST_UI TRELLO_LIST_FEATURE TRELLO_LIST_QUESTION TRELLO_LIST_TRIAGE \
-  TRELLO_LABEL_URGENT TRELLO_LABEL_BUG TRELLO_LABEL_UI TRELLO_LABEL_FEATURE TRELLO_LABEL_QUESTION TRELLO_LABEL_TRIAGE; do
+  TRELLO_LABEL_URGENT TRELLO_LABEL_BUG TRELLO_LABEL_UI TRELLO_LABEL_FEATURE TRELLO_LABEL_QUESTION TRELLO_LABEL_TRIAGE \
+  BUG_REPORT_DRY_RUN; do
   _val="${!_trelo_key:-}"
-  [[ -n "$_val" ]] && _upsert_env "$_trelo_key" "$_val"
+  if [[ -n "$_val" ]]; then
+    _upsert_env "$_trelo_key" "$_val"
+    export "$_trelo_key=$_val"
+  else
+    unset "$_trelo_key" || true
+  fi
 done
-[[ -n "${BUG_REPORT_DRY_RUN:-}" ]] && _upsert_env BUG_REPORT_DRY_RUN "${BUG_REPORT_DRY_RUN}"
 
 GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 export GIT_SHA

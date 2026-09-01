@@ -181,11 +181,18 @@ def _read_env_or_secret(name: str) -> str:
         return str(val).strip()
     try:
         import streamlit as st  # type: ignore
-        # st.secrets — Mapping; .get() безопасен при отсутствии ключа.
-        v = st.secrets.get(name, None) if hasattr(st, "secrets") else None
+        secrets = getattr(st, "secrets", None)
+        # webapp stub: st.secrets может быть _NullNode — не str()-ить объекты
+        if secrets is None or not hasattr(secrets, "get"):
+            return ""
+        v = secrets.get(name, None)
     except Exception:
-        v = None
-    return str(v).strip() if v is not None else ""
+        return ""
+    if v is None:
+        return ""
+    if isinstance(v, (str, int, float, bool)):
+        return str(v).strip()
+    return ""
 
 
 def _env_truthy(name: str) -> bool:

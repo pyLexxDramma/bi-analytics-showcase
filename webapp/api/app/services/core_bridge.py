@@ -47,6 +47,20 @@ class _NullNode:
     def __getitem__(self, key: Any) -> "_NullNode":
         return self
 
+    def __str__(self) -> str:
+        # иначе config._read_env_or_secret → str(NullNode) уходит в Trello как key/token
+        return ""
+
+    def __repr__(self) -> str:
+        return ""
+
+
+class _EmptySecrets(dict):
+    """st.secrets в API: пустой mapping, .get → None (не _NullNode)."""
+
+    def __getattr__(self, name: str) -> None:
+        return None
+
 
 class _SessionState(dict):
     def __getattr__(self, name: str) -> Any:
@@ -107,6 +121,9 @@ def _fill_stub(module: ModuleType) -> ModuleType:
     for name in ("cache_data", "cache_resource"):
         if getattr(module, name, None) is None:
             setattr(module, name, _cache_decorator)
+    # Явно: иначе __getattr__ → _NullNode и Trello key=str(NullNode) → 401
+    if not isinstance(getattr(module, "secrets", None), dict):
+        module.secrets = _EmptySecrets()  # type: ignore[attr-defined]
     if getattr(module, "__getattr__", None) is None:
         module.__getattr__ = lambda name: _NullNode()  # type: ignore[attr-defined]
     setattr(module, _STUB_FLAG, True)
