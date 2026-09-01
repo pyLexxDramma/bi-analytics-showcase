@@ -1,4 +1,4 @@
-"""Прокси отправки баг-репорта на winbot (CORS / same-origin для UI)."""
+"""Прокси отправки баг-репорта: Trello (prod) или winbot (fallback)."""
 
 from __future__ import annotations
 
@@ -8,15 +8,13 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 
 from app.config import BUG_FORM_KEY, BUG_FORM_SUBMIT_URL
+from app.services.bug_report_trello import submit_bug_report_trello, trello_bug_report_configured
 
 router = APIRouter(prefix="/api/bugform", tags=["bugform"])
 
 
 @router.post("/submit")
 async def submit_bug(request: Request) -> dict[str, Any]:
-    if not BUG_FORM_SUBMIT_URL:
-        raise HTTPException(status_code=503, detail="BUG_FORM_SUBMIT_URL не настроен")
-
     try:
         payload = await request.json()
     except Exception as exc:  # noqa: BLE001
@@ -24,6 +22,15 @@ async def submit_bug(request: Request) -> dict[str, Any]:
 
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Ожидался объект JSON")
+
+    if trello_bug_report_configured():
+        try:
+            return submit_bug_report_trello(payload)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not BUG_FORM_SUBMIT_URL:
+        raise HTTPException(status_code=503, detail="BUG_FORM_SUBMIT_URL не настроен")
 
     if not (payload.get("key") or "").strip():
         payload = {**payload, "key": BUG_FORM_KEY}

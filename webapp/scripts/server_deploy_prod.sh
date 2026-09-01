@@ -77,6 +77,15 @@ _upsert_env NEXT_PUBLIC_AI_MODE "full"
 _upsert_env XCA_ASK_SECRET "${XCA_ASK_SECRET:-}"
 _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 
+# Trello bug report (bug_report/ в core)
+for _trelo_key in TRELLO_API_KEY TRELLO_TOKEN TRELLO_BOARD_ID \
+  TRELLO_LIST_URGENT TRELLO_LIST_BUG TRELLO_LIST_UI TRELLO_LIST_FEATURE TRELLO_LIST_QUESTION TRELLO_LIST_TRIAGE \
+  TRELLO_LABEL_URGENT TRELLO_LABEL_BUG TRELLO_LABEL_UI TRELLO_LABEL_FEATURE TRELLO_LABEL_QUESTION TRELLO_LABEL_TRIAGE; do
+  _val="${!_trelo_key:-}"
+  [[ -n "$_val" ]] && _upsert_env "$_trelo_key" "$_val"
+done
+[[ -n "${BUG_REPORT_DRY_RUN:-}" ]] && _upsert_env BUG_REPORT_DRY_RUN "${BUG_REPORT_DRY_RUN}"
+
 GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 export GIT_SHA
 # Prod: always --no-cache for api/web (stale Next build already hit ai.conall.ru once).

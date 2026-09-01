@@ -26,7 +26,7 @@ jobs:
           port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
           command_timeout: 45m
           script_stop: true
-          envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL,GH_FETCH_TOKEN
+          envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL,GH_FETCH_TOKEN,TRELLO_API_KEY,TRELLO_TOKEN,TRELLO_BOARD_ID,TRELLO_LIST_URGENT,TRELLO_LIST_BUG,TRELLO_LIST_UI,TRELLO_LIST_FEATURE,TRELLO_LIST_QUESTION,TRELLO_LIST_TRIAGE,TRELLO_LABEL_URGENT,TRELLO_LABEL_BUG,TRELLO_LABEL_UI,TRELLO_LABEL_FEATURE,TRELLO_LABEL_QUESTION,TRELLO_LABEL_TRIAGE,BUG_REPORT_DRY_RUN
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.PROD_VPS_PATH }}"
@@ -49,6 +49,22 @@ jobs:
             fi
             export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
             export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
+            export TRELLO_API_KEY="${TRELLO_API_KEY:-}"
+            export TRELLO_TOKEN="${TRELLO_TOKEN:-}"
+            export TRELLO_BOARD_ID="${TRELLO_BOARD_ID:-}"
+            export TRELLO_LIST_URGENT="${TRELLO_LIST_URGENT:-}"
+            export TRELLO_LIST_BUG="${TRELLO_LIST_BUG:-}"
+            export TRELLO_LIST_UI="${TRELLO_LIST_UI:-}"
+            export TRELLO_LIST_FEATURE="${TRELLO_LIST_FEATURE:-}"
+            export TRELLO_LIST_QUESTION="${TRELLO_LIST_QUESTION:-}"
+            export TRELLO_LIST_TRIAGE="${TRELLO_LIST_TRIAGE:-}"
+            export TRELLO_LABEL_URGENT="${TRELLO_LABEL_URGENT:-}"
+            export TRELLO_LABEL_BUG="${TRELLO_LABEL_BUG:-}"
+            export TRELLO_LABEL_UI="${TRELLO_LABEL_UI:-}"
+            export TRELLO_LABEL_FEATURE="${TRELLO_LABEL_FEATURE:-}"
+            export TRELLO_LABEL_QUESTION="${TRELLO_LABEL_QUESTION:-}"
+            export TRELLO_LABEL_TRIAGE="${TRELLO_LABEL_TRIAGE:-}"
+            export BUG_REPORT_DRY_RUN="${BUG_REPORT_DRY_RUN:-0}"
             export WEBAPP_CORS_ORIGINS="https://ai.conall.ru"
             bash webapp/scripts/server_deploy_prod.sh
             echo "Prod deployed $(git rev-parse --short HEAD) edge :3081"
@@ -57,3 +73,19 @@ jobs:
           XCA_ASK_SECRET: ${{ secrets.XCA_ASK_SECRET }}
           XCA_ASK_BASE_URL: ${{ secrets.XCA_ASK_BASE_URL }}
           GH_FETCH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_BOARD_ID: ${{ secrets.TRELLO_BOARD_ID }}
+          TRELLO_LIST_URGENT: ${{ secrets.TRELLO_LIST_URGENT }}
+          TRELLO_LIST_BUG: ${{ secrets.TRELLO_LIST_BUG }}
+          TRELLO_LIST_UI: ${{ secrets.TRELLO_LIST_UI }}
+          TRELLO_LIST_FEATURE: ${{ secrets.TRELLO_LIST_FEATURE }}
+          TRELLO_LIST_QUESTION: ${{ secrets.TRELLO_LIST_QUESTION }}
+          TRELLO_LIST_TRIAGE: ${{ secrets.TRELLO_LIST_TRIAGE }}
+          TRELLO_LABEL_URGENT: ${{ secrets.TRELLO_LABEL_URGENT }}
+          TRELLO_LABEL_BUG: ${{ secrets.TRELLO_LABEL_BUG }}
+          TRELLO_LABEL_UI: ${{ secrets.TRELLO_LABEL_UI }}
+          TRELLO_LABEL_FEATURE: ${{ secrets.TRELLO_LABEL_FEATURE }}
+          TRELLO_LABEL_QUESTION: ${{ secrets.TRELLO_LABEL_QUESTION }}
+          TRELLO_LABEL_TRIAGE: ${{ secrets.TRELLO_LABEL_TRIAGE }}
+          BUG_REPORT_DRY_RUN: ${{ secrets.BUG_REPORT_DRY_RUN }}
