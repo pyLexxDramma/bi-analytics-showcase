@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 from typing import Any
 
 from app.services.core_bridge import ensure_core_path
@@ -11,9 +12,23 @@ from app.services.core_bridge import ensure_core_path
 logger = logging.getLogger(__name__)
 
 
+def _prepare_bug_report_db() -> None:
+    """В Docker core смонтирован :ro — пишем bug_reports в BI_USERS_DB."""
+    ensure_core_path()
+    users_db = os.environ.get("BI_USERS_DB", "").strip()
+    if not users_db:
+        return
+    import config as core_config
+
+    core_config.DB_PATH = users_db
+    from bug_report.storage import ensure_bug_reports_table
+
+    ensure_bug_reports_table()
+
+
 def trello_bug_report_configured() -> bool:
     try:
-        ensure_core_path()
+        _prepare_bug_report_db()
         from bug_report.settings import get_bug_report_settings
 
         return get_bug_report_settings().trello_configured
@@ -62,7 +77,7 @@ def _first_attachment(payload: dict[str, Any]) -> tuple[str, bytes, str] | None:
 
 
 def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
-    ensure_core_path()
+    _prepare_bug_report_db()
     from bug_report.service import submit_bug_report
 
     reporter = str(payload.get("reporter") or "").strip()
