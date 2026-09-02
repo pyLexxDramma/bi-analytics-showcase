@@ -1507,6 +1507,31 @@ def _generic_stem_family(stem: str) -> str:
     return k
 
 
+def _rd_pd_plan_csv_has_status(path: Path) -> bool:
+    """Есть ли в other_*_{rd|pd}.csv колонка статуса (для RD-01 «отменено»).
+
+    Свежие slim-выгрузки иногда без «Статус» — тогда latest-only оставляет
+    только их, и отменённые разделы снова попадают в KPI.
+    """
+    try:
+        raw = Path(path).read_bytes()[:12288]
+    except Exception:
+        return False
+    text = None
+    for enc in ("utf-8-sig", "cp1251", "windows-1251", "utf-8", "cp866"):
+        try:
+            text = raw.decode(enc)
+            break
+        except Exception:
+            continue
+    if not text:
+        return False
+    for line in text.splitlines()[:8]:
+        if "статус" in line.casefold():
+            return True
+    return False
+
+
 def _tessa_kind_key(stem: str) -> str:
     """
     Формат имени:
@@ -1791,6 +1816,26 @@ def pick_latest_snapshot_files(files: List[Dict]) -> Tuple[List[Dict], List[str]
             rated.append(((md or dt_date.min, _file_mtime(f["path"])), f))
         best_f = max(rated, key=lambda x: x[0])[1]
         _add(best_f)
+        # other_*_rd / other_*_pd: если самый свежий файл без колонки «Статус»
+        # (slim), дополнительно берём самый свежий файл семейства СО статусом —
+        # иначе RD-01 не видит «отменено» и завышает «Всего разделов».
+        _best_stem = Path(best_f["name"]).stem.lower()
+        if (
+            _best_stem.startswith("other_")
+            and (_best_stem.endswith("_rd") or _best_stem.endswith("_pd"))
+            and not _rd_pd_plan_csv_has_status(best_f["path"])
+        ):
+            _with_status: List[Tuple[tuple, Dict]] = []
+            for f in lst:
+                if id(f["path"]) == id(best_f["path"]):
+                    continue
+                if not _rd_pd_plan_csv_has_status(f["path"]):
+                    continue
+                stem = Path(f["name"]).stem
+                md = _max_date_in_stem(stem)
+                _with_status.append(((md or dt_date.min, _file_mtime(f["path"])), f))
+            if _with_status:
+                _add(max(_with_status, key=lambda x: x[0])[1])
 
     total_in = len(files)
     total_kept = len(kept)

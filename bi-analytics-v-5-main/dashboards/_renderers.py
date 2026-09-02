@@ -17720,9 +17720,9 @@ def _rd_plan_section_key_series(df: pd.DataFrame, pc: dict[str, str | None]) -> 
             else ""
         )
         if fc_c and fc_c in row.index:
-            fc = _rd_csv_cell_str(row.get(fc_c))
+            fc = _rd_cipher_match_key(row.get(fc_c))
             if fc:
-                keys.append(("fc", pk, fc.casefold()))
+                keys.append(("fc", pk, fc))
                 continue
         cc = _rd_csv_cell_str(row.get(code_c, "")) if code_c and code_c in row.index else ""
         nm = _rd_csv_cell_str(row.get(name_c, "")) if name_c and name_c in row.index else ""
@@ -17997,6 +17997,74 @@ def _rd_plan_cancelled_row_mask(df: pd.DataFrame) -> pd.Series:
     return mask
 
 
+def _rd_plan_cancelled_section_keys(
+    df: pd.DataFrame,
+    pc: dict[str, str | None],
+) -> set[tuple[str, str]]:
+    """Ключи (проект, полный шифр) отменённых разделов по ВСЕЙ истории снапшотов.
+
+    Свежие other_*_rd.csv иногда без колонки «Статус» (slim-выгрузка), а
+    `_rd_plan_keep_latest_snapshot` оставляет только их — тогда 6 отменённых
+    МР по Дмитровскому снова попадают в «Всего разделов» (123 вместо 117).
+    Собираем отмены из более ранних полных выгрузок того же проекта.
+    """
+    if df is None or getattr(df, "empty", True):
+        return set()
+    mask = _rd_plan_cancelled_row_mask(df)
+    if not bool(mask.any()):
+        return set()
+    proj_c = pc.get("proj")
+    fc_c = pc.get("full_cipher")
+    code_c = pc.get("code")
+    name_c = pc.get("name")
+    out: set[tuple[str, str]] = set()
+    for _i, row in df.loc[mask].iterrows():
+        pk = (
+            _project_filter_norm_key(row.get(proj_c, ""))
+            if proj_c and proj_c in row.index
+            else ""
+        )
+        fc = _rd_cipher_match_key(row.get(fc_c, "")) if fc_c and fc_c in row.index else ""
+        if fc:
+            out.add((pk, fc))
+            continue
+        cc = _rd_csv_cell_str(row.get(code_c, "")) if code_c and code_c in row.index else ""
+        nm = _rd_csv_cell_str(row.get(name_c, "")) if name_c and name_c in row.index else ""
+        if cc or nm:
+            out.add((pk, f"pn:{cc.casefold()}|{nm.casefold()}"))
+    return out
+
+
+def _rd_plan_row_cancelled_by_history(
+    row: pd.Series,
+    pc: dict[str, str | None],
+    cancelled: set[tuple[str, str]],
+) -> bool:
+    if not cancelled:
+        return False
+    proj_c = pc.get("proj")
+    fc_c = pc.get("full_cipher")
+    code_c = pc.get("code")
+    name_c = pc.get("name")
+    pk = (
+        _project_filter_norm_key(row.get(proj_c, ""))
+        if proj_c and proj_c in row.index
+        else ""
+    )
+    fc = _rd_cipher_match_key(row.get(fc_c, "")) if fc_c and fc_c in row.index else ""
+    if fc and (pk, fc) in cancelled:
+        return True
+    # Без привязки к имени проекта: отмена могла быть при другом label проекта.
+    if fc and any(k[1] == fc for k in cancelled):
+        return True
+    cc = _rd_csv_cell_str(row.get(code_c, "")) if code_c and code_c in row.index else ""
+    nm = _rd_csv_cell_str(row.get(name_c, "")) if name_c and name_c in row.index else ""
+    pn = f"pn:{cc.casefold()}|{nm.casefold()}"
+    if (cc or nm) and ((pk, pn) in cancelled or any(k[1] == pn for k in cancelled)):
+        return True
+    return False
+
+
 def _rd_plan_csv_sections_df(
     selected_projects: list[str] | None = None,
 ) -> pd.DataFrame:
@@ -18017,6 +18085,8 @@ def _rd_plan_csv_sections_df(
     pc = _rd_plan_csv_pick_columns(df)
     if not pc.get("plan"):
         return pd.DataFrame()
+    # Отмены — по всей истории снапшотов (до keep_latest): slim-файлы без «Статус».
+    _canc_keys = _rd_plan_cancelled_section_keys(df, pc)
     df = _rd_plan_keep_latest_snapshot(df, pc.get("proj"))
     # План на prod часто хранит ID_проекта (GUID), TESSA — наименование.
     # Без подмены в таблице «Проект» = UUID, а join с TESSA по проекту ломается.
@@ -18050,8 +18120,14 @@ def _rd_plan_csv_sections_df(
     # строк со статусом «отменено»; без этого «Всего разделов» завышается).
     # Исключаем ТОЛЬКО отмену — «принят»/«не принят»/«на рассмотрении» и т.п.
     # остаются в плане. Проверяем ВСЕ колонки со «статус» (отмена бывает в
-    # «Статус», хотя pick выбрал «Статус РД»).
+    # «Статус», хотя pick выбрал «Статус РД») + историю снапшотов.
     _canc = _rd_plan_cancelled_row_mask(df)
+    if _canc_keys:
+        _hist = df.apply(
+            lambda r: _rd_plan_row_cancelled_by_history(r, pc, _canc_keys),
+            axis=1,
+        )
+        _canc = _canc | _hist.fillna(False)
     if bool(_canc.any()):
         df = df[~_canc].copy()
     if df.empty:
@@ -19166,14 +19242,10 @@ def _build_rd_work_doc_detail_table(
                 _proj_out = _tessa_proj
             elif not _proj_out:
                 _proj_out = _tessa_proj
-            # Полный шифр: при совпадении ключей показываем TESSA InternalID
-            # (как в исходнике), иначе — план.
-            _full_out = full_c
-            if _tessa_full and (
-                not full_c
-                or _rd_cipher_match_key(_tessa_full) == _rd_cipher_match_key(full_c)
-            ):
-                _full_out = _tessa_full
+            # Полный шифр: источник истины — план other_*_rd.csv (как в Excel
+            # заказчика). TESSA InternalID подставляем только если в плане пусто;
+            # иначе Latin/Cyrillic «А» и мелкие отличия выглядят как «шифры не те».
+            _full_out = full_c or _tessa_full
             out_rows.append(
                 {
                     "Проект": _proj_out,
@@ -19184,7 +19256,7 @@ def _build_rd_work_doc_detail_table(
                         or contract_no_csv
                     ),
                     "Шифр": cipher or str(tr.get("Шифр", "") or ""),
-                    "Шифр полный": _full_out or _tessa_full,
+                    "Шифр полный": _full_out,
                     "Версия": str(tr.get("Версия", "") or ""),
                     "Статус": str(tr.get("Статус", "") or _RD_TESSA_STATUS_NOT_ISSUED),
                     "Дата выдачи разделов по Договору": (
