@@ -4828,7 +4828,17 @@ CONTROL_POINT_MILESTONES: List[Tuple[str, str, dict]] = [
             "parent_l2_contains": "Ковенанты",
         },
     ),
-    ("Завершение СМР", "smr_finish", {"level": 5.0, "names_any": ["Завершение СМР"], "parent_l2_contains": "Ковенанты"}),
+    (
+        "Завершение СМР",
+        "smr_finish",
+        {
+            "level": 5.0,
+            # Только ковенантная summary-веха: «Завершение СМР» или «СМР (окончание)».
+            # names_any ловил «Завершение СМР по блоку … до ЗОС» и давал неверную дату.
+            "names_exact_any": ["Завершение СМР", "СМР (окончание)"],
+            "parent_l2_contains": "Ковенанты",
+        },
+    ),
     ("Пуск электричества", "power_on", {"level": 5.0, "names_any": ["Пуск электричества"], "parent_l2_contains": "Ковенанты"}),
     ("Пуск газа", "gas_on", {"level": 5.0, "names_any": ["Пуск газа"], "parent_l2_contains": "Ковенанты"}),
     (
