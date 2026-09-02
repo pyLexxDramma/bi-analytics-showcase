@@ -95,4 +95,3 @@ Bootstrap (`showcase/bootstrap.py`) автоматически выставля�
 - Клиентские выгрузки и FTP
 - OpenCode / AI-помощник (отключён)
 - Deploy на VPS клиента
-- test text

@@ -1310,6 +1310,61 @@ export function FilterField({
   );
 }
 
+/**
+ * Пара дат «с/по» занимает 2 колонки сетки фильтров (BUG-001/002/006):
+ * иначе min-width у type=date (~10.75rem×2) вылезает в соседнее поле.
+ */
+export function FilterDateRange({
+  label = "Период",
+  from,
+  to,
+  min,
+  max,
+  onFromChange,
+  onToChange,
+  fromAriaLabel = "Период с",
+  toAriaLabel = "Период по",
+  filterKey,
+}: {
+  label?: ReactNode;
+  from: string;
+  to: string;
+  min?: string;
+  max?: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  fromAriaLabel?: string;
+  toAriaLabel?: string;
+  filterKey?: string;
+}) {
+  return (
+    <div className="bi-filters-date-range">
+      <FilterField label={label} filterKey={filterKey}>
+        <div className="bi-filters-date-range-inputs">
+          <input
+            type="date"
+            className={FILTER_DATE_CLASS}
+            min={min}
+            max={to || max}
+            value={from}
+            onChange={(event) => onFromChange(event.target.value)}
+            aria-label={fromAriaLabel}
+          />
+          <input
+            type="date"
+            className={FILTER_DATE_CLASS}
+            min={from || min}
+            max={max}
+            value={to}
+            onChange={(event) => onToChange(event.target.value)}
+            aria-label={toAriaLabel}
+          />
+        </div>
+      </FilterField>
+    </div>
+  );
+}
+
 export function FilterCheck({
   label,
   className = "",

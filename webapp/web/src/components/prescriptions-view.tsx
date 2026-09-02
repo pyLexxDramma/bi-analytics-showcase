@@ -13,9 +13,9 @@ import {
   FilterCheck,
   FilterChipMulti,
   FilterChecksRow,
+  FilterDateRange,
   FilterField,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
   FiltersCard,
 } from "@/components/dashboard-filters";
 import {
@@ -364,38 +364,20 @@ export function PrescriptionsView() {
               }
             />
           </FilterField>
-          <FilterField label="Период">
-            <div className="mt-1 grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                min={data?.filters.date_min ?? undefined}
-                max={data?.filters.date_max ?? undefined}
-                value={filters.date_from}
-                onChange={(e) =>
-                  setFilters((state) => ({
-                    ...state,
-                    date_from: e.target.value,
-                  }))
-                }
-                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
-                aria-label="Дата с"
-              />
-              <input
-                type="date"
-                min={data?.filters.date_min ?? undefined}
-                max={data?.filters.date_max ?? undefined}
-                value={filters.date_to}
-                onChange={(e) =>
-                  setFilters((state) => ({
-                    ...state,
-                    date_to: e.target.value,
-                  }))
-                }
-                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
-                aria-label="Дата по"
-              />
-            </div>
-          </FilterField>
+          <FilterDateRange
+            from={filters.date_from}
+            to={filters.date_to}
+            min={data?.filters.date_min ?? undefined}
+            max={data?.filters.date_max ?? undefined}
+            onFromChange={(date_from) =>
+              setFilters((state) => ({ ...state, date_from }))
+            }
+            onToChange={(date_to) =>
+              setFilters((state) => ({ ...state, date_to }))
+            }
+            fromAriaLabel="Дата с"
+            toAriaLabel="Дата по"
+          />
         </FilterFieldsRow>
         <FilterChecksRow cols={4}>
           <FilterCheck

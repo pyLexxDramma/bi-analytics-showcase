@@ -48,10 +48,14 @@ export function chartSyncKey(raw: unknown): string {
     .toLocaleLowerCase("ru-RU");
 }
 
-export function useChartTableRowClass(rowKey: string): string {
+export function useChartTableRowClass(
+  rowKey: string,
+  alsoMatch: string[] = [],
+): string {
   const { activeKey } = useChartTableSync();
   if (!activeKey) return "";
-  return chartSyncKey(rowKey) === activeKey ? "bi-chart-sync-row" : "";
+  const keys = [rowKey, ...alsoMatch].map(chartSyncKey);
+  return keys.includes(activeKey) ? "bi-chart-sync-row" : "";
 }
 
 export function useChartCategoryHandlers(category: string) {
@@ -65,15 +69,18 @@ export function useChartCategoryHandlers(category: string) {
 /** Строка таблицы с двусторонней подсветкой при sync график↔таблица. */
 export function SyncTableRow({
   syncKey,
+  /** Доп. ключи только для подсветки (напр. период с графика) — hover остаётся уникальным. */
+  alsoMatch,
   className = "",
   children,
 }: {
   syncKey: string;
+  alsoMatch?: string[];
   className?: string;
   children: ReactNode;
 }) {
   const { setActiveKey } = useChartTableSync();
-  const syncClass = useChartTableRowClass(syncKey);
+  const syncClass = useChartTableRowClass(syncKey, alsoMatch);
   const key = chartSyncKey(syncKey);
   return (
     <tr

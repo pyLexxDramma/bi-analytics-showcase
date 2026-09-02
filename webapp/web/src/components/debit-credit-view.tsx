@@ -16,11 +16,11 @@ import { fetchDebitCredit, type DebitCreditPayload } from "@/lib/api";
 import { useRefreshTick } from "@/lib/refresh-context";
 import {
   ContractNoSuggest,
+  FilterDateRange,
   FilterField,
   FilterChipMulti,
   FilterChipSelect,
   FilterFieldsRow,
-  FILTER_DATE_CLASS,
   FiltersCard,
 } from "@/components/dashboard-filters";
 import { buildFilterChips } from "@/lib/filters-summary";
@@ -341,32 +341,16 @@ export function DebitCreditView() {
               }
             />
           </FilterField>
-          <FilterField label="Период">
-            <div className="grid grid-cols-2 gap-1">
-              <input
-                type="date"
-                className={FILTER_DATE_CLASS}
-                min={data?.filters.date_min ?? undefined}
-                max={data?.filters.date_max ?? undefined}
-                value={filters.date_from}
-                onChange={(e) =>
-                  setFilters((s) => ({ ...s, date_from: e.target.value }))
-                }
-                aria-label="Период с"
-              />
-              <input
-                type="date"
-                className={FILTER_DATE_CLASS}
-                min={data?.filters.date_min ?? undefined}
-                max={data?.filters.date_max ?? undefined}
-                value={filters.date_to}
-                onChange={(e) =>
-                  setFilters((s) => ({ ...s, date_to: e.target.value }))
-                }
-                aria-label="Период по"
-              />
-            </div>
-          </FilterField>
+          <FilterDateRange
+            from={filters.date_from}
+            to={filters.date_to}
+            min={data?.filters.date_min ?? undefined}
+            max={data?.filters.date_max ?? undefined}
+            onFromChange={(date_from) =>
+              setFilters((s) => ({ ...s, date_from }))
+            }
+            onToChange={(date_to) => setFilters((s) => ({ ...s, date_to }))}
+          />
           <FilterChipSelect
             label="Вид отображения"
             value={filters.display_view}

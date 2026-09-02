@@ -321,8 +321,10 @@ def build_gdrs_payload(
     sel_projects = _split_csv(projects)
     sel_contractors = _split_csv(contractors)
     sel_month_labels = _split_csv(months)
-    if not sel_month_labels:
-        sel_month_labels = list(default_months)
+    # Пустой months = UI «Все» → весь доступный период (не default = последний месяц с фактом).
+    months_all = not sel_month_labels
+    if months_all:
+        sel_month_labels = list(month_labels)
 
     only_plan = bool(only_with_plan) if only_with_plan is not None else False
 
@@ -484,7 +486,8 @@ def build_gdrs_payload(
         "selected": {
             "projects": sel_projects,
             "contractors": sel_contractors,
-            "months": sel_month_labels,
+            # Пустой список = «Все» (весь период); не отдаём полный список как «выбрано».
+            "months": [] if months_all else sel_month_labels,
             "plan_agg": plan_lbl,
             "skud_agg": skud_lbl,
             "dyn_agg": dyn_lbl,

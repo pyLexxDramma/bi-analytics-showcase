@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, Text, Title } from "@tremor/react";
 import { AppShell } from "@/components/app-shell";
 import { DownloadTableButton } from "@/components/download-table-button";
@@ -209,14 +209,20 @@ export function BddsPlanFactView() {
     return () => controller.abort();
   }, [applied, load, refreshTick, singleProject]);
 
+  // Один раз подставить эффективный период с сервера в пустые поля.
+  // После «Сбросить» даты остаются пустыми (весь период без фильтра) — BUG-005.
+  const datesSeededRef = useRef(false);
   useEffect(() => {
     if (!data?.filters) return;
-    // Только заполнить пустые даты эффективным диапазоном сервера.
-    // Не перезаписывать выбор пользователя устаревшим ответом «весь период».
-    if (applied.date_from || applied.date_to) return;
+    if (datesSeededRef.current) return;
+    if (applied.date_from || applied.date_to) {
+      datesSeededRef.current = true;
+      return;
+    }
     const nextFrom = data.filters.applied.date_from ?? "";
     const nextTo = data.filters.applied.date_to ?? "";
     if (!nextFrom && !nextTo) return;
+    datesSeededRef.current = true;
     syncBoth({ date_from: nextFrom, date_to: nextTo });
   }, [
     data?.filters.applied.date_from,
