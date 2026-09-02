@@ -60,6 +60,18 @@ def _format_description(
     return "\n".join(lines)
 
 
+def _normalize_attachments(
+    attachment: tuple[str, bytes, str] | None,
+    attachments: list[tuple[str, bytes, str]] | None,
+) -> list[tuple[str, bytes, str]]:
+    items: list[tuple[str, bytes, str]] = []
+    if attachments:
+        items.extend(attachments)
+    elif attachment:
+        items.append(attachment)
+    return items
+
+
 def create_bug_report_card(
     *,
     settings: BugReportSettings,
@@ -69,6 +81,7 @@ def create_bug_report_card(
     context: dict[str, Any],
     classification: dict[str, Any],
     attachment: tuple[str, bytes, str] | None = None,
+    attachments: list[tuple[str, bytes, str]] | None = None,
 ) -> TrelloCardResult:
     if not target.list_id:
         raise ValueError("Trello list_id is not configured")
@@ -93,8 +106,9 @@ def create_bug_report_card(
     data = resp.json()
     card_id = str(data.get("id", ""))
     card_url = str(data.get("url", "") or data.get("shortUrl", ""))
-    if attachment and card_id:
-        filename, content, mime = attachment
+    if not card_id:
+        raise ValueError("Trello returned empty card id")
+    for filename, content, mime in _normalize_attachments(attachment, attachments):
         try:
             requests.post(
                 f"{TRELLO_API}/cards/{card_id}/attachments",
@@ -103,7 +117,10 @@ def create_bug_report_card(
                 timeout=(3.0, 30.0),
             ).raise_for_status()
         except requests.RequestException as exc:
-            logger.warning("bug_report Trello attachment failed for %s: %s", card_id, exc)
-    if not card_id:
-        raise ValueError("Trello returned empty card id")
+            logger.warning(
+                "bug_report Trello attachment failed for %s (%s): %s",
+                card_id,
+                filename,
+                exc,
+            )
     return TrelloCardResult(card_id=card_id, card_url=card_url)

@@ -48,20 +48,23 @@ def _compose_text(payload: dict[str, Any]) -> str:
         "",
         "**Ожидаемое**",
         (payload.get("expected") or "").strip(),
-        "",
-        "**Шаги воспроизведения**",
-        (payload.get("steps") or "").strip(),
     ]
+    steps = (payload.get("steps") or "").strip()
+    if steps:
+        lines.extend(["", "**Шаги воспроизведения**", steps])
+    repro = (payload.get("repro") or "").strip()
+    if repro:
+        lines.append(f"Воспроизводится: {repro}")
+    conditions = (payload.get("conditions") or "").strip()
+    if conditions:
+        lines.append(f"Условия: {conditions}")
+    filedesc = (payload.get("filedesc") or "").strip()
+    if filedesc:
+        lines.extend(["", "**Вложения**", filedesc])
     return "\n".join(x for x in lines if x is not None).strip()
 
 
-def _first_attachment(payload: dict[str, Any]) -> tuple[str, bytes, str] | None:
-    items = payload.get("attachments")
-    if not isinstance(items, list) or not items:
-        return None
-    raw = items[0]
-    if not isinstance(raw, dict):
-        return None
+def _decode_attachment(raw: dict[str, Any]) -> tuple[str, bytes, str] | None:
     name = str(raw.get("name") or "screenshot.png")
     b64 = str(raw.get("data") or raw.get("content") or "")
     if not b64:
@@ -74,6 +77,20 @@ def _first_attachment(payload: dict[str, Any]) -> tuple[str, bytes, str] | None:
         return None
     mime = str(raw.get("type") or raw.get("mime") or "image/png")
     return name, content, mime
+
+
+def _all_attachments(payload: dict[str, Any]) -> list[tuple[str, bytes, str]]:
+    items = payload.get("attachments")
+    if not isinstance(items, list) or not items:
+        return []
+    out: list[tuple[str, bytes, str]] = []
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        decoded = _decode_attachment(raw)
+        if decoded:
+            out.append(decoded)
+    return out
 
 
 def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
@@ -101,7 +118,7 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
         page_url=str(payload.get("filters") or ""),
         theme=theme,
         app_build=str(payload.get("contour") or "webapp"),
-        attachment=_first_attachment(payload),
+        attachments=_all_attachments(payload),
     )
     if not result.ok:
         raise RuntimeError(result.message)

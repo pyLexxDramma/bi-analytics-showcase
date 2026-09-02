@@ -39,8 +39,20 @@
   .againbtn.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
   input.missing, select.missing, textarea.missing { border-color:var(--req); outline:1px solid var(--req); }
   .filelist { font-size:.88rem; color:var(--muted); margin-top:6px; }
+  .dropzone {
+    border:2px dashed var(--border); border-radius:10px; padding:22px 16px; text-align:center;
+    background:#fafbfc; color:var(--muted); cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.dragover { border-color:var(--accent); background:#f0f5ff; color:#1c2430; }
+  .dropzone strong { color:#1c2430; }
+  .dropzone input[type=file] { display:none; }
+  details.optional { border:1px solid var(--border); border-radius:10px; background:#fff; padding:12px 16px; margin:0 0 18px; }
+  details.optional > summary { cursor:pointer; font-weight:600; list-style:none; }
+  details.optional > summary::-webkit-details-marker { display:none; }
+  details.optional > summary::after { content:" (необязательно)"; font-weight:400; color:var(--muted); }
   #section5[hidden] { display:none !important; }
   #report_other_wrap[hidden] { display:none !important; }
+  .trello-link { display:inline-block; margin-top:10px; font-weight:600; color:var(--accent); }
 </style>
 </head>
 <body>
@@ -185,21 +197,21 @@
       <label class="radio-row"><input type="radio" name="severity" value="Косметика"><span><b>Косметика</b><small>На цифры и решение не влияет.</small></span></label>
     </fieldset>
 
-    <fieldset>
-      <legend>4. Сценарий воспроизведения</legend>
-      <label class="req" for="steps">Шаги — по одному действию на строку</label>
-      <p class="hint">Так, чтобы другой человек без переписки повторил то же самое.</p>
-      <textarea id="steps" required placeholder="1. Открыть систему, войти под ролью …&#10;2. Перейти в группу … → отчёт …&#10;3. Выбрать фильтры: проект …, период …&#10;4. Открыть блок / нажать …&#10;5. Увидеть: …" style="min-height:120px"></textarea>
+    <details class="optional">
+      <summary>4. Сценарий воспроизведения</summary>
+      <label for="steps">Шаги — по одному действию на строку</label>
+      <p class="hint">Необязательно. Полезно, если баг не очевиден со скрина.</p>
+      <textarea id="steps" placeholder="1. Открыть систему…&#10;2. Перейти в отчёт…&#10;3. Увидеть: …" style="min-height:100px"></textarea>
 
-      <label class="req">Воспроизводится</label>
-      <label class="radio-row"><input type="radio" name="repro" value="Всегда, при указанных шагах" required><span>Всегда, при указанных шагах</span></label>
+      <label>Воспроизводится</label>
+      <label class="radio-row"><input type="radio" name="repro" value="Всегда, при указанных шагах"><span>Всегда, при указанных шагах</span></label>
       <label class="radio-row"><input type="radio" name="repro" value="Иногда"><span>Иногда</span></label>
       <label class="radio-row"><input type="radio" name="repro" value="Только у меня / у части пользователей"><span>Только у меня / у части пользователей</span></label>
       <label class="radio-row"><input type="radio" name="repro" value="Не удалось повторить, видели один раз"><span>Не удалось повторить, видели один раз</span></label>
 
       <label for="conditions">Дополнительные условия</label>
       <input type="text" id="conditions" placeholder="После обновления данных / только на конкретном проекте / как часто…">
-    </fieldset>
+    </details>
 
     <fieldset id="section5" hidden>
       <legend>5. Данные для сверки</legend>
@@ -226,8 +238,12 @@
 
     <fieldset>
       <legend>6. Скриншоты и вложения</legend>
-      <p class="hint">На кадре должны быть видны: название отчёта, фильтры и место дефекта. Можно приложить эталон. До 8 файлов, каждый до 9 МБ.</p>
-      <input type="file" id="files" multiple accept="image/*,.csv,.xlsx,.xls,.pdf,.png">
+      <p class="hint">На кадре должны быть видны: название отчёта, фильтры и место дефекта. До 8 файлов, каждый до 9 МБ. Можно перетащить файлы в область ниже.</p>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Выбрать или перетащить файлы">
+        <strong>Перетащите файлы сюда</strong> или нажмите, чтобы выбрать<br>
+        <span style="font-size:.85rem">PNG, JPG, PDF, CSV, Excel — несколько сразу</span>
+        <input type="file" id="files" multiple accept="image/*,.csv,.xlsx,.xls,.pdf,.png">
+      </div>
       <div class="filelist" id="filelist"></div>
       <label for="filedesc">Что на кадрах / зачем приложены файлы</label>
       <textarea id="filedesc" placeholder="Скриншот 1 — …&#10;Файл 2 — эталон из 1С"></textarea>
@@ -244,6 +260,8 @@
 const $ = id => document.getElementById(id);
 const MAX_FILES = 8, MAX_SIZE = 9 * 1024 * 1024;
 const CTX_FIELDS = ['first_name','last_name','menugroup','contour','browser','role','filters','whytype','btype','subtype','block'];
+let selectedFiles = [];
+let loginUsername = '';
 
 const REPORTS_BY_GROUP = {
   'Девелоперские проекты': ['Девелоперские проекты'],
@@ -338,7 +356,8 @@ function syncDataSection() {
 
 function resetForm() {
   $('bugform').reset();
-  $('filelist').textContent = '';
+  selectedFiles = [];
+  refreshFileList();
   $('report_other_wrap').hidden = true;
   fillReportOptions('', '');
   syncDataSection();
@@ -376,8 +395,6 @@ document.querySelectorAll('input[name=btype]').forEach(r => r.addEventListener('
   $('whendt').value = d.toISOString().slice(0,16);
 })();
 
-let loginUsername = '';
-
 (() => {
   const q = new URLSearchParams(location.search);
   const menugroup = q.get('menugroup') || '';
@@ -412,12 +429,45 @@ let loginUsername = '';
   });
 })();
 
-$('files').addEventListener('change', () => {
-  const fs = [...$('files').files];
-  const bad = fs.filter(f => f.size > MAX_SIZE).map(f => f.name);
-  let msg = fs.length > MAX_FILES ? `⚠️ Больше ${MAX_FILES} файлов — лишние не уйдут. ` : '';
+function refreshFileList() {
+  const bad = selectedFiles.filter(f => f.size > MAX_SIZE).map(f => f.name);
+  let msg = selectedFiles.length > MAX_FILES ? `⚠️ Больше ${MAX_FILES} файлов — лишние не уйдут. ` : '';
   if (bad.length) msg += `⚠️ Слишком большие (>9 МБ): ${bad.join(', ')}`;
-  $('filelist').textContent = msg || fs.map(f => f.name).join(' · ');
+  const names = selectedFiles.slice(0, MAX_FILES).map(f => f.name).join(' · ');
+  $('filelist').textContent = msg || (names || 'Файлы не выбраны');
+}
+
+function addFiles(fileList) {
+  const incoming = [...fileList];
+  const byKey = new Map(selectedFiles.map(f => [`${f.name}:${f.size}:${f.lastModified}`, f]));
+  for (const f of incoming) {
+    byKey.set(`${f.name}:${f.size}:${f.lastModified}`, f);
+  }
+  selectedFiles = [...byKey.values()].slice(0, MAX_FILES);
+  const dt = new DataTransfer();
+  selectedFiles.forEach(f => dt.items.add(f));
+  $('files').files = dt.files;
+  refreshFileList();
+}
+
+const dropzone = $('dropzone');
+dropzone.addEventListener('click', e => {
+  if (e.target !== $('files')) $('files').click();
+});
+dropzone.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('files').click(); }
+});
+['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover');
+}));
+dropzone.addEventListener('drop', e => {
+  if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
+});
+$('files').addEventListener('change', () => {
+  if ($('files').files?.length) addFiles($('files').files);
 });
 
 const readB64 = f => new Promise((res, rej) => {
@@ -443,10 +493,10 @@ $('bugform').addEventListener('submit', async e => {
   }
   if (!form.checkValidity()) { form.reportValidity(); return; }
 
-  const files = [...$('files').files].filter(f => f.size <= MAX_SIZE).slice(0, MAX_FILES);
+  const files = selectedFiles.filter(f => f.size <= MAX_SIZE).slice(0, MAX_FILES);
   if (!files.length && !$('nofiles').value.trim()) {
     result.className = 'err';
-    result.textContent = 'Приложите хотя бы один скриншот или заполните поле «Если файлов нет — почему».';
+    result.textContent = 'Приложите хотя бы один скриншот (можно перетащить) или заполните поле «Если файлов нет — почему».';
     return;
   }
 
@@ -486,7 +536,7 @@ $('bugform').addEventListener('submit', async e => {
       proofnote: $('proofnote').value.trim(),
       severity: document.querySelector('input[name=severity]:checked').value,
       steps: $('steps').value.trim(),
-      repro: document.querySelector('input[name=repro]:checked').value,
+      repro: document.querySelector('input[name=repro]:checked')?.value || '',
       conditions: $('conditions').value.trim(),
       wrongvalue: $('wrongvalue').value.trim(),
       rightvalue: $('rightvalue').value.trim(),
@@ -519,8 +569,14 @@ $('bugform').addEventListener('submit', async e => {
       subtype: $('subtype').value,
       block: $('block').value,
     };
+    const trelloUrl = String(data.trello_url || '').replace(/"/g, '%22');
+    const statusHint = trelloUrl
+      ? `<p>Статус заявки смотрите в карточке Trello — по ссылке ниже. Мы также ответим по ходу разбора.</p>
+         <a class="trello-link" href="${trelloUrl}" target="_blank" rel="noopener noreferrer">Открыть карточку в Trello →</a>`
+      : `<p>Заявка сохранена (№${data.bug_id || ''}). Статус уточняйте у команды BI — ссылка на карточку появится после настройки Trello.</p>`;
     result.className = 'ok';
     result.innerHTML = `✅ Заявка <b>${data.bug_id || ''}</b> зарегистрирована. Спасибо! Мы взяли её в разбор.
+      ${statusHint}
       <div class="againrow">
         <button type="button" class="againbtn" id="againsame">➕ Ещё баг по этому же отчёту</button>
         <button type="button" class="againbtn secondary" id="againnew">Другой отчёт</button>

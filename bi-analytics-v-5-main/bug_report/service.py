@@ -68,6 +68,7 @@ def submit_bug_report(
     version_id: int | None = None,
     app_build: str = "",
     attachment: tuple[str, bytes, str] | None = None,
+    attachments: list[tuple[str, bytes, str]] | None = None,
 ) -> SubmitResult:
     settings = get_bug_report_settings()
     text = (user_text or "").strip()
@@ -162,6 +163,7 @@ def submit_bug_report(
             context=context,
             classification=classification_dict,
             attachment=attachment,
+            attachments=attachments,
         )
         update_bug_report(
             report_id,
