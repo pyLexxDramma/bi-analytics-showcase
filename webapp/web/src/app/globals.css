@@ -920,6 +920,31 @@ input[type="date"].bi-filters-select,
   overflow: hidden;
 }
 
+/* Пара дат в одной ячейке сетки — 2 колонки, без наезда на соседа (BUG-001/002/006) */
+.bi-filters-date-range {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.bi-filters-date-range-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.bi-filters-date-range-inputs input[type="date"].bi-filters-select,
+.bi-filters-date-range-inputs .bi-filters-date {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .bi-filters-date-range {
+    grid-column: span 1;
+  }
+}
+
 /* Мышь: без кольца; клавиатура: только :focus-visible (BUG-021) */
 .bi-filters-select:focus {
   outline: none;

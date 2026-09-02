@@ -19,9 +19,8 @@ import {
   FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
-  FilterField,
+  FilterDateRange,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
   FiltersCard,
 } from "@/components/dashboard-filters";
 import {
@@ -265,28 +264,16 @@ export function ExecutiveDocsParityView() {
               onChange={(value) => setFilters((s) => ({ ...s, [key]: value }))}
             />
           ))}
-          <FilterField label="Период">
-            <div className="mt-1 grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                min={data?.filters.date_min ?? undefined}
-                max={filters.date_to || data?.filters.date_max || undefined}
-                value={filters.date_from}
-                onChange={(e) => setFilters((s) => ({ ...s, date_from: e.target.value }))}
-                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
-                aria-label="Период с"
-              />
-              <input
-                type="date"
-                min={filters.date_from || data?.filters.date_min || undefined}
-                max={data?.filters.date_max ?? undefined}
-                value={filters.date_to}
-                onChange={(e) => setFilters((s) => ({ ...s, date_to: e.target.value }))}
-                className={FILTER_SELECT_CLASS.replace(" mt-1", "")}
-                aria-label="Период по"
-              />
-            </div>
-          </FilterField>
+          <FilterDateRange
+            from={filters.date_from}
+            to={filters.date_to}
+            min={data?.filters.date_min ?? undefined}
+            max={data?.filters.date_max ?? undefined}
+            onFromChange={(date_from) =>
+              setFilters((s) => ({ ...s, date_from }))
+            }
+            onToChange={(date_to) => setFilters((s) => ({ ...s, date_to }))}
+          />
           <FilterChipSelect label="Гранулярность" value={filters.granularity} options={(data?.filters.granularities ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(granularity) => setFilters((s) => ({ ...s, granularity }))} />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>

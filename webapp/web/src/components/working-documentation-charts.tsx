@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { WorkingDocumentationPayload } from "@/lib/api";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
-import { stripProjectPrefixIfSingle, uniquePlotCategories, wrapAxisLabel } from "@/lib/chart-labels";
+import { stripProjectPrefixIfSingle, uniquePlotCategories, wrapAxisLabel, monthlyPlanFactDeltaAnnotations } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -367,18 +367,10 @@ export function RdMonthlyCumulativeChart({
         "<b>%{customdata}</b><br>%{fullData.name} (накопительно): %{x}<extra></extra>",
     };
 
-    // Подписи справа от более длинной полосы: план · факт · Δ
-    const endX = chronological.map((_, i) => Math.max(plan[i], fact[i]));
-    const step = xMax * (compact ? 0.055 : 0.042);
-    const xPlan = endX.map((x) => x + step * 0.85);
-    const xFact = endX.map((x) => x + step * 2.35);
-    const xDelta = endX.map((x) => x + step * 3.9);
-    const fmtN = (v: number) => String(Math.round(v));
-    const fmtD = (v: number) => {
-      const n = Math.round(v);
-      if (n > 0) return `+${n}`;
-      return String(n);
-    };
+    // Сброс зума при смене среза (фильтры) — иначе остаётся старый range (0035).
+    const uirevision = chronological
+      .map((r) => `${r.month}:${r.plan}:${r.fact ?? r.done}`)
+      .join("|");
 
     return {
       data: [
@@ -396,66 +388,15 @@ export function RdMonthlyCumulativeChart({
           marker: { color: RD_MONTH_FACT, opacity: 0.96 },
           customdata: labels,
         },
-        {
-          type: "scatter",
-          mode: "text",
-          name: "План (число)",
-          x: xPlan,
-          y: yIdx,
-          text: plan.map(fmtN),
-          textposition: "middle center",
-          textfont: { size: tipSize, color: RD_MONTH_PLAN, family: tipFamily },
-          cliponaxis: false,
-          hoverinfo: "skip",
-          showlegend: false,
-        },
-        {
-          type: "scatter",
-          mode: "text",
-          name: "Факт (число)",
-          x: xFact,
-          y: yIdx,
-          text: fact.map(fmtN),
-          textposition: "middle center",
-          textfont: { size: tipSize, color: RD_MONTH_FACT, family: tipFamily },
-          cliponaxis: false,
-          hoverinfo: "skip",
-          showlegend: false,
-        },
-        {
-          type: "scatter",
-          mode: "text",
-          name: "Δ−",
-          x: xDelta,
-          y: yIdx,
-          text: delta.map((d) => (d < 0 ? fmtD(d) : "")),
-          textposition: "middle center",
-          textfont: { size: tipSize, color: RD_MONTH_OVERDUE, family: tipFamily },
-          cliponaxis: false,
-          hoverinfo: "skip",
-          showlegend: false,
-        },
-        {
-          type: "scatter",
-          mode: "text",
-          name: "Δ+",
-          x: xDelta,
-          y: yIdx,
-          text: delta.map((d) => (d >= 0 ? fmtD(d) : "")),
-          textposition: "middle center",
-          textfont: { size: tipSize, color: RD_MONTH_FACT, family: tipFamily },
-          cliponaxis: false,
-          hoverinfo: "skip",
-          showlegend: false,
-        },
       ],
       layout: {
         height,
+        uirevision,
         barmode: "overlay" as const,
         bargap: 0.28,
         margin: compact
-          ? { l: 8, r: 118, t: 12, b: 96 }
-          : { l: 16, r: 132, t: 48, b: 96 },
+          ? { l: 8, r: 128, t: 12, b: 96 }
+          : { l: 16, r: 140, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         legend: plotlyLegendUnderLeft({
@@ -468,7 +409,8 @@ export function RdMonthlyCumulativeChart({
             text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * (compact ? 1.48 : 1.36)],
+          range: [0, xMax * (compact ? 1.18 : 1.12)],
+          autorange: false,
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
@@ -485,6 +427,18 @@ export function RdMonthlyCumulativeChart({
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           automargin: true,
         },
+        annotations: monthlyPlanFactDeltaAnnotations({
+          yIdx,
+          plan,
+          fact,
+          delta,
+          planColor: RD_MONTH_PLAN,
+          factColor: RD_MONTH_FACT,
+          negColor: RD_MONTH_OVERDUE,
+          fontSize: tipSize,
+          fontFamily: tipFamily,
+          compact,
+        }),
         font: { family: tipFamily, color: theme.axis },
         modebar: {
           bgcolor: "rgba(0,0,0,0)",

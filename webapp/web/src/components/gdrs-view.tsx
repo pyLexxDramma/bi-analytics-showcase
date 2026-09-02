@@ -436,11 +436,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           syncBoth({
             projects: sel.projects ?? next.projects,
             contractors: sel.contractors ?? next.contractors,
-            months: next.months.length
-              ? next.months
-              : sel.months?.length
-                ? sel.months
-                : payload.filters.default_months,
+            // Пустой months = «Все» (весь период). Не подставлять default_months (A3).
+            months: next.months.length ? next.months : (sel.months ?? []),
             plan_agg: sel.plan_agg || next.plan_agg,
             skud_agg: sel.skud_agg || next.skud_agg,
             dyn_agg: sel.dyn_agg || next.dyn_agg,
@@ -529,8 +526,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
   }, [data?.contractor_rows]);
 
   const resetFilters = () => {
-    const months = data?.filters.default_months ?? [];
-    syncBoth({ ...INITIAL, months });
+    syncBoth({ ...INITIAL });
   };
 
   const exportProjectTable = useCallback((): ExportTable | null => {
@@ -659,10 +655,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
 
   const dev = (n: number | null | undefined) => deviationStyle(n, dark);
 
-  const defaultMonths = data?.filters.default_months ?? [];
-  const monthsChanged =
-    filters.months.length !== defaultMonths.length ||
-    filters.months.some((m) => !defaultMonths.includes(m));
+  const monthsChanged = filters.months.length > 0;
 
   const activeFilters = [
     ...buildFilterChips(
@@ -688,8 +681,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           filterChip(
             "months",
             "Месяц",
-            filters.months.length ? filters.months.join(", ") : "не выбран",
-            () => setFilters((s) => ({ ...s, months: defaultMonths })),
+            filters.months.join(", "),
+            () => setFilters((s) => ({ ...s, months: [] })),
           ),
         ]
       : []),

@@ -29,9 +29,8 @@ import {
   FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
-  FilterField,
+  FilterDateRange,
   FilterFieldsRow,
-  FILTER_SELECT_CLASS,
   FiltersCard,
 } from "@/components/dashboard-filters";
 import {
@@ -314,8 +313,6 @@ export function DeviationReasonsView() {
     syncBoth,
   ]);
 
-  const selectClass = FILTER_SELECT_CLASS;
-
   const kpis = data?.kpis;
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const columns = data?.columns ?? Object.keys(COL_SORT);
@@ -511,33 +508,18 @@ export function DeviationReasonsView() {
           <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((prev) => ({ ...prev, projects, block: "Все", building: "Все" }))} />
           <FilterChipSelect label="Функциональный блок" value={filters.block} options={data?.filters.blocks ?? ["Все"]} onChange={(block) => setFilters((prev) => ({ ...prev, block, building: "Все" }))} />
           <FilterChipSelect label="Строение" value={filters.building} options={data?.filters.buildings ?? ["Все"]} onChange={(building) => setFilters((prev) => ({ ...prev, building }))} />
-          <FilterField label="Период">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
-              <input
-                type="date"
-                className={selectClass + " !mt-0"}
-                value={filters.dateFrom}
-                min={data?.filters.period.min ?? undefined}
-                max={data?.filters.period.max ?? undefined}
-                onChange={(event) =>
-                  setFilters((prev) => ({ ...prev, dateFrom: event.target.value }))
-                }
-              />
-              <span className="hidden text-tremor-content sm:inline dark:text-dark-tremor-content">
-                —
-              </span>
-              <input
-                type="date"
-                className={selectClass + " !mt-0"}
-                value={filters.dateTo}
-                min={data?.filters.period.min ?? undefined}
-                max={data?.filters.period.max ?? undefined}
-                onChange={(event) =>
-                  setFilters((prev) => ({ ...prev, dateTo: event.target.value }))
-                }
-              />
-            </div>
-          </FilterField>
+          <FilterDateRange
+            from={filters.dateFrom}
+            to={filters.dateTo}
+            min={data?.filters.period.min ?? undefined}
+            max={data?.filters.period.max ?? undefined}
+            onFromChange={(dateFrom) =>
+              setFilters((prev) => ({ ...prev, dateFrom }))
+            }
+            onToChange={(dateTo) =>
+              setFilters((prev) => ({ ...prev, dateTo }))
+            }
+          />
           <FilterChipSelect label="Причина" value={filters.reason} options={data?.filters.reasons ?? ["Все"]} onChange={(reason) => setFilters((prev) => ({ ...prev, reason }))} />
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>

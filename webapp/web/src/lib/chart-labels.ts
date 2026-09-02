@@ -78,3 +78,67 @@ export function wrapAxisLabel(
   }
   return { text: lines.join("<br>"), lines: lines.length };
 }
+
+/**
+ * Подписи «план · факт · Δ» справа от полосы (BUG-0035 / Trello 0035).
+ * Annotations + xshift в пикселях — не участвуют в autorange (scatter-текст
+ * раздувал ось вправо и слипал цифры после смены фильтров).
+ */
+export function monthlyPlanFactDeltaAnnotations(opts: {
+  yIdx: number[];
+  plan: number[];
+  fact: number[];
+  delta: number[];
+  planColor: string;
+  factColor: string;
+  negColor: string;
+  fontSize: number;
+  fontFamily?: string;
+  compact?: boolean;
+}): Array<Record<string, unknown>> {
+  const gap = opts.compact ? 30 : 38;
+  const family = opts.fontFamily ?? "Inter, system-ui, sans-serif";
+  const fmtN = (v: number) => String(Math.round(v));
+  const fmtD = (v: number) => {
+    const n = Math.round(v);
+    return n > 0 ? `+${n}` : String(n);
+  };
+  const out: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < opts.yIdx.length; i++) {
+    const x = Math.max(0, opts.plan[i], opts.fact[i]);
+    const y = opts.yIdx[i];
+    const base = {
+      x,
+      y,
+      xref: "x",
+      yref: "y",
+      showarrow: false,
+      yanchor: "middle" as const,
+      xanchor: "left" as const,
+    };
+    out.push({
+      ...base,
+      xshift: 10,
+      text: fmtN(opts.plan[i]),
+      font: { size: opts.fontSize, color: opts.planColor, family },
+    });
+    out.push({
+      ...base,
+      xshift: 10 + gap,
+      text: fmtN(opts.fact[i]),
+      font: { size: opts.fontSize, color: opts.factColor, family },
+    });
+    const d = opts.delta[i];
+    out.push({
+      ...base,
+      xshift: 10 + gap * 2,
+      text: fmtD(d),
+      font: {
+        size: opts.fontSize,
+        color: d < 0 ? opts.negColor : opts.factColor,
+        family,
+      },
+    });
+  }
+  return out;
+}

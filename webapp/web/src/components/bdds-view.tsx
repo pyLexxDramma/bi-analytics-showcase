@@ -451,9 +451,6 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
   const totals = data?.totals ?? { plan: 0, fact: 0, deviation: 0 };
   const metaError = data?.meta.error ?? null;
   const hints = data?.hints ?? [];
-  const appliedFrom = data?.filters.applied.date_from ?? "";
-  const appliedTo = data?.filters.applied.date_to ?? "";
-
   const chartRows = useMemo(
     () => (data?.tremor.by_period ?? []).map((row) => ({ ...row })),
     [data],
@@ -633,7 +630,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               type="date"
               min={data?.filters.date_min ?? undefined}
               max={data?.filters.date_max ?? undefined}
-              value={filters.date_from || appliedFrom}
+              value={filters.date_from}
               onChange={(event) =>
                 setFilters((state) => ({ ...state, date_from: event.target.value }))
               }
@@ -645,7 +642,7 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
               type="date"
               min={data?.filters.date_min ?? undefined}
               max={data?.filters.date_max ?? undefined}
-              value={filters.date_to || appliedTo}
+              value={filters.date_to}
               onChange={(event) =>
                 setFilters((state) => ({ ...state, date_to: event.target.value }))
               }
@@ -821,7 +818,8 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
                           ) : (
                             <SyncTableRow
                               key={`${row.project}-${row.period}-${index}`}
-                              syncKey={row.period}
+                              syncKey={`${row.project}|${row.period}`}
+                              alsoMatch={[row.period]}
                               className="bi-row-alt"
                             >
                               <td className={`${CELL} ${BODY_CELL}`}>{row.project}</td>

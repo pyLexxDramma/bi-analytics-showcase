@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ProjectDocumentationPayload } from "@/lib/api";
 import { ChartHtmlLegend } from "@/components/chart-html-legend";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
-import { stripProjectPrefixIfSingle, uniquePlotCategories, wrapAxisLabel } from "@/lib/chart-labels";
+import { stripProjectPrefixIfSingle, uniquePlotCategories, wrapAxisLabel, monthlyPlanFactDeltaAnnotations } from "@/lib/chart-labels";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
@@ -306,8 +306,8 @@ export function PdDynamicsLineChart({
   );
 }
 
-/** Накопительный overlay «Динамика по месяцам»: жёлтый план / зелёный факт / красный просрочка / «+N».
- * Порядок: ранний месяц снизу, последний сверху. */
+/** Накопительный overlay «Динамика по месяцам» / просрочка (паритет с РД):
+ * жёлтый план и зелёный факт одной ширины; на конце: план · факт · Δ. */
 export function PdMonthlyCumulativeChart({
   rows,
   fullscreen = false,
@@ -319,7 +319,6 @@ export function PdMonthlyCumulativeChart({
   const mobile = useIsMobileViewport();
   const compact = mobile && !fullscreen;
   const figure = useMemo(() => {
-    // Ascending months: Plotly y=0 at bottom → newest month on top.
     const chronological = [...rows].sort((a, b) => a.month.localeCompare(b.month));
     const labels = chronological.map((r) => r.month_label);
     const plan = chronological.map((r) => Math.max(0, Number(r.plan) || 0));
@@ -327,49 +326,38 @@ export function PdMonthlyCumulativeChart({
       if (r.fact != null) return Math.max(0, Number(r.fact) || 0);
       return Math.max(0, Number(r.done) || 0);
     });
-    const overdue = chronological.map((r) => Math.max(0, Number(r.overdue) || 0));
-    const factInc = chronological.map((r, i) => {
-      if (r.fact_inc != null) return Math.max(0, Number(r.fact_inc) || 0);
-      if (i === 0) return fact[i];
-      return Math.max(0, fact[i] - fact[i - 1]);
-    });
+    const delta = chronological.map((_, i) => fact[i] - plan[i]);
     const yIdx = chronological.map((_, i) => i);
-    const xMax = Math.max(1, ...plan, ...fact, ...overdue);
+    const xMax = Math.max(1, ...plan, ...fact);
+    const tipSize = compact ? 11 : 13;
+    const tipFamily = "Inter, system-ui, sans-serif";
     const height = fullscreen
       ? Math.max(420, Math.min(window.innerHeight * 0.55, 680))
       : Math.max(compact ? 360 : 320, (compact ? 72 : 56) + chronological.length * (compact ? 52 : 48));
 
-    const tipFont = compact ? 13 : 15;
-    const tipColor = theme.dark ? "#bbf7d0" : "#14532d";
-
+    const barW = 0.55;
     const barBase = {
       type: "bar" as const,
       orientation: "h" as const,
       y: yIdx,
       cliponaxis: false,
       constraintext: "none" as const,
+      width: barW,
       hovertemplate:
         "<b>%{customdata}</b><br>%{fullData.name} (накопительно): %{x}<extra></extra>",
     };
 
-    const labelX = chronological.map((_, i) =>
-      Math.max(plan[i], fact[i] + overdue[i], fact[i], overdue[i]),
-    );
-    const labelText = chronological.map((_, i) => {
-      const shown = factInc[i] > 0 ? factInc[i] : fact[i];
-      return shown > 0 ? `+${Math.round(shown)}` : "";
-    });
+    const uirevision = chronological
+      .map((r) => `${r.month}:${r.plan}:${r.fact ?? r.done}`)
+      .join("|");
 
-    // Overlay: жёлтый план на всю длину; зелёный факт от 0; красный просрочка от конца факта.
-    // Иначе при fact≈0 overdue полностью перекрывает план.
     return {
       data: [
         {
           ...barBase,
           name: CHART_RU.plan,
           x: plan,
-          marker: { color: PD_MONTH_PLAN, opacity: 0.88 },
-          width: 0.62,
+          marker: { color: PD_MONTH_PLAN, opacity: 0.92 },
           customdata: labels,
         },
         {
@@ -377,38 +365,17 @@ export function PdMonthlyCumulativeChart({
           name: CHART_RU.fact,
           x: fact,
           marker: { color: PD_MONTH_FACT, opacity: 0.96 },
-          width: 0.38,
           customdata: labels,
-        },
-        {
-          ...barBase,
-          name: CHART_RU.overdue,
-          x: overdue,
-          base: fact,
-          marker: { color: PD_MONTH_OVERDUE, opacity: 0.95 },
-          width: 0.38,
-          customdata: labels,
-        },
-        {
-          type: "scatter",
-          mode: "text",
-          x: labelX,
-          y: yIdx,
-          text: labelText,
-          textposition: "middle right",
-          textfont: { size: tipFont, color: tipColor, family: "Inter, system-ui, sans-serif" },
-          cliponaxis: false,
-          hoverinfo: "skip",
-          showlegend: false,
         },
       ],
       layout: {
         height,
+        uirevision,
         barmode: "overlay" as const,
         bargap: 0.28,
         margin: compact
-          ? { l: 8, r: 88, t: 12, b: 96 }
-          : { l: 16, r: 96, t: 48, b: 96 },
+          ? { l: 8, r: 128, t: 12, b: 96 }
+          : { l: 16, r: 140, t: 48, b: 96 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
         legend: plotlyLegendUnderLeft({
@@ -421,7 +388,8 @@ export function PdMonthlyCumulativeChart({
             text: compact ? "" : "Количество разделов (накопительно)",
             font: { size: 12, color: theme.axis },
           },
-          range: [0, xMax * (compact ? 1.38 : 1.22)],
+          range: [0, xMax * (compact ? 1.18 : 1.12)],
+          autorange: false,
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
           zeroline: false,
@@ -438,7 +406,19 @@ export function PdMonthlyCumulativeChart({
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           automargin: true,
         },
-        font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
+        annotations: monthlyPlanFactDeltaAnnotations({
+          yIdx,
+          plan,
+          fact,
+          delta,
+          planColor: PD_MONTH_PLAN,
+          factColor: PD_MONTH_FACT,
+          negColor: PD_MONTH_OVERDUE,
+          fontSize: tipSize,
+          fontFamily: tipFamily,
+          compact,
+        }),
+        font: { family: tipFamily, color: theme.axis },
         modebar: {
           bgcolor: "rgba(0,0,0,0)",
           color: theme.axis,
