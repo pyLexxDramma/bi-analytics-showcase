@@ -31,25 +31,30 @@ INBOX_LIST_NAMES = ("анализ", "analysis", "triage", "на разбор")
 
 
 def resolve_inbox_list_id(settings: BugReportSettings) -> str:
-    """id колонки «Анализ» на доске: сначала по имени, иначе TRELLO_LIST_TRIAGE."""
+    """id открытой колонки «Анализ» на доске (архивные list id из env игнорируем)."""
     fallback = (settings.trello_list_triage or "").strip()
     board_id = (settings.trello_board_id or "").strip()
     if not board_id:
+        if not fallback:
+            raise ValueError("TRELLO_BOARD_ID / TRELLO_LIST_TRIAGE не настроены")
         return fallback
     try:
         resp = requests.get(
             f"{TRELLO_API}/boards/{board_id}/lists",
-            params={**_auth_params(settings), "fields": "name,id,closed"},
+            params={**_auth_params(settings), "fields": "name,id,closed", "filter": "open"},
             timeout=(3.0, 12.0),
         )
         resp.raise_for_status()
         lists = resp.json()
     except requests.RequestException as exc:
         logger.warning("bug_report: cannot list Trello columns: %s", exc)
-        return fallback
-    if not isinstance(lists, list):
-        return fallback
-    open_lists = [x for x in lists if isinstance(x, dict) and not x.get("closed")]
+        if fallback:
+            return fallback
+        raise ValueError(f"Не удалось получить колонки Trello: {exc}") from exc
+    if not isinstance(lists, list) or not lists:
+        raise ValueError("На доске Trello нет открытых колонок")
+    open_lists = [x for x in lists if isinstance(x, dict) and x.get("id")]
+    open_ids = {str(x.get("id") or "").strip() for x in open_lists}
     by_norm = {
         str(x.get("name") or "").strip().casefold(): str(x.get("id") or "").strip()
         for x in open_lists
@@ -59,22 +64,24 @@ def resolve_inbox_list_id(settings: BugReportSettings) -> str:
         if found:
             if fallback and found != fallback:
                 logger.info(
-                    "bug_report: inbox list «%s» id=%s (env TRIAGE was %s)",
+                    "bug_report: open inbox «%s» id=%s (env TRIAGE=%s ignored if archived)",
                     want,
                     found,
                     fallback,
                 )
             return found
-    # Частичное совпадение: «Анализ заявок», «1. Анализ» и т.п.
     for name, lid in by_norm.items():
         if any(want in name for want in INBOX_LIST_NAMES) and lid:
             return lid
-    logger.warning(
-        "bug_report: column «Анализ» not found on board; using TRELLO_LIST_TRIAGE=%s",
-        fallback or "(empty)",
+    # Env id только если колонка ещё открыта (не архив).
+    if fallback and fallback in open_ids:
+        return fallback
+    names = ", ".join(str(x.get("name") or "?") for x in open_lists[:12])
+    raise ValueError(
+        "Открытая колонка «Анализ» не найдена на доске Trello. "
+        f"Откройте/разархивируйте её или переименуйте. Сейчас открыты: {names}. "
+        "Секрет TRELLO_LIST_TRIAGE указывает на архивный список — его больше не используем."
     )
-    return fallback
-
 
 def _format_description(
     *,
@@ -133,10 +140,11 @@ def create_bug_report_card(
     attachment: tuple[str, bytes, str] | None = None,
     attachments: list[tuple[str, bytes, str]] | None = None,
 ) -> TrelloCardResult:
-    list_id = (target.list_id or "").strip() or resolve_inbox_list_id(settings)
+    # Не доверяем list id из env, если он архивный — всегда открытая «Анализ».
+    list_id = resolve_inbox_list_id(settings)
     if not list_id:
         raise ValueError(
-            "Trello list_id is not configured (нужна колонка «Анализ» или TRELLO_LIST_TRIAGE)"
+            "Trello list_id is not configured (нужна открытая колонка «Анализ»)"
         )
     params: dict[str, Any] = {
         **_auth_params(settings),
