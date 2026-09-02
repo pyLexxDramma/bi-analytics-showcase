@@ -83,6 +83,38 @@ def resolve_inbox_list_id(settings: BugReportSettings) -> str:
         "Секрет TRELLO_LIST_TRIAGE указывает на архивный список — его больше не используем."
     )
 
+
+def ensure_inbox_list_first(settings: BugReportSettings, list_id: str) -> None:
+    """Держим колонку «Анализ» первой слева на доске."""
+    try:
+        requests.put(
+            f"{TRELLO_API}/lists/{list_id}",
+            params={**_auth_params(settings), "pos": "top"},
+            timeout=(3.0, 12.0),
+        ).raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("bug_report: cannot move inbox list to top: %s", exc)
+
+
+def _mark_card_as_new(settings: BugReportSettings, card_id: str) -> None:
+    """Визуально выделить новую карточку (cover), пока её не разобрали."""
+    try:
+        requests.put(
+            f"{TRELLO_API}/cards/{card_id}",
+            params=_auth_params(settings),
+            json={
+                "cover": {
+                    "color": "orange",
+                    "brightness": "light",
+                    "size": "full",
+                }
+            },
+            timeout=(3.0, 12.0),
+        ).raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("bug_report: cannot set new-card cover for %s: %s", card_id, exc)
+
+
 def _format_description(
     *,
     user_text: str,
@@ -146,9 +178,11 @@ def create_bug_report_card(
         raise ValueError(
             "Trello list_id is not configured (нужна открытая колонка «Анализ»)"
         )
+    ensure_inbox_list_first(settings, list_id)
     params: dict[str, Any] = {
         **_auth_params(settings),
         "idList": list_id,
+        "pos": "top",
         "name": title[:160],
         "desc": _format_description(
             user_text=user_text,
@@ -169,6 +203,7 @@ def create_bug_report_card(
     card_url = str(data.get("url", "") or data.get("shortUrl", ""))
     if not card_id:
         raise ValueError("Trello returned empty card id")
+    _mark_card_as_new(settings, card_id)
     for filename, content, mime in _normalize_attachments(attachment, attachments):
         try:
             requests.post(
