@@ -104,6 +104,8 @@ try {
   await formPage.screenshot({ path: path.join(OUT, "01_form_prefilled.png"), fullPage: true });
 
   console.log("4) Fill required fields");
+  await formPage.locator("#first_name").fill("E2E");
+  await formPage.locator("#last_name").fill("Playwright");
   await formPage.locator('input[name="btype"][value="Интерфейс"]').check({ force: true });
   await formPage.waitForTimeout(300);
   const why = await formPage.locator("#whytype").inputValue();
