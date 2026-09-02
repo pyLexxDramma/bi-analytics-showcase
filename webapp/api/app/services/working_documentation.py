@@ -1245,7 +1245,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v39-rd-month-overlay-delta",
+            "v40-rd-cancel-history-plan-cipher",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
