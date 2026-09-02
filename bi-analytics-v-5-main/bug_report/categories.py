@@ -48,15 +48,13 @@ def normalize_priority(raw: str | None) -> str:
 
 
 def resolve_trello_target(category: str, settings: BugReportSettings) -> TrelloTarget:
+    """Цель в Trello для новой заявки с формы.
+
+    Все клиентские репорты кладём в колонку triage («Анализ») —
+    сначала разбор и апрув, уже потом ручной перенос в «Нужно сделать» и т.п.
+    Метки (labels) по категории сохраняем для фильтрации.
+    """
     cat = normalize_category(category)
-    list_by_cat = {
-        "urgent": settings.trello_list_urgent,
-        "bug": settings.trello_list_bug,
-        "ui_improvement": settings.trello_list_ui,
-        "new_feature": settings.trello_list_feature,
-        "data_question": settings.trello_list_question,
-        "other": settings.trello_list_triage,
-    }
     labels_by_cat = {
         "urgent": (settings.trello_label_urgent, settings.trello_label_bug),
         "bug": (settings.trello_label_bug,),
@@ -65,7 +63,7 @@ def resolve_trello_target(category: str, settings: BugReportSettings) -> TrelloT
         "data_question": (settings.trello_label_question,),
         "other": (settings.trello_label_triage,),
     }
-    list_id = (list_by_cat.get(cat) or "").strip() or settings.trello_list_triage
+    list_id = (settings.trello_list_triage or "").strip()
     label_ids = tuple(x for x in labels_by_cat.get(cat, ()) if x)
     if not label_ids and settings.trello_label_triage:
         label_ids = (settings.trello_label_triage,)

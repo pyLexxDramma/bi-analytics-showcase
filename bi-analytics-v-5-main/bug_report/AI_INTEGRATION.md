@@ -1,25 +1,63 @@
-# Баг-репорт: интеграция AI (задача для OpenCode / vLLM)
+# Баг-репорт → Trello: задача для коллеги по ИИ
 
-Дашборд: **форма → AI endpoint → Trello / SQLite**
+Кратко: пользователь с дашборда пишет проблему → **ваш AI классифицирует** → карточка улетает в Trello.  
+Пока AI нет — работает keyword-fallback. На проде **ai.conall.ru** путь до Trello уже живой.
 
-Код: `bug_report/`
+Код клиента: `bug_report/` (репо `bi-analytics`).
 
-## Сделано на стороне дашборда
+---
 
-- Кнопка «Сообщить о проблеме» в сайдбаре
-- Автоконтекст (вкладка, тема, user, version_id, сборка)
-- Fallback-классификатор без AI
-- Очередь SQLite `bug_reports`
-- Клиент Trello
+## Что за фича
 
-## Нужно от коллеги (OpenCode / vLLM)
+На **ai.conall.ru** (webapp) и в Streamlit-дашборде пользователь жмёт «Сообщить об ошибке / проблеме», описывает баг.
 
-### Endpoint
+Дальше пайплайн:
+
+1. Сохраняем заявку в SQLite (`bug_reports`).
+2. Вызываем **ваш** endpoint классификации (если настроен).
+3. Карточку **всегда** кладём в список **«Анализ»** (`TRELLO_LIST_TRIAGE`) + метку по категории.
+4. Если AI недоступен / не ответил / кривой JSON — **fallback по ключевым словам** (уже есть).
+
+Доска: https://trello.com/b/dZwWzXh4/аналитика-баги-клиент
+
+Новые заявки с формы → колонка **Анализ** (разбор и апрув).  
+Категория влияет только на **метку** (label), не на колонку:
+
+| category | Смысл | Метка |
+|----------|--------|--------|
+| `urgent` | блокер / недоступность | Срочно + баг |
+| `bug` | ошибка данных/логики | Ошибки |
+| `ui_improvement` | интерфейс / вёрстка | UI |
+| `new_feature` | запрос фичи | Фичи |
+| `data_question` | вопрос «почему цифра» | Вопросы |
+| `other` | непонятно | На разбор |
+
+В «Нужно сделать» / рабочие колонки карточки переносятся **вручную** после апрува.
+Priority: `critical` | `high` | `medium` | `low`
+
+---
+
+## Что уже сделано (наша сторона)
+
+- UI формы + API `POST /api/bugform/submit` на **ai.conall.ru**
+- Модуль `bug_report/` (классификатор, Trello-клиент, очередь SQLite)
+- Trello Power-Up, API Key/Token, доска, списки, метки
+- Secrets на проде (`TRELLO_*`), деплой проверен: карточка создаётся
+- Fallback-классификация без AI
+- Контракт ниже — клиент уже умеет ходить на ваш URL
+
+**AI endpoint пока не подключён.** Env пустые → всегда fallback.
+
+---
+
+## Что нужно сделать тебе
+
+### 1. Endpoint
 
 `POST /api/classify-bug-report`  
 Auth: `Authorization: Bearer <token>`
 
-Request:
+**Request:**
 
 ```json
 {
@@ -28,94 +66,98 @@ Request:
     "username": "ivanov",
     "user_role": "analyst",
     "report_tab": "БДР",
+    "page_url": "...",
     "theme": "dark",
-    "version_id": 42
+    "version_id": 42,
+    "app_build": "webapp"
   }
 }
 ```
 
-Response:
+`text` — обязателен. `context` — справочный, можно использовать в промпте.
+
+**Response (строго JSON-объект):**
 
 ```json
 {
   "category": "bug",
   "priority": "high",
   "title": "БДР: расхождение итогов",
-  "summary": "...",
+  "summary": "Пользователь сообщает, что итоги на вкладке БДР не сходятся с ожидаемыми.",
   "confidence": 0.91
 }
 ```
 
-**category:** `urgent` | `bug` | `ui_improvement` | `new_feature` | `data_question` | `other`  
-**priority:** `critical` | `high` | `medium` | `low`
+Правила:
 
-Внутри — вызов vLLM `http://127.0.0.1:8000/v1/chat/completions`, temperature=0, только JSON.
+- `category` — только из таблицы выше
+- `priority` — только `critical` | `high` | `medium` | `low`
+- `title` — до ~80 символов, без переносов
+- `summary` — 1–2 предложения
+- `confidence` — float `0..1`
+- temperature модели ≈ 0, ответ **только JSON** (без markdown-обёртки)
+- timeout: цель **≤ 5 сек**, клиент ждёт до ~10 сек (`BUG_REPORT_AI_TIMEOUT_SEC`)
+- при `confidence < 0.7` и `category=urgent` клиент понижает категорию до `other` (страховка от ложных срочных)
 
-### Сеть
+Внутри — ваш vLLM / OpenCode, например  
+`http://127.0.0.1:8000/v1/chat/completions`.
 
-Доступ с VPS дашборда (`ai.conall.ru`) на internal URL endpoint.  
-Tunnel :4096 OpenCode недостаточен — нужен отдельный wrapper или internal API.
+### 2. Health
 
-### Передать дашборду
+`GET /health` → `200`  
+(удобно для мониторинга; клиент баг-репорта его не дергает обязательно)
+
+### 3. Сеть
+
+Клиент ходит с **prod API контейнера ai.conall.ru** (VPS).
+
+Нужен URL, доступный **с этого VPS** (internal / VPN / reverse-proxy).  
+Tunnel OpenCode `:4096` сам по себе недостаточен — нужен отдельный HTTP wrapper с контрактом выше.
+
+### 4. Передать нам после готовности
 
 ```
-BUG_REPORT_AI_URL=https://<internal-host>/api
+BUG_REPORT_AI_URL=https://<host-доступный-с-VPS>/api
 BUG_REPORT_AI_TOKEN=<secret>
 ```
 
-Health: `GET /health` → 200. SLA ≤ 5 сек.
+Опционально:
 
-## Env дашборда (Trello — ваши)
+```
+BUG_REPORT_AI_TIMEOUT_SEC=10
+BUG_REPORT_AI_MIN_CONFIDENCE=0.7
+```
 
-### Получить API Key и Token (2026)
+Мы пропишем в GitHub Secrets / `.env` на проде и перезадеплоим.  
+После этого в карточке/логах `ai_source=remote` вместо `fallback`.
 
-Старая страница https://trello.com/app-key перенаправляет в **Power-Up Admin Portal**.
+---
 
-1. Откройте портал (ссылка «Go to the Power-Up Admin Portal» на app-key).
-2. **Новое** → создайте приложение.
-3. **URL iframe** — нужен живой HTTPS с Power-Up stub (не дашборд и не example.com):
-   - папка `bug_report/trello_connector_stub/` → Netlify Drop **или** публичный gist;
-   - пример (stub в gist): `https://gist.githubusercontent.com/pyLexxDramma/9494902f8cf69ea75b7433033e953920/raw/index.html`
-4. После создания: **API Key** + ссылка **Token** → Allow.
-5. Key/Token — только в `.env`, не в чат.
-
-Пошаговая настройка доски: **`scripts/trello_setup_board.py`**
-
-Доска: https://trello.com/b/dZwWzXh4/аналитика-баги-клиент
+## Как проверить у себя (acceptance)
 
 ```bash
-# 1. В .env (не в чат!):
-TRELLO_API_KEY=...
-TRELLO_TOKEN=...
-
-# 2. Создать списки/метки и вывести ID для .env:
-python scripts/trello_setup_board.py --create-missing
-
-# 3. Опционально — тестовая карточка:
-python scripts/trello_setup_board.py --create-missing --test-card
-```
-
-```
-TRELLO_API_KEY, TRELLO_TOKEN, TRELLO_BOARD_ID
-TRELLO_LIST_URGENT, TRELLO_LIST_BUG, TRELLO_LIST_UI, TRELLO_LIST_FEATURE, TRELLO_LIST_QUESTION, TRELLO_LIST_TRIAGE
-TRELLO_LABEL_URGENT, TRELLO_LABEL_BUG, TRELLO_LABEL_UI, TRELLO_LABEL_FEATURE, TRELLO_LABEL_QUESTION, TRELLO_LABEL_TRIAGE
-```
-
-## Локальный тест
-
-```
-BUG_REPORT_DRY_RUN=1
-```
-
-```sql
-SELECT id, category, ai_source, status, ai_title FROM bug_reports ORDER BY id DESC;
-```
-
-## curl acceptance
-
-```bash
-curl -sS -X POST "https://<host>/api/classify-bug-report" \
+curl -sS -X POST "https://<твой-host>/api/classify-bug-report" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"text":"Кнопка экспорта не работает на светлой теме","context":{"theme":"light"}}'
+  -d '{"text":"Кнопка экспорта не работает на светлой теме","context":{"theme":"light","report_tab":"БДР"}}'
 ```
+
+Ожидание: JSON с `category` (скорее `ui_improvement` или `bug`), `priority`, `title`, `summary`, `confidence`.
+
+Ещё кейсы для промпта:
+
+| Текст | Ожидаемая category |
+|-------|-------------------|
+| «Срочно, дашборд недоступен» | `urgent` |
+| «Цифры в ГДРС не сходятся с 1С» | `bug` или `data_question` |
+| «Хочу фильтр по региону» | `new_feature` |
+| «Цвет легенды нечитаемый» | `ui_improvement` |
+
+---
+
+## Важно
+
+- Trello и форму **не трогай** — это наша зона.
+- Секреты Trello тебе не нужны.
+- Пока endpoint не отдан — прод работает на fallback, заявки в Trello уже создаются.
+- Код вызова: `bug_report/classifier.py` → `classify_remote()`.
