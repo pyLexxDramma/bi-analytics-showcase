@@ -6,11 +6,11 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from bug_report.categories import resolve_trello_target
+from bug_report.categories import TrelloTarget, resolve_trello_target
 from bug_report.classifier import ClassificationResult, classify_bug_report
 from bug_report.settings import get_bug_report_settings
 from bug_report.storage import insert_bug_report, update_bug_report
-from bug_report.trello_client import create_bug_report_card
+from bug_report.trello_client import create_bug_report_card, resolve_inbox_list_id
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,9 @@ def submit_bug_report(
 
     target = resolve_trello_target(classification.category, settings)
     try:
+        inbox_list = resolve_inbox_list_id(settings)
+        if inbox_list:
+            target = TrelloTarget(list_id=inbox_list, label_ids=target.label_ids)
         card = create_bug_report_card(
             settings=settings,
             target=target,
