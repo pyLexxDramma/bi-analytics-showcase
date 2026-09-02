@@ -81,7 +81,12 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
     from bug_report.service import submit_bug_report
 
     reporter = str(payload.get("reporter") or "").strip()
-    username = reporter.split("(")[0].strip() if reporter else "anonymous"
+    first_name = str(payload.get("first_name") or "").strip()
+    last_name = str(payload.get("last_name") or "").strip()
+    if not first_name or not last_name:
+        raise ValueError("Укажите имя и фамилию.")
+    username_raw = str(payload.get("username") or reporter or "anonymous").strip()
+    username = username_raw.split("(")[0].strip() if username_raw else "anonymous"
     browser = str(payload.get("browser") or "")
     theme = "dark" if "тёмн" in browser.lower() else "light"
 
@@ -90,6 +95,8 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
         user_text=text,
         username=username,
         user_role=str(payload.get("role") or ""),
+        first_name=first_name,
+        last_name=last_name,
         report_tab=f"{payload.get('menugroup', '')} / {payload.get('report', '')}".strip(" /"),
         page_url=str(payload.get("filters") or ""),
         theme=theme,

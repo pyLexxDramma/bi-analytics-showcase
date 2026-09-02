@@ -20,6 +20,8 @@ def ensure_bug_reports_table(conn: sqlite3.Connection | None = None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
                 user_role TEXT,
+                first_name TEXT,
+                last_name TEXT,
                 report_tab TEXT,
                 page_url TEXT,
                 theme TEXT,
@@ -41,6 +43,14 @@ def ensure_bug_reports_table(conn: sqlite3.Connection | None = None) -> None:
             )
             """
         )
+        cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(bug_reports)").fetchall()
+        }
+        if "first_name" not in cols:
+            conn.execute("ALTER TABLE bug_reports ADD COLUMN first_name TEXT")
+        if "last_name" not in cols:
+            conn.execute("ALTER TABLE bug_reports ADD COLUMN last_name TEXT")
         if own:
             conn.commit()
     finally:
@@ -55,14 +65,17 @@ def insert_bug_report(row: dict[str, Any]) -> int:
         cur = conn.execute(
             """
             INSERT INTO bug_reports (
-                username, user_role, report_tab, page_url, theme, version_id, app_build,
-                user_text, category, priority, ai_title, ai_summary, ai_confidence, ai_source,
-                status, trello_card_id, trello_card_url, error_message, raw_ai_response
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                username, user_role, first_name, last_name, report_tab, page_url, theme,
+                version_id, app_build, user_text, category, priority, ai_title, ai_summary,
+                ai_confidence, ai_source, status, trello_card_id, trello_card_url,
+                error_message, raw_ai_response
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row.get("username"),
                 row.get("user_role"),
+                row.get("first_name"),
+                row.get("last_name"),
                 row.get("report_tab"),
                 row.get("page_url"),
                 row.get("theme"),

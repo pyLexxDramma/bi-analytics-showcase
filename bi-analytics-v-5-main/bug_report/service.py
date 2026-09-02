@@ -32,6 +32,8 @@ def _build_context(
     *,
     username: str,
     user_role: str,
+    first_name: str,
+    last_name: str,
     report_tab: str,
     page_url: str,
     theme: str,
@@ -42,6 +44,8 @@ def _build_context(
     return {
         "username": username,
         "user_role": user_role,
+        "first_name": first_name,
+        "last_name": last_name,
         "report_tab": report_tab,
         "page_url": page_url,
         "theme": theme,
@@ -56,6 +60,8 @@ def submit_bug_report(
     user_text: str,
     username: str,
     user_role: str,
+    first_name: str = "",
+    last_name: str = "",
     report_tab: str = "",
     page_url: str = "",
     theme: str = "",
@@ -65,6 +71,17 @@ def submit_bug_report(
 ) -> SubmitResult:
     settings = get_bug_report_settings()
     text = (user_text or "").strip()
+    first_name = (first_name or "").strip()
+    last_name = (last_name or "").strip()
+    if not first_name or not last_name:
+        return SubmitResult(
+            ok=False,
+            report_id=0,
+            message="Укажите имя и фамилию.",
+            category="other",
+            priority="medium",
+            title="",
+        )
     if not text:
         return SubmitResult(
             ok=False,
@@ -78,6 +95,8 @@ def submit_bug_report(
     context = _build_context(
         username=username,
         user_role=user_role,
+        first_name=first_name,
+        last_name=last_name,
         report_tab=report_tab,
         page_url=page_url,
         theme=theme,

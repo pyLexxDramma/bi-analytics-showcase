@@ -7,23 +7,16 @@ from typing import Optional
 from contextlib import contextmanager
 
 from config import DB_PATH
-import config
-
 
 # Для создания дефолтного суперадмина (без циклического импорта auth)
 def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-def _db_path() -> str:
-    """Актуальный путь: webapp патчит config.DB_PATH после импорта модуля."""
-    return str(getattr(config, "DB_PATH", None) or DB_PATH)
-
-
 @contextmanager
 def get_connection():
     """Контекстный менеджер для подключения к SQLite."""
-    conn = sqlite3.connect(_db_path())
+    conn = sqlite3.connect(DB_PATH)
     try:
         yield conn
         conn.commit()
@@ -39,7 +32,7 @@ def init_all_tables(st_callback=None):
     Создание всех таблиц приложения в одном месте.
     st_callback: опционально вызывается с сообщением для отображения в Streamlit (например, о создании дефолтного пользователя).
     """
-    conn = sqlite3.connect(_db_path())
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     # Таблица пользователей
@@ -168,60 +161,38 @@ def init_all_tables(st_callback=None):
         "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions (expires_at)"
     )
 
-    # Кастомные роли и матрица доступа к дашбордам (nav.id / report_id)
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS roles (
-            code TEXT PRIMARY KEY,
-            label TEXT NOT NULL,
-            is_system INTEGER NOT NULL DEFAULT 0,
-            can_admin INTEGER NOT NULL DEFAULT 0,
+        CREATE TABLE IF NOT EXISTS bug_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            user_role TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            report_tab TEXT,
+            page_url TEXT,
+            theme TEXT,
+            version_id INTEGER,
+            app_build TEXT,
+            user_text TEXT NOT NULL,
+            category TEXT,
+            priority TEXT,
+            ai_title TEXT,
+            ai_summary TEXT,
+            ai_confidence REAL,
+            ai_source TEXT,
+            status TEXT NOT NULL DEFAULT 'queued',
+            trello_card_id TEXT,
+            trello_card_url TEXT,
+            error_message TEXT,
+            raw_ai_response TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS role_reports (
-            role_code TEXT NOT NULL,
-            report_id TEXT NOT NULL,
-            PRIMARY KEY (role_code, report_id),
-            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS role_projects (
-            role_code TEXT NOT NULL,
-            project_name TEXT NOT NULL,
-            PRIMARY KEY (role_code, project_name),
-            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
-        )
-    """)
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_role_projects_role ON role_projects (role_code)"
-    )
-    # UI ACL: allowlist фильтров/виджетов на дашборде (пусто = без ограничений).
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS role_report_filters (
-            role_code TEXT NOT NULL,
-            report_id TEXT NOT NULL,
-            filter_key TEXT NOT NULL,
-            PRIMARY KEY (role_code, report_id, filter_key),
-            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS role_report_widgets (
-            role_code TEXT NOT NULL,
-            report_id TEXT NOT NULL,
-            widget_id TEXT NOT NULL,
-            PRIMARY KEY (role_code, report_id, widget_id),
-            FOREIGN KEY (role_code) REFERENCES roles(code) ON DELETE CASCADE
-        )
-    """)
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_role_report_filters_role ON role_report_filters (role_code)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_role_report_widgets_role ON role_report_widgets (role_code)"
-    )
+    bug_cols = {row[1] for row in cursor.execute("PRAGMA table_info(bug_reports)").fetchall()}
+    if "first_name" not in bug_cols:
+        cursor.execute("ALTER TABLE bug_reports ADD COLUMN first_name TEXT")
+    if "last_name" not in bug_cols:
+        cursor.execute("ALTER TABLE bug_reports ADD COLUMN last_name TEXT")
 
     conn.commit()
 

@@ -102,8 +102,9 @@ export function ReportBugButton({ pageTitle }: { pageTitle?: string }) {
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-tremor-default text-tremor-content dark:text-dark-tremor-content">
                 <p>
                   Часть полей уже подставится автоматически (раздел, отчёт, роль,
-                  контур, браузер, фильтры). Красным подсвечены обязательные
-                  поля — их нужно заполнить вручную.
+                  контур, браузер, фильтры). Обязательно укажите имя и фамилию —
+                  по одной роли «admin» непонятно, от кого заявка. Красным
+                  подсвечены обязательные поля.
                 </p>
                 <ol className="list-decimal space-y-2 pl-5">
                   <li>

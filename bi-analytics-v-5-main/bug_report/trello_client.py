@@ -32,6 +32,7 @@ def _format_description(
     context: dict[str, Any],
     classification: dict[str, Any],
 ) -> str:
+    fio = f"{(context.get('first_name') or '').strip()} {(context.get('last_name') or '').strip()}".strip()
     lines = [
         "## Описание от пользователя",
         user_text.strip() or "—",
@@ -47,7 +48,8 @@ def _format_description(
         classification.get("summary", ""),
         "",
         "## Контекст",
-        f"- Пользователь: {context.get('username', '—')} ({context.get('user_role', '—')})",
+        f"- ФИО: {fio or '—'}",
+        f"- Логин: {context.get('username', '—')} ({context.get('user_role', '—')})",
         f"- Вкладка: {context.get('report_tab', '—')}",
         f"- Тема: {context.get('theme', '—')}",
         f"- URL: {context.get('page_url', '—')}",

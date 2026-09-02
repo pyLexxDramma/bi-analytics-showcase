@@ -47,22 +47,32 @@ try {
   await page.goto(`${PROD}${route}`, { waitUntil: "domcontentloaded", timeout: 120000 });
   await page.waitForTimeout(5000);
 
-  const bugBtn = page.getByRole("button", { name: /Сообщить об ошибке/i });
-  if (!(await bugBtn.count())) {
+  const bugBtn = page.locator("button.report-bug-btn").first();
+  await bugBtn.waitFor({ state: "visible", timeout: 30000 }).catch(async () => {
     await page.screenshot({ path: path.join(OUT, "no_bug_button.png"), fullPage: true });
     throw new Error("Кнопка «Сообщить об ошибке» не найдена на десктопе");
+  });
+  if (!(await bugBtn.isVisible())) {
+    await page.screenshot({ path: path.join(OUT, "no_bug_button.png"), fullPage: true });
+    throw new Error("Кнопка «Сообщить об ошибке» не видна");
   }
 
-  console.log("3) Click bug report → new tab");
+  console.log("3) Instruction → open form tab");
+  await bugBtn.click();
+  const openForm = page.getByRole("button", { name: /Открыть форму/i });
+  await openForm.waitFor({ timeout: 15000 });
   const [formPage] = await Promise.all([
     ctx.waitForEvent("page", { timeout: 30000 }),
-    bugBtn.click(),
+    openForm.click(),
   ]);
   await formPage.waitForLoadState("domcontentloaded", { timeout: 60000 });
   await formPage.waitForTimeout(2000);
 
   const formUrl = formPage.url();
   console.log("   form URL:", formUrl);
+  if (!/\/bugform\//i.test(formUrl) && !/bugform\/index\.html/i.test(formUrl)) {
+    throw new Error(`Ожидали локальную форму /bugform/, got ${formUrl}`);
+  }
   const u = new URL(formUrl);
   for (const key of ["menugroup", "report", "contour"]) {
     const v = u.searchParams.get(key);
@@ -73,10 +83,32 @@ try {
     throw new Error(`menugroup: ожидали «Девелоперские проекты», got ${u.searchParams.get("menugroup")}`);
   }
 
+  const menugroupVal = await formPage.locator("#menugroup").inputValue();
+  const reportVal = await formPage.locator("#report").inputValue();
+  const contourVal = await formPage.locator("#contour").inputValue();
+  console.log("   form fields:", { menugroupVal, reportVal, contourVal });
+  if (menugroupVal !== "Девелоперские проекты") {
+    throw new Error(`#menugroup не заполнен: ${menugroupVal}`);
+  }
+  if (!reportVal || reportVal === "__other__") {
+    throw new Error(`#report select пуст или Другое: ${reportVal}`);
+  }
+  if (!contourVal) throw new Error("#contour пуст");
+  if (await formPage.locator("#title").count()) {
+    throw new Error("Поле #title (краткий заголовок) не должно быть в форме");
+  }
+  if (await formPage.locator("#section5").isVisible()) {
+    throw new Error("Блок «Данные для сверки» виден до выбора типа «данные»");
+  }
+
   await formPage.screenshot({ path: path.join(OUT, "01_form_prefilled.png"), fullPage: true });
 
   console.log("4) Fill required fields");
   await formPage.locator('input[name="btype"][value="Интерфейс"]').check({ force: true });
+  await formPage.waitForTimeout(300);
+  const why = await formPage.locator("#whytype").inputValue();
+  console.log("   whytype autofill:", why.slice(0, 80));
+  if (!why) throw new Error("whytype не автозаполнился после выбора типа");
   await formPage.locator("#block").selectOption({ label: "Таблица" });
   await formPage.locator("#actual").fill(
     `Автотест Playwright: ${marker}. Фактическое поведение — проверка интеграции кнопки «Сообщить об ошибке».`,

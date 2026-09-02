@@ -52,8 +52,17 @@
   <form id="bugform" novalidate>
     <fieldset>
       <legend>Кто заполняет</legend>
-      <label class="req" for="reporter">ФИО и роль</label>
-      <input type="text" id="reporter" required placeholder="Например: Алексей Янчуркин, руководитель">
+      <div class="grid2">
+        <div>
+          <label class="req" for="first_name">Имя</label>
+          <input type="text" id="first_name" required maxlength="80" placeholder="Иван" autocomplete="given-name">
+        </div>
+        <div>
+          <label class="req" for="last_name">Фамилия</label>
+          <input type="text" id="last_name" required maxlength="80" placeholder="Иванов" autocomplete="family-name">
+        </div>
+      </div>
+      <p class="hint">Имя и фамилия обязательны — роль из логина часто просто «admin», без ФИО непонятно, от кого заявка.</p>
     </fieldset>
 
     <fieldset>
@@ -234,7 +243,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const MAX_FILES = 8, MAX_SIZE = 9 * 1024 * 1024;
-const CTX_FIELDS = ['reporter','menugroup','contour','browser','role','filters','whytype','btype','subtype','block'];
+const CTX_FIELDS = ['first_name','last_name','menugroup','contour','browser','role','filters','whytype','btype','subtype','block'];
 
 const REPORTS_BY_GROUP = {
   'Девелоперские проекты': ['Девелоперские проекты'],
@@ -367,11 +376,15 @@ document.querySelectorAll('input[name=btype]').forEach(r => r.addEventListener('
   $('whendt').value = d.toISOString().slice(0,16);
 })();
 
+let loginUsername = '';
+
 (() => {
   const q = new URLSearchParams(location.search);
   const menugroup = q.get('menugroup') || '';
   const report = q.get('report') || '';
-  if (q.get('reporter')) $('reporter').value = q.get('reporter');
+  loginUsername = (q.get('reporter') || q.get('username') || '').trim();
+  if (q.get('first_name')) $('first_name').value = q.get('first_name');
+  if (q.get('last_name')) $('last_name').value = q.get('last_name');
   if (menugroup) $('menugroup').value = menugroup;
   fillReportOptions(menugroup, report);
   ['block','element','contour','browser','role','filters','whytype'].forEach(id => {
@@ -386,7 +399,7 @@ document.querySelectorAll('input[name=btype]').forEach(r => r.addEventListener('
   syncDataSection();
   if (!$('whytype').value.trim()) syncWhyType(true);
 
-  const prefilled = Boolean(menugroup || report || q.get('reporter') || q.get('contour'));
+  const prefilled = Boolean(menugroup || report || q.get('first_name') || q.get('contour'));
   if (!prefilled) return;
   document.querySelectorAll('input[required], select[required], textarea[required]').forEach(el => {
     const mark = () => {
@@ -445,9 +458,15 @@ $('bugform').addEventListener('submit', async e => {
   const btn = $('sendbtn');
   btn.disabled = true; btn.textContent = 'Отправляем…';
   try {
+    const firstName = $('first_name').value.trim();
+    const lastName = $('last_name').value.trim();
+    const reporter = [firstName, lastName].filter(Boolean).join(' ');
     const payload = {
       key: new URLSearchParams(location.search).get('k') || '',
-      reporter: $('reporter').value.trim(),
+      first_name: firstName,
+      last_name: lastName,
+      reporter,
+      username: loginUsername || reporter,
       btype,
       subtype: $('subtype').value,
       whytype: $('whytype').value.trim() || WHY_BY_TYPE[btype] || '',
@@ -487,7 +506,8 @@ $('bugform').addEventListener('submit', async e => {
     if (!resp.ok) throw new Error(data.error || data.detail || ('Ошибка сервера ' + resp.status));
 
     const ctx = {
-      reporter: $('reporter').value,
+      first_name: firstName,
+      last_name: lastName,
       menugroup: $('menugroup').value,
       report: report,
       contour: $('contour').value,
@@ -507,7 +527,8 @@ $('bugform').addEventListener('submit', async e => {
       </div>`;
     resetForm();
     $('againsame').addEventListener('click', () => {
-      $('reporter').value = ctx.reporter;
+      $('first_name').value = ctx.first_name;
+      $('last_name').value = ctx.last_name;
       $('menugroup').value = ctx.menugroup;
       fillReportOptions(ctx.menugroup, ctx.report);
       $('contour').value = ctx.contour;

@@ -58,7 +58,7 @@ def _collect_page_context(user: dict[str, Any]) -> dict[str, Any]:
 def _bug_report_dialog(user: dict[str, Any]) -> None:
     ctx = _collect_page_context(user)
     st.caption(
-        "Опишите проблему или пожелание. Контекст вкладки и пользователя прикрепится автоматически."
+        "Опишите проблему или пожелание. Укажите имя и фамилию — так понятно, от кого правка."
     )
     if ctx["report_tab"]:
         st.markdown(f"**Вкладка:** {ctx['report_tab']}")
@@ -66,6 +66,13 @@ def _bug_report_dialog(user: dict[str, Any]) -> None:
         st.markdown(f"**Тема:** {ctx['theme']}")
 
     with st.form("bug_report_form", clear_on_submit=True):
+        name_cols = st.columns(2)
+        with name_cols[0]:
+            first_name = st.text_input("Имя *", max_chars=80, placeholder="Иван")
+        with name_cols[1]:
+            last_name = st.text_input("Фамилия *", max_chars=80, placeholder="Иванов")
+        if ctx["user_role"]:
+            st.caption(f"Роль: {ctx['user_role']}")
         text = st.text_area(
             "Описание",
             placeholder="Например: на вкладке БДР не сходятся итоги за март…",
@@ -81,6 +88,11 @@ def _bug_report_dialog(user: dict[str, Any]) -> None:
 
     if not submitted:
         return
+    first_name = (first_name or "").strip()
+    last_name = (last_name or "").strip()
+    if not first_name or not last_name:
+        st.error("Укажите имя и фамилию.")
+        return
     if not (text or "").strip():
         st.error("Введите описание.")
         return
@@ -94,6 +106,8 @@ def _bug_report_dialog(user: dict[str, Any]) -> None:
             user_text=text,
             username=ctx["username"],
             user_role=ctx["user_role"],
+            first_name=first_name,
+            last_name=last_name,
             report_tab=ctx["report_tab"],
             page_url=ctx["page_url"],
             theme=ctx["theme"],
