@@ -86,17 +86,23 @@ jobs:
           key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
           port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
           command_timeout: 30m
-          script_stop: true
-          envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL
+          envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL,GH_FETCH_TOKEN
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.WEBAPP_VPS_PATH }}"
             APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-showcase}"
             mkdir -p "$(dirname "$APP_DIR")"
             if [[ ! -d "$APP_DIR/.git" ]]; then
-              git clone https://github.com/pyLexxDramma/bi-analytics-showcase.git "$APP_DIR"
+              if [[ -n "${GH_FETCH_TOKEN:-}" ]]; then
+                git clone "https://x-access-token:${GH_FETCH_TOKEN}@github.com/pyLexxDramma/bi-analytics-showcase.git" "$APP_DIR"
+              else
+                git clone https://github.com/pyLexxDramma/bi-analytics-showcase.git "$APP_DIR"
+              fi
             fi
             cd "$APP_DIR"
+            if [[ -n "${GH_FETCH_TOKEN:-}" ]]; then
+              git remote set-url origin "https://x-access-token:${GH_FETCH_TOKEN}@github.com/pyLexxDramma/bi-analytics-showcase.git"
+            fi
             git fetch origin
             git checkout main
             git reset --hard origin/main
@@ -107,3 +113,4 @@ jobs:
         env:
           XCA_ASK_SECRET: ${{ secrets.XCA_ASK_SECRET }}
           XCA_ASK_BASE_URL: ${{ secrets.XCA_ASK_BASE_URL }}
+          GH_FETCH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
