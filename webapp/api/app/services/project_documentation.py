@@ -181,6 +181,41 @@ def _immediate_parents(df: pd.DataFrame, level_col: str, name_col: str) -> pd.Se
     return pd.Series(out, index=df.index)
 
 
+def _pd_stage_ancestor_labels(df: pd.DataFrame, level_col: str, name_col: str) -> pd.Series:
+    """Ближайший предок-этап ПД (осн. / корректировка / экспертиза), не «Раздел 3…»."""
+    from utils import outline_level_numeric  # type: ignore
+
+    lv = outline_level_numeric(df[level_col])
+    nm = df[name_col].map(lambda x: "" if pd.isna(x) else str(x))
+    stack: list[tuple[float, str]] = []
+    out: list[str] = []
+    for i in range(len(df)):
+        raw_l = lv.iloc[i]
+        n = nm.iloc[i] or ""
+        if pd.isna(raw_l):
+            out.append("")
+            continue
+        l = float(raw_l)
+        while stack and stack[-1][0] >= l:
+            stack.pop()
+        stage = ""
+        for _lvl, aname in reversed(stack):
+            if _parent_is_pd_stage(aname):
+                stage = aname
+                break
+        out.append(stage)
+        stack.append((l, n))
+    return pd.Series(out, index=df.index)
+
+
+def _stage_display_label(raw: object) -> str:
+    """Убрать префикс «Этап.» для колонки «Этап»."""
+    s = _clean(raw)
+    if not s:
+        return ""
+    return re.sub(r"(?i)^этап\s*\.?\s*", "", s).strip() or s
+
+
 def _ancestor_under_pd(
     df: pd.DataFrame, level_col: str, name_col: str, block_col: str | None
 ) -> pd.Series:
@@ -882,6 +917,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
                 "Проект",
                 "Наименование раздела работ",
                 "Раздел",
+                "Этап",
                 "Статус",
                 "Начало",
                 "Базовое начало",
@@ -907,7 +943,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v21-pd-block-pd-af-fix|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v24-pd-stage-before-section|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -996,6 +1032,19 @@ def build_project_documentation_payload(
                 )
         available_sections = ["Все"] + section_opts
         applied_section = section if section in available_sections else "Все"
+        # Этап ПД считаем по полной иерархии ДО среза по разделу — иначе предки
+        # («Этап . Проектная документация» / корректировка) выпадают из scoped.
+        hier_for_stage = masks.get("hier_col") or masks.get("level_col")
+        name_for_stage = masks.get("name_col")
+        if (
+            hier_for_stage
+            and name_for_stage
+            and hier_for_stage in scoped.columns
+            and name_for_stage in scoped.columns
+        ):
+            stage_by_index = _pd_stage_ancestor_labels(scoped, hier_for_stage, name_for_stage)
+        else:
+            stage_by_index = pd.Series(dtype=object)
         if applied_section != "Все":
             scoped = scoped.loc[labels_series.reindex(scoped.index).fillna("") == applied_section].copy()
             masks = _section_masks(scoped)
@@ -1399,6 +1448,9 @@ def build_project_documentation_payload(
             )
             cipher = cipher.mask(cipher.str.lower().isin(_BLANK), "")
             razdel = cipher.where(cipher.ne(""), tn.str.extract(r"(Раздел\s+[\d.]+)", flags=re.I, expand=False).fillna(""))
+            # Этап = предок MSP «этап … проектная документация / корректировка / экспертиза»
+            # (посчитан до среза раздела → stage_by_index).
+            stage_s = stage_by_index.reindex(delay_df.index).fillna("").astype(str)
             for idx in delay_df.index:
                 pcv = float(pc_d.loc[idx] or 0)
                 if pcv >= 99.99:
@@ -1420,6 +1472,7 @@ def build_project_documentation_payload(
                         "project": _clean(delay_df.loc[idx, proj_col]) if proj_col else "",
                         "work_name": _clean(tn.loc[idx]) or "—",
                         "section": _clean(razdel.loc[idx]) or "—",
+                        "stage": _stage_display_label(stage_s.loc[idx]) or "—",
                         "status": st_lbl,
                         "start": _fmt_date(ss_dt.loc[idx]) or "—",
                         "base_start": _fmt_date(bs_dt.loc[idx]) or "—",
@@ -1520,6 +1573,7 @@ def build_project_documentation_payload(
                     "Проект",
                     "Наименование раздела работ",
                     "Раздел",
+                    "Этап",
                     "Статус",
                     "Начало",
                     "Базовое начало",

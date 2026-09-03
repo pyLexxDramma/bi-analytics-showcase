@@ -20083,11 +20083,7 @@ def _rd_delay_build_date_rows(
         _archive_done | _status_done | work["_production_dt"].notna()
     )
     if by_section:
-        work["_y"] = (
-            work["Шифр"].fillna("").astype(str).str.strip()
-            + " "
-            + work["Наименование разделов работ"].fillna("").astype(str).str.strip()
-        ).str.replace(r"\s+", " ", regex=True).str.strip()
+        work["_y"] = _rd_delay_section_y_labels(work)
         y_col = "Раздел"
     else:
         work["_y"] = work["Проект"].fillna("").astype(str).str.strip()
@@ -20278,11 +20274,7 @@ def _render_rd_delay_overdue_bar_chart(
     tbl["_sec_key"] = _rd_delay_detail_section_keys(tbl)
     by_section = str(view_mode or "").strip().casefold() == "по разделу"
     if by_section:
-        tbl["_y"] = (
-            tbl["Шифр"].fillna("").astype(str).str.strip()
-            + " "
-            + tbl["Наименование разделов работ"].fillna("").astype(str).str.strip()
-        ).str.replace(r"\s+", " ", regex=True).str.strip()
+        tbl["_y"] = _rd_delay_section_y_labels(tbl)
         y_col = "Раздел"
         y_title = ""
     else:
@@ -46354,11 +46346,52 @@ def _rd_plan_pie_from_section_df(df: pd.DataFrame) -> dict[str, int]:
     return out
 
 
+def _rd_delay_full_cipher_series(tbl: pd.DataFrame) -> pd.Series:
+    """Полный шифр раздела (колонки после display-rename и сырые)."""
+    for col in ("Полный шифр", "Шифр полный"):
+        if col in tbl.columns:
+            return tbl[col].fillna("").astype(str).str.strip()
+    return pd.Series([""] * len(tbl), index=tbl.index, dtype=object)
+
+
+def _rd_delay_section_y_labels(tbl: pd.DataFrame) -> pd.Series:
+    """Подпись оси Y «По разделу»: полный шифр + имя, иначе короткий шифр + имя.
+
+    Короткий «Шифр» (АПТ/АС) общий у нескольких строк плана с разным полным
+    шифром (…-АУПТ-D / …-АУПТ-U1,U2) — без полного ключа Gantt схлопывал
+    разделы и расходился с детальной таблицей (Доработки 02.09.2026 п.1).
+    """
+    name = (
+        tbl["Наименование разделов работ"].fillna("").astype(str).str.strip()
+        if "Наименование разделов работ" in tbl.columns
+        else pd.Series([""] * len(tbl), index=tbl.index, dtype=object)
+    )
+    short = (
+        tbl["Шифр"].fillna("").astype(str).str.strip()
+        if "Шифр" in tbl.columns
+        else pd.Series([""] * len(tbl), index=tbl.index, dtype=object)
+    )
+    full = _rd_delay_full_cipher_series(tbl)
+    identity = full.where(full.ne(""), short)
+    out = (identity + " " + name).str.replace(r"\s+", " ", regex=True).str.strip()
+    return out.replace({"": "—", "nan": "—"})
+
+
 def _rd_delay_detail_section_keys(tbl: pd.DataFrame) -> pd.Series:
     _pk = tbl["Проект"].map(_project_filter_norm_key)
-    _cc = tbl["Шифр"].astype(str).str.strip().str.casefold()
-    _nm = tbl["Наименование разделов работ"].astype(str).str.strip().str.casefold()
-    return pd.Series(list(zip(_pk.tolist(), _cc.tolist(), _nm.tolist())), index=tbl.index)
+    _full = _rd_delay_full_cipher_series(tbl).str.casefold()
+    _cc = (
+        tbl["Шифр"].astype(str).str.strip().str.casefold()
+        if "Шифр" in tbl.columns
+        else pd.Series([""] * len(tbl), index=tbl.index, dtype=object)
+    )
+    _id = _full.where(_full.ne(""), _cc)
+    _nm = (
+        tbl["Наименование разделов работ"].astype(str).str.strip().str.casefold()
+        if "Наименование разделов работ" in tbl.columns
+        else pd.Series([""] * len(tbl), index=tbl.index, dtype=object)
+    )
+    return pd.Series(list(zip(_pk.tolist(), _id.tolist(), _nm.tolist())), index=tbl.index)
 
 
 def _rd_delay_section_overdue_kpis(detail_tbl: pd.DataFrame) -> tuple[int, float]:

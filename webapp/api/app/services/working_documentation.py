@@ -610,16 +610,28 @@ def _build_delay_overdue_bars(
             .fillna("")
             .astype(str)
         )
-    if by_section:
-        tbl["_y"] = (
-            tbl.get("Шифр", pd.Series("", index=tbl.index)).fillna("").astype(str).str.strip()
-            + " "
-            + tbl.get("Наименование разделов работ", pd.Series("", index=tbl.index))
+    label_fn = getattr(mod, "_rd_delay_section_y_labels", None)
+    if by_section and callable(label_fn):
+        try:
+            tbl["_y"] = label_fn(tbl)
+        except Exception:
+            label_fn = None
+    if by_section and not callable(label_fn):
+        full = None
+        for col in ("Полный шифр", "Шифр полный"):
+            if col in tbl.columns:
+                full = tbl[col].fillna("").astype(str).str.strip()
+                break
+        short = tbl.get("Шифр", pd.Series("", index=tbl.index)).fillna("").astype(str).str.strip()
+        name = (
+            tbl.get("Наименование разделов работ", pd.Series("", index=tbl.index))
             .fillna("")
             .astype(str)
             .str.strip()
-        ).str.replace(r"\s+", " ", regex=True).str.strip()
-    else:
+        )
+        identity = full.where(full.ne(""), short) if full is not None else short
+        tbl["_y"] = (identity + " " + name).str.replace(r"\s+", " ", regex=True).str.strip()
+    elif not by_section:
         tbl["_y"] = (
             tbl.get("Проект", pd.Series("", index=tbl.index)).fillna("").astype(str).str.strip()
         )
@@ -1245,7 +1257,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v40-rd-cancel-history-plan-cipher",
+            "v41-rd-delay-full-cipher-y",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1833,17 +1845,14 @@ def build_working_documentation_payload(
         detail_rows, detail_cols = _detail_to_rows(detail_show)
 
         # Delay: date-Gantt при «Количество разделов»; столбцы %/кол-во просрочки при «%».
+        # Источник = detail после drop empty (как таблица), без повторного среза статуса.
         gantt_rows: list[dict[str, Any]] = []
         range_start = range_end = None
         overdue_bar_rows: list[dict[str, Any]] = []
         try:
-            gantt_src = detail_tbl if not detail_tbl.empty else pd.DataFrame()
-            if (
-                status_filtered
-                and _sel_is_not_issued_only(sel_statuses, mod)
-                and not gantt_src.empty
-            ):
-                gantt_src = gantt_src.loc[_detail_no_tessa_card_mask(gantt_src)].copy()
+            gantt_src = detail_tbl.copy() if not detail_tbl.empty else pd.DataFrame()
+            if not gantt_src.empty:
+                gantt_src = mod._drop_rd_detail_empty_rows(gantt_src)
             if use_pct:
                 overdue_bar_rows = _build_delay_overdue_bars(
                     gantt_src,
@@ -1911,7 +1920,7 @@ def build_working_documentation_payload(
                 "title": "Рабочая документация",
                 "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
                 "parity": "main_working_documentation_rd_plan_tessa",
-                "wd_build": "v39-rd-month-overlay-delta",
+                "wd_build": "v41-rd-delay-full-cipher-y",
                 "version_id": int(vid),
                 "error": None,
                 "forecast_line": "v12",

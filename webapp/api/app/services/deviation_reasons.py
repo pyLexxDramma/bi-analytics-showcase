@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date
 from typing import Any
 
@@ -72,6 +73,11 @@ _PLOTLY_QUALITATIVE = (
 
 _BLANK = frozenset({"", "nan", "none", "null", "<na>", "-", "—", "нд", "nd", "nat"})
 _GENERIC_BLOCK = re.compile(r"(?i)^блок\s*\d+$")
+# «Блок В (19 437 м2)» / «Блок В(19437м²)» → база «Блок В» внутри одного проекта.
+_BUILDING_AREA_SUFFIX = re.compile(
+    r"(?i)\s*[\(\[\{]?\s*\d[\d\s\u00a0\u202f.,]*\s*"
+    r"(?:м2|м²|м\^?2|кв\.?\s*м\.?)\s*[\)\]\}]?\s*$"
+)
 
 
 def _normalize(value: Any) -> str:
@@ -88,6 +94,24 @@ def _clean(value: Any) -> str:
 
 def _cmp_key(value: Any) -> str:
     return _normalize(value)
+
+
+def _building_base_key(value: Any) -> str:
+    """Ключ строения внутри проекта: NFKC, без площади, без пунктуации/пробелов.
+
+    «Блок В» ≈ «Блок В (19 437 м2)»; «Блок U1. U2 (5 000 м2)» ≈ «Блок U1U2».
+    """
+    s = _clean(value)
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s)
+    s = re.sub(r"[\s\u00a0\u202f]+", " ", s).strip()
+    s = _BUILDING_AREA_SUFFIX.sub("", s).strip()
+    s = re.sub(r"[\s.,;:]+$", "", s).strip()
+    s = s.casefold()
+    # Буквы/цифры только — иначе «U1. U2» и «U1U2» остаются разными ключами.
+    s = re.sub(r"[^0-9a-zа-яё]+", "", s)
+    return s
 
 
 def _unique_ci_labels(values: list[str]) -> list[str]:
@@ -110,6 +134,28 @@ def _unique_ci_labels(values: list[str]) -> list[str]:
     return sorted(best.values(), key=str.casefold)
 
 
+def _unique_building_labels(values: list[str]) -> list[str]:
+    """Один канон на строение: «Блок В» и «Блок В (19 437 м2)» → полное MSP-имя."""
+    best: dict[str, str] = {}
+    for raw in values:
+        v = _clean(raw)
+        if not v:
+            continue
+        k = _building_base_key(v)
+        if not k:
+            continue
+        prev = best.get(k)
+        if prev is None:
+            best[k] = v
+            continue
+        # Предпочитаем более полное имя (обычно с площадью), затем частоту lowercase.
+        prev_score = (len(prev), 1 if any(ch.islower() for ch in prev) else 0)
+        cur_score = (len(v), 1 if any(ch.islower() for ch in v) else 0)
+        if cur_score > prev_score:
+            best[k] = v
+    return sorted(best.values(), key=str.casefold)
+
+
 def _pick_label(requested: str | None, available: list[str], *, default: str = "Все") -> str:
     if not requested or requested == default:
         return default
@@ -118,6 +164,22 @@ def _pick_label(requested: str | None, available: list[str], *, default: str = "
     key = _cmp_key(requested)
     for opt in available:
         if opt != default and _cmp_key(opt) == key:
+            return opt
+    return default
+
+
+def _pick_building_label(
+    requested: str | None, available: list[str], *, default: str = "Все"
+) -> str:
+    """Выбор строения: точное имя или совпадение без площади."""
+    picked = _pick_label(requested, available, default=default)
+    if picked != default or not requested or requested == default:
+        return picked
+    key = _building_base_key(requested)
+    if not key:
+        return default
+    for opt in available:
+        if opt != default and _building_base_key(opt) == key:
             return opt
     return default
 
@@ -272,7 +334,7 @@ def _building_values(frame: pd.DataFrame, level_col: str | None, task_col: str |
         return []
     ln = pd.to_numeric(frame[level_col], errors="coerce")
     names = [_clean(x) for x in frame.loc[ln == 3.0, task_col].dropna().astype(str).tolist()]
-    return _unique_ci_labels(names)
+    return _unique_building_labels(names)
 
 
 def _outline_levels(series: pd.Series) -> pd.Series:
@@ -334,25 +396,39 @@ def _apply_building_slice(
     level_col: str,
     task_col: str,
 ) -> pd.DataFrame:
+    """Срез по строению ур.3: матчит и короткое, и полное MSP-имя (с площадью).
+
+    Все совпадающие узлы ур.3 (после нормализации базы) объединяются — иначе
+    выбор канона «Блок В (… м2)» терял бы ветку с коротким «Блок В».
+    """
     if building == "Все" or frame.empty:
         return frame
     ln = pd.to_numeric(frame[level_col], errors="coerce")
     names = frame[task_col].astype(str).map(_clean)
-    keys = names.map(_cmp_key)
-    sel = _cmp_key(building)
-    mask = (ln == 3.0) & (keys == sel)
+    sel = _building_base_key(building)
+    keys = names.map(_building_base_key)
+    mask = (ln == 3.0) & (keys == sel) if sel else pd.Series(False, index=frame.index)
+    if not bool(mask.any()):
+        # Fallback: точное сравнение без снятия площади.
+        sel2 = _cmp_key(building)
+        keys2 = names.map(_cmp_key)
+        mask = (ln == 3.0) & (keys2 == sel2)
     if not bool(mask.any()):
         return frame.iloc[0:0].copy()
-    positions = list(range(len(frame)))
-    idx_pos = frame.index.get_indexer(frame.index[mask])
-    start = int(min(idx_pos))
-    end = len(frame)
-    for pos in positions[start + 1 :]:
-        lv = ln.iloc[pos]
-        if pd.notna(lv) and int(lv) <= 3:
-            end = pos
-            break
-    return frame.iloc[start:end].copy()
+    keep = np.zeros(len(frame), dtype=bool)
+    match_pos = sorted(
+        {int(p) for p in frame.index.get_indexer(frame.index[mask]) if int(p) >= 0}
+    )
+    n = len(frame)
+    for start in match_pos:
+        end = n
+        for pos in range(start + 1, n):
+            lv = ln.iloc[pos]
+            if pd.notna(lv) and int(lv) <= 3:
+                end = pos
+                break
+        keep[start:end] = True
+    return frame.iloc[keep].copy()
 
 
 def _maket_prepare(frame: pd.DataFrame) -> pd.DataFrame:
@@ -496,7 +572,7 @@ def build_deviation_reasons_payload(
     top5: bool = False,
 ) -> dict[str, Any]:
     cache_key = (
-        f"v5|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v6-building-norm|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|r={reason or 'Все'}|df={date_from or ''}|dt={date_to or ''}"
         f"|t5={int(bool(top5))}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -571,7 +647,7 @@ def build_deviation_reasons_payload(
         scoped = _enrich_ancestor_keys(scoped, level_col, task_col)
 
         available_buildings = ["Все"] + _building_values(scoped, level_col, task_col)
-        applied_building = _pick_label(building, available_buildings)
+        applied_building = _pick_building_label(building, available_buildings)
         if (
             applied_building != "Все"
             and level_col

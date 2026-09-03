@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from datetime import date
 from typing import Any
 
@@ -18,6 +19,11 @@ from app.services.report_cache import cache_get, cache_set
 CHART_CAP = 400
 _BLANK = frozenset({"", "nan", "none", "null", "<na>", "-", "—", "нд", "nd", "nat"})
 _GENERIC_BLOCK = re.compile(r"(?i)^блок\s*\d+$")
+# «Блок В (19 437 м2)» / «Блок В(19437м²)» → база «Блок В» внутри одного проекта.
+_BUILDING_AREA_SUFFIX = re.compile(
+    r"(?i)\s*[\(\[\{]?\s*\d[\d\s\u00a0\u202f.,]*\s*"
+    r"(?:м2|м²|м\^?2|кв\.?\s*м\.?)\s*[\)\]\}]?\s*$"
+)
 _ZOS_WORD_RE = re.compile(
     r"(?<![а-яёa-z0-9])зос(?![а-яёa-z0-9])",
     flags=re.IGNORECASE,
@@ -62,6 +68,24 @@ def _cmp_key(value: Any) -> str:
     return _normalize(value)
 
 
+def _building_base_key(value: Any) -> str:
+    """Ключ строения внутри проекта: NFKC, без площади, без пунктуации/пробелов.
+
+    «Блок В» ≈ «Блок В (19 437 м2)»; «Блок U1. U2 (5 000 м2)» ≈ «Блок U1U2».
+    """
+    s = _clean(value)
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s)
+    s = re.sub(r"[\s\u00a0\u202f]+", " ", s).strip()
+    s = _BUILDING_AREA_SUFFIX.sub("", s).strip()
+    s = re.sub(r"[\s.,;:]+$", "", s).strip()
+    s = s.casefold()
+    # Буквы/цифры только — иначе «U1. U2» и «U1U2» остаются разными ключами.
+    s = re.sub(r"[^0-9a-zа-яё]+", "", s)
+    return s
+
+
 def _unique_ci_labels(values: list[str]) -> list[str]:
     """Уникальные подписи без учёта регистра (КОВЕНАНТЫ / Ковенанты → одна)."""
     best: dict[str, str] = {}
@@ -83,6 +107,28 @@ def _unique_ci_labels(values: list[str]) -> list[str]:
     return sorted(best.values(), key=str.casefold)
 
 
+def _unique_building_labels(values: list[str]) -> list[str]:
+    """Один канон на строение: «Блок В» и «Блок В (19 437 м2)» → полное MSP-имя."""
+    best: dict[str, str] = {}
+    for raw in values:
+        v = _clean(raw)
+        if not v:
+            continue
+        k = _building_base_key(v)
+        if not k:
+            continue
+        prev = best.get(k)
+        if prev is None:
+            best[k] = v
+            continue
+        # Предпочитаем более полное имя (обычно с площадью), затем частоту lowercase.
+        prev_score = (len(prev), 1 if any(ch.islower() for ch in prev) else 0)
+        cur_score = (len(v), 1 if any(ch.islower() for ch in v) else 0)
+        if cur_score > prev_score:
+            best[k] = v
+    return sorted(best.values(), key=str.casefold)
+
+
 def _pick_label(requested: str | None, available: list[str], *, default: str = "Все") -> str:
     if not requested or requested == default:
         return default
@@ -91,6 +137,22 @@ def _pick_label(requested: str | None, available: list[str], *, default: str = "
     key = _cmp_key(requested)
     for opt in available:
         if opt != default and _cmp_key(opt) == key:
+            return opt
+    return default
+
+
+def _pick_building_label(
+    requested: str | None, available: list[str], *, default: str = "Все"
+) -> str:
+    """Выбор строения: точное имя или совпадение без площади."""
+    picked = _pick_label(requested, available, default=default)
+    if picked != default or not requested or requested == default:
+        return picked
+    key = _building_base_key(requested)
+    if not key:
+        return default
+    for opt in available:
+        if opt != default and _building_base_key(opt) == key:
             return opt
     return default
 
@@ -254,7 +316,7 @@ def _building_values(frame: pd.DataFrame, level_col: str | None, task_col: str |
         return []
     ln = pd.to_numeric(frame[level_col], errors="coerce")
     names = [_clean(x) for x in frame.loc[ln == 3.0, task_col].dropna().astype(str).tolist()]
-    return _unique_ci_labels(names)
+    return _unique_building_labels(names)
 
 
 def _apply_building_slice(
@@ -264,25 +326,39 @@ def _apply_building_slice(
     level_col: str,
     task_col: str,
 ) -> pd.DataFrame:
+    """Срез по строению ур.3: матчит и короткое, и полное MSP-имя (с площадью).
+
+    Все совпадающие узлы ур.3 (после нормализации базы) объединяются — иначе
+    выбор канона «Блок В (… м2)» терял бы ветку с коротким «Блок В».
+    """
     if building == "Все" or frame.empty:
         return frame
     ln = pd.to_numeric(frame[level_col], errors="coerce")
     names = frame[task_col].astype(str).map(_clean)
-    keys = names.map(_cmp_key)
-    sel = _cmp_key(building)
-    mask = (ln == 3.0) & (keys == sel)
+    sel = _building_base_key(building)
+    keys = names.map(_building_base_key)
+    mask = (ln == 3.0) & (keys == sel) if sel else pd.Series(False, index=frame.index)
+    if not bool(mask.any()):
+        # Fallback: точное сравнение без снятия площади.
+        sel2 = _cmp_key(building)
+        keys2 = names.map(_cmp_key)
+        mask = (ln == 3.0) & (keys2 == sel2)
     if not bool(mask.any()):
         return frame.iloc[0:0].copy()
-    positions = list(range(len(frame)))
-    idx_pos = frame.index.get_indexer(frame.index[mask])
-    start = int(min(idx_pos))
-    end = len(frame)
-    for pos in positions[start + 1 :]:
-        lv = ln.iloc[pos]
-        if pd.notna(lv) and int(lv) <= 3:
-            end = pos
-            break
-    return frame.iloc[start:end].copy()
+    keep = np.zeros(len(frame), dtype=bool)
+    match_pos = sorted(
+        {int(p) for p in frame.index.get_indexer(frame.index[mask]) if int(p) >= 0}
+    )
+    n = len(frame)
+    for start in match_pos:
+        end = n
+        for pos in range(start + 1, n):
+            lv = ln.iloc[pos]
+            if pd.notna(lv) and int(lv) <= 3:
+                end = pos
+                break
+        keep[start:end] = True
+    return frame.iloc[keep].copy()
 
 
 def _is_zos_task(name: object) -> bool:
@@ -691,7 +767,7 @@ def build_baseline_deviation_payload(
 ) -> dict[str, Any]:
     metric_task = resolve_metric_task()
     cache_key = (
-        f"v9|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v11-building-norm|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
@@ -784,6 +860,10 @@ def build_baseline_deviation_payload(
                 scoped, selected_projects, col="project name"
             )
 
+        # ЗОС-плашки: только проект (Доработки 02.09 п.6). Блок/строение/уровень
+        # не должны обнулять даты — задача «ЗОС» обычно вне блока «СМР».
+        zos_plates_scope = scoped.copy()
+
         available_blocks = ["Все"] + _block_values(scoped, block_col)
         applied_block = _pick_label(block, available_blocks)
         if applied_block != "Все" and block_col and block_col in scoped.columns:
@@ -807,7 +887,7 @@ def build_baseline_deviation_payload(
             bld_source = work
 
         available_buildings = ["Все"] + _building_values(bld_source, level_col, task_col)
-        applied_building = _pick_label(building, available_buildings)
+        applied_building = _pick_building_label(building, available_buildings)
         if (
             applied_building != "Все"
             and level_col
@@ -827,10 +907,11 @@ def build_baseline_deviation_payload(
                 ].copy()
             scoped = sliced
 
-        # KPI plates — срез до фильтра уровня (как main `_zos_source_df`)
+        # График РД-дедлайнов: срез после блока/строения, до фильтра уровня (как main).
         zos_scope = scoped.copy()
         scoped = _enrich_ancestor_keys(scoped, level_col, task_col)
         zos_scope = _enrich_ancestor_keys(zos_scope, level_col, task_col)
+        zos_plates_scope = _enrich_ancestor_keys(zos_plates_scope, level_col, task_col)
 
         applied_level = level if level in {"4", "5"} else "4"
         level_skipped = bool(show_reasons or covenant_block)
@@ -902,13 +983,13 @@ def build_baseline_deviation_payload(
                 scoped[lot_col].notna() & lc.ne("") & ~lc.str.casefold().isin(_BLANK)
             ].copy()
 
-        # KPI plates
+        # KPI plates (ЗОС) — из zos_plates_scope (только проект), не из блока СМР.
         plates: list[dict[str, Any]] = []
         max_abs_global = 0
         multi_project = len(selected_projects) != 1
         plate_projects: list[str]
-        if multi_project and "project name" in zos_scope.columns:
-            plate_projects = labels_mod.project_labels_for_filter(zos_scope["project name"])
+        if multi_project and "project name" in zos_plates_scope.columns:
+            plate_projects = labels_mod.project_labels_for_filter(zos_plates_scope["project name"])
         else:
             plate_projects = list(selected_projects)
 
@@ -948,13 +1029,13 @@ def build_baseline_deviation_payload(
         if multi_project and plate_projects:
             for pn in plate_projects:
                 sub = labels_mod.filter_dataframe_by_project_labels(
-                    zos_scope, [pn], col="project name"
-                ) if "project name" in zos_scope.columns else zos_scope
+                    zos_plates_scope, [pn], col="project name"
+                ) if "project name" in zos_plates_scope.columns else zos_plates_scope
                 plates.append(_plate_for(sub, pn))
         else:
             plates.append(
                 _plate_for(
-                    zos_scope,
+                    zos_plates_scope,
                     selected_projects[0] if selected_projects else None,
                 )
             )
