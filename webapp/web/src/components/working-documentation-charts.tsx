@@ -1031,7 +1031,9 @@ export function RdDelayOverdueBarChart({
           categoryarray: categoryOrder,
           tickmode: "array" as const,
           tickvals: yLabels,
-          ticktext: yTickTexts.map((t) => wrapAxisLabel(t, compact ? 18 : 28)),
+          ticktext: yTickTexts.map(
+            (t) => wrapAxisLabel(t, compact ? 18 : 28).text,
+          ),
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           automargin: true,
         },

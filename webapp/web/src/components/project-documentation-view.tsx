@@ -64,7 +64,7 @@ type SortState = { key: string; asc: boolean } | null;
 type PdMobilePane = "charts" | "tables";
 type PdDetailRow =
   | { kind: "main"; project: string; section: string; n?: number | null; base_end?: string | null; plan_end?: string | null; dev_end?: string | null; dev_end_days?: number | null }
-  | { kind: "detail"; project: string; work_name?: string | null; section: string; status?: string | null; start?: string | null; base_start?: string | null; finish?: string | null; base_finish?: string | null; dev_start?: string | null; dev_start_days?: number | null; dev_end?: string | null; dev_end_days?: number | null }
+  | { kind: "detail"; project: string; work_name?: string | null; section: string; stage?: string | null; status?: string | null; start?: string | null; base_start?: string | null; finish?: string | null; base_finish?: string | null; dev_start?: string | null; dev_start_days?: number | null; dev_end?: string | null; dev_end_days?: number | null }
   | { kind: "summary"; project: string; plan: number; fact: number; overdue: number; overdue_label: string };
 
 const INITIAL = {
@@ -342,6 +342,7 @@ function ProjectDocumentationScreen({
       row.project,
       row.work_name,
       row.section,
+      row.stage,
       row.status,
       row.start,
       row.base_start,
@@ -417,10 +418,13 @@ function ProjectDocumentationScreen({
             <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects, section: "Все" }))} />
             <FilterChipSelect label="Отображение" value={filters.viewMode} options={(data?.filters.view_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(viewMode) => setFilters((f) => ({ ...f, viewMode }))} />
             <FilterChipSelect label="Вид раздела" value={filters.section} options={data?.filters.sections ?? ["Все"]} onChange={(section) => setFilters((f) => ({ ...f, section }))} />
-            <FilterField label="Статус">
-              <span className="mt-1 inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-                Просрочено подрядчиком
-              </span>
+            <FilterField label="Легенда">
+              <p className="mt-1.5 text-xs leading-5 text-tremor-content dark:text-dark-tremor-content">
+                <span className="font-medium text-rose-700 dark:text-rose-300">
+                  Просрочено подрядчиком
+                </span>
+                {" — вкладка показывает только просроченные разделы ПД."}
+              </p>
             </FilterField>
             <FilterField label="Дата">
               <input
@@ -433,7 +437,10 @@ function ProjectDocumentationScreen({
           </FilterFieldsRow>
         )}
         {tab === "main" ? (
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs font-medium text-tremor-content dark:text-dark-tremor-content">
+              Легенда:
+            </span>
             {(data?.filters.status_legend ?? []).map((item) => (
               <span
                 key={item.id}
@@ -865,6 +872,7 @@ function ProjectDocumentationScreen({
                             project: row.project,
                             work_name: row.work_name,
                             section: row.section,
+                            stage: row.stage,
                             status: row.status,
                             start: row.start,
                             base_start: row.base_start,
@@ -892,6 +900,7 @@ function ProjectDocumentationScreen({
                             columns={2}
                             items={[
                               { label: "Раздел", value: row.section },
+                              { label: "Этап", value: row.stage || "—" },
                               { label: "Статус", value: row.status || "—" },
                             ]}
                           />
@@ -909,6 +918,7 @@ function ProjectDocumentationScreen({
                             ["project", "Проект"],
                             ["work_name", "Наименование раздела работ"],
                             ["section", "Раздел"],
+                            ["stage", "Этап"],
                             ["status", "Статус"],
                             ["start", "Начало"],
                             ["base_start", "Базовое начало"],
@@ -945,15 +955,26 @@ function ProjectDocumentationScreen({
                               : "";
                         const cell = `${TD} ${tint.className} ${stickyTone}`;
                         return (
-                          <tr key={`${row.project}-${row.section}-${i}`}>
+                          <tr key={`${row.project}-${row.section}-${row.stage}-${i}`}>
                             <td className={cell} style={stickyTint.style}>
                               {row.project}
                             </td>
-                            <td className={`${cell} max-w-xs truncate text-center`} style={tint.style}>
+                            <td
+                              className={`${cell} max-w-xs truncate text-center`}
+                              style={tint.style}
+                              title={row.work_name || undefined}
+                            >
                               {row.work_name}
                             </td>
                             <td className={cell} style={tint.style}>
                               {row.section}
+                            </td>
+                            <td
+                              className={`${cell} max-w-[14rem] truncate`}
+                              style={tint.style}
+                              title={row.stage && row.stage !== "—" ? row.stage : undefined}
+                            >
+                              {row.stage || "—"}
                             </td>
                             <td className={cell} style={tint.style}>
                               {row.status}
@@ -1164,6 +1185,7 @@ function ProjectDocumentationScreen({
             columns={2}
             items={[
               { label: "Раздел", value: detailRow.section },
+              { label: "Этап", value: detailRow.stage || "—" },
               { label: "Статус", value: detailRow.status || "—" },
               { label: "Начало", value: detailRow.start || "—", highlight: "date" },
               { label: "Баз. нач.", value: detailRow.base_start || "—", highlight: "date" },

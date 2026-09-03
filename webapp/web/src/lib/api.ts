@@ -1515,6 +1515,7 @@ export type ProjectDocumentationPayload = {
       project: string;
       work_name: string;
       section: string;
+      stage: string;
       status: string;
       start: string;
       base_start: string;

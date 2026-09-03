@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import ModuleType
 
 import pandas as pd
 
-if "streamlit" not in sys.modules:
-    _st = ModuleType("streamlit")
-    _st.cache_data = lambda **_kw: (lambda f: f)  # type: ignore[attr-defined]
-    sys.modules["streamlit"] = _st
+from streamlit_stub import ensure_streamlit_stub
+
+ensure_streamlit_stub()
 
 CORE = Path(__file__).resolve().parents[3] / "bi-analytics-v-5-main"
 sys.path.insert(0, str(CORE))
