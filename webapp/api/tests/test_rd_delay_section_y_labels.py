@@ -7,6 +7,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from streamlit_stub import ensure_streamlit_stub
+
+ensure_streamlit_stub()
+
 CORE = Path(__file__).resolve().parents[3] / "bi-analytics-v-5-main"
 sys.path.insert(0, str(CORE))
 
