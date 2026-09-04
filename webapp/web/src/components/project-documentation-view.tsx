@@ -414,18 +414,10 @@ function ProjectDocumentationScreen({
             <FilterChipSelect label="Вид раздела" value={filters.section} options={data?.filters.sections ?? ["Все"]} onChange={(section) => setFilters((f) => ({ ...f, section }))} />
           </FilterFieldsRow>
         ) : (
-          <FilterFieldsRow cols={5}>
+          <FilterFieldsRow cols={4}>
             <FilterChipMulti label="Проект" values={filters.projects} options={data?.filters.projects ?? []} onChange={(projects) => setFilters((f) => ({ ...f, projects, section: "Все" }))} />
             <FilterChipSelect label="Отображение" value={filters.viewMode} options={(data?.filters.view_modes ?? []).map((item) => ({ value: item.id, label: item.label }))} onChange={(viewMode) => setFilters((f) => ({ ...f, viewMode }))} />
             <FilterChipSelect label="Вид раздела" value={filters.section} options={data?.filters.sections ?? ["Все"]} onChange={(section) => setFilters((f) => ({ ...f, section }))} />
-            <FilterField label="Легенда">
-              <p className="mt-1.5 text-xs leading-5 text-tremor-content dark:text-dark-tremor-content">
-                <span className="font-medium text-rose-700 dark:text-rose-300">
-                  Просрочено подрядчиком
-                </span>
-                {" — вкладка показывает только просроченные разделы ПД."}
-              </p>
-            </FilterField>
             <FilterField label="Дата">
               <input
                 type="date"
@@ -768,6 +760,16 @@ function ProjectDocumentationScreen({
       ) : (
         <div className="space-y-6">
           <Title className="!text-xl">Просрочка выдачи ПД</Title>
+
+          <p className="text-xs leading-5 text-tremor-content dark:text-dark-tremor-content">
+            <span className="font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
+              Легенда:{" "}
+            </span>
+            <span className="font-medium text-rose-700 dark:text-rose-300">
+              Просрочено подрядчиком
+            </span>
+            {" — вкладка показывает только просроченные разделы ПД."}
+          </p>
 
           <MobilePaneTabs
             value={mobilePane}

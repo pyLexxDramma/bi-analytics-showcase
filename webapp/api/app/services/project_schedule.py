@@ -151,6 +151,28 @@ def _fmt_dev(days: int | float | None) -> str:
     return f"{n:+d} дн." if n > 0 else f"{n} дн."
 
 
+def _plan_base_deviation_days(plan: Any, base: Any) -> int | None:
+    """Отклонение в днях: база − факт (как only_delay / baseline_deviation).
+
+    Факт позже базы (просрочка) → отрицательное; раньше или равно → ≥ 0.
+    """
+    if plan is None or base is None:
+        return None
+    if isinstance(plan, float) and pd.isna(plan):
+        return None
+    if isinstance(base, float) and pd.isna(base):
+        return None
+    try:
+        if pd.isna(plan) or pd.isna(base):
+            return None
+    except (TypeError, ValueError):
+        pass
+    try:
+        return int((pd.Timestamp(base) - pd.Timestamp(plan)).days)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _is_blank_block(value: Any) -> bool:
     text = str(value or "").strip()
     return not text or text.casefold() in {"nan", "none", "null", "-"}
@@ -874,12 +896,8 @@ def build_project_schedule_payload(
             plan_end = row.get("plan end")
             base_start = row.get("base start") if "base start" in table_df.columns else None
             base_end = row.get("base end") if "base end" in table_df.columns else None
-            start_dev = None
-            end_dev = None
-            if pd.notna(plan_start) and pd.notna(base_start):
-                start_dev = int((pd.Timestamp(plan_start) - pd.Timestamp(base_start)).days)
-            if pd.notna(plan_end) and pd.notna(base_end):
-                end_dev = int((pd.Timestamp(plan_end) - pd.Timestamp(base_end)).days)
+            start_dev = _plan_base_deviation_days(plan_start, base_start)
+            end_dev = _plan_base_deviation_days(plan_end, base_end)
             pct = row.get("pct complete")
             pct_val = None
             if pct is not None and not (isinstance(pct, float) and pd.isna(pct)):
