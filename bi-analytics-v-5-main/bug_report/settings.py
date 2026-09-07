@@ -30,6 +30,15 @@ class BugReportSettings:
     trello_label_feature: str
     trello_label_question: str
     trello_label_triage: str
+    public_base_url: str
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_password: str
+    smtp_from: str
+    smtp_starttls: bool
+    smtp_use_ssl: bool
+    telegram_bot_token: str
 
     @property
     def ai_configured(self) -> bool:
@@ -44,6 +53,10 @@ class BugReportSettings:
             and self.trello_list_triage.strip()
         )
 
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host.strip())
+
 
 def _float_env(name: str, default: float) -> float:
     raw = _read_env_or_secret(name).strip()
@@ -51,6 +64,16 @@ def _float_env(name: str, default: float) -> float:
         return default
     try:
         return float(raw)
+    except ValueError:
+        return default
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = _read_env_or_secret(name).strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
     except ValueError:
         return default
 
@@ -78,4 +101,22 @@ def get_bug_report_settings() -> BugReportSettings:
         trello_label_feature=_read_env_or_secret("TRELLO_LABEL_FEATURE").strip(),
         trello_label_question=_read_env_or_secret("TRELLO_LABEL_QUESTION").strip(),
         trello_label_triage=_read_env_or_secret("TRELLO_LABEL_TRIAGE").strip(),
+        public_base_url=(
+            _read_env_or_secret("BUG_STATUS_PUBLIC_BASE").strip()
+            or _read_env_or_secret("PUBLIC_BASE_URL").strip()
+            or "https://ai.conall.ru"
+        ),
+        smtp_host=_read_env_or_secret("BUG_REPORT_SMTP_HOST").strip()
+        or _read_env_or_secret("SMTP_HOST").strip(),
+        smtp_port=_int_env("BUG_REPORT_SMTP_PORT", 0) or _int_env("SMTP_PORT", 587),
+        smtp_user=_read_env_or_secret("BUG_REPORT_SMTP_USER").strip()
+        or _read_env_or_secret("SMTP_USER").strip(),
+        smtp_password=_read_env_or_secret("BUG_REPORT_SMTP_PASSWORD").strip()
+        or _read_env_or_secret("SMTP_PASSWORD").strip(),
+        smtp_from=_read_env_or_secret("BUG_REPORT_SMTP_FROM").strip()
+        or _read_env_or_secret("SMTP_FROM").strip(),
+        smtp_starttls=not _env_truthy("BUG_REPORT_SMTP_NO_STARTTLS"),
+        smtp_use_ssl=_env_truthy("BUG_REPORT_SMTP_SSL"),
+        telegram_bot_token=_read_env_or_secret("BUG_REPORT_TELEGRAM_BOT_TOKEN").strip()
+        or _read_env_or_secret("TELEGRAM_BOT_TOKEN").strip(),
     )

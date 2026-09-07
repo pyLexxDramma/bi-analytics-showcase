@@ -17,7 +17,7 @@
   label:first-of-type { margin-top:4px; }
   .req::after { content:" *"; color:var(--req); }
   .hint { font-weight:400; color:var(--muted); font-size:.85rem; margin:2px 0 6px; }
-  input[type=text], input[type=datetime-local], select, textarea {
+  input[type=text], input[type=email], input[type=datetime-local], select, textarea {
     width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:7px; font-size:.95rem; font-family:inherit; background:#fff;
   }
   textarea { min-height:84px; resize:vertical; }
@@ -75,6 +75,19 @@
         </div>
       </div>
       <p class="hint">Имя и фамилия обязательны — роль из логина часто просто «admin», без ФИО непонятно, от кого заявка.</p>
+      <div class="grid2">
+        <div>
+          <label class="req" for="contact_email">Email</label>
+          <input type="email" id="contact_email" required maxlength="120" placeholder="name@company.ru" autocomplete="email">
+        </div>
+        <div>
+          <label for="contact_telegram">Telegram <span class="hint" style="display:inline">(необязательно)</span></label>
+          <input type="text" id="contact_telegram" maxlength="80" placeholder="@username или chat_id" autocomplete="off">
+        </div>
+      </div>
+      <p class="hint">Email обязателен: пришлём «принята» и «готово к проверке». Telegram — дубль, если удобно.</p>
+      <label for="related_report_id">Номер связанной заявки <span class="hint" style="display:inline">(если повтор после проверки)</span></label>
+      <input type="text" id="related_report_id" inputmode="numeric" maxlength="12" placeholder="например 42">
     </fieldset>
 
     <fieldset>
@@ -238,10 +251,10 @@
 
     <fieldset>
       <legend>6. Скриншоты и вложения</legend>
-      <p class="hint">На кадре должны быть видны: название отчёта, фильтры и место дефекта. До 8 файлов, каждый до 9 МБ. Можно перетащить файлы в область ниже.</p>
+      <p class="hint">На кадре должны быть видны: название отчёта, фильтры и место дефекта. До 8 файлов, каждый до 9 МБ. Можно перетащить файлы или вставить скрин из буфера (Ctrl+V).</p>
       <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Выбрать или перетащить файлы">
         <strong>Перетащите файлы сюда</strong> или нажмите, чтобы выбрать<br>
-        <span style="font-size:.85rem">PNG, JPG, PDF, CSV, Excel — несколько сразу</span>
+        <span style="font-size:.85rem">PNG, JPG, PDF, CSV, Excel — несколько сразу; Ctrl+V для скрина</span>
         <input type="file" id="files" multiple accept="image/*,.csv,.xlsx,.xls,.pdf,.png">
       </div>
       <div class="filelist" id="filelist"></div>
@@ -469,6 +482,21 @@ dropzone.addEventListener('drop', e => {
 $('files').addEventListener('change', () => {
   if ($('files').files?.length) addFiles($('files').files);
 });
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  const files = [];
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) {
+      const f = it.getAsFile();
+      if (f) files.push(f);
+    }
+  }
+  if (files.length) {
+    e.preventDefault();
+    addFiles(files);
+  }
+});
 
 const readB64 = f => new Promise((res, rej) => {
   const r = new FileReader();
@@ -510,11 +538,23 @@ $('bugform').addEventListener('submit', async e => {
   try {
     const firstName = $('first_name').value.trim();
     const lastName = $('last_name').value.trim();
+    const contactEmail = $('contact_email').value.trim();
+    const contactTelegram = $('contact_telegram').value.trim();
+    const relatedRaw = $('related_report_id').value.trim();
+    if (!contactEmail || !contactEmail.includes('@')) {
+      result.className = 'err';
+      result.textContent = 'Укажите корректный email — на него придут уведомления о статусе.';
+      $('contact_email').focus();
+      return;
+    }
     const reporter = [firstName, lastName].filter(Boolean).join(' ');
     const payload = {
       key: new URLSearchParams(location.search).get('k') || '',
       first_name: firstName,
       last_name: lastName,
+      contact_email: contactEmail,
+      contact_telegram: contactTelegram,
+      related_report_id: relatedRaw || '',
       reporter,
       username: loginUsername || reporter,
       btype,
@@ -558,6 +598,8 @@ $('bugform').addEventListener('submit', async e => {
     const ctx = {
       first_name: firstName,
       last_name: lastName,
+      contact_email: contactEmail,
+      contact_telegram: contactTelegram,
       menugroup: $('menugroup').value,
       report: report,
       contour: $('contour').value,
@@ -569,13 +611,15 @@ $('bugform').addEventListener('submit', async e => {
       subtype: $('subtype').value,
       block: $('block').value,
     };
-    const trelloUrl = String(data.trello_url || '').replace(/"/g, '%22');
-    const statusHint = trelloUrl
-      ? `<p>Статус заявки смотрите в карточке Trello — по ссылке ниже. Мы также ответим по ходу разбора.</p>
-         <a class="trello-link" href="${trelloUrl}" target="_blank" rel="noopener noreferrer">Открыть карточку в Trello →</a>`
-      : `<p>Заявка сохранена (№${data.bug_id || ''}). Статус уточняйте у команды BI — ссылка на карточку появится после настройки Trello.</p>`;
+    const statusUrl = String(data.status_url || '').replace(/"/g, '%22');
+    const bugId = data.bug_id || '';
+    const statusHint = statusUrl
+      ? `<p>Заявка <b>№${bugId}</b> принята. Напишем на email, когда будет готово к проверке.</p>
+         <p><a class="trello-link" href="${statusUrl}" target="_blank" rel="noopener noreferrer">Открыть статус заявки →</a></p>
+         <p class="hint" style="margin:8px 0 0">Промежуточные статусы на почту не шлём. Все ваши заявки — в разделе «Мои заявки» в дашборде.</p>`
+      : `<p>Заявка <b>№${bugId}</b> сохранена. Статус уточняйте у команды BI.</p>`;
     result.className = 'ok';
-    result.innerHTML = `✅ Заявка <b>${data.bug_id || ''}</b> зарегистрирована. Спасибо! Мы взяли её в разбор.
+    result.innerHTML = `✅ Спасибо! Мы взяли заявку в разбор.
       ${statusHint}
       <div class="againrow">
         <button type="button" class="againbtn" id="againsame">➕ Ещё баг по этому же отчёту</button>
@@ -585,6 +629,8 @@ $('bugform').addEventListener('submit', async e => {
     $('againsame').addEventListener('click', () => {
       $('first_name').value = ctx.first_name;
       $('last_name').value = ctx.last_name;
+      $('contact_email').value = ctx.contact_email;
+      $('contact_telegram').value = ctx.contact_telegram;
       $('menugroup').value = ctx.menugroup;
       fillReportOptions(ctx.menugroup, ctx.report);
       $('contour').value = ctx.contour;

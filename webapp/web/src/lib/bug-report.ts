@@ -20,6 +20,8 @@ export function resolveBugReportContext(
     return { menugroup: "Админпанель", report: "Административная панель" };
   }
   if (pathname.startsWith("/settings/profile")) return null;
+  if (pathname.startsWith("/settings/my-tickets")) return null;
+  if (pathname.startsWith("/bug-status")) return null;
   if (pathname.startsWith("/ai-assistant")) {
     return { menugroup: "AI-аналитика", report: "ИИ помощник" };
   }

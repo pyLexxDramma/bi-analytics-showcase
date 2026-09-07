@@ -80,10 +80,37 @@ _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 # Trello bug report (bug_report/ в core).
 # Пустой export TRELLO_*= перекрывает значения из .env при docker compose —
 # поэтому пустые переменные снимаем (unset), непустые пишем в .env.
+# Trello bug report (bug_report/ в core) + SMTP статус-писем.
+# Пустой export TRELLO_*= перекрывает значения из .env при docker compose —
+# поэтому пустые переменные снимаем (unset), непустые пишем в .env.
+# Алиасы SMTP_* → BUG_REPORT_SMTP_* если канонические пусты.
+if [[ -z "${BUG_REPORT_SMTP_HOST:-}" && -n "${SMTP_HOST:-}" ]]; then
+  export BUG_REPORT_SMTP_HOST="$SMTP_HOST"
+fi
+if [[ -z "${BUG_REPORT_SMTP_PORT:-}" && -n "${SMTP_PORT:-}" ]]; then
+  export BUG_REPORT_SMTP_PORT="$SMTP_PORT"
+fi
+if [[ -z "${BUG_REPORT_SMTP_USER:-}" && -n "${SMTP_USER:-}" ]]; then
+  export BUG_REPORT_SMTP_USER="$SMTP_USER"
+fi
+if [[ -z "${BUG_REPORT_SMTP_PASSWORD:-}" && -n "${SMTP_PASSWORD:-}" ]]; then
+  export BUG_REPORT_SMTP_PASSWORD="$SMTP_PASSWORD"
+fi
+if [[ -z "${BUG_REPORT_SMTP_FROM:-}" && -n "${SMTP_FROM:-}" ]]; then
+  export BUG_REPORT_SMTP_FROM="$SMTP_FROM"
+fi
+if [[ -z "${BUG_REPORT_TELEGRAM_BOT_TOKEN:-}" && -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
+  export BUG_REPORT_TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN"
+fi
+
 for _trelo_key in TRELLO_API_KEY TRELLO_TOKEN TRELLO_BOARD_ID \
   TRELLO_LIST_URGENT TRELLO_LIST_BUG TRELLO_LIST_UI TRELLO_LIST_FEATURE TRELLO_LIST_QUESTION TRELLO_LIST_TRIAGE \
   TRELLO_LABEL_URGENT TRELLO_LABEL_BUG TRELLO_LABEL_UI TRELLO_LABEL_FEATURE TRELLO_LABEL_QUESTION TRELLO_LABEL_TRIAGE \
-  BUG_REPORT_DRY_RUN; do
+  BUG_REPORT_DRY_RUN \
+  BUG_STATUS_PUBLIC_BASE \
+  BUG_REPORT_SMTP_HOST BUG_REPORT_SMTP_PORT BUG_REPORT_SMTP_USER BUG_REPORT_SMTP_PASSWORD BUG_REPORT_SMTP_FROM \
+  BUG_REPORT_SMTP_SSL BUG_REPORT_SMTP_NO_STARTTLS \
+  BUG_REPORT_TELEGRAM_BOT_TOKEN BUG_REPORT_SYNC_KEY; do
   _val="${!_trelo_key:-}"
   if [[ -n "$_val" ]]; then
     _upsert_env "$_trelo_key" "$_val"
@@ -92,6 +119,11 @@ for _trelo_key in TRELLO_API_KEY TRELLO_TOKEN TRELLO_BOARD_ID \
     unset "$_trelo_key" || true
   fi
 done
+
+# Публичный URL статус-страниц по умолчанию для prod.
+if [[ -z "${BUG_STATUS_PUBLIC_BASE:-}" ]]; then
+  _upsert_env BUG_STATUS_PUBLIC_BASE "https://ai.conall.ru"
+fi
 
 GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 export GIT_SHA

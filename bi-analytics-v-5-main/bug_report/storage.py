@@ -8,6 +8,19 @@ from typing import Any
 
 from config import DB_PATH
 
+_EXTRA_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("first_name", "TEXT"),
+    ("last_name", "TEXT"),
+    ("contact_email", "TEXT"),
+    ("contact_telegram", "TEXT"),
+    ("public_token", "TEXT"),
+    ("client_status", "TEXT"),
+    ("related_report_id", "INTEGER"),
+    ("notified_accepted_at", "TEXT"),
+    ("notified_ready_at", "TEXT"),
+    ("notified_on_hold_at", "TEXT"),
+)
+
 
 def ensure_bug_reports_table(conn: sqlite3.Connection | None = None) -> None:
     own = conn is None
@@ -47,10 +60,13 @@ def ensure_bug_reports_table(conn: sqlite3.Connection | None = None) -> None:
             row[1]
             for row in conn.execute("PRAGMA table_info(bug_reports)").fetchall()
         }
-        if "first_name" not in cols:
-            conn.execute("ALTER TABLE bug_reports ADD COLUMN first_name TEXT")
-        if "last_name" not in cols:
-            conn.execute("ALTER TABLE bug_reports ADD COLUMN last_name TEXT")
+        for name, decl in _EXTRA_COLUMNS:
+            if name not in cols:
+                conn.execute(f"ALTER TABLE bug_reports ADD COLUMN {name} {decl}")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_bug_reports_public_token "
+            "ON bug_reports(public_token) WHERE public_token IS NOT NULL AND public_token != ''"
+        )
         if own:
             conn.commit()
     finally:
@@ -68,8 +84,10 @@ def insert_bug_report(row: dict[str, Any]) -> int:
                 username, user_role, first_name, last_name, report_tab, page_url, theme,
                 version_id, app_build, user_text, category, priority, ai_title, ai_summary,
                 ai_confidence, ai_source, status, trello_card_id, trello_card_url,
-                error_message, raw_ai_response
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                error_message, raw_ai_response,
+                contact_email, contact_telegram, public_token, client_status,
+                related_report_id, notified_accepted_at, notified_ready_at, notified_on_hold_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row.get("username"),
@@ -93,6 +111,14 @@ def insert_bug_report(row: dict[str, Any]) -> int:
                 row.get("trello_card_url"),
                 row.get("error_message"),
                 row.get("raw_ai_response"),
+                row.get("contact_email"),
+                row.get("contact_telegram"),
+                row.get("public_token"),
+                row.get("client_status", "accepted"),
+                row.get("related_report_id"),
+                row.get("notified_accepted_at"),
+                row.get("notified_ready_at"),
+                row.get("notified_on_hold_at"),
             ),
         )
         conn.commit()
@@ -122,6 +148,63 @@ def get_bug_report(report_id: int) -> dict[str, Any] | None:
     try:
         row = conn.execute("SELECT * FROM bug_reports WHERE id = ?", (report_id,)).fetchone()
         return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_bug_report_by_token(token: str) -> dict[str, Any] | None:
+    token = (token or "").strip()
+    if not token:
+        return None
+    ensure_bug_reports_table()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            "SELECT * FROM bug_reports WHERE public_token = ?", (token,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def list_bug_reports_for_user(username: str, *, limit: int = 200) -> list[dict[str, Any]]:
+    username = (username or "").strip()
+    if not username:
+        return []
+    ensure_bug_reports_table()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM bug_reports
+            WHERE username = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (username, max(1, min(limit, 500))),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def list_bug_reports_with_trello(*, limit: int = 500) -> list[dict[str, Any]]:
+    ensure_bug_reports_table()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM bug_reports
+            WHERE trello_card_id IS NOT NULL AND TRIM(trello_card_id) != ''
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (max(1, min(limit, 2000)),),
+        ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
 

@@ -7,12 +7,12 @@ import {
   buildBugReportUrl,
   resolveBugReportContext,
 } from "@/lib/bug-report";
-import { getAuthSession, type AuthUser } from "@/lib/auth";
+import { getAuthSession, isAdminRole, type AuthUser } from "@/lib/auth";
 import { tapFeedback } from "@/lib/haptics";
 
 /**
  * Desktop-only: сначала инструкция, затем баг-форма с автозаполнением контекста.
- * На мобиле не рендерим (класс lg:flex).
+ * Только admin / superadmin (договорённость с заказчиком).
  */
 export function ReportBugButton({ pageTitle }: { pageTitle?: string }) {
   const pathname = usePathname();
@@ -37,7 +37,7 @@ export function ReportBugButton({ pageTitle }: { pageTitle?: string }) {
   }, [open]);
 
   const context = resolveBugReportContext(pathname, pageTitle);
-  const available = context != null;
+  const available = context != null && isAdminRole(user?.role);
 
   const openForm = useCallback(() => {
     if (!context) return;
@@ -102,9 +102,12 @@ export function ReportBugButton({ pageTitle }: { pageTitle?: string }) {
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-tremor-default text-tremor-content dark:text-dark-tremor-content">
                 <p>
                   Часть полей уже подставится автоматически (раздел, отчёт, роль,
-                  контур, браузер, фильтры). Обязательно укажите имя и фамилию,
-                  опишите факт и ожидание, приложите скрин(ы) — можно перетащить
-                  несколько файлов. Шаги воспроизведения необязательны.
+                  контур, браузер, фильтры). Обязательно укажите имя, фамилию и{" "}
+                  <strong className="font-medium text-tremor-content-strong dark:text-dark-tremor-content-strong">
+                    email
+                  </strong>{" "}
+                  для уведомлений. Скрин(ы) можно перетащить или вставить из буфера
+                  (Ctrl+V).
                 </p>
                 <ol className="list-decimal space-y-2 pl-5">
                   <li>

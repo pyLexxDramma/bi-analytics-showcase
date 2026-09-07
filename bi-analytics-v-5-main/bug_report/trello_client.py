@@ -125,7 +125,10 @@ def _format_description(
         f"- URL: {context.get('page_url', '—')}",
         f"- version_id: {context.get('version_id', '—')}",
         f"- Сборка: {context.get('app_build', '—')}",
+        f"- Email: {context.get('contact_email', '—')}",
+        f"- Telegram: {context.get('contact_telegram', '—') or '—'}",
         f"- report_id локальный: #{context.get('report_id', '—')}",
+        f"- Связана с заявкой: #{context.get('related_report_id') or '—'}",
     ]
     return "\n".join(lines)
 
