@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -39,7 +43,40 @@ from app.routers import (
 )
 from app.services.ftp_ingest import sync_status
 
-app = FastAPI(title=API_TITLE, version=API_VERSION)
+logger = logging.getLogger(__name__)
+
+
+async def _bug_status_sync_loop() -> None:
+    """Периодический sync колонок Trello → client_status + письма ready/on_hold."""
+    await asyncio.sleep(45)
+    while True:
+        try:
+            from app.services.bug_report_trello import run_status_sync, trello_bug_report_configured
+
+            if trello_bug_report_configured():
+                result = await asyncio.to_thread(run_status_sync)
+                changed = (result or {}).get("changed") or 0
+                if changed:
+                    logger.info("bugform sync: changed=%s", changed)
+        except Exception as exc:
+            logger.warning("bugform sync loop: %s", exc)
+        await asyncio.sleep(300)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(_bug_status_sync_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,

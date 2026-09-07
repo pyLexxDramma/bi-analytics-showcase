@@ -49,6 +49,9 @@ def _compose_text(payload: dict[str, Any]) -> str:
         "**Ожидаемое**",
         (payload.get("expected") or "").strip(),
     ]
+    related = str(payload.get("related_report_id") or "").strip()
+    if related:
+        lines.extend(["", f"**Связана с заявкой №{related}** (повтор после проверки)"])
     steps = (payload.get("steps") or "").strip()
     if steps:
         lines.extend(["", "**Шаги воспроизведения**", steps])
@@ -93,6 +96,17 @@ def _all_attachments(payload: dict[str, Any]) -> list[tuple[str, bytes, str]]:
     return out
 
 
+def _parse_related_id(payload: dict[str, Any]) -> int | None:
+    raw = payload.get("related_report_id")
+    if raw is None or raw == "":
+        return None
+    try:
+        value = int(str(raw).strip())
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
 def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
     _prepare_bug_report_db()
     from bug_report.service import submit_bug_report
@@ -102,6 +116,10 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
     last_name = str(payload.get("last_name") or "").strip()
     if not first_name or not last_name:
         raise ValueError("Укажите имя и фамилию.")
+    contact_email = str(payload.get("contact_email") or payload.get("email") or "").strip()
+    if not contact_email or "@" not in contact_email:
+        raise ValueError("Укажите корректный email для уведомлений.")
+    contact_telegram = str(payload.get("contact_telegram") or payload.get("telegram") or "").strip()
     username_raw = str(payload.get("username") or reporter or "anonymous").strip()
     username = username_raw.split("(")[0].strip() if username_raw else "anonymous"
     browser = str(payload.get("browser") or "")
@@ -119,6 +137,9 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
         theme=theme,
         app_build=str(payload.get("contour") or "webapp"),
         attachments=_all_attachments(payload),
+        contact_email=contact_email,
+        contact_telegram=contact_telegram,
+        related_report_id=_parse_related_id(payload),
     )
     if not result.ok:
         raise RuntimeError(result.message)
@@ -128,4 +149,72 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
         "category": result.category,
         "trello_url": result.trello_card_url,
         "message": result.message,
+        "public_token": result.public_token,
+        "status_url": result.status_url,
+        "client_status": result.client_status,
     }
+
+
+def public_status_payload(token: str) -> dict[str, Any] | None:
+    _prepare_bug_report_db()
+    from bug_report.client_status import client_status_label
+    from bug_report.status_sync import sync_one_report
+    from bug_report.storage import get_bug_report_by_token
+
+    row = get_bug_report_by_token(token)
+    if not row:
+        return None
+    if row.get("trello_card_id"):
+        try:
+            sync_one_report(row)
+            row = get_bug_report_by_token(token) or row
+        except Exception as exc:
+            logger.warning("status sync on read: %s", exc)
+    title = (row.get("ai_title") or "").strip()
+    summary = (row.get("ai_summary") or "").strip()
+    user_text = (row.get("user_text") or "").strip()
+    preview = summary or (user_text[:400] + ("…" if len(user_text) > 400 else ""))
+    status = str(row.get("client_status") or "accepted")
+    return {
+        "ok": True,
+        "bug_id": row.get("id"),
+        "status": status,
+        "status_label": client_status_label(status),
+        "title": title,
+        "preview": preview,
+        "created_at": row.get("created_at"),
+        "related_report_id": row.get("related_report_id"),
+        "report_tab": row.get("report_tab") or "",
+    }
+
+
+def list_mine_payload(username: str) -> dict[str, Any]:
+    _prepare_bug_report_db()
+    from bug_report.client_status import client_status_label
+    from bug_report.notify import status_page_url
+    from bug_report.storage import list_bug_reports_for_user
+
+    items = []
+    for row in list_bug_reports_for_user(username):
+        status = str(row.get("client_status") or "accepted")
+        token = str(row.get("public_token") or "")
+        items.append(
+            {
+                "bug_id": row.get("id"),
+                "created_at": row.get("created_at"),
+                "title": (row.get("ai_title") or "").strip() or f"Заявка №{row.get('id')}",
+                "status": status,
+                "status_label": client_status_label(status),
+                "report_tab": row.get("report_tab") or "",
+                "status_url": status_page_url(token) if token else "",
+                "public_token": token,
+            }
+        )
+    return {"ok": True, "items": items}
+
+
+def run_status_sync() -> dict[str, Any]:
+    _prepare_bug_report_db()
+    from bug_report.status_sync import sync_all_open_reports
+
+    return sync_all_open_reports()

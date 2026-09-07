@@ -573,6 +573,19 @@ export function AppSidebar({
             >
               Настройки профиля
             </Link>
+            {isAdminRole(session?.role) ? (
+              <Link
+                href="/settings/my-tickets"
+                {...navProps}
+                className={`rounded-md border px-3 py-2.5 ${
+                  isActive("/settings/my-tickets")
+                    ? "bi-nav-active"
+                    : "border-gray-200 bg-white hover:bg-gray-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+                }`}
+              >
+                Мои заявки
+              </Link>
+            ) : null}
             {hasAdminAccess(session) ? (
               <Link
                 href="/settings/admin"

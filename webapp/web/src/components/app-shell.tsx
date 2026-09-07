@@ -64,7 +64,8 @@ export function AppShell({
   const navItem = findNavItem(pathname);
   const showDataFreshness =
     !pathname.startsWith("/settings/profile") &&
-    !pathname.startsWith("/settings/admin");
+    !pathname.startsWith("/settings/admin") &&
+    !pathname.startsWith("/settings/my-tickets");
   // На SSR localStorage нет → canAccessReport() всегда false. Если считать доступ
   // в initial state, сервер рисует «Нет доступа», клиент — сам отчёт: hydration
   // mismatch и вспышка баннера на каждом экране. Считаем уже после mount.
