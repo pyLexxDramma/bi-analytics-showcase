@@ -55,9 +55,6 @@ export default function BugStatusPage() {
     <main className="min-h-screen bg-[#f4f6f9] px-4 py-10 text-[#1c2430]">
       <div className="mx-auto w-full max-w-lg rounded-xl border border-[#d6dbe3] bg-white p-6 shadow-sm">
         <h1 className="text-xl font-semibold">Статус заявки</h1>
-        <p className="mt-1 text-sm text-[#6b7280]">
-          Без входа в Trello. Страница только для просмотра.
-        </p>
 
         {loading && <p className="mt-6 text-sm text-[#6b7280]">Загрузка…</p>}
         {error && (
