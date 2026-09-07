@@ -93,33 +93,34 @@ def notify_client(
     """kind: accepted | ready | on_hold. Возвращает True если хотя бы один канал отработал."""
     settings = settings or get_bug_report_settings()
     report_id = row.get("id")
+    ticket_no = row.get("user_seq") or report_id
     token = str(row.get("public_token") or "")
     link = status_page_url(token, settings)
     email = str(row.get("contact_email") or "").strip()
     tg = str(row.get("contact_telegram") or "").strip()
 
     if kind == "accepted":
-        subject = f"Заявка №{report_id} принята"
+        subject = f"Заявка №{ticket_no} принята"
         body = (
-            f"Заявка №{report_id} принята.\n"
+            f"Заявка №{ticket_no} принята.\n"
             f"Напишем, когда будет готово к проверке"
             f"{' или если понадобятся уточнения' if True else ''}.\n"
         )
         if link:
             body += f"\nСтатус заявки: {link}\n"
     elif kind == "ready":
-        subject = f"Заявка №{report_id} готова, можно проверить"
-        body = f"Заявка №{report_id} готова, можно проверить.\n"
+        subject = f"Заявка №{ticket_no} готова, можно проверить"
+        body = f"Заявка №{ticket_no} готова, можно проверить.\n"
         if link:
             body += f"\nОткрыть статус: {link}\n"
         body += (
             "\nЕсли после проверки что-то не так — оформите новую заявку "
-            f"и укажите номер старой (№{report_id}).\n"
+            f"и укажите номер старой (№{ticket_no}).\n"
         )
     elif kind == "on_hold":
-        subject = f"Заявка №{report_id}: ждём вас / данные"
+        subject = f"Заявка №{ticket_no}: ждём вас / данные"
         body = (
-            f"По заявке №{report_id} нужна информация с вашей стороны "
+            f"По заявке №{ticket_no} нужна информация с вашей стороны "
             f"(статус: {client_status_label('on_hold')}).\n"
             "Пожалуйста, ответьте команде BI или оформите уточнение.\n"
         )

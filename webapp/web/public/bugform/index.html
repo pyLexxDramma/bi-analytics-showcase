@@ -86,8 +86,8 @@
         </div>
       </div>
       <p class="hint">Email обязателен: пришлём «принята» и «готово к проверке». Telegram — дубль, если удобно.</p>
-      <label for="related_report_id">Номер связанной заявки <span class="hint" style="display:inline">(если повтор после проверки)</span></label>
-      <input type="text" id="related_report_id" inputmode="numeric" maxlength="12" placeholder="например 42">
+      <label for="related_report_id">Номер связанной заявки <span class="hint" style="display:inline">(ваш порядковый №, если повтор после проверки)</span></label>
+      <input type="text" id="related_report_id" inputmode="numeric" maxlength="12" placeholder="например 3">
     </fieldset>
 
     <fieldset>
@@ -612,11 +612,11 @@ $('bugform').addEventListener('submit', async e => {
       block: $('block').value,
     };
     const statusUrl = String(data.status_url || '').replace(/"/g, '%22');
-    const bugId = data.bug_id || '';
+    const bugId = data.user_seq || data.bug_id || '';
     const statusHint = statusUrl
-      ? `<p>Заявка <b>№${bugId}</b> принята. Напишем на email, когда будет готово к проверке.</p>
+      ? `<p>Заявка <b>№${bugId}</b> принята (ваш порядковый номер). Напишем на email, когда будет готово к проверке.</p>
          <p><a class="trello-link" href="${statusUrl}" target="_blank" rel="noopener noreferrer">Открыть статус заявки →</a></p>
-         <p class="hint" style="margin:8px 0 0">Промежуточные статусы на почту не шлём. Все ваши заявки — в разделе «Мои заявки» в дашборде.</p>`
+         <p class="hint" style="margin:8px 0 0">Все ваши заявки — в разделе «Мои заявки» в дашборде.</p>`
       : `<p>Заявка <b>№${bugId}</b> сохранена. Статус уточняйте у команды BI.</p>`;
     result.className = 'ok';
     result.innerHTML = `✅ Спасибо! Мы взяли заявку в разбор.

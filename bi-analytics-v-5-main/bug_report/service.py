@@ -13,7 +13,7 @@ from bug_report.classifier import ClassificationResult, classify_bug_report
 from bug_report.client_status import CLIENT_STATUS_ACCEPTED
 from bug_report.notify import notify_client, status_page_url
 from bug_report.settings import get_bug_report_settings
-from bug_report.storage import insert_bug_report, update_bug_report
+from bug_report.storage import display_ticket_no, get_bug_report, insert_bug_report, update_bug_report
 from bug_report.trello_client import create_bug_report_card, resolve_inbox_list_id
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ class SubmitResult:
     public_token: str = ""
     status_url: str = ""
     client_status: str = CLIENT_STATUS_ACCEPTED
+    user_seq: int = 0
 
 
 def _build_context(
@@ -156,7 +157,10 @@ def submit_bug_report(
             "client_status": CLIENT_STATUS_ACCEPTED,
         }
     )
+    saved = get_bug_report(report_id) or {}
+    user_seq = display_ticket_no(saved)
     context["report_id"] = report_id
+    context["user_seq"] = user_seq
     status_url = status_page_url(public_token, settings)
 
     classification_dict = {
@@ -177,6 +181,7 @@ def submit_bug_report(
     ) -> SubmitResult:
         row = {
             "id": report_id,
+            "user_seq": user_seq,
             "public_token": public_token,
             "contact_email": contact_email,
             "contact_telegram": contact_telegram,
@@ -201,17 +206,18 @@ def submit_bug_report(
             public_token=public_token,
             status_url=status_url,
             client_status=CLIENT_STATUS_ACCEPTED,
+            user_seq=user_seq,
         )
 
     if settings.dry_run or not settings.trello_configured:
         if settings.dry_run:
             msg = (
-                f"DRY RUN: репорт #{report_id} сохранён. "
+                f"DRY RUN: репорт №{user_seq} (#{report_id}) сохранён. "
                 f"Категория: {classification.category}, источник AI: {classification.source}."
             )
         else:
             msg = (
-                f"Репорт #{report_id} сохранён локально (Trello не настроен). "
+                f"Репорт №{user_seq} (#{report_id}) сохранён локально (Trello не настроен). "
                 f"Категория: {classification.category}."
             )
         return _finish_ok(message=msg, dry_run=settings.dry_run, pipeline_status="queued")
@@ -254,6 +260,7 @@ def submit_bug_report(
         # всё равно выдаём токен статуса и пытаемся уведомить
         row = {
             "id": report_id,
+            "user_seq": user_seq,
             "public_token": public_token,
             "contact_email": contact_email,
             "contact_telegram": contact_telegram,
@@ -263,7 +270,7 @@ def submit_bug_report(
         return SubmitResult(
             ok=False,
             report_id=report_id,
-            message=f"Репорт #{report_id} сохранён, но Trello недоступен: {exc}",
+            message=f"Репорт №{user_seq} сохранён, но Trello недоступен: {exc}",
             category=classification.category,
             priority=classification.priority,
             title=classification.title,
@@ -271,4 +278,5 @@ def submit_bug_report(
             public_token=public_token,
             status_url=status_url,
             client_status=CLIENT_STATUS_ACCEPTED,
+            user_seq=user_seq,
         )

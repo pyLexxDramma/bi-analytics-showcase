@@ -57,8 +57,8 @@ export default function MyTicketsPage() {
     <AppShell title="Мои заявки">
       <div className="mx-auto max-w-4xl space-y-4 px-1 py-2">
         <p className="text-tremor-default text-tremor-content dark:text-dark-tremor-content">
-          Реестр ваших баг-репортов со статусами. Trello не нужен — открывайте
-          персональную страницу статуса.
+          Реестр ваших баг-репортов. Номер — порядковый для вашего логина (№1, №2…).
+          Статусы: принята / в работе / на холде / готово к проверке.
         </p>
         {loading && <p className="text-sm text-tremor-content">Загрузка…</p>}
         {error && (

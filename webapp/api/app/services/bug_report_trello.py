@@ -96,15 +96,13 @@ def _all_attachments(payload: dict[str, Any]) -> list[tuple[str, bytes, str]]:
     return out
 
 
-def _parse_related_id(payload: dict[str, Any]) -> int | None:
+def _parse_related_id(payload: dict[str, Any], username: str) -> int | None:
     raw = payload.get("related_report_id")
     if raw is None or raw == "":
         return None
-    try:
-        value = int(str(raw).strip())
-    except ValueError:
-        return None
-    return value if value > 0 else None
+    from bug_report.storage import resolve_related_report_id
+
+    return resolve_related_report_id(username, raw)
 
 
 def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
@@ -139,13 +137,15 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
         attachments=_all_attachments(payload),
         contact_email=contact_email,
         contact_telegram=contact_telegram,
-        related_report_id=_parse_related_id(payload),
+        related_report_id=_parse_related_id(payload, username),
     )
     if not result.ok:
         raise RuntimeError(result.message)
     return {
         "ok": True,
-        "bug_id": str(result.report_id),
+        "bug_id": str(result.user_seq or result.report_id),
+        "internal_id": str(result.report_id),
+        "user_seq": result.user_seq or result.report_id,
         "category": result.category,
         "trello_url": result.trello_card_url,
         "message": result.message,
@@ -159,7 +159,7 @@ def public_status_payload(token: str) -> dict[str, Any] | None:
     _prepare_bug_report_db()
     from bug_report.client_status import client_status_label
     from bug_report.status_sync import sync_one_report
-    from bug_report.storage import get_bug_report_by_token
+    from bug_report.storage import display_ticket_no, get_bug_report, get_bug_report_by_token
 
     row = get_bug_report_by_token(token)
     if not row:
@@ -175,15 +175,24 @@ def public_status_payload(token: str) -> dict[str, Any] | None:
     user_text = (row.get("user_text") or "").strip()
     preview = summary or (user_text[:400] + ("…" if len(user_text) > 400 else ""))
     status = str(row.get("client_status") or "accepted")
+    ticket_no = display_ticket_no(row)
+    related_no = None
+    related_id = row.get("related_report_id")
+    if related_id:
+        related_row = get_bug_report(int(related_id))
+        related_no = display_ticket_no(related_row) if related_row else int(related_id)
     return {
         "ok": True,
-        "bug_id": row.get("id"),
+        "bug_id": ticket_no,
+        "internal_id": row.get("id"),
+        "user_seq": ticket_no,
+        "username": row.get("username") or "",
         "status": status,
         "status_label": client_status_label(status),
         "title": title,
         "preview": preview,
         "created_at": row.get("created_at"),
-        "related_report_id": row.get("related_report_id"),
+        "related_report_id": related_no,
         "report_tab": row.get("report_tab") or "",
     }
 
@@ -192,17 +201,20 @@ def list_mine_payload(username: str) -> dict[str, Any]:
     _prepare_bug_report_db()
     from bug_report.client_status import client_status_label
     from bug_report.notify import status_page_url
-    from bug_report.storage import list_bug_reports_for_user
+    from bug_report.storage import display_ticket_no, list_bug_reports_for_user
 
     items = []
     for row in list_bug_reports_for_user(username):
         status = str(row.get("client_status") or "accepted")
         token = str(row.get("public_token") or "")
+        ticket_no = display_ticket_no(row)
         items.append(
             {
-                "bug_id": row.get("id"),
+                "bug_id": ticket_no,
+                "user_seq": ticket_no,
+                "internal_id": row.get("id"),
                 "created_at": row.get("created_at"),
-                "title": (row.get("ai_title") or "").strip() or f"Заявка №{row.get('id')}",
+                "title": (row.get("ai_title") or "").strip() or f"Заявка №{ticket_no}",
                 "status": status,
                 "status_label": client_status_label(status),
                 "report_tab": row.get("report_tab") or "",
@@ -210,7 +222,7 @@ def list_mine_payload(username: str) -> dict[str, Any]:
                 "public_token": token,
             }
         )
-    return {"ok": True, "items": items}
+    return {"ok": True, "items": items, "username": username}
 
 
 def run_status_sync() -> dict[str, Any]:

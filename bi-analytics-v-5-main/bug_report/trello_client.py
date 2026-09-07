@@ -128,6 +128,7 @@ def _format_description(
         f"- Email: {context.get('contact_email', '—')}",
         f"- Telegram: {context.get('contact_telegram', '—') or '—'}",
         f"- report_id локальный: #{context.get('report_id', '—')}",
+        f"- № для пользователя: {context.get('user_seq', '—')}",
         f"- Связана с заявкой: #{context.get('related_report_id') or '—'}",
     ]
     return "\n".join(lines)
