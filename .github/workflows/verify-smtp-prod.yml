@@ -1,0 +1,56 @@
+# One-off prod SMTP check (safe: no password printed)
+name: Verify SMTP prod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check SMTP env + probe from API container
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.PROD_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
+            cd "$APP_DIR/webapp"
+            echo "=== compose project ==="
+            docker compose ps api || docker-compose ps api
+            CID=$(docker compose ps -q api 2>/dev/null || docker-compose ps -q api)
+            echo "api_cid=${CID}"
+            echo "=== SMTP env present (lengths only) ==="
+            docker exec "$CID" python -c "import os
+keys=['BUG_REPORT_SMTP_HOST','BUG_REPORT_SMTP_PORT','BUG_REPORT_SMTP_USER','BUG_REPORT_SMTP_PASSWORD','BUG_REPORT_SMTP_FROM','BUG_REPORT_SMTP_SSL']
+for k in keys:
+ v=os.environ.get(k,'')
+ show=v if k!='BUG_REPORT_SMTP_PASSWORD' else '***'
+ print(f'{k}: set={bool(v)} len={len(v)} value={show}')
+"
+            echo "=== SMTP send from inside container ==="
+            docker exec "$CID" python -c "import os,smtplib,ssl
+from email.message import EmailMessage
+host=os.environ.get('BUG_REPORT_SMTP_HOST','').strip()
+port=int(os.environ.get('BUG_REPORT_SMTP_PORT') or 587)
+user=os.environ.get('BUG_REPORT_SMTP_USER','').strip()
+password=os.environ.get('BUG_REPORT_SMTP_PASSWORD','').strip()
+from_addr=os.environ.get('BUG_REPORT_SMTP_FROM','').strip() or user
+use_ssl=os.environ.get('BUG_REPORT_SMTP_SSL','0').strip() in ('1','true','TRUE','yes')
+assert host and user and password, 'SMTP_ENV_MISSING'
+msg=EmailMessage(); msg['Subject']='Prod container SMTP probe (ignore)'; msg['From']=from_addr; msg['To']=user
+msg.set_content('Sent from ai.conall.ru API container — SMTP wiring OK.')
+if use_ssl:
+  s=smtplib.SMTP_SSL(host,port,timeout=25); s.login(user,password); s.send_message(msg); s.quit()
+else:
+  s=smtplib.SMTP(host,port,timeout=25); s.ehlo(); s.starttls(context=ssl.create_default_context()); s.ehlo(); s.login(user,password); s.send_message(msg); s.quit()
+print('SMTP_CONTAINER_OK')
+"
+            echo "=== recent notify log lines ==="
+            docker logs --tail 200 "$CID" 2>&1 | grep -iE "bug_report notify|SMTP|notify email" | tail -40 || true
