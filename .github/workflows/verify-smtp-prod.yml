@@ -22,35 +22,69 @@ jobs:
             APP_DIR="${{ secrets.PROD_VPS_PATH }}"
             APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
             cd "$APP_DIR/webapp"
-            echo "=== compose project ==="
             docker compose ps api || docker-compose ps api
             CID=$(docker compose ps -q api 2>/dev/null || docker-compose ps -q api)
             echo "api_cid=${CID}"
+            test -n "$CID"
             echo "=== SMTP env present (lengths only) ==="
-            docker exec "$CID" python -c "import os
-keys=['BUG_REPORT_SMTP_HOST','BUG_REPORT_SMTP_PORT','BUG_REPORT_SMTP_USER','BUG_REPORT_SMTP_PASSWORD','BUG_REPORT_SMTP_FROM','BUG_REPORT_SMTP_SSL']
-for k in keys:
- v=os.environ.get(k,'')
- show=v if k!='BUG_REPORT_SMTP_PASSWORD' else '***'
- print(f'{k}: set={bool(v)} len={len(v)} value={show}')
-"
+            docker exec -i "$CID" python - <<'PY'
+            import os
+            keys = [
+                "BUG_REPORT_SMTP_HOST",
+                "BUG_REPORT_SMTP_PORT",
+                "BUG_REPORT_SMTP_USER",
+                "BUG_REPORT_SMTP_PASSWORD",
+                "BUG_REPORT_SMTP_FROM",
+                "BUG_REPORT_SMTP_SSL",
+            ]
+            for k in keys:
+                v = os.environ.get(k, "")
+                show = "***" if k.endswith("PASSWORD") else v
+                print(f"{k}: set={bool(v)} len={len(v)} value={show}")
+            PY
             echo "=== SMTP send from inside container ==="
-            docker exec "$CID" python -c "import os,smtplib,ssl
-from email.message import EmailMessage
-host=os.environ.get('BUG_REPORT_SMTP_HOST','').strip()
-port=int(os.environ.get('BUG_REPORT_SMTP_PORT') or 587)
-user=os.environ.get('BUG_REPORT_SMTP_USER','').strip()
-password=os.environ.get('BUG_REPORT_SMTP_PASSWORD','').strip()
-from_addr=os.environ.get('BUG_REPORT_SMTP_FROM','').strip() or user
-use_ssl=os.environ.get('BUG_REPORT_SMTP_SSL','0').strip() in ('1','true','TRUE','yes')
-assert host and user and password, 'SMTP_ENV_MISSING'
-msg=EmailMessage(); msg['Subject']='Prod container SMTP probe (ignore)'; msg['From']=from_addr; msg['To']=user
-msg.set_content('Sent from ai.conall.ru API container — SMTP wiring OK.')
-if use_ssl:
-  s=smtplib.SMTP_SSL(host,port,timeout=25); s.login(user,password); s.send_message(msg); s.quit()
-else:
-  s=smtplib.SMTP(host,port,timeout=25); s.ehlo(); s.starttls(context=ssl.create_default_context()); s.ehlo(); s.login(user,password); s.send_message(msg); s.quit()
-print('SMTP_CONTAINER_OK')
-"
+            docker exec -i "$CID" python - <<'PY'
+            import os, smtplib, ssl
+            from email.message import EmailMessage
+            host = os.environ.get("BUG_REPORT_SMTP_HOST", "").strip()
+            port = int(os.environ.get("BUG_REPORT_SMTP_PORT") or 587)
+            user = os.environ.get("BUG_REPORT_SMTP_USER", "").strip()
+            password = os.environ.get("BUG_REPORT_SMTP_PASSWORD", "").strip()
+            from_addr = os.environ.get("BUG_REPORT_SMTP_FROM", "").strip() or user
+            use_ssl = os.environ.get("BUG_REPORT_SMTP_SSL", "0").strip() in ("1", "true", "TRUE", "yes")
+            if not host or not user or not password:
+                print("SMTP_ENV_MISSING")
+                raise SystemExit(2)
+            msg = EmailMessage()
+            msg["Subject"] = "Prod container SMTP probe (ignore)"
+            msg["From"] = from_addr
+            msg["To"] = user
+            msg.set_content("Sent from ai.conall.ru API container - SMTP wiring OK.")
+            if use_ssl:
+                with smtplib.SMTP_SSL(host, port, timeout=25) as s:
+                    s.login(user, password)
+                    s.send_message(msg)
+            else:
+                with smtplib.SMTP(host, port, timeout=25) as s:
+                    s.ehlo()
+                    s.starttls(context=ssl.create_default_context())
+                    s.ehlo()
+                    s.login(user, password)
+                    s.send_message(msg)
+            print("SMTP_CONTAINER_OK")
+            PY
             echo "=== recent notify log lines ==="
-            docker logs --tail 200 "$CID" 2>&1 | grep -iE "bug_report notify|SMTP|notify email" | tail -40 || true
+            docker logs --tail 300 "$CID" 2>&1 | grep -iE "bug_report notify|SMTP|notify email|smtp" | tail -50 || true
+            echo "=== probe ticket notified_accepted_at ==="
+            docker exec -i "$CID" python - <<'PY'
+            import os, sqlite3
+            db = os.environ.get("BI_USERS_DB", "/data/db/users.db")
+            con = sqlite3.connect(db)
+            con.row_factory = sqlite3.Row
+            row = con.execute(
+                "SELECT id, user_seq, contact_email, client_status, notified_accepted_at, notified_ready_at "
+                "FROM bug_reports ORDER BY id DESC LIMIT 3"
+            ).fetchall()
+            for r in row:
+                print(dict(r))
+            PY
