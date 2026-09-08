@@ -50,8 +50,9 @@ jobs:
             host = os.environ.get("BUG_REPORT_SMTP_HOST", "").strip()
             port = int(os.environ.get("BUG_REPORT_SMTP_PORT") or 587)
             user = os.environ.get("BUG_REPORT_SMTP_USER", "").strip()
-            password = os.environ.get("BUG_REPORT_SMTP_PASSWORD", "").strip()
-            from_addr = os.environ.get("BUG_REPORT_SMTP_FROM", "").strip() or user
+            password = os.environ.get("BUG_REPORT_SMTP_PASSWORD", "").replace("\ufeff", "").strip()
+            print(f"password_clean_len={len(password)}")
+            from_addr = os.environ.get("BUG_REPORT_SMTP_FROM", "").replace("\ufeff", "").strip() or user
             use_ssl = os.environ.get("BUG_REPORT_SMTP_SSL", "0").strip() in ("1", "true", "TRUE", "yes")
             if not host or not user or not password:
                 print("SMTP_ENV_MISSING")

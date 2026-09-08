@@ -58,6 +58,11 @@ class BugReportSettings:
         return bool(self.smtp_host.strip())
 
 
+def _clean_secret(value: str) -> str:
+    """Trim whitespace and UTF-8 BOM (paste into secrets often adds \\ufeff)."""
+    return (value or "").replace("\ufeff", "").strip()
+
+
 def _float_env(name: str, default: float) -> float:
     raw = _read_env_or_secret(name).strip()
     if not raw:
@@ -106,15 +111,15 @@ def get_bug_report_settings() -> BugReportSettings:
             or _read_env_or_secret("PUBLIC_BASE_URL").strip()
             or "https://ai.conall.ru"
         ),
-        smtp_host=_read_env_or_secret("BUG_REPORT_SMTP_HOST").strip()
-        or _read_env_or_secret("SMTP_HOST").strip(),
+        smtp_host=_clean_secret(_read_env_or_secret("BUG_REPORT_SMTP_HOST"))
+        or _clean_secret(_read_env_or_secret("SMTP_HOST")),
         smtp_port=_int_env("BUG_REPORT_SMTP_PORT", 0) or _int_env("SMTP_PORT", 587),
-        smtp_user=_read_env_or_secret("BUG_REPORT_SMTP_USER").strip()
-        or _read_env_or_secret("SMTP_USER").strip(),
-        smtp_password=_read_env_or_secret("BUG_REPORT_SMTP_PASSWORD").strip()
-        or _read_env_or_secret("SMTP_PASSWORD").strip(),
-        smtp_from=_read_env_or_secret("BUG_REPORT_SMTP_FROM").strip()
-        or _read_env_or_secret("SMTP_FROM").strip(),
+        smtp_user=_clean_secret(_read_env_or_secret("BUG_REPORT_SMTP_USER"))
+        or _clean_secret(_read_env_or_secret("SMTP_USER")),
+        smtp_password=_clean_secret(_read_env_or_secret("BUG_REPORT_SMTP_PASSWORD"))
+        or _clean_secret(_read_env_or_secret("SMTP_PASSWORD")),
+        smtp_from=_clean_secret(_read_env_or_secret("BUG_REPORT_SMTP_FROM"))
+        or _clean_secret(_read_env_or_secret("SMTP_FROM")),
         smtp_starttls=not _env_truthy("BUG_REPORT_SMTP_NO_STARTTLS"),
         smtp_use_ssl=_env_truthy("BUG_REPORT_SMTP_SSL"),
         telegram_bot_token=_read_env_or_secret("BUG_REPORT_TELEGRAM_BOT_TOKEN").strip()

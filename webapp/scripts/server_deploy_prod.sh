@@ -31,6 +31,10 @@ mkdir -p data/web data/db data/report_cache data/jobs data/assistant_output
 
 _upsert_env() {
   local key="$1" val="$2"
+  # Strip UTF-8 BOM / CR from pasted GitHub secrets (breaks SMTP AUTH).
+  val="${val#$'\xEF\xBB\xBF'}"
+  val="${val//$'\r'/}"
+  val="$(printf '%s' "$val" | sed $'s/^\xEF\xBB\xBF//')"
   [[ -n "$val" ]] || return 0
   local tmp
   tmp="$(mktemp)"
