@@ -22,8 +22,9 @@ jobs:
             APP_DIR="${{ secrets.PROD_VPS_PATH }}"
             APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
             cd "$APP_DIR/webapp"
-            docker compose ps api || docker-compose ps api
-            CID=$(docker compose ps -q api 2>/dev/null || docker-compose ps -q api)
+            COMPOSE=(docker compose -p webapp-prod -f docker-compose.yml -f docker-compose.prod.yml)
+            "${COMPOSE[@]}" ps api
+            CID=$("${COMPOSE[@]}" ps -q api)
             echo "api_cid=${CID}"
             test -n "$CID"
             echo "=== SMTP env present (lengths only) ==="
@@ -74,17 +75,17 @@ jobs:
             print("SMTP_CONTAINER_OK")
             PY
             echo "=== recent notify log lines ==="
-            docker logs --tail 300 "$CID" 2>&1 | grep -iE "bug_report notify|SMTP|notify email|smtp" | tail -50 || true
-            echo "=== probe ticket notified_accepted_at ==="
+            docker logs --tail 400 "$CID" 2>&1 | grep -iE "bug_report notify|SMTP not configured|notify email" | tail -50 || true
+            echo "=== latest tickets notified_accepted_at ==="
             docker exec -i "$CID" python - <<'PY'
             import os, sqlite3
             db = os.environ.get("BI_USERS_DB", "/data/db/users.db")
             con = sqlite3.connect(db)
             con.row_factory = sqlite3.Row
-            row = con.execute(
+            rows = con.execute(
                 "SELECT id, user_seq, contact_email, client_status, notified_accepted_at, notified_ready_at "
-                "FROM bug_reports ORDER BY id DESC LIMIT 3"
+                "FROM bug_reports ORDER BY id DESC LIMIT 5"
             ).fetchall()
-            for r in row:
+            for r in rows:
                 print(dict(r))
             PY
