@@ -863,11 +863,13 @@ html.dark .js-plotly-plot .gridlayer path {
   }
 }
 
-/* Подписи полей — одна высота (2 строки), чтобы select стояли на одной линии */
+/* Подписи полей — одна высота (min-height у label), селекты на одной линии.
+   height:100% + margin-top:auto нельзя: колонка с календарём «За день»
+   задаёт высоту ряда, соседние поля растягиваются и уезжают вниз. */
 .bi-filters-field {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;
   min-width: 0;
 }
 
@@ -882,7 +884,7 @@ html.dark .js-plotly-plot .gridlayer path {
 }
 
 .bi-filters-field-control {
-  margin-top: auto;
+  margin-top: 0;
   padding-top: 0.25rem;
   flex: 0 0 auto;
 }
