@@ -433,12 +433,15 @@ export function GdrsDynamicsLineChart({
   fullscreen = false,
   compact = false,
   tableSync = false,
+  highlights = [],
 }: {
   rows: Array<{ period: string; plan: number; fact: number }>;
   fullscreen?: boolean;
   /** Mobile: компактный холст, подписи на точках, горизонтальный скролл при «День». */
   compact?: boolean;
   tableSync?: boolean;
+  /** Выбранные дни План/СКУД: вертикальная метка на графике-контексте. */
+  highlights?: Array<{ period: string; label: string; color: string }>;
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
@@ -452,6 +455,13 @@ export function GdrsDynamicsLineChart({
     const plan = rows.map((row) => row.plan);
     const fact = rows.map((row) => row.fact);
     const maximum = Math.max(1, ...plan, ...fact);
+    // Выбранный день видно только при группировке «День»: иначе категории — недели/месяцы.
+    const marks = highlights
+      .map((h) => ({
+        ...h,
+        at: compact ? shortPeriodLabel(h.period) : h.period,
+      }))
+      .filter((h) => h.at && x.includes(h.at));
     const chartWidth =
       compact && dense
         ? Math.max(560, rows.length * 36)
@@ -523,6 +533,27 @@ export function GdrsDynamicsLineChart({
           fontSize: compact ? 11 : 12,
           y: -0.22,
         }),
+        shapes: marks.map((m) => ({
+          type: "line" as const,
+          xref: "x" as const,
+          yref: "paper" as const,
+          x0: m.at,
+          x1: m.at,
+          y0: 0,
+          y1: 1,
+          line: { color: m.color, width: 2, dash: "dot" as const },
+        })),
+        annotations: marks.map((m, i) => ({
+          x: m.at,
+          xref: "x" as const,
+          y: 1,
+          yref: "paper" as const,
+          yanchor: "bottom" as const,
+          yshift: i * (compact ? 12 : 14),
+          text: m.label,
+          showarrow: false,
+          font: { size: compact ? 9 : 10, color: m.color },
+        })),
         xaxis: {
           title: compact ? undefined : "Период",
           tickangle: -45,
@@ -551,7 +582,7 @@ export function GdrsDynamicsLineChart({
         ...(compact ? { displayModeBar: false } : {}),
       },
     };
-  }, [compact, fullscreen, rows, theme]);
+  }, [compact, fullscreen, highlights, rows, theme]);
 
   const scrollEnabled = !!(compact && rows.length > 12);
   const pinRev = useMemo(

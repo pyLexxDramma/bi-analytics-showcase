@@ -54,6 +54,46 @@ def _split_csv(raw: str | None) -> list[str]:
     return [p.strip() for p in str(raw).split(",") if p.strip()]
 
 
+def parse_day(raw: str | None) -> pd.Timestamp | None:
+    """День из фильтра: ISO (2026-09-15) или ДД.ММ.ГГГГ; мусор → None."""
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
+        ts = pd.to_datetime(s, format=fmt, errors="coerce")
+        if ts is not None and pd.notna(ts):
+            return pd.Timestamp(ts).normalize()
+    return None
+
+
+def clamp_day_to_period(
+    day: pd.Timestamp,
+    date_from: pd.Timestamp,
+    date_to: pd.Timestamp,
+) -> tuple[pd.Timestamp, bool]:
+    """День внутрь выбранного периода; второй элемент — был ли сдвиг."""
+    lo = pd.Timestamp(date_from).normalize() if pd.notna(date_from) else None
+    hi = pd.Timestamp(date_to).normalize() if pd.notna(date_to) else None
+    out = pd.Timestamp(day).normalize()
+    if lo is not None and out < lo:
+        return lo, True
+    if hi is not None and out > hi:
+        return hi, True
+    return out, False
+
+
+def _last_fact_day(fact: pd.DataFrame | None) -> pd.Timestamp | None:
+    if fact is None or fact.empty or "date" not in fact.columns:
+        return None
+    dates = pd.to_datetime(fact["date"], errors="coerce").dropna()
+    if dates.empty:
+        return None
+    nz = fact.loc[pd.to_numeric(fact["fact"], errors="coerce").fillna(0.0) > 0, "date"]
+    nz = pd.to_datetime(nz, errors="coerce").dropna() if len(nz) else nz
+    src = nz if len(nz) else dates
+    return pd.Timestamp(src.max()).normalize()
+
+
 def _db_mtime() -> float:
     try:
         return float(WEB_DB_PATH.resolve().stat().st_mtime)
@@ -83,7 +123,7 @@ def _cached_dannye(version_id: int, db_mtime: float):
         return {}, {}, {}, {}, {}
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=64)
 def _cached_plan(
     version_id: int,
     db_mtime: float,
@@ -127,20 +167,29 @@ def _empty_payload(
             "error": error,
             "show_week_columns": False,
             "week_labels": [],
+            "plan_day": "",
+            "skud_day": "",
+            "agg_note": "",
         },
         "filters": {
             "projects": [],
             "contractors": [],
             "months": [],
             "default_months": [],
-            "agg_options": g.gdrs_agg_select_options(),
+            "agg_options": g.gdrs_agg_select_options() + [g.GDRS_AGG_DAY_LABEL],
             "dyn_agg_options": list(_DYN_OPTS),
+            "day_label": g.GDRS_AGG_DAY_LABEL,
+            "day_min": "",
+            "day_max": "",
+            "day_default": "",
             "selected": {
                 "projects": [],
                 "contractors": [],
                 "months": [],
                 "plan_agg": "Среднее за месяц",
                 "skud_agg": "Среднее за месяц",
+                "plan_day": "",
+                "skud_day": "",
                 "dyn_agg": "День",
                 "only_with_plan": False,
             },
@@ -264,6 +313,8 @@ def build_gdrs_payload(
     months: str | None = None,
     plan_agg: str | None = None,
     skud_agg: str | None = None,
+    plan_day: str | None = None,
+    skud_day: str | None = None,
     dyn_agg: str | None = None,
     only_with_plan: bool | None = None,
 ) -> dict[str, Any]:
@@ -349,14 +400,51 @@ def build_gdrs_payload(
         contractors=sel_contractors or None,
     )
     agg_opts = g.gdrs_agg_select_options_for_weeks(weeks_with_fact)
+    day_label = g.GDRS_AGG_DAY_LABEL
+    # «За день» — режим, а не значение: доступен всегда (план есть и без факта СКУД).
+    agg_opts = list(agg_opts) + [day_label]
     plan_lbl = (plan_agg or "").strip() or "Среднее за месяц"
     skud_lbl = (skud_agg or "").strip() or "Среднее за месяц"
     if plan_lbl not in agg_opts:
         plan_lbl = agg_opts[0] if agg_opts else "Среднее за месяц"
     if skud_lbl not in agg_opts:
         skud_lbl = agg_opts[0] if agg_opts else "Среднее за месяц"
-    _plan_agg = g.gdrs_agg_label_to_key(plan_lbl)
-    _skud_agg = g.gdrs_agg_label_to_key(skud_lbl)
+
+    day_default = _last_fact_day(_wk_fact) or (
+        date_to if pd.notna(date_to) else pd.Timestamp.today().normalize()
+    )
+    day_default, _ = clamp_day_to_period(day_default, date_from, date_to)
+    day_notes: list[str] = []
+
+    def _day_for(label: str, raw: str | None, what: str) -> pd.Timestamp | None:
+        if label != day_label:
+            return None
+        day = parse_day(raw) or day_default
+        day, moved = clamp_day_to_period(day, date_from, date_to)
+        if moved:
+            day_notes.append(
+                f"День {what} вне выбранного периода — показан {day.strftime('%d.%m.%Y')}"
+            )
+        return day
+
+    plan_day_ts = _day_for(plan_lbl, plan_day, "плана")
+    skud_day_ts = _day_for(skud_lbl, skud_day, "СКУД")
+
+    _plan_agg = (
+        g.gdrs_agg_day_key(plan_day_ts)
+        if plan_day_ts is not None
+        else g.gdrs_agg_label_to_key(plan_lbl)
+    )
+    _skud_agg = (
+        g.gdrs_agg_day_key(skud_day_ts)
+        if skud_day_ts is not None
+        else g.gdrs_agg_label_to_key(skud_lbl)
+    )
+
+    # График динамики остаётся контекстом месяца: дневной режим на него не влияет
+    # (выбранный день подсвечивается на фронте), недельный — как раньше.
+    _dyn_plan_agg = g.GDRS_AGG_MONTH if plan_day_ts is not None else _plan_agg
+    _dyn_skud_agg = g.GDRS_AGG_MONTH if skud_day_ts is not None else _skud_agg
 
     dyn_lbl = (dyn_agg or "").strip() or "День"
     if dyn_lbl not in _DYN_OPTS:
@@ -476,6 +564,9 @@ def build_gdrs_payload(
             else date_from.strftime("%d.%m.%Y")
         )
 
+    def _iso(day: pd.Timestamp | None) -> str:
+        return day.date().isoformat() if day is not None else ""
+
     base_filters = {
         "projects": project_options,
         "contractors": contractor_options,
@@ -483,6 +574,10 @@ def build_gdrs_payload(
         "default_months": default_months,
         "agg_options": agg_opts,
         "dyn_agg_options": list(_DYN_OPTS),
+        "day_label": day_label,
+        "day_min": _iso(date_from.normalize() if pd.notna(date_from) else None),
+        "day_max": _iso(date_to.normalize() if pd.notna(date_to) else None),
+        "day_default": _iso(day_default),
         "selected": {
             "projects": sel_projects,
             "contractors": sel_contractors,
@@ -490,10 +585,21 @@ def build_gdrs_payload(
             "months": [] if months_all else sel_month_labels,
             "plan_agg": plan_lbl,
             "skud_agg": skud_lbl,
+            "plan_day": _iso(plan_day_ts),
+            "skud_day": _iso(skud_day_ts),
             "dyn_agg": dyn_lbl,
             "only_with_plan": only_plan,
         },
     }
+
+    agg_note_parts: list[str] = []
+    if plan_day_ts is not None:
+        agg_note_parts.append(f"План: {plan_day_ts.strftime('%d.%m.%Y')}")
+    if skud_day_ts is not None:
+        agg_note_parts.append(f"СКУД: {skud_day_ts.strftime('%d.%m.%Y')}")
+    agg_note = " · ".join(agg_note_parts)
+    if day_notes:
+        warning = "; ".join(day_notes) if not warning else f"{warning}; " + "; ".join(day_notes)
 
     if main_t is None or main_t.empty:
         empty = _empty_payload(
@@ -506,6 +612,9 @@ def build_gdrs_payload(
                 "version_id": int(version_id),
                 "unit": unit,
                 "unit_gen": unit_gen,
+                "plan_day": _iso(plan_day_ts),
+                "skud_day": _iso(skud_day_ts),
+                "agg_note": agg_note,
             }
         )
         empty["filters"] = base_filters
@@ -522,6 +631,11 @@ def build_gdrs_payload(
         }
     else:
         kpis = {"plan": 0, "fact": 0, "deviation": 0, "delta_pct": None}
+
+    if skud_day_ts is not None and not kpis["fact"]:
+        _day_txt = skud_day_ts.strftime("%d.%m.%Y")
+        _no_fact = f"За {_day_txt} нет факта СКУД в исходнике"
+        warning = _no_fact if not warning else f"{warning}; {_no_fact}"
 
     proj_df = main_t[main_t["row_kind"] == "subtotal"][
         ["project_name", "plan", "skud", "deviation", "delta_pct"]
@@ -688,8 +802,8 @@ def build_gdrs_payload(
                 plan_aggregate_loader=_plan_loader,
                 month_periods=sel_periods,
                 term_index=term_index,
-                plan_agg=_plan_agg,
-                skud_agg=_skud_agg,
+                plan_agg=_dyn_plan_agg,
+                skud_agg=_dyn_skud_agg,
             )
         except Exception:
             dyn = pd.DataFrame()
@@ -730,6 +844,9 @@ def build_gdrs_payload(
             "error": None,
             "show_week_columns": bool(show_week_cols),
             "week_labels": week_labels,
+            "plan_day": _iso(plan_day_ts),
+            "skud_day": _iso(skud_day_ts),
+            "agg_note": agg_note,
             "dyn_title": f"Динамика {'людей' if resource_kind == 'people' else 'техники'}",
             "pie_title": f"Распределение {unit_gen} по контрагентам",
             "matrix_title": f"ГДРС ({unit})",

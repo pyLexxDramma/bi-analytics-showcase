@@ -21,8 +21,10 @@ def gdrs_people_report(
     projects: Optional[str] = Query(None, description="Проекты через запятую"),
     contractors: Optional[str] = Query(None, description="Контрагенты через запятую"),
     months: Optional[str] = Query(None, description="Месяцы через запятую, напр. Июль 2026"),
-    plan_agg: Optional[str] = Query("Среднее за месяц", description="План: Среднее за месяц | N неделя"),
-    skud_agg: Optional[str] = Query("Среднее за месяц", description="СКУД: Среднее за месяц | N неделя"),
+    plan_agg: Optional[str] = Query("Среднее за месяц", description="План: Среднее за месяц | N неделя | За день"),
+    skud_agg: Optional[str] = Query("Среднее за месяц", description="СКУД: Среднее за месяц | N неделя | За день"),
+    plan_day: Optional[str] = Query(None, description="День плана (YYYY-MM-DD) при plan_agg=За день"),
+    skud_day: Optional[str] = Query(None, description="День СКУД (YYYY-MM-DD) при skud_agg=За день"),
     dyn_agg: Optional[str] = Query("День", description="Группировка динамики: День|Неделя|Месяц"),
     only_with_plan: bool = Query(False, description="Только с планом"),
 ):
@@ -41,6 +43,8 @@ def gdrs_people_report(
         months=months,
         plan_agg=plan_agg,
         skud_agg=skud_agg,
+        plan_day=plan_day,
+        skud_day=skud_day,
         dyn_agg=dyn_agg,
         only_with_plan=only_with_plan,
     )
