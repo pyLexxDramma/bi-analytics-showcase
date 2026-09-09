@@ -118,14 +118,6 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
     contact_email = str(payload.get("contact_email") or payload.get("email") or "").strip()
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}", contact_email or ""):
         raise ValueError("Укажите корректный email вида name@company.ru для уведомлений.")
-    contact_telegram = str(payload.get("contact_telegram") or payload.get("telegram") or "").strip()
-    if contact_telegram:
-        tg = contact_telegram.lstrip("@").strip()
-        if not re.fullmatch(r"-?\d{5,20}", tg):
-            raise ValueError(
-                "Telegram: укажите только числовой chat_id (не @username), либо оставьте пустым."
-            )
-        contact_telegram = tg
     username_raw = str(payload.get("username") or reporter or "anonymous").strip()
     username = username_raw.split("(")[0].strip() if username_raw else "anonymous"
     browser = str(payload.get("browser") or "")
@@ -144,7 +136,7 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
         app_build=str(payload.get("contour") or "webapp"),
         attachments=_all_attachments(payload),
         contact_email=contact_email,
-        contact_telegram=contact_telegram,
+        contact_telegram="",
         related_report_id=_parse_related_id(payload, username),
     )
     if not result.ok:

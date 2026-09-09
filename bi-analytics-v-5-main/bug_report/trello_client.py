@@ -159,7 +159,6 @@ def _format_description(
         f"- version_id: {context.get('version_id', '—')}",
         f"- Сборка: {context.get('app_build', '—')}",
         f"- Email: {context.get('contact_email', '—')}",
-        f"- Telegram: {context.get('contact_telegram', '—') or '—'}",
         f"- report_id локальный: #{context.get('report_id', '—')}",
         f"- № для пользователя: {context.get('user_seq', '—')}",
         f"- Связана с заявкой: #{context.get('related_report_id') or '—'}",

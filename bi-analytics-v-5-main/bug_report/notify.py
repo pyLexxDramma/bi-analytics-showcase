@@ -1,4 +1,4 @@
-"""Уведомления клиенту: email (обязательный канал) + опционально Telegram."""
+"""Уведомления клиенту по email."""
 
 from __future__ import annotations
 
@@ -6,8 +6,6 @@ import logging
 import smtplib
 from email.message import EmailMessage
 from typing import Any
-
-import requests
 
 from bug_report.client_status import client_status_label
 from bug_report.settings import BugReportSettings, get_bug_report_settings
@@ -57,33 +55,6 @@ def _send_smtp(settings: BugReportSettings, *, to_email: str, subject: str, body
         return False
 
 
-def _send_telegram(settings: BugReportSettings, *, chat_ref: str, text: str) -> bool:
-    token = (settings.telegram_bot_token or "").strip()
-    chat_ref = (chat_ref or "").strip()
-    if not token or not chat_ref:
-        return False
-    # Только числовой chat_id (бот не шлёт по @username без /start).
-    chat_id = chat_ref.lstrip("@") if chat_ref.lstrip("@").isdigit() else ""
-    if not chat_id and chat_ref.lstrip("-").isdigit():
-        chat_id = chat_ref
-    if not chat_id:
-        logger.info("bug_report notify: telegram skipped (need numeric chat_id), got %r", chat_ref)
-        return False
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
-            timeout=15,
-        )
-        if resp.status_code >= 400:
-            logger.warning("bug_report telegram HTTP %s: %s", resp.status_code, resp.text[:200])
-            return False
-        return True
-    except Exception as exc:
-        logger.warning("bug_report telegram failed: %s", exc)
-        return False
-
-
 def _append_team_comment(body: str, comment: str | None) -> str:
     text = (comment or "").strip()
     if not text:
@@ -98,21 +69,19 @@ def notify_client(
     comment: str | None = None,
     settings: BugReportSettings | None = None,
 ) -> bool:
-    """kind: accepted | in_progress | ready | on_hold. True если хотя бы один канал отработал."""
+    """kind: accepted | in_progress | ready | on_hold. True если письмо ушло."""
     settings = settings or get_bug_report_settings()
     report_id = row.get("id")
     ticket_no = row.get("user_seq") or report_id
     token = str(row.get("public_token") or "")
     link = status_page_url(token, settings)
     email = str(row.get("contact_email") or "").strip()
-    tg = str(row.get("contact_telegram") or "").strip()
 
     if kind == "accepted":
         subject = f"Заявка №{ticket_no} принята"
         body = (
             f"Заявка №{ticket_no} принята.\n"
-            f"Напишем, когда будет готово к проверке"
-            f"{' или если понадобятся уточнения' if True else ''}.\n"
+            "Напишем, когда будет готово к проверке или если понадобятся уточнения.\n"
         )
         if link:
             body += f"\nСтатус заявки: {link}\n"
@@ -149,23 +118,22 @@ def notify_client(
     else:
         return False
 
-    ok_mail = _send_smtp(settings, to_email=email, subject=subject, body=body) if email else False
-    ok_tg = _send_telegram(settings, chat_ref=tg, text=f"{subject}\n\n{body}") if tg else False
-    if email and not ok_mail:
-        logger.warning(
-            "bug_report notify: email FAILED kind=%s report=%s to_domain=%s",
-            kind,
-            report_id,
-            email.split("@")[-1] if "@" in email else "?",
-        )
-    elif ok_mail:
+    if not email:
+        logger.warning("bug_report notify: no email kind=%s report=%s", kind, report_id)
+        return False
+    ok = _send_smtp(settings, to_email=email, subject=subject, body=body)
+    if ok:
         logger.info(
             "bug_report notify: email OK kind=%s report=%s to_domain=%s",
             kind,
             report_id,
             email.split("@")[-1] if "@" in email else "?",
         )
-    # Письмо — основной канал; TG только дополняет. Не считаем успехом один TG без почты.
-    if email:
-        return bool(ok_mail)
-    return bool(ok_tg)
+    else:
+        logger.warning(
+            "bug_report notify: email FAILED kind=%s report=%s to_domain=%s",
+            kind,
+            report_id,
+            email.split("@")[-1] if "@" in email else "?",
+        )
+    return ok
