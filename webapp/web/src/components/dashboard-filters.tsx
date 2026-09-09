@@ -1311,9 +1311,10 @@ export function FilterField({
 }
 
 /**
- * Дата в фильтрах: календарь открываем сами. `appearance: none` в
- * `.bi-filters-select` (нужен для единой высоты полей) глушит нативный picker в
- * WebKit — клик по иконке там ничего не делает, оставался только ручной ввод.
+ * Дата в фильтрах. Клик по цифрам даты в WebKit попадает во внутренние сегменты
+ * (день/месяц/год) и не открывает календарь — только фокус на редактирование.
+ * Поэтому на pointerdown вызываем showPicker и гасим default, чтобы открывалось
+ * по всей площади поля (иконка + значение + граница).
  */
 export function FilterDateInput({
   className = "",
@@ -1332,13 +1333,25 @@ export function FilterDateInput({
       {...input}
       type="date"
       className={`${FILTER_DATE_CLASS}${className ? ` ${className}` : ""}`}
+      onPointerDown={(event) => {
+        // Не блокируем правую кнопку / модификаторы — там системное меню.
+        if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          event.preventDefault();
+          openPicker(event.currentTarget);
+        }
+        input.onPointerDown?.(event);
+      }}
       onClick={(event) => {
         openPicker(event.currentTarget);
         input.onClick?.(event);
       }}
-      onFocus={(event) => {
-        openPicker(event.currentTarget);
-        input.onFocus?.(event);
+      onKeyDown={(event) => {
+        // Space / Enter — открыть календарь с клавиатуры.
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          openPicker(event.currentTarget);
+        }
+        input.onKeyDown?.(event);
       }}
     />
   );
