@@ -90,7 +90,7 @@ def notify_client(
     kind: str,
     settings: BugReportSettings | None = None,
 ) -> bool:
-    """kind: accepted | ready | on_hold. Возвращает True если хотя бы один канал отработал."""
+    """kind: accepted | in_progress | ready | on_hold. True если хотя бы один канал отработал."""
     settings = settings or get_bug_report_settings()
     report_id = row.get("id")
     ticket_no = row.get("user_seq") or report_id
@@ -105,6 +105,15 @@ def notify_client(
             f"Заявка №{ticket_no} принята.\n"
             f"Напишем, когда будет готово к проверке"
             f"{' или если понадобятся уточнения' if True else ''}.\n"
+        )
+        if link:
+            body += f"\nСтатус заявки: {link}\n"
+    elif kind == "in_progress":
+        subject = f"Заявка №{ticket_no} взята в работу"
+        body = (
+            f"Заявка №{ticket_no} взята в работу.\n"
+            "Напишем, когда будет готово к проверке "
+            "или если понадобятся уточнения.\n"
         )
         if link:
             body += f"\nСтатус заявки: {link}\n"

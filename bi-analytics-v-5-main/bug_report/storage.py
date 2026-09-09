@@ -17,6 +17,7 @@ _EXTRA_COLUMNS: tuple[tuple[str, str], ...] = (
     ("client_status", "TEXT"),
     ("related_report_id", "INTEGER"),
     ("notified_accepted_at", "TEXT"),
+    ("notified_in_progress_at", "TEXT"),
     ("notified_ready_at", "TEXT"),
     ("notified_on_hold_at", "TEXT"),
     ("user_seq", "INTEGER"),
@@ -167,9 +168,9 @@ def insert_bug_report(row: dict[str, Any]) -> int:
                 ai_confidence, ai_source, status, trello_card_id, trello_card_url,
                 error_message, raw_ai_response,
                 contact_email, contact_telegram, public_token, client_status,
-                related_report_id, notified_accepted_at, notified_ready_at, notified_on_hold_at,
-                user_seq
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                related_report_id, notified_accepted_at, notified_in_progress_at,
+                notified_ready_at, notified_on_hold_at, user_seq
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 username,
@@ -199,6 +200,7 @@ def insert_bug_report(row: dict[str, Any]) -> int:
                 row.get("client_status", "accepted"),
                 row.get("related_report_id"),
                 row.get("notified_accepted_at"),
+                row.get("notified_in_progress_at"),
                 row.get("notified_ready_at"),
                 row.get("notified_on_hold_at"),
                 int(user_seq),

@@ -9,6 +9,7 @@ from typing import Any
 import requests
 
 from bug_report.client_status import (
+    CLIENT_STATUS_IN_PROGRESS,
     CLIENT_STATUS_ON_HOLD,
     CLIENT_STATUS_READY,
     map_trello_list_to_client_status,
@@ -53,7 +54,7 @@ def _fetch_card_list_name(card_id: str) -> str | None:
 
 
 def sync_one_report(row: dict[str, Any]) -> dict[str, Any]:
-    """Обновить client_status одной заявки; при смене — уведомления ready/on_hold."""
+    """Обновить client_status одной заявки; при смене — in_progress/ready/on_hold."""
     card_id = str(row.get("trello_card_id") or "").strip()
     if not card_id:
         return {"id": row.get("id"), "changed": False, "reason": "no_card"}
@@ -69,7 +70,11 @@ def sync_one_report(row: dict[str, Any]) -> dict[str, Any]:
     row = {**row, "client_status": new_status}
     notified = None
     now = _utc_now_iso()
-    if new_status == CLIENT_STATUS_READY and not row.get("notified_ready_at"):
+    if new_status == CLIENT_STATUS_IN_PROGRESS and not row.get("notified_in_progress_at"):
+        if notify_client(row, kind="in_progress"):
+            update_bug_report(int(row["id"]), notified_in_progress_at=now)
+            notified = "in_progress"
+    elif new_status == CLIENT_STATUS_READY and not row.get("notified_ready_at"):
         if notify_client(row, kind="ready"):
             update_bug_report(int(row["id"]), notified_ready_at=now)
             notified = "ready"
