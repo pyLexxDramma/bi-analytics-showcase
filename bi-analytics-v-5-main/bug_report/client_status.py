@@ -4,12 +4,14 @@ from __future__ import annotations
 
 CLIENT_STATUS_ACCEPTED = "accepted"
 CLIENT_STATUS_IN_PROGRESS = "in_progress"
+CLIENT_STATUS_REVIEW = "review"
 CLIENT_STATUS_ON_HOLD = "on_hold"
 CLIENT_STATUS_READY = "ready"
 
 CLIENT_STATUS_LABELS_RU: dict[str, str] = {
     CLIENT_STATUS_ACCEPTED: "Принята",
     CLIENT_STATUS_IN_PROGRESS: "В работе",
+    CLIENT_STATUS_REVIEW: "На проверке",
     CLIENT_STATUS_ON_HOLD: "На холде (ждём вас / данные)",
     CLIENT_STATUS_READY: "Готово к проверке",
 }
@@ -29,7 +31,11 @@ def map_trello_list_to_client_status(list_name: str | None) -> str:
         return CLIENT_STATUS_ACCEPTED
     if "холд" in n or "hold" in n or "когда" in n or "отлож" in n:
         return CLIENT_STATUS_ON_HOLD
+    # «Готово» / Done — клиент может проверять. Не путать с «На проверку» (внутренняя QA).
     if "готов" in n or n == "done" or "закрыт" in n:
         return CLIENT_STATUS_READY
-    # Нужно сделать / Фичи / В работе / На проверку / …
+    # «На проверку» — внутренняя проверка команды, не «взята в работу» и не «готово клиенту».
+    if "проверк" in n:
+        return CLIENT_STATUS_REVIEW
+    # Нужно сделать / Фичи / В работе / …
     return CLIENT_STATUS_IN_PROGRESS

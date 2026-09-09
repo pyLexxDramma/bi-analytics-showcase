@@ -12,6 +12,7 @@ from bug_report.client_status import (
     CLIENT_STATUS_IN_PROGRESS,
     CLIENT_STATUS_ON_HOLD,
     CLIENT_STATUS_READY,
+    CLIENT_STATUS_REVIEW,
     map_trello_list_to_client_status,
 )
 from bug_report.notify import notify_client
@@ -54,7 +55,7 @@ def _fetch_card_list_name(card_id: str) -> str | None:
 
 
 def sync_one_report(row: dict[str, Any]) -> dict[str, Any]:
-    """Обновить client_status одной заявки; при смене — in_progress/ready/on_hold (+ комментарий)."""
+    """Обновить client_status; письма: в работу / холд / готово. «На проверку» — без письма."""
     card_id = str(row.get("trello_card_id") or "").strip()
     if not card_id:
         return {"id": row.get("id"), "changed": False, "reason": "no_card"}
@@ -77,6 +78,10 @@ def sync_one_report(row: dict[str, Any]) -> dict[str, Any]:
         if notify_client(row, kind="in_progress", comment=comment):
             update_bug_report(int(row["id"]), notified_in_progress_at=now)
             notified = "in_progress"
+    elif new_status == CLIENT_STATUS_REVIEW:
+        # Внутренняя колонка «На проверку» — статус на странице меняем, письмо не шлём
+        # (иначе путают с «взята в работу» / «готово к проверке»).
+        notified = None
     elif new_status == CLIENT_STATUS_READY and not row.get("notified_ready_at"):
         if notify_client(row, kind="ready", comment=comment):
             update_bug_report(int(row["id"]), notified_ready_at=now)
