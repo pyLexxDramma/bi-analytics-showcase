@@ -78,14 +78,14 @@
       <div class="grid2">
         <div>
           <label class="req" for="contact_email">Email</label>
-          <input type="email" id="contact_email" required maxlength="120" placeholder="name@company.ru" autocomplete="email">
+          <input type="email" id="contact_email" required maxlength="120" placeholder="ivanov@company.ru" autocomplete="email" inputmode="email">
         </div>
         <div>
           <label for="contact_telegram">Telegram <span class="hint" style="display:inline">(необязательно)</span></label>
-          <input type="text" id="contact_telegram" maxlength="80" placeholder="@username или chat_id" autocomplete="off">
+          <input type="text" id="contact_telegram" maxlength="80" placeholder="только числовой chat_id" autocomplete="off" inputmode="numeric" pattern="-?[0-9]+">
         </div>
       </div>
-      <p class="hint">Email обязателен: пришлём «принята» и «готово к проверке». Telegram — дубль, если удобно.</p>
+      <p class="hint">Email — куда слать письма (обязательно, формат name@домен). Уведомления: «принята», «взята в работу», «на холде» (с комментарием команды), «готово к проверке». Telegram — только числовой chat_id (не @ник); иначе поле оставьте пустым.</p>
       <label for="related_report_id">Номер связанной заявки <span class="hint" style="display:inline">(ваш порядковый №, если повтор после проверки)</span></label>
       <input type="text" id="related_report_id" inputmode="numeric" maxlength="12" placeholder="например 3">
     </fieldset>
@@ -541,19 +541,31 @@ $('bugform').addEventListener('submit', async e => {
     const contactEmail = $('contact_email').value.trim();
     const contactTelegram = $('contact_telegram').value.trim();
     const relatedRaw = $('related_report_id').value.trim();
-    if (!contactEmail || !contactEmail.includes('@')) {
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail);
+    if (!emailOk) {
       result.className = 'err';
-      result.textContent = 'Укажите корректный email — на него придут уведомления о статусе.';
+      result.textContent = 'Укажите корректный email вида name@company.ru — на него придут уведомления о статусе.';
       $('contact_email').focus();
       return;
     }
+    if (contactTelegram) {
+      const tg = contactTelegram.replace(/^@/, '').trim();
+      if (!/^-?\d{5,20}$/.test(tg)) {
+        result.className = 'err';
+        result.textContent = 'Telegram: укажите только числовой chat_id (не @username), либо оставьте поле пустым. @ник бот не может писать.';
+        $('contact_telegram').focus();
+        return;
+      }
+      $('contact_telegram').value = tg;
+    }
+    const contactTelegramClean = $('contact_telegram').value.trim();
     const reporter = [firstName, lastName].filter(Boolean).join(' ');
     const payload = {
       key: new URLSearchParams(location.search).get('k') || '',
       first_name: firstName,
       last_name: lastName,
       contact_email: contactEmail,
-      contact_telegram: contactTelegram,
+      contact_telegram: contactTelegramClean,
       related_report_id: relatedRaw || '',
       reporter,
       username: loginUsername || reporter,
@@ -599,7 +611,7 @@ $('bugform').addEventListener('submit', async e => {
       first_name: firstName,
       last_name: lastName,
       contact_email: contactEmail,
-      contact_telegram: contactTelegram,
+      contact_telegram: contactTelegramClean,
       menugroup: $('menugroup').value,
       report: report,
       contour: $('contour').value,

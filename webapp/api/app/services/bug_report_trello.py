@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import re
 from typing import Any
 
 from app.services.core_bridge import ensure_core_path
@@ -115,9 +116,16 @@ def submit_bug_report_trello(payload: dict[str, Any]) -> dict[str, Any]:
     if not first_name or not last_name:
         raise ValueError("Укажите имя и фамилию.")
     contact_email = str(payload.get("contact_email") or payload.get("email") or "").strip()
-    if not contact_email or "@" not in contact_email:
-        raise ValueError("Укажите корректный email для уведомлений.")
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}", contact_email or ""):
+        raise ValueError("Укажите корректный email вида name@company.ru для уведомлений.")
     contact_telegram = str(payload.get("contact_telegram") or payload.get("telegram") or "").strip()
+    if contact_telegram:
+        tg = contact_telegram.lstrip("@").strip()
+        if not re.fullmatch(r"-?\d{5,20}", tg):
+            raise ValueError(
+                "Telegram: укажите только числовой chat_id (не @username), либо оставьте пустым."
+            )
+        contact_telegram = tg
     username_raw = str(payload.get("username") or reporter or "anonymous").strip()
     username = username_raw.split("(")[0].strip() if username_raw else "anonymous"
     browser = str(payload.get("browser") or "")

@@ -1,0 +1,80 @@
+# Resend hold email + SMTP detail for latest ticket
+name: Resend bug hold email
+
+on:
+  workflow_dispatch:
+
+jobs:
+  resend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resend on_hold notify with SMTP log
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.PROD_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
+            cd "$APP_DIR/webapp"
+            COMPOSE=(docker compose -p webapp-prod -f docker-compose.yml -f docker-compose.prod.yml)
+            CID=$("${COMPOSE[@]}" ps -q api)
+            docker exec -i "$CID" python - <<'PY'
+            import os, sys, sqlite3, smtplib, ssl
+            from email.message import EmailMessage
+            sys.path.insert(0, "/core")
+            users_db = os.environ.get("BI_USERS_DB", "/data/db/users.db")
+            import config as core_config
+            core_config.DB_PATH = users_db
+            from bug_report.storage import ensure_bug_reports_table, get_bug_report, update_bug_report
+            from bug_report.settings import get_bug_report_settings
+            from bug_report.trello_client import fetch_latest_card_comment
+            from bug_report import notify as notify_mod
+            ensure_bug_reports_table()
+            con = sqlite3.connect(users_db)
+            rid = con.execute("SELECT id FROM bug_reports ORDER BY id DESC LIMIT 1").fetchone()[0]
+            con.close()
+            row = get_bug_report(rid)
+            email = (row.get("contact_email") or "").strip()
+            domain = email.split("@")[-1] if "@" in email else "?"
+            print("report_id", rid, "user_seq", row.get("user_seq"), "email_domain", domain)
+            print("client_status", row.get("client_status"), "tg_set", bool((row.get("contact_telegram") or "").strip()))
+            s = get_bug_report_settings()
+            print("smtp_host", s.smtp_host, "smtp_from", s.smtp_from, "smtp_user_set", bool(s.smtp_user), "pw_len", len(s.smtp_password or ""))
+            comment = fetch_latest_card_comment(str(row.get("trello_card_id") or ""))
+            print("comment_len", len(comment or ""))
+            # direct SMTP probe to same recipient
+            host = (s.smtp_host or "").strip()
+            port = int(s.smtp_port or 587)
+            user = (s.smtp_user or "").strip()
+            password = (s.smtp_password or "").replace("\ufeff", "").strip()
+            from_addr = (s.smtp_from or user).strip()
+            msg = EmailMessage()
+            msg["Subject"] = f"[probe] Заявка №{row.get('user_seq')}: ждём вас / данные"
+            msg["From"] = from_addr
+            msg["To"] = email
+            body = "Пробное письмо с ai.conall.ru (hold notify).\n"
+            if comment:
+                body += f"\nКомментарий команды:\n{comment}\n"
+            msg.set_content(body)
+            try:
+                with smtplib.SMTP(host, port, timeout=25) as smtp:
+                    smtp.ehlo()
+                    smtp.starttls(context=ssl.create_default_context())
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    refused = smtp.send_message(msg)
+                print("SMTP_PROBE_OK refused=", refused)
+            except Exception as exc:
+                print("SMTP_PROBE_FAIL", type(exc).__name__, str(exc)[:400])
+            ok = notify_mod.notify_client(row, kind="on_hold", comment=comment, settings=s)
+            print("notify_client_ok", ok)
+            if ok:
+                from datetime import datetime, timezone
+                update_bug_report(rid, notified_on_hold_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+            PY

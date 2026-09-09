@@ -151,4 +151,21 @@ def notify_client(
 
     ok_mail = _send_smtp(settings, to_email=email, subject=subject, body=body) if email else False
     ok_tg = _send_telegram(settings, chat_ref=tg, text=f"{subject}\n\n{body}") if tg else False
-    return ok_mail or ok_tg
+    if email and not ok_mail:
+        logger.warning(
+            "bug_report notify: email FAILED kind=%s report=%s to_domain=%s",
+            kind,
+            report_id,
+            email.split("@")[-1] if "@" in email else "?",
+        )
+    elif ok_mail:
+        logger.info(
+            "bug_report notify: email OK kind=%s report=%s to_domain=%s",
+            kind,
+            report_id,
+            email.split("@")[-1] if "@" in email else "?",
+        )
+    # Письмо — основной канал; TG только дополняет. Не считаем успехом один TG без почты.
+    if email:
+        return bool(ok_mail)
+    return bool(ok_tg)
