@@ -1,0 +1,74 @@
+# Debug latest bug notify on prod
+name: Debug bug notify prod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect latest tickets + force sync
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.PROD_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
+            cd "$APP_DIR/webapp"
+            COMPOSE=(docker compose -p webapp-prod -f docker-compose.yml -f docker-compose.prod.yml)
+            CID=$("${COMPOSE[@]}" ps -q api)
+            echo "api_cid=$CID"
+            echo "=== latest bug_reports ==="
+            docker exec -i "$CID" python - <<'PY'
+            import os, sqlite3, json
+            db = os.environ.get("BI_USERS_DB", "/data/db/users.db")
+            con = sqlite3.connect(db)
+            con.row_factory = sqlite3.Row
+            cols = [
+              "id","user_seq","username","contact_email","contact_telegram","client_status",
+              "trello_card_id","notified_accepted_at","notified_in_progress_at",
+              "notified_on_hold_at","notified_ready_at","created_at"
+            ]
+            rows = con.execute(
+              f"SELECT {', '.join(cols)} FROM bug_reports ORDER BY id DESC LIMIT 5"
+            ).fetchall()
+            for r in rows:
+              d = dict(r)
+              # mask email partially
+              em = d.get("contact_email") or ""
+              if "@" in em:
+                local, _, domain = em.partition("@")
+                d["contact_email"] = (local[:2] + "***@" + domain) if local else em
+              tg = d.get("contact_telegram") or ""
+              if tg:
+                d["contact_telegram"] = tg[:3] + "***" if len(tg) > 3 else "***"
+              print(json.dumps(d, ensure_ascii=False))
+            PY
+            echo "=== force sync_all_open_reports ==="
+            docker exec -i "$CID" python - <<'PY'
+            import json, os, sys
+            sys.path.insert(0, "/core")
+            # mirror bug_report_trello prepare
+            users_db = os.environ.get("BI_USERS_DB", "").strip()
+            if users_db:
+              import config as core_config
+              core_config.DB_PATH = users_db
+            from bug_report.storage import ensure_bug_reports_table
+            ensure_bug_reports_table()
+            from bug_report.status_sync import sync_all_open_reports, sync_one_report
+            from bug_report.storage import list_bug_reports_with_trello
+            rows = list_bug_reports_with_trello(limit=5)
+            print("open_with_trello", len(rows))
+            for row in rows[:3]:
+              info = sync_one_report(row)
+              print(json.dumps(info, ensure_ascii=False))
+            PY
+            echo "=== recent notify/sync logs ==="
+            docker logs --tail 400 "$CID" 2>&1 | grep -iE "bug_report|notify|SMTP|sync|hold|comment" | tail -60 || true
