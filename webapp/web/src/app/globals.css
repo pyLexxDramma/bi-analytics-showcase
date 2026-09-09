@@ -911,27 +911,32 @@ html.dark select.bi-filters-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-/* Дата: полная ширина значения. overflow:hidden нельзя — в WebKit обрезает
-   ::-webkit-calendar-picker-indicator, иконка/середина поля перестают открывать календарь. */
-input[type="date"].bi-filters-select,
-.bi-filters-date {
+/* Дата в фильтрах: видимая кнопка (FilterDateInput), не голый input[type=date].
+   appearance/overflow native-date больше не нужны — клик идёт по кнопке. */
+.bi-filters-date-wrap {
   min-width: 10.75rem;
-  white-space: nowrap;
-  text-overflow: clip;
-  overflow: visible;
-  /* appearance:none у .bi-filters-select глушит нативную кнопку календаря */
-  -webkit-appearance: auto;
-  appearance: auto;
-  cursor: pointer;
+  width: 100%;
 }
 
-input[type="date"].bi-filters-select::-webkit-calendar-picker-indicator,
-.bi-filters-date::-webkit-calendar-picker-indicator {
+button.bi-filters-date-trigger {
   cursor: pointer;
-  opacity: 1;
-  /* Кликабельная зона шире самой иконки */
-  padding: 0.35rem;
-  margin-inline-end: 0.1rem;
+  -webkit-appearance: none;
+  appearance: none;
+  overflow: hidden;
+}
+
+/* Скрытый native input только для showPicker / onChange — вне hit-area кнопки */
+.bi-filters-date-native {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Пара дат в одной ячейке сетки — 2 колонки, без наезда на соседа (BUG-001/002/006) */
@@ -948,7 +953,8 @@ input[type="date"].bi-filters-select::-webkit-calendar-picker-indicator,
 }
 
 .bi-filters-date-range-inputs input[type="date"].bi-filters-select,
-.bi-filters-date-range-inputs .bi-filters-date {
+.bi-filters-date-range-inputs .bi-filters-date,
+.bi-filters-date-range-inputs .bi-filters-date-wrap {
   min-width: 0;
   width: 100%;
 }

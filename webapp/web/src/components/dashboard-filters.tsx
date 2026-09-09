@@ -1311,49 +1311,91 @@ export function FilterField({
 }
 
 /**
- * Дата в фильтрах. Клик по цифрам даты в WebKit попадает во внутренние сегменты
- * (день/месяц/год) и не открывает календарь — только фокус на редактирование.
- * Поэтому на pointerdown вызываем showPicker и гасим default, чтобы открывалось
- * по всей площади поля (иконка + значение + граница).
+ * Дата в фильтрах: кнопка + скрытый native input.
+ *
+ * Почему не голый input[type=date]:
+ * 1) `.bi-filters-field { height:100% }` у соседнего селекта в той же ячейке
+ *    сетки растягивается поверх date-поля — кликабельна только верхняя кромка.
+ * 2) В WebKit клик по цифрам уходит во внутренние сегменты и не открывает picker.
+ *
+ * Кнопка принимает клик по всей площади; календарь открывает скрытый input
+ * через showPicker().
  */
 export function FilterDateInput({
   className = "",
-  ...input
+  value,
+  onChange,
+  min,
+  max,
+  disabled,
+  id,
+  name,
+  "aria-label": ariaLabel,
+  ...rest
 }: InputHTMLAttributes<HTMLInputElement>) {
-  const openPicker = (el: HTMLInputElement) => {
-    if (typeof el.showPicker !== "function") return;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const raw = typeof value === "string" ? value : "";
+  const display = (() => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : raw || "дд.мм.гггг";
+  })();
+
+  const openPicker = () => {
+    const el = inputRef.current;
+    if (!el || disabled) return;
     try {
-      el.showPicker();
+      if (typeof el.showPicker === "function") {
+        el.showPicker();
+        return;
+      }
     } catch {
-      // Уже открыт или запрещён браузером — поле остаётся вводимым руками.
+      // fall through to click()
     }
+    el.click();
   };
+
   return (
-    <input
-      {...input}
-      type="date"
-      className={`${FILTER_DATE_CLASS}${className ? ` ${className}` : ""}`}
-      onPointerDown={(event) => {
-        // Не блокируем правую кнопку / модификаторы — там системное меню.
-        if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          event.preventDefault();
-          openPicker(event.currentTarget);
-        }
-        input.onPointerDown?.(event);
-      }}
-      onClick={(event) => {
-        openPicker(event.currentTarget);
-        input.onClick?.(event);
-      }}
-      onKeyDown={(event) => {
-        // Space / Enter — открыть календарь с клавиатуры.
-        if (event.key === " " || event.key === "Enter") {
-          event.preventDefault();
-          openPicker(event.currentTarget);
-        }
-        input.onKeyDown?.(event);
-      }}
-    />
+    <div className={`bi-filters-date-wrap relative ${className}`.trim()}>
+      <button
+        type="button"
+        className={`${FILTER_DATE_CLASS} bi-filters-date-trigger flex w-full items-center justify-between gap-2 text-left`}
+        onClick={openPicker}
+        disabled={disabled}
+        aria-label={ariaLabel}
+      >
+        <span className={raw ? undefined : "text-tremor-content dark:text-dark-tremor-content"}>
+          {display}
+        </span>
+        <svg
+          aria-hidden
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          className="shrink-0 text-tremor-content dark:text-dark-tremor-content"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        >
+          <rect x="2" y="3.5" width="12" height="10.5" rx="1.5" />
+          <path d="M2 6.5h12M5.5 2v3M10.5 2v3" strokeLinecap="round" />
+        </svg>
+      </button>
+      <input
+        {...rest}
+        ref={inputRef}
+        type="date"
+        id={id}
+        name={name}
+        min={min}
+        max={max}
+        value={raw}
+        disabled={disabled}
+        tabIndex={-1}
+        aria-hidden
+        className="bi-filters-date-native"
+        onChange={onChange}
+      />
+    </div>
   );
 }
 

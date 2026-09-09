@@ -794,7 +794,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           <FilterChipMulti filterKey="projects" label="Проект" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
           <FilterChipMulti filterKey="contractors" label="Контрагент" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((s) => ({ ...s, contractors }))} />
           <FilterChipMulti filterKey="months" label="Месяц" options={data?.filters.months ?? []} values={filters.months} onChange={(months) => setFilters((s) => ({ ...s, months }))} />
-          <div>
+          <div className="flex w-full min-w-0 flex-col self-start">
             <FilterChipSelect filterKey="plan_agg" label="План" value={filters.plan_agg} options={aggOptions} onChange={(plan_agg) => setFilters((s) => ({ ...s, plan_agg, plan_day: plan_agg === DAY_AGG_LABEL ? s.plan_day || dayDefault : "" }))} />
             {filters.plan_agg === DAY_AGG_LABEL ? (
               <DayField
@@ -806,7 +806,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
               />
             ) : null}
           </div>
-          <div>
+          <div className="flex w-full min-w-0 flex-col self-start">
             <FilterChipSelect filterKey="skud_agg" label="СКУД" value={filters.skud_agg} options={aggOptions} onChange={(skud_agg) => setFilters((s) => ({ ...s, skud_agg, skud_day: skud_agg === DAY_AGG_LABEL ? s.skud_day || dayDefault : "" }))} />
             {filters.skud_agg === DAY_AGG_LABEL ? (
               <DayField
