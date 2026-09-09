@@ -9,7 +9,7 @@ from typing import Any
 import requests
 
 from bug_report.categories import category_display, priority_display, TrelloTarget
-from bug_report.settings import BugReportSettings
+from bug_report.settings import BugReportSettings, get_bug_report_settings
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,39 @@ def resolve_inbox_list_id(settings: BugReportSettings) -> str:
         f"Откройте/разархивируйте её или переименуйте. Сейчас открыты: {names}. "
         "Секрет TRELLO_LIST_TRIAGE указывает на архивный список — его больше не используем."
     )
+
+
+def fetch_latest_card_comment(card_id: str, settings: BugReportSettings | None = None) -> str:
+    """Текст последнего комментария на карточке (для писем клиенту)."""
+    settings = settings or get_bug_report_settings()
+    card_id = (card_id or "").strip()
+    if not card_id or not settings.trello_configured:
+        return ""
+    try:
+        resp = requests.get(
+            f"{TRELLO_API}/cards/{card_id}/actions",
+            params={
+                **_auth_params(settings),
+                "filter": "commentCard",
+                "limit": 1,
+            },
+            timeout=(3.0, 12.0),
+        )
+        resp.raise_for_status()
+        actions = resp.json()
+        if not isinstance(actions, list) or not actions:
+            return ""
+        data = actions[0].get("data") if isinstance(actions[0], dict) else None
+        if not isinstance(data, dict):
+            return ""
+        text = str(data.get("text") or "").strip()
+        # Не тащим километровые внутренние заметки в письмо.
+        if len(text) > 2000:
+            text = text[:2000].rstrip() + "…"
+        return text
+    except Exception as exc:
+        logger.warning("bug_report: latest comment for %s: %s", card_id, exc)
+        return ""
 
 
 def ensure_inbox_list_first(settings: BugReportSettings, list_id: str) -> None:

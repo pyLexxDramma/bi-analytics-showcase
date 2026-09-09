@@ -17,7 +17,7 @@ from bug_report.client_status import (
 from bug_report.notify import notify_client
 from bug_report.settings import get_bug_report_settings
 from bug_report.storage import list_bug_reports_with_trello, update_bug_report
-from bug_report.trello_client import TRELLO_API, _auth_params
+from bug_report.trello_client import TRELLO_API, _auth_params, fetch_latest_card_comment
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ def _fetch_card_list_name(card_id: str) -> str | None:
 
 
 def sync_one_report(row: dict[str, Any]) -> dict[str, Any]:
-    """Обновить client_status одной заявки; при смене — in_progress/ready/on_hold."""
+    """Обновить client_status одной заявки; при смене — in_progress/ready/on_hold (+ комментарий)."""
     card_id = str(row.get("trello_card_id") or "").strip()
     if not card_id:
         return {"id": row.get("id"), "changed": False, "reason": "no_card"}
@@ -70,16 +70,20 @@ def sync_one_report(row: dict[str, Any]) -> dict[str, Any]:
     row = {**row, "client_status": new_status}
     notified = None
     now = _utc_now_iso()
+    # Комментарий с карточки — пишите перед переносом колонки.
+    comment = fetch_latest_card_comment(card_id)
+
     if new_status == CLIENT_STATUS_IN_PROGRESS and not row.get("notified_in_progress_at"):
-        if notify_client(row, kind="in_progress"):
+        if notify_client(row, kind="in_progress", comment=comment):
             update_bug_report(int(row["id"]), notified_in_progress_at=now)
             notified = "in_progress"
     elif new_status == CLIENT_STATUS_READY and not row.get("notified_ready_at"):
-        if notify_client(row, kind="ready"):
+        if notify_client(row, kind="ready", comment=comment):
             update_bug_report(int(row["id"]), notified_ready_at=now)
             notified = "ready"
-    elif new_status == CLIENT_STATUS_ON_HOLD and not row.get("notified_on_hold_at"):
-        if notify_client(row, kind="on_hold"):
+    elif new_status == CLIENT_STATUS_ON_HOLD:
+        # Каждый заход на холд — письмо (новый комментарий/причина).
+        if notify_client(row, kind="on_hold", comment=comment):
             update_bug_report(int(row["id"]), notified_on_hold_at=now)
             notified = "on_hold"
     return {
@@ -89,6 +93,7 @@ def sync_one_report(row: dict[str, Any]) -> dict[str, Any]:
         "to": new_status,
         "list": list_name,
         "notified": notified,
+        "comment_attached": bool((comment or "").strip()),
     }
 
 
@@ -97,7 +102,6 @@ def sync_all_open_reports(*, limit: int = 300) -> dict[str, Any]:
     results = []
     changed = 0
     for row in rows:
-        # Не трогаем уже «ready» без нужды — всё равно сверим колонку
         info = sync_one_report(row)
         results.append(info)
         if info.get("changed"):

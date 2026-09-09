@@ -84,10 +84,18 @@ def _send_telegram(settings: BugReportSettings, *, chat_ref: str, text: str) -> 
         return False
 
 
+def _append_team_comment(body: str, comment: str | None) -> str:
+    text = (comment or "").strip()
+    if not text:
+        return body
+    return body.rstrip() + f"\n\nКомментарий команды:\n{text}\n"
+
+
 def notify_client(
     row: dict[str, Any],
     *,
     kind: str,
+    comment: str | None = None,
     settings: BugReportSettings | None = None,
 ) -> bool:
     """kind: accepted | in_progress | ready | on_hold. True если хотя бы один канал отработал."""
@@ -117,11 +125,13 @@ def notify_client(
         )
         if link:
             body += f"\nСтатус заявки: {link}\n"
+        body = _append_team_comment(body, comment)
     elif kind == "ready":
         subject = f"Заявка №{ticket_no} готова, можно проверить"
         body = f"Заявка №{ticket_no} готова, можно проверить.\n"
         if link:
             body += f"\nОткрыть статус: {link}\n"
+        body = _append_team_comment(body, comment)
         body += (
             "\nЕсли после проверки что-то не так — оформите новую заявку "
             f"и укажите номер старой (№{ticket_no}).\n"
@@ -135,6 +145,7 @@ def notify_client(
         )
         if link:
             body += f"\nСтатус: {link}\n"
+        body = _append_team_comment(body, comment)
     else:
         return False
 
