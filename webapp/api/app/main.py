@@ -60,7 +60,7 @@ async def _bug_status_sync_loop() -> None:
                     logger.info("bugform sync: changed=%s", changed)
         except Exception as exc:
             logger.warning("bugform sync loop: %s", exc)
-        await asyncio.sleep(300)
+        await asyncio.sleep(60)
 
 
 @asynccontextmanager
