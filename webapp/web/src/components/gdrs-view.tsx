@@ -16,11 +16,11 @@ import {
   Title,
 } from "@tremor/react";
 import {
-  FILTER_DATE_CLASS,
   FilterCheck,
   FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
+  FilterDateInput,
   FilterFieldsRow,
   FiltersCard,
 } from "@/components/dashboard-filters";
@@ -101,6 +101,32 @@ const DAY_AGG_LABEL = "За день";
 function dayRu(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
   return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
+}
+
+/** Поле дня для режима «За день». */
+function DayField({
+  value,
+  min,
+  max,
+  ariaLabel,
+  onChange,
+}: {
+  value: string;
+  min?: string;
+  max?: string;
+  ariaLabel: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <FilterDateInput
+      className="mt-2"
+      min={min}
+      max={max}
+      value={value}
+      aria-label={ariaLabel}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
 }
 
 const BORDER_L = "#d1d5db";
@@ -771,28 +797,24 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           <div>
             <FilterChipSelect filterKey="plan_agg" label="План" value={filters.plan_agg} options={aggOptions} onChange={(plan_agg) => setFilters((s) => ({ ...s, plan_agg, plan_day: plan_agg === DAY_AGG_LABEL ? s.plan_day || dayDefault : "" }))} />
             {filters.plan_agg === DAY_AGG_LABEL ? (
-              <input
-                type="date"
-                className={`${FILTER_DATE_CLASS} mt-2`}
+              <DayField
                 min={dayMin}
                 max={dayMax}
                 value={filters.plan_day}
-                aria-label="День плана"
-                onChange={(e) => setFilters((s) => ({ ...s, plan_day: e.target.value }))}
+                ariaLabel="День плана"
+                onChange={(plan_day) => setFilters((s) => ({ ...s, plan_day }))}
               />
             ) : null}
           </div>
           <div>
             <FilterChipSelect filterKey="skud_agg" label="СКУД" value={filters.skud_agg} options={aggOptions} onChange={(skud_agg) => setFilters((s) => ({ ...s, skud_agg, skud_day: skud_agg === DAY_AGG_LABEL ? s.skud_day || dayDefault : "" }))} />
             {filters.skud_agg === DAY_AGG_LABEL ? (
-              <input
-                type="date"
-                className={`${FILTER_DATE_CLASS} mt-2`}
+              <DayField
                 min={dayMin}
                 max={dayMax}
                 value={filters.skud_day}
-                aria-label="День СКУД"
-                onChange={(e) => setFilters((s) => ({ ...s, skud_day: e.target.value }))}
+                ariaLabel="День СКУД"
+                onChange={(skud_day) => setFilters((s) => ({ ...s, skud_day }))}
               />
             ) : null}
           </div>

@@ -1311,6 +1311,40 @@ export function FilterField({
 }
 
 /**
+ * Дата в фильтрах: календарь открываем сами. `appearance: none` в
+ * `.bi-filters-select` (нужен для единой высоты полей) глушит нативный picker в
+ * WebKit — клик по иконке там ничего не делает, оставался только ручной ввод.
+ */
+export function FilterDateInput({
+  className = "",
+  ...input
+}: InputHTMLAttributes<HTMLInputElement>) {
+  const openPicker = (el: HTMLInputElement) => {
+    if (typeof el.showPicker !== "function") return;
+    try {
+      el.showPicker();
+    } catch {
+      // Уже открыт или запрещён браузером — поле остаётся вводимым руками.
+    }
+  };
+  return (
+    <input
+      {...input}
+      type="date"
+      className={`${FILTER_DATE_CLASS}${className ? ` ${className}` : ""}`}
+      onClick={(event) => {
+        openPicker(event.currentTarget);
+        input.onClick?.(event);
+      }}
+      onFocus={(event) => {
+        openPicker(event.currentTarget);
+        input.onFocus?.(event);
+      }}
+    />
+  );
+}
+
+/**
  * Пара дат «с/по» занимает 2 колонки сетки фильтров (BUG-001/002/006):
  * иначе min-width у type=date (~10.75rem×2) вылезает в соседнее поле.
  */
@@ -1341,18 +1375,14 @@ export function FilterDateRange({
     <div className="bi-filters-date-range">
       <FilterField label={label} filterKey={filterKey}>
         <div className="bi-filters-date-range-inputs">
-          <input
-            type="date"
-            className={FILTER_DATE_CLASS}
+          <FilterDateInput
             min={min}
             max={to || max}
             value={from}
             onChange={(event) => onFromChange(event.target.value)}
             aria-label={fromAriaLabel}
           />
-          <input
-            type="date"
-            className={FILTER_DATE_CLASS}
+          <FilterDateInput
             min={from || min}
             max={max}
             value={to}
