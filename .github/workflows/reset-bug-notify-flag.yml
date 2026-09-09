@@ -1,0 +1,73 @@
+# Reset in_progress notify flag for one Trello card
+name: Reset bug notify flag
+
+on:
+  workflow_dispatch:
+    inputs:
+      card_ref:
+        description: Trello short link or card id fragment
+        required: true
+        default: jQJyZvWO
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reset notified_in_progress_at
+        uses: appleboy/ssh-action@v1.2.4
+        env:
+          CARD_REF: ${{ github.event.inputs.card_ref }}
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
+          envs: CARD_REF
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ secrets.PROD_VPS_PATH }}"
+            APP_DIR="${APP_DIR:-$HOME/apps/bi-analytics-webapp-prod}"
+            cd "$APP_DIR/webapp"
+            COMPOSE=(docker compose -p webapp-prod -f docker-compose.yml -f docker-compose.prod.yml)
+            CID=$("${COMPOSE[@]}" ps -q api)
+            docker exec -i -e CARD_REF="$CARD_REF" "$CID" python - <<'PY'
+            import os, sqlite3
+            ref = (os.environ.get("CARD_REF") or "").strip()
+            db = os.environ.get("BI_USERS_DB", "/data/db/users.db")
+            con = sqlite3.connect(db)
+            con.row_factory = sqlite3.Row
+            rows = con.execute(
+                """
+                SELECT id, user_seq, client_status, notified_in_progress_at,
+                       trello_card_id, trello_card_url, contact_email
+                FROM bug_reports
+                WHERE trello_card_url LIKE ? OR trello_card_id LIKE ? OR CAST(id AS TEXT)=?
+                ORDER BY id DESC
+                """,
+                (f"%{ref}%", f"%{ref}%", ref),
+            ).fetchall()
+            if not rows:
+                print("NOT_FOUND", ref)
+                raise SystemExit(2)
+            for r in rows:
+                print("before", dict(r))
+                con.execute(
+                    """
+                    UPDATE bug_reports
+                    SET notified_in_progress_at = NULL,
+                        client_status = 'accepted'
+                    WHERE id = ?
+                    """,
+                    (r["id"],),
+                )
+            con.commit()
+            for r in rows:
+                row = con.execute(
+                    "SELECT id, user_seq, client_status, notified_in_progress_at FROM bug_reports WHERE id=?",
+                    (r["id"],),
+                ).fetchone()
+                print("after", dict(row))
+            print("RESET_OK")
+            PY
