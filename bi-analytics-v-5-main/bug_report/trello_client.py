@@ -196,8 +196,8 @@ def create_bug_report_card(
             "Trello list_id is not configured (нужна открытая колонка «Анализ»)"
         )
     ensure_inbox_list_first(settings, list_id)
-    params: dict[str, Any] = {
-        **_auth_params(settings),
+    # desc/name в body — иначе длинный текст даёт 414 Request-URI Too Large
+    body: dict[str, Any] = {
         "idList": list_id,
         "pos": "top",
         "name": title[:160],
@@ -208,10 +208,11 @@ def create_bug_report_card(
         ),
     }
     if target.label_ids:
-        params["idLabels"] = ",".join(target.label_ids)
+        body["idLabels"] = ",".join(target.label_ids)
     resp = requests.post(
         f"{TRELLO_API}/cards",
-        params=params,
+        params=_auth_params(settings),
+        data=body,
         timeout=(3.0, 20.0),
     )
     resp.raise_for_status()
