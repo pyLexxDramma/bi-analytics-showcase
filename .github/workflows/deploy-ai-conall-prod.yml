@@ -75,6 +75,10 @@ jobs:
             export BUG_REPORT_TELEGRAM_BOT_TOKEN="${BUG_REPORT_TELEGRAM_BOT_TOKEN:-}"
             export BUG_REPORT_SYNC_KEY="${BUG_REPORT_SYNC_KEY:-}"
             export WEBAPP_CORS_ORIGINS="https://ai.conall.ru"
+            # Деплой кода без повторного FTP (OOM 137 на ingest) и без полного
+            # docker --no-cache (npm ci уже падал). Данные на диске уже есть.
+            export WEBAPP_SKIP_SYNC=1
+            export WEBAPP_DOCKER_NO_CACHE=0
             bash webapp/scripts/server_deploy_prod.sh
             echo "Prod deployed $(git rev-parse --short HEAD) edge :3081"
             echo "Set admin password on server: BI_NEW_ADMIN_PASSWORD='…' bash webapp/scripts/set_admin_password_prod.sh"
