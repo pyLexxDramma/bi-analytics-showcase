@@ -332,6 +332,8 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "avg_delay": 0.0,
             "issued_production": 0,
             "not_issued": 0,
+            "review_gip": 0,
+            "returned_rework": 0,
             "plan_total": 0,
             "plan_to_date": 0,
             "fact_to_date": 0,
@@ -1257,7 +1259,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v41-rd-delay-full-cipher-y",
+            "v42-rd-kpi-status-cards",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1607,6 +1609,8 @@ def build_working_documentation_payload(
             if v > 0
         ]
         not_issued_kpi = max(0, int(total_sections) - int(issued_production))
+        review_gip = int(pie_counts.get(keys["review"], 0) or 0)
+        returned_rework = int(pie_counts.get(keys["rework"], 0) or 0)
 
         # Monthly bars — накопительный стек на конец каждого месяца (как ТЗ / скрин):
         # зелёный = «Выдано в производство» к as_of;
@@ -1920,7 +1924,7 @@ def build_working_documentation_payload(
                 "title": "Рабочая документация",
                 "rule": "rd_plan+tessa БД; даты договора CSV web/ → DB fallback",
                 "parity": "main_working_documentation_rd_plan_tessa",
-                "wd_build": "v41-rd-delay-full-cipher-y",
+                "wd_build": "v42-rd-kpi-status-cards",
                 "version_id": int(vid),
                 "error": None,
                 "forecast_line": "v12",
@@ -1960,6 +1964,8 @@ def build_working_documentation_payload(
                 "avg_delay": round(float(avg_delay), 1) if overdue > 0 else 0.0,
                 "issued_production": int(issued_production),
                 "not_issued": int(not_issued_kpi),
+                "review_gip": int(review_gip),
+                "returned_rework": int(returned_rework),
                 **exec_kpis,
             },
             "tremor": {

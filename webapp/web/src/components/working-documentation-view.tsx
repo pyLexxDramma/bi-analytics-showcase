@@ -575,6 +575,14 @@ export function WorkingDocumentationView() {
     (kpis?.total_sections != null && issuedProduction != null
       ? Math.max(0, Number(kpis.total_sections) - Number(issuedProduction))
       : null);
+  const reviewGip =
+    kpis?.review_gip ??
+    statusMix.find((s) => s.name === "На рассмотрении у ГИП")?.value ??
+    0;
+  const returnedRework =
+    kpis?.returned_rework ??
+    statusMix.find((s) => s.name === "Возвращено на доработку")?.value ??
+    0;
 
   const viewModeLabel = (id: string) =>
     (data?.filters.view_modes ?? []).find((m) => m.id === id)?.label ?? id;
@@ -700,7 +708,7 @@ export function WorkingDocumentationView() {
           <DashboardInsight
             text={
               kpis?.total_sections != null
-                ? `Всего разделов ${fmtNum(kpis.total_sections)} · выдано ${fmtNum(issuedProduction)} · не выдано ${fmtNum(notIssued)}${
+                ? `Всего разделов ${fmtNum(kpis.total_sections)} · выдано ${fmtNum(issuedProduction)} · не выдано ${fmtNum(notIssued)} · на рассмотрении у ГИП ${fmtNum(reviewGip)} · возвращено на доработку ${fmtNum(returnedRework)}${
                     kpis.overdue != null ? ` · просрочено ${fmtNum(kpis.overdue)}` : ""
                   }${
                     kpis.deviation_to_date != null
@@ -710,7 +718,7 @@ export function WorkingDocumentationView() {
                 : null
             }
           />
-          <Grid numItemsSm={1} numItemsMd={3} className="mb-6 gap-4">
+          <Grid numItemsSm={1} numItemsMd={3} numItemsLg={5} className="mb-6 gap-4">
             <Card className="rounded-xl">
               <Text className="leading-snug">Всего разделов</Text>
               <Metric className="mt-1">{fmtNum(kpis?.total_sections)}</Metric>
@@ -726,6 +734,14 @@ export function WorkingDocumentationView() {
                 {mobile ? "Не выдано (всего − выдано)" : "Не выдано (всего − выдано в пр-во)"}
               </Text>
               <Metric className="mt-1">{fmtNum(notIssued)}</Metric>
+            </Card>
+            <Card className="rounded-xl">
+              <Text className="leading-snug">На рассмотрении у ГИП</Text>
+              <Metric className="mt-1">{fmtNum(reviewGip)}</Metric>
+            </Card>
+            <Card className="rounded-xl">
+              <Text className="leading-snug">Возвращено на доработку</Text>
+              <Metric className="mt-1">{fmtNum(returnedRework)}</Metric>
             </Card>
           </Grid>
 
