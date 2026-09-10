@@ -1603,6 +1603,10 @@ export type WorkingDocumentationPayload = {
     issued_production?: number;
     /** Всего разделов − выдано в производство. */
     not_issued?: number;
+    /** На рассмотрении у ГИП (сегмент pie / таблица). */
+    review_gip?: number;
+    /** Возвращено на доработку (сегмент pie / таблица). */
+    returned_rework?: number;
     plan_total: number;
     plan_to_date: number;
     fact_to_date: number;
