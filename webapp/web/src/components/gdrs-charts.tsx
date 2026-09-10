@@ -445,43 +445,73 @@ export function GdrsDynamicsLineChart({
 }) {
   const theme = useChartTheme();
   const figure = useMemo(() => {
-    const dense = rows.length > 12;
-    // Цифры на точках и на мобиле; при плотном «День» — каждая 2-я
-    const labelStep = compact && dense ? 2 : 1;
+    // Сотни точек в 1150 px не влезают по-человечески: холст растёт в ширину,
+    // а карточка получает горизонтальный скролл (как на мобиле при «День»).
+    const scrollDense = rows.length > (compact ? 12 : 24);
+    const pxPerPoint = compact ? 36 : 34;
+    const baseWidth = compact ? 560 : 1150;
+    const chartWidth = scrollDense
+      ? Math.max(baseWidth, rows.length * pxPerPoint)
+      : undefined;
+    const layoutWidth = fullscreen ? undefined : chartWidth;
+    const plotWidth =
+      layoutWidth ??
+      (fullscreen ? Math.max(900, window.innerWidth - 64) : baseWidth);
+    // Подписи и даты прореживаем не «на глаз», а по фактической ширине холста.
+    const labelPx = compact ? 26 : 30;
+    const tickPx = compact ? 46 : 64;
+    const maxLabels = Math.max(4, Math.floor(plotWidth / labelPx));
+    const maxTicks = Math.max(3, Math.floor(plotWidth / tickPx));
+    const labelStep = Math.max(1, Math.ceil(rows.length / maxLabels));
     const labelFont = compact ? 9 : 10;
-    const x = rows.map((row) =>
-      compact ? shortPeriodLabel(row.period) : row.period,
-    );
+    // Категории — всегда полный период: короткая подпись «11.08» повторяется в
+    // 2026 и 2027, Plotly склеивает такие категории и линии превращаются в зигзаг.
+    const x = rows.map((row) => row.period);
     const plan = rows.map((row) => row.plan);
     const fact = rows.map((row) => row.fact);
     const maximum = Math.max(1, ...plan, ...fact);
     // Выбранный день видно только при группировке «День»: иначе категории — недели/месяцы.
     const marks = highlights
-      .map((h) => ({
-        ...h,
-        at: compact ? shortPeriodLabel(h.period) : h.period,
-      }))
+      .map((h) => ({ ...h, at: h.period }))
       .filter((h) => h.at && x.includes(h.at));
-    const chartWidth =
-      compact && dense
-        ? Math.max(560, rows.length * 36)
-        : undefined;
+    const markIdx = new Set(
+      marks.map((m) => x.indexOf(m.at)).filter((i) => i >= 0),
+    );
+    const tickStep = Math.max(1, Math.ceil(rows.length / maxTicks));
+    // Подписи оси сокращаем только визуально (ticktext), категории не трогаем.
+    const tickIdx = x
+      .map((_, i) => i)
+      .filter(
+        (i) => i % tickStep === 0 || i === x.length - 1 || markIdx.has(i),
+      );
+    const tickvals = tickIdx.map((i) => x[i]);
+    const ticktext = tickIdx.map((i) =>
+      compact ? shortPeriodLabel(x[i]) : x[i],
+    );
     const height = compact
       ? 320
       : fullscreen
         ? Math.max(520, Math.min(window.innerHeight - 32, 760))
         : 440;
+    // Нули не подписываем: на плотной оси они ложатся ровно на даты.
     const pointText = (values: number[]) =>
       values.map((value, i) =>
-        i % labelStep === 0 || i === values.length - 1
+        (i % labelStep === 0 || i === values.length - 1 || markIdx.has(i)) &&
+        Math.round(value) !== 0
           ? String(Math.round(value))
           : "",
       );
+    // Plotly отбивает подпись от точки на радиус маркера — за счёт этого цифры
+    // не ложатся на саму линию.
+    const mode = "lines+markers+text" as const;
+    const markerSize = scrollDense ? (compact ? 5 : 7) : compact ? 6 : 8;
+    const markerColor = (color: string) => color;
+    const lineWidth = compact ? 2 : 2.3;
     return {
       data: [
         {
           type: "scatter" as const,
-          mode: "lines+markers+text" as const,
+          mode,
           name: "План",
           x,
           y: plan,
@@ -489,10 +519,10 @@ export function GdrsDynamicsLineChart({
           textposition: "top center" as const,
           textfont: { color: "#2563eb", size: labelFont },
           customdata: rows.map((row) => row.period),
-          line: { color: "#2563eb", width: compact ? 2 : 2.5 },
+          line: { color: "#2563eb", width: lineWidth },
           marker: {
-            color: "#2563eb",
-            size: compact ? 6 : 8,
+            color: markerColor("#2563eb"),
+            size: markerSize,
             line: { color: "#ffffff", width: 1 },
           },
           cliponaxis: false,
@@ -500,7 +530,7 @@ export function GdrsDynamicsLineChart({
         },
         {
           type: "scatter" as const,
-          mode: "lines+markers+text" as const,
+          mode,
           name: "Факт",
           x,
           y: fact,
@@ -508,10 +538,10 @@ export function GdrsDynamicsLineChart({
           textposition: "bottom center" as const,
           textfont: { color: "#ea580c", size: labelFont },
           customdata: rows.map((row) => row.period),
-          line: { color: "#ea580c", width: compact ? 2 : 2.5 },
+          line: { color: "#ea580c", width: lineWidth },
           marker: {
-            color: "#ea580c",
-            size: compact ? 6 : 8,
+            color: markerColor("#ea580c"),
+            size: markerSize,
             line: { color: "#ffffff", width: 1 },
           },
           cliponaxis: false,
@@ -519,14 +549,20 @@ export function GdrsDynamicsLineChart({
         },
       ],
       layout: {
-        width: fullscreen ? undefined : chartWidth,
+        width: layoutWidth,
         height,
         margin: compact
           ? { l: 40, r: 16, t: 28, b: 72 }
           : { l: 56, r: 36, t: 76, b: 72 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
-        hovermode: false as const,
+        // Где подписи прорежены — значение читается наведением на дату.
+        hovermode: labelStep > 1 ? ("x unified" as const) : (false as const),
+        hoverlabel: {
+          bgcolor: theme.dark ? "#0f172a" : "#ffffff",
+          bordercolor: theme.grid,
+          font: { size: compact ? 11 : 12, color: theme.label },
+        },
         font: { family: "Inter, system-ui, sans-serif", color: theme.axis },
         showlegend: false,
         legend: plotlyLegendUnderLeft({
@@ -556,13 +592,27 @@ export function GdrsDynamicsLineChart({
         })),
         xaxis: {
           title: compact ? undefined : "Период",
+          // На широком холсте автозапас под подписи точек превращается в десятки
+          // категорий пустоты слева — там фиксируем диапазон по данным.
+          ...(scrollDense
+            ? { range: [-0.5, Math.max(0.5, rows.length - 0.5)] }
+            : {}),
           tickangle: -45,
           tickfont: { size: compact ? 10 : 11, color: theme.axis },
           gridcolor: theme.grid,
-          automargin: true,
-          ...(compact && !dense
-            ? { nticks: Math.min(8, rows.length) }
+          ...(labelStep > 1
+            ? {
+                showspikes: true,
+                spikemode: "across" as const,
+                spikethickness: 1,
+                spikedash: "dot" as const,
+                spikecolor: theme.grid,
+              }
             : {}),
+          automargin: true,
+          tickmode: "array" as const,
+          tickvals,
+          ticktext,
         },
         yaxis: {
           title: compact ? undefined : "Среднее число в день",
@@ -584,13 +634,59 @@ export function GdrsDynamicsLineChart({
     };
   }, [compact, fullscreen, highlights, rows, theme]);
 
-  const scrollEnabled = !!(compact && rows.length > 12);
+  // Скролл — там, где холст шире контейнера (мобила и плотная динамика на desktop).
+  const scrollEnabled = !fullscreen && rows.length > (compact ? 12 : 24);
   const pinRev = useMemo(
     () =>
       `${compact}|${fullscreen}|${rows.length}|${figure.layout.width ?? 0}|${figure.layout.height}`,
     [compact, figure.layout.height, figure.layout.width, fullscreen, rows.length],
   );
   const scrollWrapRef = usePinnedHScrollModebar(scrollEnabled, pinRev);
+
+  // План уходит в будущее, факт кончается сегодня: открываем скролл на последнем
+  // дне с фактом, иначе пользователь видит пустой «хвост» графика.
+  const factEndIdx = useMemo(() => {
+    let last = -1;
+    rows.forEach((row, i) => {
+      if (row.fact > 0) last = i;
+    });
+    return last;
+  }, [rows]);
+
+  useEffect(() => {
+    if (!scrollEnabled) return;
+    // При смене группировки Plotly перестраивает холст не мгновенно: ждём, пока
+    // ширина совпадёт с расчётной, иначе позиция считается по старым точкам.
+    const expected =
+      typeof figure.layout.width === "number" ? figure.layout.width : null;
+    const focus = (): boolean => {
+      const el = scrollWrapRef.current;
+      if (!el || el.scrollWidth <= el.clientWidth + 8) return false;
+      if (expected !== null && Math.abs(el.scrollWidth - expected) > 2)
+        return false;
+      const idx = factEndIdx >= 0 ? factEndIdx + 1 : rows.length;
+      const target =
+        (el.scrollWidth * idx) / Math.max(1, rows.length) - el.clientWidth * 0.85;
+      el.scrollLeft = Math.max(0, target);
+      return true;
+    };
+    if (focus()) return;
+    const timer = window.setInterval(() => {
+      if (focus()) window.clearInterval(timer);
+    }, 250);
+    const stop = window.setTimeout(() => window.clearInterval(timer), 8000);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(stop);
+    };
+  }, [
+    factEndIdx,
+    figure.layout.width,
+    pinRev,
+    rows.length,
+    scrollEnabled,
+    scrollWrapRef,
+  ]);
 
   if (!rows.length) return empty("Нет точек динамики.");
   return (

@@ -32,6 +32,22 @@ def clear_data_caches() -> None:
         cache_clear()
     except Exception:
         pass
+    warm_data_caches()
+
+
+def warm_data_caches() -> None:
+    """Фоновый прогрев тяжёлых отчётов, чтобы первый запрос не ждал сборку."""
+    import threading
+
+    def _run() -> None:
+        try:
+            from app.services.gdrs import warm_gdrs_cache
+
+            warm_gdrs_cache()
+        except Exception:
+            pass
+
+    threading.Thread(target=_run, name="warm-data-caches", daemon=True).start()
 
 
 def sync_status() -> dict[str, Any]:

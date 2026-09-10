@@ -334,7 +334,9 @@ export default function PlotlyFigure(props: PlotlyFigureProps) {
   return (
     <div
       ref={wrapRef}
-      className="bi-plotly-host min-w-0 w-full"
+      // Явная ширина (scroll-графики) — хост по контенту, иначе w-full режет
+      // широкий холст и обёртка overflow-x-auto не получает прокрутку.
+      className={`bi-plotly-host min-w-0 ${fillWidth ? "w-full" : "w-max"}`}
       style={{ height: heightPx ?? style?.height ?? "100%" }}
     >
       <RawPlotlyFigure

@@ -13,6 +13,7 @@ from app.services.core_bridge import (
     import_dashboard_module as _import_dashboard_module,
     prepare_web_db,
 )
+from app.services.report_cache import cache_get, cache_set
 
 ResourceKind = Literal["people", "equipment"]
 
@@ -123,7 +124,9 @@ def _cached_dannye(version_id: int, db_mtime: float):
         return {}, {}, {}, {}, {}
 
 
-@lru_cache(maxsize=64)
+# Динамика запрашивает срез плана на каждую точку («День» — сотни дат),
+# поэтому кэш должен вмещать весь период, иначе каждый запрос считает заново.
+@lru_cache(maxsize=4096)
 def _cached_plan(
     version_id: int,
     db_mtime: float,
@@ -141,6 +144,24 @@ def clear_gdrs_caches() -> None:
     _cached_term_index.cache_clear()
     _cached_dannye.cache_clear()
     _cached_plan.cache_clear()
+
+
+def warm_gdrs_cache() -> dict[str, Any]:
+    """Прогрев дискового кэша дефолтными запросами экрана.
+
+    Холодная сборка стоит ~минуту, поэтому после ingest/старта греем сами,
+    чтобы первый пользователь не ждал под скелетоном.
+    """
+    warmed: list[str] = []
+    failed: list[str] = []
+    for kind in ("people", "equipment"):
+        for dyn in _DYN_OPTS:
+            try:
+                build_gdrs_payload(resource_kind=kind, dyn_agg=dyn)  # type: ignore[arg-type]
+                warmed.append(f"{kind}:{dyn}")
+            except Exception as exc:  # noqa: BLE001
+                failed.append(f"{kind}:{dyn}: {exc}")
+    return {"warmed": warmed, "failed": failed}
 
 
 def _empty_payload(
@@ -343,6 +364,31 @@ def build_gdrs_payload(
     from web_db_read import json_records_by_source, web_db_mtime  # type: ignore
 
     db_mtime = float(web_db_mtime())
+
+    # Сборка payload’а стоит десятки секунд (срез плана на каждую точку динамики),
+    # поэтому результат кэшируем на диск, как у остальных отчётов.
+    cache_key = "|".join(
+        [
+            "v1",
+            f"kind={resource_kind}",
+            f"projects={projects or ''}",
+            f"contractors={contractors or ''}",
+            f"months={months or ''}",
+            f"plan_agg={plan_agg or ''}",
+            f"skud_agg={skud_agg or ''}",
+            f"plan_day={plan_day or ''}",
+            f"skud_day={skud_day or ''}",
+            f"dyn_agg={dyn_agg or ''}",
+            f"only_with_plan={bool(only_with_plan)}",
+            f"db={WEB_DB_PATH}",
+            f"vid={int(version_id)}",
+            f"mtime={db_mtime}",
+        ]
+    )
+    cached = cache_get("gdrs", cache_key, max_age_sec=24 * 3600)
+    if cached is not None:
+        return cached
+
     dog_sig = g._gdrs_dogovor_sources_sig(int(version_id))
 
     long_fact = _cached_enriched_fact(int(version_id), db_mtime, dog_sig)
@@ -618,6 +664,7 @@ def build_gdrs_payload(
             }
         )
         empty["filters"] = base_filters
+        cache_set("gdrs", cache_key, empty)
         return empty
 
     gt = main_t[main_t["row_kind"] == "grand_total"]
@@ -828,7 +875,7 @@ def build_gdrs_payload(
                     {"period": period, "plan": p, "fact": f, "name": period}
                 )
 
-    return {
+    payload = {
         "meta": {
             "data_mode": DATA_MODE,
             "resource_kind": resource_kind,
@@ -871,3 +918,5 @@ def build_gdrs_payload(
         },
         "dynamics_rows": dynamics_rows,
     }
+    cache_set("gdrs", cache_key, payload)
+    return payload
