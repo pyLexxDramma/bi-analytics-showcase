@@ -3779,6 +3779,37 @@ def gdrs_agg_select_options_for_weeks(weeks: Optional[Iterable[int]]) -> list[st
     return opts
 
 
+GDRS_AGG_DAY_LABEL = "За день"
+_GDRS_AGG_DAY_PREFIX = "day:"
+
+
+def gdrs_agg_day_key(day: pd.Timestamp | str) -> str:
+    """Ключ агрегации «за конкретный день»: ``day:YYYY-MM-DD``."""
+    ts = pd.to_datetime(day, errors="coerce")
+    if ts is None or not pd.notna(ts):
+        return GDRS_AGG_MONTH
+    return f"{_GDRS_AGG_DAY_PREFIX}{pd.Timestamp(ts).normalize().date().isoformat()}"
+
+
+def gdrs_agg_day_date(agg_key: str) -> Optional[pd.Timestamp]:
+    """Дата из ключа ``day:YYYY-MM-DD``; ``None`` для month_avg / week:N."""
+    raw = str(agg_key or "")
+    if not raw.startswith(_GDRS_AGG_DAY_PREFIX):
+        return None
+    ts = pd.to_datetime(raw[len(_GDRS_AGG_DAY_PREFIX):], errors="coerce")
+    if ts is None or not pd.notna(ts):
+        return None
+    return pd.Timestamp(ts).normalize()
+
+
+def gdrs_agg_day_display(agg_key: str) -> Optional[str]:
+    """Подпись дневного режима для UI: «За день 15.09.2026»."""
+    day = gdrs_agg_day_date(agg_key)
+    if day is None:
+        return None
+    return f"{GDRS_AGG_DAY_LABEL} {day.strftime('%d.%m.%Y')}"
+
+
 def gdrs_agg_label_to_key(label: str) -> str:
     for key, text in GDRS_AGG_LABELS.items():
         if text == label:
@@ -4149,7 +4180,10 @@ def gdrs_plan_snapshot_date(
     projects: Optional[list[str]] = None,
     contractors: Optional[list[str]] = None,
 ) -> pd.Timestamp:
-    """Дата среза плана из 1С: конец выбранной недели или конец периода (среднее за месяц)."""
+    """Дата среза плана из 1С: выбранный день, конец недели или конец периода."""
+    day = gdrs_agg_day_date(plan_agg)
+    if day is not None:
+        return day
     wn = gdrs_agg_week_num(plan_agg)
     if wn is not None:
         end = week_end_in_filtered_fact(
@@ -4173,7 +4207,11 @@ def _skud_agg_per_pair(
     date_from: Optional[pd.Timestamp] = None,
     date_to: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
-    """СКУД (среднее за день) по паре проект×контрагент для режима month_avg или week:N."""
+    """СКУД по паре проект×контрагент: month_avg, week:N или day:YYYY-MM-DD.
+
+    Дневной режим — факт исходника ровно за эту календарную дату (без усреднения);
+    нет строк за день (в т.ч. день после выгрузки resursi) → 0, как для недели.
+    """
     as_of = gdrs_skud_as_of(date_to, fact)
     work = fact.copy()
     work["date"] = pd.to_datetime(work["date"], errors="coerce")
@@ -4192,6 +4230,20 @@ def _skud_agg_per_pair(
         .sum()
         .reset_index(name="skud_sum")
     )
+    day = gdrs_agg_day_date(skud_agg)
+    if day is not None:
+        day_work = work[work["date"].dt.normalize() == day]
+        if day_work.empty:
+            return skud_sum[pair_cols].assign(skud_val=0.0)
+        day_sum = (
+            day_work.groupby(pair_cols, dropna=False)["fact"]
+            .sum()
+            .reset_index(name="skud_val")
+        )
+        return skud_sum[pair_cols].merge(
+            day_sum, on=pair_cols, how="left"
+        ).assign(skud_val=lambda d: d["skud_val"].fillna(0.0))
+
     wn = gdrs_agg_week_num(skud_agg)
     if wn is None:
         skud_sum["skud_val"] = skud_sum["skud_sum"] / max(1, total_days)
@@ -4224,6 +4276,8 @@ def gdrs_matrix_show_week_columns(
 ) -> bool:
     """Колонки «1–6 неделя» — только «Среднее за месяц» и один календарный месяц в фильтре."""
     if gdrs_agg_week_num(plan_agg) is not None or gdrs_agg_week_num(skud_agg) is not None:
+        return False
+    if gdrs_agg_day_date(plan_agg) is not None or gdrs_agg_day_date(skud_agg) is not None:
         return False
     if date_from is not None and date_to is not None and pd.notna(date_from) and pd.notna(date_to):
         if not _gdrs_single_calendar_month(date_from, date_to):
@@ -4476,7 +4530,8 @@ def build_main_table(
     Логика расчёта:
     - Неделя = ISO-неделя; нумерация в порядке возрастания внутри выборки (1..6 для месяца).
     - weekly_avg(подрядчик, неделя) = ∑ daily / N_дней_в_неделе_в_выборке.
-    - skud: по `skud_agg` — среднее за день за период (month_avg) или weekly_avg выбранной недели (week:N).
+    - skud: по `skud_agg` — среднее за день за период (month_avg), weekly_avg выбранной
+      недели (week:N) или факт исходника за календарную дату (day:YYYY-MM-DD).
     - plan: из plan-таблицы 1С на срез `plan_agg`. «Среднее за месяц» в одном
       календарном месяце: сумма выдач Количество_* с датой в месяце (если есть),
       иначе среднее недельных срезов.
@@ -4582,6 +4637,7 @@ def build_main_table(
     _plan_pairs_source = plan_work
     _pairs_multi_month = (
         gdrs_agg_week_num(plan_agg) is None
+        and gdrs_agg_day_date(plan_agg) is None
         and date_from is not None
         and date_to is not None
         and pd.notna(date_from)
@@ -4695,6 +4751,7 @@ def build_main_table(
 
     _use_period_plan_avg = (
         gdrs_agg_week_num(plan_agg) is None
+        and gdrs_agg_day_date(plan_agg) is None
         and date_from is not None
         and date_to is not None
         and pd.notna(date_from)

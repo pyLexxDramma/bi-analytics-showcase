@@ -1719,6 +1719,11 @@ export type GdrsPayload = {
     dyn_title?: string;
     pie_title?: string;
     matrix_title?: string;
+    /** Выбранный день плана / СКУД (ISO) в режиме «За день». */
+    plan_day?: string;
+    skud_day?: string;
+    /** Подпись режима: «План: 15.09.2026 · СКУД: 15.09.2026». */
+    agg_note?: string;
   };
   filters: {
     projects: string[];
@@ -1727,12 +1732,19 @@ export type GdrsPayload = {
     default_months: string[];
     agg_options: string[];
     dyn_agg_options?: string[];
+    /** Подпись режима «За день» в agg_options. */
+    day_label?: string;
+    day_min?: string;
+    day_max?: string;
+    day_default?: string;
     selected: {
       projects: string[];
       contractors: string[];
       months: string[];
       plan_agg: string;
       skud_agg: string;
+      plan_day?: string;
+      skud_day?: string;
       dyn_agg?: string;
       only_with_plan?: boolean;
     };
@@ -1821,6 +1833,8 @@ export type GdrsQuery = {
   months?: string[];
   plan_agg?: string;
   skud_agg?: string;
+  plan_day?: string;
+  skud_day?: string;
   dyn_agg?: string;
   only_with_plan?: boolean;
 };

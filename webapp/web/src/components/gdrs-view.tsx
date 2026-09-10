@@ -20,6 +20,7 @@ import {
   FilterChipMulti,
   FilterChipSelect,
   FilterChecksRow,
+  FilterDateInput,
   FilterFieldsRow,
   FiltersCard,
 } from "@/components/dashboard-filters";
@@ -74,6 +75,9 @@ type Filters = {
   months: string[];
   plan_agg: string;
   skud_agg: string;
+  /** День (ISO) при режиме «За день»; иначе пусто. */
+  plan_day: string;
+  skud_day: string;
   dyn_agg: string;
   only_with_plan: boolean;
 };
@@ -85,9 +89,45 @@ const INITIAL: Filters = {
   months: [],
   plan_agg: "Среднее за месяц",
   skud_agg: "Среднее за месяц",
+  plan_day: "",
+  skud_day: "",
   dyn_agg: "День",
   only_with_plan: false,
 };
+
+/** Подпись режима «за конкретный день» (совпадает с GDRS_AGG_DAY_LABEL в API). */
+const DAY_AGG_LABEL = "За день";
+
+function dayRu(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
+}
+
+/** Поле дня для режима «За день». */
+function DayField({
+  value,
+  min,
+  max,
+  ariaLabel,
+  onChange,
+}: {
+  value: string;
+  min?: string;
+  max?: string;
+  ariaLabel: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <FilterDateInput
+      className="mt-2"
+      min={min}
+      max={max}
+      value={value}
+      aria-label={ariaLabel}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
 
 const BORDER_L = "#d1d5db";
 const BORDER_L_CELL = "#e5e7eb";
@@ -424,6 +464,10 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           months: next.months,
           plan_agg: next.plan_agg,
           skud_agg: next.skud_agg,
+          plan_day:
+            next.plan_agg === DAY_AGG_LABEL ? next.plan_day || undefined : undefined,
+          skud_day:
+            next.skud_agg === DAY_AGG_LABEL ? next.skud_day || undefined : undefined,
           dyn_agg: next.dyn_agg,
           only_with_plan: next.only_with_plan,
         });
@@ -440,6 +484,8 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
             months: next.months.length ? next.months : (sel.months ?? []),
             plan_agg: sel.plan_agg || next.plan_agg,
             skud_agg: sel.skud_agg || next.skud_agg,
+            plan_day: sel.plan_day ?? next.plan_day,
+            skud_day: sel.skud_day ?? next.skud_day,
             dyn_agg: sel.dyn_agg || next.dyn_agg,
             only_with_plan: Boolean(sel.only_with_plan ?? next.only_with_plan),
           });
@@ -657,6 +703,39 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
 
   const monthsChanged = filters.months.length > 0;
 
+  const aggOptions = data?.filters.agg_options ?? [
+    "Среднее за месяц",
+    DAY_AGG_LABEL,
+  ];
+  const dayMin = data?.filters.day_min || undefined;
+  const dayMax = data?.filters.day_max || undefined;
+  const dayDefault = data?.filters.day_default || data?.filters.day_max || "";
+  const planDayIso = filters.plan_agg === DAY_AGG_LABEL ? filters.plan_day : "";
+  const skudDayIso = filters.skud_agg === DAY_AGG_LABEL ? filters.skud_day : "";
+
+  const aggChipLabel = (day: string) => (value: string) =>
+    value === DAY_AGG_LABEL && day ? `${DAY_AGG_LABEL} ${dayRu(day)}` : value;
+
+  /** Дни из применённого среза (в графике — то, что реально посчитано API). */
+  const planDayApplied = data?.meta.plan_day ?? "";
+  const skudDayApplied = data?.meta.skud_day ?? "";
+  const dynHighlights = useMemo(() => {
+    const out: Array<{ period: string; label: string; color: string }> = [];
+    if (planDayApplied) {
+      out.push({ period: dayRu(planDayApplied), label: "План", color: "#2563eb" });
+    }
+    if (skudDayApplied && skudDayApplied !== planDayApplied) {
+      out.push({ period: dayRu(skudDayApplied), label: "СКУД", color: "#ea580c" });
+    } else if (skudDayApplied) {
+      out[0] = { period: dayRu(skudDayApplied), label: "План · СКУД", color: "#0f766e" };
+    }
+    return out;
+  }, [planDayApplied, skudDayApplied]);
+  const highlightPeriods = useMemo(
+    () => new Set(dynHighlights.map((h) => h.period)),
+    [dynHighlights],
+  );
+
   const activeFilters = [
     ...buildFilterChips(
       filters,
@@ -669,8 +748,18 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
       [
         { key: "projects", name: "Проект" },
         { key: "contractors", name: "Контрагент" },
-        { key: "plan_agg", name: "План" },
-        { key: "skud_agg", name: "СКУД" },
+        {
+          key: "plan_agg",
+          name: "План",
+          label: aggChipLabel(planDayIso),
+          clear: { plan_agg: "Среднее за месяц", plan_day: "" },
+        },
+        {
+          key: "skud_agg",
+          name: "СКУД",
+          label: aggChipLabel(skudDayIso),
+          clear: { skud_agg: "Среднее за месяц", skud_day: "" },
+        },
         { key: "dyn_agg", name: "Динамика" },
         { key: "only_with_plan", name: "Только с планом", kind: "flag" },
       ],
@@ -705,8 +794,30 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
           <FilterChipMulti filterKey="projects" label="Проект" options={data?.filters.projects ?? []} values={filters.projects} onChange={(projects) => setFilters((s) => ({ ...s, projects }))} />
           <FilterChipMulti filterKey="contractors" label="Контрагент" options={data?.filters.contractors ?? []} values={filters.contractors} onChange={(contractors) => setFilters((s) => ({ ...s, contractors }))} />
           <FilterChipMulti filterKey="months" label="Месяц" options={data?.filters.months ?? []} values={filters.months} onChange={(months) => setFilters((s) => ({ ...s, months }))} />
-          <FilterChipSelect filterKey="plan_agg" label="План" value={filters.plan_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(plan_agg) => setFilters((s) => ({ ...s, plan_agg }))} />
-          <FilterChipSelect filterKey="skud_agg" label="СКУД" value={filters.skud_agg} options={data?.filters.agg_options ?? ["Среднее за месяц"]} onChange={(skud_agg) => setFilters((s) => ({ ...s, skud_agg }))} />
+          <div className="flex w-full min-w-0 flex-col self-start">
+            <FilterChipSelect filterKey="plan_agg" label="План" value={filters.plan_agg} options={aggOptions} onChange={(plan_agg) => setFilters((s) => ({ ...s, plan_agg, plan_day: plan_agg === DAY_AGG_LABEL ? s.plan_day || dayDefault : "" }))} />
+            {filters.plan_agg === DAY_AGG_LABEL ? (
+              <DayField
+                min={dayMin}
+                max={dayMax}
+                value={filters.plan_day}
+                ariaLabel="День плана"
+                onChange={(plan_day) => setFilters((s) => ({ ...s, plan_day }))}
+              />
+            ) : null}
+          </div>
+          <div className="flex w-full min-w-0 flex-col self-start">
+            <FilterChipSelect filterKey="skud_agg" label="СКУД" value={filters.skud_agg} options={aggOptions} onChange={(skud_agg) => setFilters((s) => ({ ...s, skud_agg, skud_day: skud_agg === DAY_AGG_LABEL ? s.skud_day || dayDefault : "" }))} />
+            {filters.skud_agg === DAY_AGG_LABEL ? (
+              <DayField
+                min={dayMin}
+                max={dayMax}
+                value={filters.skud_day}
+                ariaLabel="День СКУД"
+                onChange={(skud_day) => setFilters((s) => ({ ...s, skud_day }))}
+              />
+            ) : null}
+          </div>
         </FilterFieldsRow>
         <FilterChecksRow cols={5}>
           <FilterCheck
@@ -727,6 +838,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
         </FilterChecksRow>
         <Text className="mt-3">
           {data?.meta.period_label ? `${data.meta.period_label} · ` : ""}
+          {data?.meta.agg_note ? `${data.meta.agg_note} · ` : ""}
           {loading
             ? "загрузка…"
             : `${data?.meta.rows ?? 0} строк`}
@@ -1381,6 +1493,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 rows={data?.tremor.dynamics ?? []}
                 fullscreen={zoomed}
                 tableSync
+                highlights={dynHighlights}
               />
             </div>
             <div className="mt-4 lg:hidden">
@@ -1388,6 +1501,7 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 rows={data?.tremor.dynamics ?? []}
                 compact
                 tableSync
+                highlights={dynHighlights}
               />
             </div>
           </Card>}
@@ -1445,7 +1559,15 @@ export function GdrsView({ resourceKind }: { resourceKind: ResourceKind }) {
                 </thead>
                 <tbody>
                   {dynamicsRows.map((r) => (
-                    <SyncTableRow key={r.period} syncKey={r.period} className="bi-row-alt">
+                    <SyncTableRow
+                      key={r.period}
+                      syncKey={r.period}
+                      className={
+                        highlightPeriods.has(r.period)
+                          ? "bi-row-alt font-semibold"
+                          : "bi-row-alt"
+                      }
+                    >
                       <td style={td({ textAlign: "center" })}>{r.period}</td>
                       <td className="bi-num" style={td({ textAlign: "center", backgroundColor: pal.planBg })}>
                         {fmtInt(r.plan)}
