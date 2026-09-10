@@ -64,6 +64,22 @@ def _clean(value: Any) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+def _sort_msp(frame: pd.DataFrame) -> pd.DataFrame:
+    """Порядок строк как в исходном MSP CSV (стабильный source order)."""
+    if frame is None or getattr(frame, "empty", True):
+        return frame
+    if "_msp_ord" in frame.columns:
+        return frame.sort_values("_msp_ord", kind="mergesort", na_position="last").reset_index(
+            drop=True
+        )
+    id_seq = "task id seq" if "task id seq" in frame.columns else None
+    if id_seq:
+        return frame.sort_values(id_seq, kind="mergesort", na_position="last").reset_index(
+            drop=True
+        )
+    return frame.reset_index(drop=True)
+
+
 def _cmp_key(value: Any) -> str:
     return _normalize(value)
 
@@ -529,7 +545,10 @@ def _parent_is_rd_stage(parent_name: str) -> bool:
 
 
 def _build_rd_deadline_chart_df(scope_df: pd.DataFrame) -> pd.DataFrame:
-    """Как main `_plan_fact_build_rd_deadline_chart_df`: max дат по разделам РД ур.5+шифр."""
+    """Устарело для основного графика (заявка #16: MSP order + level-scoped end_bars).
+
+    Оставлено для совместимости/тестов: max дат по разделам РД ур.5+шифр.
+    """
     cols = ["task name", "project name", "plan end", "base end", "plan_end_diff", "_rd_parent"]
     if scope_df is None or getattr(scope_df, "empty", True):
         return pd.DataFrame(columns=cols)
@@ -600,7 +619,16 @@ def _build_rd_deadline_chart_df(scope_df: pd.DataFrame) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=cols)
     out = pd.DataFrame(rows)
-    return out.sort_values("plan_end_diff", ascending=True, na_position="last").reset_index(drop=True)
+    # Порядок — по первому появлению RD-группы в MSP (не по отклонению).
+    if "_msp_ord" in sub.columns:
+        first_ord = sub.groupby(["project name", "_rd_parent"], sort=False)["_msp_ord"].min()
+        out = out.merge(
+            first_ord.rename("_msp_ord").reset_index(),
+            on=["project name", "_rd_parent"],
+            how="left",
+        )
+        return _sort_msp(out)
+    return out.reset_index(drop=True)
 
 
 def _maket_prepare(frame: pd.DataFrame) -> pd.DataFrame:
@@ -661,8 +689,7 @@ def _maket_prepare(frame: pd.DataFrame) -> pd.DataFrame:
             tmp[c] = tmp[c].astype(str).str.strip()
         maket = maket[~tmp.duplicated(subset=key_cols, keep="first")].copy()
     if not maket.empty:
-        # как chart: наибольшее (самое отрицательное) отклонение сверху
-        maket = maket.sort_values("_end_diff", ascending=True).reset_index(drop=True)
+        maket = _sort_msp(maket)
     return maket
 
 
@@ -740,7 +767,7 @@ def _empty_payload(*, error: str | None = None) -> dict[str, Any]:
             "range_end": None,
             "rows": [],
             "capped": False,
-            "kind": "rd_end_bars",
+            "kind": "end_bars",
             "caption": "",
             "base_color": "#14b8a6",
             "plan_color": "#fb923c",
@@ -767,7 +794,7 @@ def build_baseline_deviation_payload(
 ) -> dict[str, Any]:
     metric_task = resolve_metric_task()
     cache_key = (
-        f"v11-building-norm|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
+        f"v12-msp-order|p={project or 'Все'}|b={block or 'Все'}|bd={building or 'Все'}"
         f"|l={level or '4'}|r={reason or 'Все'}|sr={int(bool(show_reasons))}"
         f"|hc={int(bool(hide_completed))}|oc={int(bool(only_covenants))}"
         f"|on={int(bool(only_neg_end))}|sd={int(bool(show_dur))}"
@@ -804,6 +831,9 @@ def build_baseline_deviation_payload(
             )
             if bool(is_msp.any()):
                 work = work.loc[is_msp].copy()
+
+        # Стабильный порядок строк исходного MSP (после фильтра файлов, до срезов).
+        work["_msp_ord"] = np.arange(len(work), dtype=np.int64)
 
         proj_col = _col(work, ["project name", "Проект", "проект", "Project"])
         if proj_col:
@@ -907,10 +937,7 @@ def build_baseline_deviation_payload(
                 ].copy()
             scoped = sliced
 
-        # График РД-дедлайнов: срез после блока/строения, до фильтра уровня (как main).
-        zos_scope = scoped.copy()
         scoped = _enrich_ancestor_keys(scoped, level_col, task_col)
-        zos_scope = _enrich_ancestor_keys(zos_scope, level_col, task_col)
         zos_plates_scope = _enrich_ancestor_keys(zos_plates_scope, level_col, task_col)
 
         applied_level = level if level in {"4", "5"} else "4"
@@ -1051,14 +1078,8 @@ def build_baseline_deviation_payload(
                     table_df["plan_end_diff"].notna() & (table_df["plan_end_diff"] < -1e-9)
                 ].copy()
 
-        # График: как main — РД-дедлайны из среза ДО фильтра уровня (zos_scope),
-        # независимо от «Показать причины»; при ковенантах — точки начало/окончание.
-        chart_kind = "rd_end_bars"
-        chart_caption = (
-            "Столбцы от начала шкалы до «Базового окончания» и «Окончания» "
-            "по последнему сроку разделов РД (ур.5 с шифром под «Рабочая документация»); "
-            "сверху — наибольшее отклонение."
-        )
+        # График: тот же level-scoped срез, что и таблица (заявка #16 — порядок MSP).
+        # Ковенанты — точки начало/окончание.
         if covenant_block:
             chart_df = scoped.copy()
             chart_kind = "covenant_points"
@@ -1070,36 +1091,33 @@ def build_baseline_deviation_payload(
                     chart_df["plan_end_diff"].notna() & (chart_df["plan_end_diff"] < -1e-9)
                 ].copy()
         else:
-            chart_df = _build_rd_deadline_chart_df(zos_scope)
-            if chart_df.empty:
-                chart_df = scoped.copy()
-                chart_kind = "end_bars"
-                chart_caption = (
-                    "Столбцы от начала шкалы до «Базового окончания» и «Окончания»; "
-                    "сверху — наибольшее отклонение."
-                )
+            chart_df = scoped.copy()
+            chart_kind = "end_bars"
+            chart_caption = (
+                "Столбцы от начала шкалы до «Базового окончания» и «Окончания»; "
+                "порядок задач — как в исходном MSP."
+            )
             if only_neg_end and "plan_end_diff" in chart_df.columns:
                 chart_df = chart_df[
                     chart_df["plan_end_diff"].notna() & (chart_df["plan_end_diff"] < -1e-9)
                 ].copy()
 
         chart_source = chart_df.copy()
-        sort_by: list[str] = []
-        ascending: list[bool] = []
         if multi_project and "project name" in chart_source.columns:
             chart_source = chart_source.copy()
             chart_source["_proj_sort"] = (
                 chart_source["project name"].map(_clean).astype(str).str.casefold()
             )
-            sort_by.append("_proj_sort")
-            ascending.append(True)
-        if "plan_end_diff" in chart_source.columns:
-            sort_by.append("plan_end_diff")
-            ascending.append(True)
-        if sort_by:
+            sort_cols = ["_proj_sort"]
+            if "_msp_ord" in chart_source.columns:
+                sort_cols.append("_msp_ord")
+            elif "task id seq" in chart_source.columns:
+                sort_cols.append("task id seq")
             chart_source = chart_source.sort_values(
-                sort_by, ascending=ascending, na_position="last"
+                sort_cols, kind="mergesort", na_position="last"
             )
+        else:
+            chart_source = _sort_msp(chart_source)
         chart_capped = len(chart_source) > CHART_CAP
         chart_source = chart_source.head(CHART_CAP)
 
@@ -1172,7 +1190,7 @@ def build_baseline_deviation_payload(
         range_start = min(range_dates).isoformat() if range_dates else None
         range_end = max(range_dates).isoformat() if range_dates else None
 
-        # Таблица «Ковенанты (таблица)» как main
+        # Таблица «Ковенанты (таблица)»
         covenant_table: dict[str, Any] = {"columns": [], "rows": []}
         if covenant_block:
             cov_cols = (
@@ -1181,11 +1199,7 @@ def build_baseline_deviation_payload(
                 else ["Задача", "ID задачи", "Базовое окончание", "Окончание", "Отклонение окончания (дней)"]
             )
             cov_rows: list[dict[str, Any]] = []
-            cov_src = chart_df.copy()
-            if "plan_end_diff" in cov_src.columns:
-                cov_src = cov_src.sort_values(
-                    "plan_end_diff", ascending=True, na_position="last"
-                )
+            cov_src = _sort_msp(chart_df.copy())
             for _, crow in cov_src.iterrows():
                 be_ts = pd.to_datetime(crow.get("base end"), errors="coerce")
                 pe_ts = pd.to_datetime(crow.get("plan end"), errors="coerce")
@@ -1214,7 +1228,8 @@ def build_baseline_deviation_payload(
                 cov_rows.append(item)
             covenant_table = {"columns": cov_cols, "rows": cov_rows}
 
-        # Table rows
+        # Table rows — порядок MSP
+        table_df = _sort_msp(table_df)
         rows_out: list[dict[str, Any]] = []
         columns: list[str]
 
