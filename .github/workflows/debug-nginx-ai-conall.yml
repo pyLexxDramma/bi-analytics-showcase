@@ -1,0 +1,64 @@
+# One-off: diagnose HTTPS 403 on ai.conall.ru (nginx on VPS)
+name: Debug nginx ai.conall.ru
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect nginx / listeners / curl
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
+          command_timeout: 10m
+          script: |
+            set -uo pipefail
+            echo "=== host / whoami ==="
+            hostname; whoami; date -u
+            echo "=== listeners 80/443/3080/3081 ==="
+            (ss -lntp 2>/dev/null || netstat -lntp 2>/dev/null || true) | grep -E ':80|:443|:3080|:3081' || true
+            echo "=== local curl ==="
+            curl -sS -o /tmp/h80.txt -w "http://127.0.0.1/ -> %{http_code}\n" -H "Host: ai.conall.ru" --connect-timeout 5 http://127.0.0.1/ || true
+            curl -sS -o /tmp/h443.txt -w "https://127.0.0.1/ -> %{http_code}\n" -k -H "Host: ai.conall.ru" --connect-timeout 5 https://127.0.0.1/ || true
+            curl -sS -o /tmp/h3081.txt -w "http://127.0.0.1:3081/api/health -> %{http_code}\n" --connect-timeout 5 http://127.0.0.1:3081/api/health || true
+            curl -sS -o /tmp/pub443.txt -w "https://ai.conall.ru/ -> %{http_code}\n" --connect-timeout 8 https://ai.conall.ru/ || true
+            echo "--- body https 127 (head) ---"
+            head -c 400 /tmp/h443.txt 2>/dev/null; echo
+            echo "=== nginx binary / service ==="
+            command -v nginx || true
+            systemctl is-active nginx 2>/dev/null || true
+            systemctl is-active nginx.service 2>/dev/null || true
+            docker ps --format 'table {{.Names}}\t{{.Ports}}\t{{.Status}}' 2>/dev/null | head -40 || true
+            echo "=== find ai.conall / 403 / deny in nginx configs ==="
+            for d in /etc/nginx /usr/local/nginx /opt/nginx "$HOME/nginx" /etc/caddy; do
+              if [[ -d "$d" ]]; then
+                echo "-- tree $d --"
+                find "$d" -type f \( -name '*.conf' -o -name 'Caddyfile*' \) 2>/dev/null | head -80
+              fi
+            done
+            echo "=== grep server_name / deny / return 403 ==="
+            sudo grep -RInE 'server_name|ai\.conall|deny |allow |return 403|ssl_certificate' /etc/nginx 2>/dev/null | head -120 || \
+              grep -RInE 'server_name|ai\.conall|deny |allow |return 403|ssl_certificate' /etc/nginx 2>/dev/null | head -120 || true
+            echo "=== dump matching server blocks (ai.conall) ==="
+            sudo grep -RIl 'ai.conall' /etc/nginx 2>/dev/null | while read -r f; do
+              echo "#### FILE $f ####"
+              sudo sed -n '1,220p' "$f"
+            done || true
+            grep -RIl 'ai.conall' /etc/nginx 2>/dev/null | while read -r f; do
+              echo "#### FILE $f ####"
+              sed -n '1,220p' "$f"
+            done || true
+            echo "=== nginx -T filtered ==="
+            (sudo nginx -T 2>/dev/null || nginx -T 2>/dev/null || true) | awk '
+              /server_name/ || /listen / || /ai\.conall/ || /deny / || /allow / || /return 403/ || /ssl_certificate/ {print NR": "$0}
+            ' | head -200
+            echo "=== recent nginx error log ==="
+            sudo tail -n 80 /var/log/nginx/error.log 2>/dev/null || tail -n 80 /var/log/nginx/error.log 2>/dev/null || true
+            sudo journalctl -u nginx -n 40 --no-pager 2>/dev/null || true
+            echo "=== DONE ==="
