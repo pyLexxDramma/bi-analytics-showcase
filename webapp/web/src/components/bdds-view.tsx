@@ -39,7 +39,6 @@ import {
 import {
   DashboardTableActions,
   DashboardTableTitle,
-  MobileFilterChips,
   MobilePaneTabs,
 } from "@/components/mobile-ux";
 import {
@@ -704,16 +703,6 @@ export function BddsView({ config = BDDS_CONFIG }: { config?: FinanceViewConfig 
             { id: "periods", label: "Периоды" },
           ]}
         />
-        <div className="mb-1 px-0 lg:hidden">
-          <MobileFilterChips
-            value={filters.view}
-            onChange={(view) => setFilters((state) => ({ ...state, view }))}
-            options={(data?.filters.views ?? [
-              { id: "monthly", label: "По месяцам" },
-              { id: "cumulative", label: "Накопительно" },
-            ]).map((item) => ({ id: item.id, label: item.label }))}
-          />
-        </div>
         <ChartTableSyncProvider>
         <div className={mobilePane === "chart" ? "block" : "hidden lg:block"}>
         <Card className="rounded-xl">
