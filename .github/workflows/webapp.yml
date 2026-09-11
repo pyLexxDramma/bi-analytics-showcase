@@ -86,7 +86,7 @@ jobs:
           key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
           port: ${{ secrets.WEBAPP_VPS_PORT || 22 }}
           command_timeout: 30m
-          envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL,GH_FETCH_TOKEN
+          envs: XCA_ASK_SECRET,XCA_ASK_BASE_URL,GH_FETCH_TOKEN,TRELLO_API_KEY,TRELLO_TOKEN,TRELLO_BOARD_ID,TRELLO_LIST_URGENT,TRELLO_LIST_BUG,TRELLO_LIST_UI,TRELLO_LIST_FEATURE,TRELLO_LIST_QUESTION,TRELLO_LIST_TRIAGE,TRELLO_LABEL_URGENT,TRELLO_LABEL_BUG,TRELLO_LABEL_UI,TRELLO_LABEL_FEATURE,TRELLO_LABEL_QUESTION,TRELLO_LABEL_TRIAGE,BUG_REPORT_DRY_RUN,BUG_REPORT_SMTP_HOST,BUG_REPORT_SMTP_PORT,BUG_REPORT_SMTP_USER,BUG_REPORT_SMTP_PASSWORD,BUG_REPORT_SMTP_FROM,BUG_REPORT_SMTP_SSL,BUG_REPORT_TELEGRAM_BOT_TOKEN,BUG_REPORT_SYNC_KEY
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.WEBAPP_VPS_PATH }}"
@@ -108,9 +108,59 @@ jobs:
             git reset --hard origin/main
             export XCA_ASK_SECRET="${XCA_ASK_SECRET:-}"
             export XCA_ASK_BASE_URL="${XCA_ASK_BASE_URL:-}"
+            export TRELLO_API_KEY="${TRELLO_API_KEY:-}"
+            export TRELLO_TOKEN="${TRELLO_TOKEN:-}"
+            export TRELLO_BOARD_ID="${TRELLO_BOARD_ID:-}"
+            export TRELLO_LIST_URGENT="${TRELLO_LIST_URGENT:-}"
+            export TRELLO_LIST_BUG="${TRELLO_LIST_BUG:-}"
+            export TRELLO_LIST_UI="${TRELLO_LIST_UI:-}"
+            export TRELLO_LIST_FEATURE="${TRELLO_LIST_FEATURE:-}"
+            export TRELLO_LIST_QUESTION="${TRELLO_LIST_QUESTION:-}"
+            export TRELLO_LIST_TRIAGE="${TRELLO_LIST_TRIAGE:-}"
+            export TRELLO_LABEL_URGENT="${TRELLO_LABEL_URGENT:-}"
+            export TRELLO_LABEL_BUG="${TRELLO_LABEL_BUG:-}"
+            export TRELLO_LABEL_UI="${TRELLO_LABEL_UI:-}"
+            export TRELLO_LABEL_FEATURE="${TRELLO_LABEL_FEATURE:-}"
+            export TRELLO_LABEL_QUESTION="${TRELLO_LABEL_QUESTION:-}"
+            export TRELLO_LABEL_TRIAGE="${TRELLO_LABEL_TRIAGE:-}"
+            export BUG_REPORT_DRY_RUN="${BUG_REPORT_DRY_RUN:-0}"
+            # Ссылки статус-страниц на cloudpub (не брать prod BUG_STATUS_PUBLIC_BASE).
+            export BUG_STATUS_PUBLIC_BASE="https://insipidly-carefree-husky.cloudpub.ru"
+            export BUG_REPORT_SMTP_HOST="${BUG_REPORT_SMTP_HOST:-}"
+            export BUG_REPORT_SMTP_PORT="${BUG_REPORT_SMTP_PORT:-587}"
+            export BUG_REPORT_SMTP_USER="${BUG_REPORT_SMTP_USER:-}"
+            export BUG_REPORT_SMTP_PASSWORD="${BUG_REPORT_SMTP_PASSWORD:-}"
+            export BUG_REPORT_SMTP_FROM="${BUG_REPORT_SMTP_FROM:-}"
+            export BUG_REPORT_SMTP_SSL="${BUG_REPORT_SMTP_SSL:-0}"
+            export BUG_REPORT_TELEGRAM_BOT_TOKEN="${BUG_REPORT_TELEGRAM_BOT_TOKEN:-}"
+            export BUG_REPORT_SYNC_KEY="${BUG_REPORT_SYNC_KEY:-}"
             bash webapp/scripts/server_deploy.sh
             echo "Deployed $(git rev-parse --short HEAD) edge :3080"
         env:
           XCA_ASK_SECRET: ${{ secrets.XCA_ASK_SECRET }}
           XCA_ASK_BASE_URL: ${{ secrets.XCA_ASK_BASE_URL }}
           GH_FETCH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_BOARD_ID: ${{ secrets.TRELLO_BOARD_ID }}
+          TRELLO_LIST_URGENT: ${{ secrets.TRELLO_LIST_URGENT }}
+          TRELLO_LIST_BUG: ${{ secrets.TRELLO_LIST_BUG }}
+          TRELLO_LIST_UI: ${{ secrets.TRELLO_LIST_UI }}
+          TRELLO_LIST_FEATURE: ${{ secrets.TRELLO_LIST_FEATURE }}
+          TRELLO_LIST_QUESTION: ${{ secrets.TRELLO_LIST_QUESTION }}
+          TRELLO_LIST_TRIAGE: ${{ secrets.TRELLO_LIST_TRIAGE }}
+          TRELLO_LABEL_URGENT: ${{ secrets.TRELLO_LABEL_URGENT }}
+          TRELLO_LABEL_BUG: ${{ secrets.TRELLO_LABEL_BUG }}
+          TRELLO_LABEL_UI: ${{ secrets.TRELLO_LABEL_UI }}
+          TRELLO_LABEL_FEATURE: ${{ secrets.TRELLO_LABEL_FEATURE }}
+          TRELLO_LABEL_QUESTION: ${{ secrets.TRELLO_LABEL_QUESTION }}
+          TRELLO_LABEL_TRIAGE: ${{ secrets.TRELLO_LABEL_TRIAGE }}
+          BUG_REPORT_DRY_RUN: ${{ secrets.BUG_REPORT_DRY_RUN }}
+          BUG_REPORT_SMTP_HOST: ${{ secrets.BUG_REPORT_SMTP_HOST }}
+          BUG_REPORT_SMTP_PORT: ${{ secrets.BUG_REPORT_SMTP_PORT }}
+          BUG_REPORT_SMTP_USER: ${{ secrets.BUG_REPORT_SMTP_USER }}
+          BUG_REPORT_SMTP_PASSWORD: ${{ secrets.BUG_REPORT_SMTP_PASSWORD }}
+          BUG_REPORT_SMTP_FROM: ${{ secrets.BUG_REPORT_SMTP_FROM }}
+          BUG_REPORT_SMTP_SSL: ${{ secrets.BUG_REPORT_SMTP_SSL }}
+          BUG_REPORT_TELEGRAM_BOT_TOKEN: ${{ secrets.BUG_REPORT_TELEGRAM_BOT_TOKEN }}
+          BUG_REPORT_SYNC_KEY: ${{ secrets.BUG_REPORT_SYNC_KEY }}

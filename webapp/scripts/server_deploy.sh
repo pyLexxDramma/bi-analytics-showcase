@@ -74,6 +74,45 @@ export NEXT_PUBLIC_AI_MODE=full
 _upsert_env XCA_ASK_SECRET "${XCA_ASK_SECRET:-}"
 _upsert_env XCA_ASK_BASE_URL "${XCA_ASK_BASE_URL:-}"
 
+# Trello bug report + SMTP (как на prod). Пустой export не должен затирать .env.
+if [[ -z "${BUG_REPORT_SMTP_HOST:-}" && -n "${SMTP_HOST:-}" ]]; then
+  export BUG_REPORT_SMTP_HOST="$SMTP_HOST"
+fi
+if [[ -z "${BUG_REPORT_SMTP_PORT:-}" && -n "${SMTP_PORT:-}" ]]; then
+  export BUG_REPORT_SMTP_PORT="$SMTP_PORT"
+fi
+if [[ -z "${BUG_REPORT_SMTP_USER:-}" && -n "${SMTP_USER:-}" ]]; then
+  export BUG_REPORT_SMTP_USER="$SMTP_USER"
+fi
+if [[ -z "${BUG_REPORT_SMTP_PASSWORD:-}" && -n "${SMTP_PASSWORD:-}" ]]; then
+  export BUG_REPORT_SMTP_PASSWORD="$SMTP_PASSWORD"
+fi
+if [[ -z "${BUG_REPORT_SMTP_FROM:-}" && -n "${SMTP_FROM:-}" ]]; then
+  export BUG_REPORT_SMTP_FROM="$SMTP_FROM"
+fi
+
+for _trelo_key in TRELLO_API_KEY TRELLO_TOKEN TRELLO_BOARD_ID \
+  TRELLO_LIST_URGENT TRELLO_LIST_BUG TRELLO_LIST_UI TRELLO_LIST_FEATURE TRELLO_LIST_QUESTION TRELLO_LIST_TRIAGE \
+  TRELLO_LABEL_URGENT TRELLO_LABEL_BUG TRELLO_LABEL_UI TRELLO_LABEL_FEATURE TRELLO_LABEL_QUESTION TRELLO_LABEL_TRIAGE \
+  BUG_REPORT_DRY_RUN \
+  BUG_STATUS_PUBLIC_BASE \
+  BUG_REPORT_SMTP_HOST BUG_REPORT_SMTP_PORT BUG_REPORT_SMTP_USER BUG_REPORT_SMTP_PASSWORD BUG_REPORT_SMTP_FROM \
+  BUG_REPORT_SMTP_SSL BUG_REPORT_SMTP_NO_STARTTLS \
+  BUG_REPORT_TELEGRAM_BOT_TOKEN BUG_REPORT_SYNC_KEY; do
+  _val="${!_trelo_key:-}"
+  if [[ -n "$_val" ]]; then
+    _upsert_env "$_trelo_key" "$_val"
+    export "$_trelo_key=$_val"
+  else
+    unset "$_trelo_key" || true
+  fi
+done
+
+# Статус-ссылки на этом стенде — cloudpub, не ai.conall.ru.
+if [[ -z "${BUG_STATUS_PUBLIC_BASE:-}" ]]; then
+  _upsert_env BUG_STATUS_PUBLIC_BASE "https://insipidly-carefree-husky.cloudpub.ru"
+fi
+
 GIT_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 export GIT_SHA
 # Cloudpub: stamp bust by default; set WEBAPP_DOCKER_NO_CACHE=1 for full rebuild.
@@ -131,6 +170,10 @@ _webapp_verify_image_sha
 echo "==> verify XCA Ask AI env inside api container"
 docker compose exec -T api python -c \
   'import os; s=(os.environ.get("XCA_ASK_SECRET") or "").strip(); b=(os.environ.get("XCA_ASK_BASE_URL") or "").strip(); print("xca_secret_len", len(s), "xca_base_len", len(b)); raise SystemExit(0 if s else "XCA_ASK_SECRET missing inside api container")'
+
+echo "==> verify Trello + SMTP for bug reports"
+docker compose exec -T api python -c \
+  'from bug_report.settings import get_bug_report_settings; s=get_bug_report_settings(); print("trello", s.trello_configured, "smtp", s.smtp_configured, "status_base", (s.public_base_url or "")[:64]); raise SystemExit(0 if s.trello_configured else "TRELLO_* missing inside api — cloudpub still proxies to winbot")'
 
 echo "==> initialize users database"
 docker compose exec -T api python -c \

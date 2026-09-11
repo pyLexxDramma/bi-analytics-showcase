@@ -46,11 +46,11 @@ class BugReportSettings:
 
     @property
     def trello_configured(self) -> bool:
+        # list_id колонки «Анализ» резолвится по имени на доске; triage в env — запасной.
         return bool(
             self.trello_api_key.strip()
             and self.trello_token.strip()
             and self.trello_board_id.strip()
-            and self.trello_list_triage.strip()
         )
 
     @property
