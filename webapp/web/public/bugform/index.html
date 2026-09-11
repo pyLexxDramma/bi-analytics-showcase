@@ -37,13 +37,16 @@
   .againrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
   .againbtn { border:none; border-radius:8px; padding:10px 16px; font-size:.95rem; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
   .againbtn.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
-  input.missing, select.missing, textarea.missing { border-color:var(--req); outline:1px solid var(--req); }
+  input.missing, select.missing, textarea.missing { border-color:var(--req) !important; outline:2px solid var(--req); background:#fff5f5; }
+  .radio-group.missing { border:2px solid var(--req); border-radius:8px; padding:10px 12px; background:#fff5f5; }
+  label.missing-label, .req.missing-label { color:var(--req); }
   .filelist { font-size:.88rem; color:var(--muted); margin-top:6px; }
   .dropzone {
     border:2px dashed var(--border); border-radius:10px; padding:22px 16px; text-align:center;
     background:#fafbfc; color:var(--muted); cursor:pointer; transition:border-color .15s, background .15s;
   }
   .dropzone:hover, .dropzone.dragover { border-color:var(--accent); background:#f0f5ff; color:#1c2430; }
+  .dropzone.missing { border-color:var(--req) !important; background:#fff5f5; color:#1c2430; }
   .dropzone strong { color:#1c2430; }
   .dropzone input[type=file] { display:none; }
   details.optional { border:1px solid var(--border); border-radius:10px; background:#fff; padding:12px 16px; margin:0 0 18px; }
@@ -86,9 +89,12 @@
 
     <fieldset>
       <legend>1. Тип проблемы</legend>
+      <label class="req">Тип проблемы</label>
+      <div class="radio-group" id="btype_group" data-radio-group="btype">
       <label class="radio-row"><input type="radio" name="btype" value="Интерфейс" required><span><b>Интерфейс</b><small>Вёрстка, цвета, подписи, легенда, обрезание текста, фильтры как элементы экрана, кнопки, навигация. Цифры при этом могут быть верными.</small></span></label>
       <label class="radio-row"><input type="radio" name="btype" value="Проблема с данными"><span><b>Проблема с данными</b><small>Неверные или неполные значения, расхождение с источником или другим отчётом, ошибка формулы или фильтрации, неверные данные в экспорте.</small></span></label>
       <label class="radio-row"><input type="radio" name="btype" value="Другое"><span><b>Другое</b><small>Доступ и роли, скорость работы, ошибка системы, загрузка данных, ИИ-помощник, админпанель.</small></span></label>
+      </div>
 
       <label for="subtype">Подтип <span class="hint" style="display:inline">(если ясно)</span></label>
       <select id="subtype">
@@ -198,27 +204,31 @@
       <input type="text" id="proofnote" placeholder="Уточнение: какой файл / отчёт / когда сломалось" style="margin-top:6px">
 
       <label class="req">Насколько мешает работе</label>
+      <div class="radio-group" id="severity_group" data-radio-group="severity">
       <label class="radio-row"><input type="radio" name="severity" value="Блокирует работу" required><span><b>Блокирует работу</b><small>Отчётом нельзя пользоваться по назначению.</small></span></label>
       <label class="radio-row"><input type="radio" name="severity" value="Сильно мешает"><span><b>Сильно мешает</b><small>Решение принимается с оговоркой или обходом.</small></span></label>
       <label class="radio-row"><input type="radio" name="severity" value="Заметно, но есть обход"><span><b>Заметно, но есть обход</b><small>Можно работать, но неудобно или нужно сверять вручную.</small></span></label>
       <label class="radio-row"><input type="radio" name="severity" value="Косметика"><span><b>Косметика</b><small>На цифры и решение не влияет.</small></span></label>
+      </div>
     </fieldset>
 
-    <details class="optional">
-      <summary>4. Сценарий воспроизведения</summary>
-      <label for="steps">Шаги — по одному действию на строку</label>
-      <p class="hint">Необязательно. Полезно, если баг не очевиден со скрина.</p>
-      <textarea id="steps" placeholder="1. Открыть систему…&#10;2. Перейти в отчёт…&#10;3. Увидеть: …" style="min-height:100px"></textarea>
+    <fieldset id="section4">
+      <legend>4. Сценарий воспроизведения</legend>
+      <label class="req" for="steps" id="label_steps">Шаги — по одному действию на строку</label>
+      <p class="hint">Обязательно. По одному действию на строку.</p>
+      <textarea id="steps" required placeholder="1. Открыть систему…&#10;2. Перейти в отчёт…&#10;3. Увидеть: …" style="min-height:100px"></textarea>
 
-      <label>Воспроизводится</label>
-      <label class="radio-row"><input type="radio" name="repro" value="Всегда, при указанных шагах"><span>Всегда, при указанных шагах</span></label>
-      <label class="radio-row"><input type="radio" name="repro" value="Иногда"><span>Иногда</span></label>
-      <label class="radio-row"><input type="radio" name="repro" value="Только у меня / у части пользователей"><span>Только у меня / у части пользователей</span></label>
-      <label class="radio-row"><input type="radio" name="repro" value="Не удалось повторить, видели один раз"><span>Не удалось повторить, видели один раз</span></label>
+      <label class="req" id="label_repro">Воспроизводится</label>
+      <div class="radio-group" id="repro_group" data-radio-group="repro">
+        <label class="radio-row"><input type="radio" name="repro" value="Всегда, при указанных шагах" required><span>Всегда, при указанных шагах</span></label>
+        <label class="radio-row"><input type="radio" name="repro" value="Иногда"><span>Иногда</span></label>
+        <label class="radio-row"><input type="radio" name="repro" value="Только у меня / у части пользователей"><span>Только у меня / у части пользователей</span></label>
+        <label class="radio-row"><input type="radio" name="repro" value="Не удалось повторить, видели один раз"><span>Не удалось повторить, видели один раз</span></label>
+      </div>
 
-      <label for="conditions">Дополнительные условия</label>
+      <label for="conditions">Дополнительные условия <span class="hint" style="display:inline">(необязательно)</span></label>
       <input type="text" id="conditions" placeholder="После обновления данных / только на конкретном проекте / как часто…">
-    </details>
+    </fieldset>
 
     <fieldset id="section5" hidden>
       <legend>5. Данные для сверки</legend>
@@ -442,6 +452,11 @@ function refreshFileList() {
   if (bad.length) msg += `⚠️ Слишком большие (>9 МБ): ${bad.join(', ')}`;
   const names = selectedFiles.slice(0, MAX_FILES).map(f => f.name).join(' · ');
   $('filelist').textContent = msg || (names || 'Файлы не выбраны');
+  const okFiles = selectedFiles.filter(f => f.size <= MAX_SIZE).slice(0, MAX_FILES);
+  if (okFiles.length || ($('nofiles').value || '').trim()) {
+    $('dropzone').classList.remove('missing');
+    $('nofiles').classList.remove('missing');
+  }
 }
 
 function addFiles(fileList) {
@@ -499,28 +514,170 @@ const readB64 = f => new Promise((res, rej) => {
   r.readAsDataURL(f);
 });
 
+const FIELD_LABELS = {
+  first_name: 'Имя',
+  last_name: 'Фамилия',
+  contact_email: 'Email',
+  menugroup: 'Группа / раздел меню',
+  report: 'Отчёт / экран',
+  report_other: 'Название отчёта',
+  block: 'Блок экрана',
+  contour: 'Контур',
+  whendt: 'Когда заметили',
+  actual: 'Фактическое поведение',
+  expected: 'Ожидаемое',
+  steps: 'Шаги воспроизведения',
+  repro: 'Воспроизводится',
+  btype: 'Тип проблемы',
+  severity: 'Насколько мешает',
+  wrongvalue: 'Какая цифра неверна',
+  rightvalue: 'Какая цифра ожидается',
+  source: 'Источник сверки',
+  files: 'Скриншоты / вложения',
+};
+
+function clearMissingMarks() {
+  document.querySelectorAll('.missing, .missing-label').forEach(el => {
+    el.classList.remove('missing', 'missing-label');
+  });
+}
+
+function markMissing(el) {
+  if (!el) return;
+  el.classList.add('missing');
+  const lab = el.id ? document.querySelector(`label[for="${el.id}"]`) : null;
+  if (lab) lab.classList.add('missing-label');
+}
+
+function markRadioGroupMissing(name) {
+  const group = document.querySelector(`[data-radio-group="${name}"]`);
+  if (group) group.classList.add('missing');
+  const lab = document.getElementById(`label_${name}`) ||
+    (group && group.previousElementSibling);
+  if (lab && lab.tagName === 'LABEL') lab.classList.add('missing-label');
+}
+
+/** Подсветка незаполненных обязательных полей. Возвращает список русских названий. */
+function highlightRequiredGaps() {
+  clearMissingMarks();
+  const gaps = [];
+
+  const needValue = (id, label) => {
+    const el = $(id);
+    if (!el || el.disabled || el.hidden) return;
+    const wrap = el.closest('#section5');
+    if (wrap && wrap.hidden) return;
+    const val = (id === 'report') ? reportValue() : (el.value || '').trim();
+    if (!val) {
+      markMissing(el);
+      gaps.push(label || FIELD_LABELS[id] || id);
+    }
+  };
+
+  needValue('first_name');
+  needValue('last_name');
+  needValue('contact_email');
+  const email = ($('contact_email').value || '').trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    markMissing($('contact_email'));
+    if (!gaps.includes(FIELD_LABELS.contact_email)) gaps.push(FIELD_LABELS.contact_email + ' (формат)');
+  }
+  needValue('menugroup');
+  needValue('report');
+  if ($('report').value === '__other__') needValue('report_other');
+  needValue('block');
+  needValue('contour');
+  needValue('whendt');
+  needValue('actual');
+  needValue('expected');
+  needValue('steps');
+
+  if (!document.querySelector('input[name=btype]:checked')) {
+    markRadioGroupMissing('btype');
+    gaps.push(FIELD_LABELS.btype);
+  }
+  if (!document.querySelector('input[name=severity]:checked')) {
+    markRadioGroupMissing('severity');
+    gaps.push(FIELD_LABELS.severity);
+  }
+  if (!document.querySelector('input[name=repro]:checked')) {
+    markRadioGroupMissing('repro');
+    gaps.push(FIELD_LABELS.repro);
+  }
+
+  const isData = document.querySelector('input[name=btype]:checked')?.value === 'Проблема с данными';
+  if (isData) {
+    needValue('wrongvalue');
+    needValue('rightvalue');
+    needValue('source');
+  }
+
+  const files = selectedFiles.filter(f => f.size <= MAX_SIZE).slice(0, MAX_FILES);
+  if (!files.length && !$('nofiles').value.trim()) {
+    markMissing($('nofiles'));
+    $('dropzone').classList.add('missing');
+    gaps.push(FIELD_LABELS.files);
+  }
+
+  return [...new Set(gaps)];
+}
+
+function highlightFieldsByKeys(keys) {
+  clearMissingMarks();
+  const names = [];
+  for (const raw of keys) {
+    const key = String(raw || '').trim().toLowerCase();
+    if (!key) continue;
+    if (key === 'repro' || key === 'btype' || key === 'severity') {
+      markRadioGroupMissing(key);
+    } else if ($(key)) {
+      markMissing($(key));
+    }
+    names.push(FIELD_LABELS[key] || key);
+  }
+  const first = document.querySelector('.missing, .radio-group.missing');
+  if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return names;
+}
+
+document.getElementById('bugform').addEventListener('input', e => {
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return;
+  t.classList.remove('missing');
+  if (t.id) {
+    const lab = document.querySelector(`label[for="${t.id}"]`);
+    if (lab) lab.classList.remove('missing-label');
+  }
+});
+document.getElementById('bugform').addEventListener('change', e => {
+  const t = e.target;
+  if (!(t instanceof HTMLInputElement)) return;
+  if (t.type === 'radio' && t.name) {
+    const group = document.querySelector(`[data-radio-group="${t.name}"]`);
+    if (group) group.classList.remove('missing');
+    const lab = document.getElementById(`label_${t.name}`);
+    if (lab) lab.classList.remove('missing-label');
+  }
+});
+
 $('bugform').addEventListener('submit', async e => {
   e.preventDefault();
   const form = $('bugform'), result = $('result');
   result.className = ''; result.textContent = '';
 
-  if ($('report').value === '__other__' && !$('report_other').value.trim()) {
+  const gaps = highlightRequiredGaps();
+  if (gaps.length) {
     result.className = 'err';
-    result.textContent = 'Укажите название отчёта или выберите из списка.';
+    result.textContent = 'Заполните обязательные поля (подсвечены красным): ' + gaps.join(', ') + '.';
+    const first = document.querySelector('.missing, .radio-group.missing');
+    if (first) {
+      first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (typeof first.focus === 'function') try { first.focus({ preventScroll: true }); } catch (_) {}
+    }
     return;
   }
-  if (!reportValue()) {
-    $('report').reportValidity();
-    return;
-  }
-  if (!form.checkValidity()) { form.reportValidity(); return; }
 
   const files = selectedFiles.filter(f => f.size <= MAX_SIZE).slice(0, MAX_FILES);
-  if (!files.length && !$('nofiles').value.trim()) {
-    result.className = 'err';
-    result.textContent = 'Приложите хотя бы один скриншот (можно перетащить) или заполните поле «Если файлов нет — почему».';
-    return;
-  }
 
   syncWhyType(false);
   const btype = document.querySelector('input[name=btype]:checked').value;
@@ -534,13 +691,6 @@ $('bugform').addEventListener('submit', async e => {
     const lastName = $('last_name').value.trim();
     const contactEmail = $('contact_email').value.trim();
     const relatedRaw = $('related_report_id').value.trim();
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail);
-    if (!emailOk) {
-      result.className = 'err';
-      result.textContent = 'Укажите корректный email вида name@company.ru — на него придут уведомления о статусе.';
-      $('contact_email').focus();
-      return;
-    }
     const reporter = [firstName, lastName].filter(Boolean).join(' ');
     const payload = {
       key: new URLSearchParams(location.search).get('k') || '',
@@ -586,8 +736,21 @@ $('bugform').addEventListener('submit', async e => {
       body: JSON.stringify(payload),
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.error || data.detail || ('Ошибка сервера ' + resp.status));
+    if (!resp.ok) {
+      const detail = String(data.error || data.detail || ('Ошибка сервера ' + resp.status));
+      const m = detail.match(/обязательные поля:\s*([^.]+)/i);
+      if (m) {
+        const keys = m[1].split(/[,;]/).map(s => s.trim()).filter(Boolean);
+        const names = highlightFieldsByKeys(keys);
+        result.className = 'err';
+        result.textContent = '❌ Не удалось отправить. Заполните поля (подсвечены): ' +
+          (names.length ? names.join(', ') : keys.join(', ')) + '.';
+        return;
+      }
+      throw new Error(detail);
+    }
 
+    clearMissingMarks();
     const ctx = {
       first_name: firstName,
       last_name: lastName,
