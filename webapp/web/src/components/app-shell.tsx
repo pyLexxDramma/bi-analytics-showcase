@@ -23,7 +23,6 @@ import {
   syncNavLoadingWithPage,
 } from "@/lib/nav-loading";
 import { pushRecentReport } from "@/lib/recent-reports";
-import { useIsMobileViewport } from "@/lib/use-is-mobile";
 import {
   applyThemeClass,
   readTheme,
@@ -67,7 +66,6 @@ export function AppShell({
   const [density, setDensity] = useState<Density>("comfortable");
   const [flashData, setFlashData] = useState(false);
   const pathname = usePathname();
-  const mobile = useIsMobileViewport();
   const showSkeleton = useShowSkeleton();
   const navItem = findNavItem(pathname);
   const showDataFreshness =
