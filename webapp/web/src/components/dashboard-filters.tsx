@@ -31,12 +31,6 @@ export const FILTER_SELECT_CLASS =
 /** Date inputs: full visible date, same height as selects. */
 export const FILTER_DATE_CLASS = `${FILTER_SELECT_CLASS} bi-filters-date`;
 
-/** BDDS-style chip buttons for categorical filters. */
-export const FILTER_CHIP_CLASS =
-  "bi-filter-chip rounded-md border px-2.5 py-1 text-xs border-tremor-border bg-white text-tremor-content-strong disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong";
-export const FILTER_CHIP_ON_CLASS =
-  "bi-filter-chip rounded-md border px-2.5 py-1 text-xs border-emerald-600 bg-emerald-50 text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-200";
-
 export type FilterChipOption = string | { value: string; label: string };
 
 function normChipOption(opt: FilterChipOption): { value: string; label: string } {
@@ -44,31 +38,7 @@ function normChipOption(opt: FilterChipOption): { value: string; label: string }
   return opt;
 }
 
-/** ~6 chip-rows visible; longer lists scroll (как старые MultiSelect max-h). */
-const CHIP_LIST_BASE = "bi-filter-chip-list flex flex-wrap content-start gap-2";
-const CHIP_LIST_SCROLL = "max-h-52 overflow-y-auto overscroll-contain pr-0.5";
-const CHIP_SCROLL_AFTER = 7;
-
-function ChipList({
-  children,
-  itemCount,
-  className = "",
-}: {
-  children: ReactNode;
-  itemCount: number;
-  className?: string;
-}) {
-  const scroll = itemCount > CHIP_SCROLL_AFTER;
-  return (
-    <div
-      className={`${CHIP_LIST_BASE} ${scroll ? CHIP_LIST_SCROLL : ""} ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** Длинные списки (подрядчики, проекты) на телефоне без поиска непригодны. */
+/** Длинные списки (подрядчики, проекты) — поиск в combobox. */
 const CHIP_SEARCH_AFTER = 12;
 
 function filterSearchKey(value: string): string {
@@ -186,79 +156,6 @@ function FilterSuggestList({
   );
 }
 
-function ChipSearch({
-  value,
-  onChange,
-  count,
-  inputRef,
-  onFocus,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  count: number;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
-  onFocus?: () => void;
-}) {
-  return (
-    <input
-      ref={inputRef}
-      type="text"
-      inputMode="search"
-      autoComplete="off"
-      autoCorrect="off"
-      spellCheck={false}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onFocus={onFocus}
-      onKeyDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      placeholder={`Поиск · ${count}`}
-      className="bi-filter-chip-search mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong outline-none focus-visible:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
-    />
-  );
-}
-
-function useChipFilter<T extends { label: string; value?: string }>(
-  items: T[],
-  pinKey = "",
-) {
-  const [query, setQuery] = useState("");
-  const searchable = items.length > CHIP_SEARCH_AFTER;
-  const visible = useMemo(() => {
-    const needle = filterSearchKey(query);
-    if (!searchable || !needle) return items;
-    const pinned = new Set(
-      pinKey
-        .split("\0")
-        .map(filterSearchKey)
-        .filter(Boolean),
-    );
-    const matched: T[] = [];
-    const rest: T[] = [];
-    for (const item of items) {
-      const key = filterSearchKey(item.label);
-      const isPinned =
-        pinned.has(key) ||
-        (item.value != null && pinned.has(filterSearchKey(item.value)));
-      if (isPinned) {
-        matched.push(item);
-        continue;
-      }
-      if (key.includes(needle)) rest.push(item);
-    }
-    rest.sort((a, b) => {
-      const ak = filterSearchKey(a.label);
-      const bk = filterSearchKey(b.label);
-      const aStart = ak.startsWith(needle) ? 0 : 1;
-      const bStart = bk.startsWith(needle) ? 0 : 1;
-      if (aStart !== bStart) return aStart - bStart;
-      return ak.localeCompare(bk, "ru");
-    });
-    return [...matched, ...rest];
-  }, [items, query, searchable, pinKey]);
-  return { query, setQuery, searchable, visible, needle: filterSearchKey(query) };
-}
-
 /**
  * Частичный поиск № договора с выпадающими вариантами (как datalist в main).
  */
@@ -331,7 +228,7 @@ export function ContractNoSuggest({
   );
 }
 
-/** Single-select: desktop = native `<select>` (как main), mobile = chips. */
+/** Single-select: native `<select>` на всех ширинах (в т.ч. FiltersSheet на телефоне). */
 export function FilterChipSelect({
   label,
   value,
@@ -349,44 +246,10 @@ export function FilterChipSelect({
   filterKey?: string;
 }) {
   const normalized = useMemo(() => options.map(normChipOption), [options]);
-  const pinKey = useMemo(
-    () => ["Все", "Все подрядчики", value].filter(Boolean).join("\0"),
-    [value],
-  );
-  const { query, setQuery, searchable, visible, needle } = useChipFilter(
-    normalized,
-    pinKey,
-  );
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  const suggestMatches = useMemo(
-    () =>
-      matchSuggestOptions(
-        normalized.map((o) => o.label).filter((lab) => lab !== "Все" && lab !== "Все подрядчики"),
-        query,
-      ),
-    [normalized, query],
-  );
 
-  useEffect(() => {
-    if (!suggestOpen) return;
-    const onDoc = (event: MouseEvent | TouchEvent) => {
-      const t = event.target as Node;
-      if (searchRef.current?.contains(t) || listRef.current?.contains(t)) return;
-      setSuggestOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("touchstart", onDoc);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("touchstart", onDoc);
-    };
-  }, [suggestOpen]);
-
-  const desktop = (
+  const control = (
     <select
-      className={`${FILTER_SELECT_CLASS}${label != null ? "" : ""}`}
+      className={FILTER_SELECT_CLASS}
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
@@ -398,78 +261,15 @@ export function FilterChipSelect({
       ))}
     </select>
   );
-  const plaqueOpen = suggestOpen && Boolean(needle) && suggestMatches.length > 0;
-  const chips = (
-    <div className={label != null ? "mt-2" : ""}>
-      {searchable ? (
-        <ChipSearch
-          value={query}
-          onChange={(next) => {
-            setQuery(next);
-            setSuggestOpen(true);
-          }}
-          onFocus={() => setSuggestOpen(true)}
-          count={normalized.length}
-          inputRef={searchRef}
-        />
-      ) : null}
-      <FilterSuggestList
-        open={plaqueOpen}
-        matches={suggestMatches}
-        anchorRef={searchRef}
-        listRef={listRef}
-        onSelect={(lab) => {
-          const hit = normalized.find((o) => o.label === lab);
-          onChange(hit?.value ?? lab);
-          setQuery("");
-          setSuggestOpen(false);
-        }}
-      />
-      {/* Пока открыта плашка — скрываем длинный список чипов */}
-      {!plaqueOpen ? (
-        <ChipList itemCount={visible.length}>
-          {visible.map(({ value: v, label: lab }) => {
-            const on = value === v;
-            return (
-              <button
-                key={v}
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                  tapFeedback();
-                  onChange(v);
-                  setQuery("");
-                }}
-                className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-              >
-                {lab}
-              </button>
-            );
-          })}
-        </ChipList>
-      ) : null}
-      {searchable && needle && suggestMatches.length === 0 ? (
-        <p className="mt-2 text-xs text-tremor-content dark:text-dark-tremor-content">
-          Ничего не найдено
-        </p>
-      ) : null}
-    </div>
-  );
-  const body = (
-    <>
-      <div className="bi-filters-field-control hidden lg:block">{desktop}</div>
-      <div className="bi-filters-field-control lg:hidden">{chips}</div>
-    </>
-  );
   const field =
     label == null ? (
-      body
+      <div className="bi-filters-field-control">{control}</div>
     ) : (
       <div className="bi-filters-field text-sm">
         <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
           {label}
         </span>
-        {body}
+        <div className="bi-filters-field-control">{control}</div>
       </div>
     );
   return <AclFilterGate filterKey={filterKey}>{field}</AclFilterGate>;
@@ -538,29 +338,56 @@ function MultiSelectDropdown({
       });
   }, [options, query, searchable]);
 
+  /**
+   * Пустой `values` = «Все» (без ограничения). В UI это все галочки.
+   * После «Снять все» при «Все» — локально показываем пустой выбор, чтобы
+   * можно было отметить нужные; пока ничего не выбрано, снаружи всё ещё [].
+   */
+  const isAll = values.length === 0;
+  const [clearedFromAll, setClearedFromAll] = useState(false);
+  useEffect(() => {
+    setClearedFromAll(false);
+  }, [values]);
+  useEffect(() => {
+    if (!open) setClearedFromAll(false);
+  }, [open]);
+
+  const showAsAllSelected = isAll && !clearedFromAll;
+
   const summary =
-    values.length === 0
+    isAll
       ? allLabel
       : values.length === 1
         ? values[0]!
         : `Выбрано: ${values.length}`;
 
-  const toggle = (name: string) => {
-    onChange(
-      values.includes(name)
-        ? values.filter((item) => item !== name)
-        : [...values, name],
-    );
-  };
+  const isChecked = (name: string) =>
+    showAsAllSelected || values.includes(name);
 
-  /** Индекс 0 — строка «Все», дальше идут `visible`. */
-  const rowCount = visible.length + 1;
-  const commitActive = () => {
-    if (active <= 0) {
-      onChange([]);
+  const toggle = (name: string) => {
+    if (showAsAllSelected) {
+      setClearedFromAll(false);
+      onChange(options.filter((item) => item !== name));
       return;
     }
-    const name = visible[active - 1];
+    if (clearedFromAll && isAll) {
+      setClearedFromAll(false);
+      onChange([name]);
+      return;
+    }
+    if (values.includes(name)) {
+      const next = values.filter((item) => item !== name);
+      onChange(next);
+      return;
+    }
+    const next = [...values, name];
+    onChange(next.length >= options.length ? [] : next);
+  };
+
+  /** Индексы строк = позиции в `visible`. */
+  const rowCount = visible.length;
+  const commitActive = () => {
+    const name = visible[active];
     if (name) toggle(name);
   };
 
@@ -575,6 +402,7 @@ function MultiSelectDropdown({
       closeToTrigger();
       return;
     }
+    if (rowCount === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setActive((index) => (index + 1) % rowCount);
@@ -602,7 +430,7 @@ function MultiSelectDropdown({
   };
 
   useEffect(() => {
-    setActive((index) => (index >= rowCount ? 0 : index));
+    setActive((index) => (rowCount === 0 ? 0 : Math.min(index, rowCount - 1)));
   }, [rowCount]);
 
   useEffect(() => {
@@ -613,7 +441,7 @@ function MultiSelectDropdown({
   }, [active, open]);
 
   const rowClass = (index: number, selected: boolean) =>
-    `flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-tremor-default ${
+    `flex cursor-pointer items-start gap-2 rounded px-2 py-2 text-tremor-default ${
       index === active
         ? "bg-tremor-background-subtle dark:bg-dark-tremor-background-subtle"
         : ""
@@ -624,7 +452,8 @@ function MultiSelectDropdown({
     } hover:bg-tremor-background-subtle dark:hover:bg-dark-tremor-background-subtle`;
 
   const allVisibleSelected =
-    visible.length > 0 && visible.every((name) => values.includes(name));
+    visible.length > 0 && visible.every((name) => isChecked(name));
+  const canClear = showAsAllSelected || values.length > 0;
 
   return (
     <div ref={rootRef} className="relative">
@@ -642,16 +471,18 @@ function MultiSelectDropdown({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={open ? listId : undefined}
-        className={`${FILTER_SELECT_CLASS} flex items-center justify-between gap-2 text-left`}
+        className={`${FILTER_SELECT_CLASS} bi-filters-select-wrap flex items-center justify-between gap-2 text-left`}
       >
-        <span className="truncate">{summary}</span>
+        <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug line-clamp-2">
+          {summary}
+        </span>
         <span aria-hidden className="shrink-0 text-xs opacity-60">
           ▾
         </span>
       </button>
       {open ? (
         <div
-          className="absolute left-0 right-0 top-full z-30 mt-1 rounded-tremor-default border border-tremor-border bg-tremor-background p-2 shadow-tremor-dropdown dark:border-dark-tremor-border dark:bg-dark-tremor-background"
+          className="relative z-30 mt-1 rounded-tremor-default border border-tremor-border bg-tremor-background p-2 shadow-tremor-dropdown dark:border-dark-tremor-border dark:bg-dark-tremor-background"
           onKeyDown={onPopupKeyDown}
         >
           {searchable ? (
@@ -667,28 +498,43 @@ function MultiSelectDropdown({
               }}
               placeholder={`Поиск · ${options.length}`}
               aria-controls={listId}
-              aria-activedescendant={`${listId}-${active}`}
+              aria-activedescendant={
+                rowCount > 0 ? `${listId}-${active}` : undefined
+              }
               className="mb-2 w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-2 py-1.5 text-tremor-default text-tremor-content-strong outline-none focus-visible:border-tremor-brand dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong"
             />
           ) : null}
-          <div className="mb-2 flex items-center gap-2 text-xs">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
               disabled={allVisibleSelected || visible.length === 0}
-              onClick={() =>
-                onChange([
+              onClick={() => {
+                setClearedFromAll(false);
+                if (!query.trim()) {
+                  onChange([]);
+                  return;
+                }
+                const merged = [
                   ...values,
                   ...visible.filter((name) => !values.includes(name)),
-                ])
-              }
+                ];
+                onChange(merged.length >= options.length ? [] : merged);
+              }}
               className="rounded border border-tremor-border px-2 py-1 text-tremor-content-emphasis hover:bg-tremor-background-subtle disabled:opacity-40 dark:border-dark-tremor-border dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
             >
               Выбрать все{query ? " найденные" : ""}
             </button>
             <button
               type="button"
-              disabled={values.length === 0}
-              onClick={() => onChange([])}
+              disabled={!canClear}
+              onClick={() => {
+                if (showAsAllSelected) {
+                  setClearedFromAll(true);
+                  return;
+                }
+                setClearedFromAll(false);
+                onChange([]);
+              }}
               className="rounded border border-tremor-border px-2 py-1 text-tremor-content-emphasis hover:bg-tremor-background-subtle disabled:opacity-40 dark:border-dark-tremor-border dark:text-dark-tremor-content-emphasis dark:hover:bg-dark-tremor-background-subtle"
             >
               Снять все
@@ -701,44 +547,33 @@ function MultiSelectDropdown({
             aria-multiselectable
             aria-label={allLabel}
             tabIndex={searchable ? -1 : 0}
-            aria-activedescendant={`${listId}-${active}`}
-            className="max-h-64 overflow-y-auto overscroll-contain outline-none"
+            aria-activedescendant={
+              rowCount > 0 ? `${listId}-${active}` : undefined
+            }
+            className="max-h-64 overflow-y-auto overscroll-contain outline-none sm:max-h-72"
           >
-            <label
-              id={`${listId}-0`}
-              data-index={0}
-              role="option"
-              aria-selected={values.length === 0}
-              onMouseEnter={() => setActive(0)}
-              className={rowClass(0, values.length === 0)}
-            >
-              <input
-                type="checkbox"
-                tabIndex={-1}
-                checked={values.length === 0}
-                onChange={() => onChange([])}
-              />
-              {allLabel}
-            </label>
             {visible.map((name, index) => {
-              const selected = values.includes(name);
+              const selected = isChecked(name);
               return (
                 <label
                   key={name}
-                  id={`${listId}-${index + 1}`}
-                  data-index={index + 1}
+                  id={`${listId}-${index}`}
+                  data-index={index}
                   role="option"
                   aria-selected={selected}
-                  onMouseEnter={() => setActive(index + 1)}
-                  className={rowClass(index + 1, selected)}
+                  onMouseEnter={() => setActive(index)}
+                  className={rowClass(index, selected)}
                 >
                   <input
                     type="checkbox"
                     tabIndex={-1}
+                    className="mt-0.5 shrink-0"
                     checked={selected}
                     onChange={() => toggle(name)}
                   />
-                  <span className="truncate">{name}</span>
+                  <span className="min-w-0 whitespace-normal break-words leading-snug">
+                    {name}
+                  </span>
                 </label>
               );
             })}
@@ -756,7 +591,7 @@ function MultiSelectDropdown({
 
 /**
  * Multi-select: empty `values` = «Все».
- * Desktop = выпадающий список с чекбоксами; mobile = chips.
+ * Combobox с чекбоксами на всех ширинах (в т.ч. FiltersSheet на телефоне).
  */
 export function FilterChipMulti({
   label,
@@ -779,43 +614,8 @@ export function FilterChipMulti({
     () => options.filter((o) => o && o !== allLabel),
     [options, allLabel],
   );
-  const chipItems = useMemo(
-    () => opts.map((name) => ({ label: name, value: name })),
-    [opts],
-  );
-  const allOn = values.length === 0;
-  const pinKey = useMemo(() => values.join("\0"), [values]);
-  const {
-    query,
-    setQuery,
-    searchable,
-    visible: visibleOpts,
-    needle,
-  } = useChipFilter(chipItems, pinKey);
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  const suggestMatches = useMemo(
-    () => matchSuggestOptions(opts, query),
-    [opts, query],
-  );
 
-  useEffect(() => {
-    if (!suggestOpen) return;
-    const onDoc = (event: MouseEvent | TouchEvent) => {
-      const t = event.target as Node;
-      if (searchRef.current?.contains(t) || listRef.current?.contains(t)) return;
-      setSuggestOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("touchstart", onDoc);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("touchstart", onDoc);
-    };
-  }, [suggestOpen]);
-
-  const desktop = (
+  const control = (
     <MultiSelectDropdown
       values={values}
       options={opts}
@@ -824,87 +624,15 @@ export function FilterChipMulti({
       disabled={disabled}
     />
   );
-  const plaqueOpen = suggestOpen && Boolean(needle) && suggestMatches.length > 0;
-  const chips = (
-    <div className={label != null ? "mt-2" : ""}>
-      {searchable ? (
-        <ChipSearch
-          value={query}
-          onChange={(next) => {
-            setQuery(next);
-            setSuggestOpen(true);
-          }}
-          onFocus={() => setSuggestOpen(true)}
-          count={opts.length}
-          inputRef={searchRef}
-        />
-      ) : null}
-      <FilterSuggestList
-        open={plaqueOpen}
-        matches={suggestMatches}
-        anchorRef={searchRef}
-        listRef={listRef}
-        onSelect={(name) => {
-          onChange(values.includes(name) ? values : [...values, name]);
-          setQuery("");
-          setSuggestOpen(false);
-        }}
-      />
-      {!plaqueOpen ? (
-        <ChipList itemCount={visibleOpts.length + 1}>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-              tapFeedback();
-              onChange([]);
-              setQuery("");
-            }}
-            className={allOn ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-          >
-            {allLabel}
-          </button>
-          {visibleOpts.map(({ label: name }) => {
-            const on = values.includes(name);
-            return (
-              <button
-                key={name}
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                  tapFeedback();
-                  onChange(on ? values.filter((p) => p !== name) : [...values, name]);
-                }}
-                className={on ? FILTER_CHIP_ON_CLASS : FILTER_CHIP_CLASS}
-              >
-                {name}
-              </button>
-            );
-          })}
-        </ChipList>
-      ) : null}
-      {searchable && needle && suggestMatches.length === 0 ? (
-        <p className="mt-2 text-xs text-tremor-content dark:text-dark-tremor-content">
-          Ничего не найдено
-        </p>
-      ) : null}
-    </div>
-  );
-  const body = (
-    <>
-      <div className="bi-filters-field-control hidden lg:block">{desktop}</div>
-      <div className="bi-filters-field-control lg:hidden">{chips}</div>
-    </>
-  );
   const field =
     label == null ? (
-      body
+      <div className="bi-filters-field-control">{control}</div>
     ) : (
       <div className="bi-filters-field text-sm">
         <span className="bi-filters-field-label text-tremor-content dark:text-dark-tremor-content">
           {label}
         </span>
-        {body}
+        <div className="bi-filters-field-control">{control}</div>
       </div>
     );
   return <AclFilterGate filterKey={filterKey}>{field}</AclFilterGate>;

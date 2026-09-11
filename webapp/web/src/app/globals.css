@@ -806,12 +806,6 @@ html.dark .js-plotly-plot .gridlayer path {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .bi-filters-field-label {
-    min-height: 0;
-    margin-bottom: 0.35rem;
-    font-size: 0.9375rem;
-  }
-
   .bi-filter-chip-list {
     gap: 0.5rem;
     max-height: min(40vh, 16rem);
@@ -828,6 +822,11 @@ html.dark .js-plotly-plot .gridlayer path {
   .bi-filters-select {
     height: 2.75rem;
     font-size: 1rem;
+  }
+
+  button.bi-filters-select.bi-filters-select-wrap {
+    height: auto;
+    min-height: 2.75rem;
   }
 
   .bi-filters-check {
@@ -889,6 +888,34 @@ html.dark .js-plotly-plot .gridlayer path {
   flex: 0 0 auto;
 }
 
+/* Mobile / FiltersSheet: компактные блоки (после base-правил, иначе min-height:2.5rem побеждает) */
+@media (max-width: 1023px) {
+  .bi-filters-grid {
+    gap: 0.5rem;
+  }
+
+  .bi-filters-field-label {
+    min-height: 0;
+    margin-bottom: 0.2rem;
+    font-size: 0.8125rem;
+    align-items: flex-start;
+  }
+
+  .bi-filters-field-control {
+    padding-top: 0;
+  }
+
+  .bi-filters-checks {
+    margin-top: 0.25rem;
+    gap: 0.35rem;
+  }
+
+  /* Пустые ячейки сетки (выравнивание колонок на desktop) */
+  .bi-filters-grid > div:empty {
+    display: none;
+  }
+}
+
 .bi-filters-select {
   height: 2.5rem;
   box-sizing: border-box;
@@ -896,6 +923,15 @@ html.dark .js-plotly-plot .gridlayer path {
   appearance: none;
   -webkit-appearance: none;
   color-scheme: light;
+}
+
+/* Multi-select trigger: длинные названия (контрагенты) читаются в 1–2 строки */
+button.bi-filters-select.bi-filters-select-wrap {
+  height: auto;
+  min-height: 2.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  white-space: normal;
 }
 
 html.dark .bi-filters-select {
@@ -1437,17 +1473,41 @@ html.dark .bi-filter-chip-list::-webkit-scrollbar-thumb {
 
   .bi-sheet-body {
     flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 0 1rem 1rem;
+    padding: 0 1rem 0.35rem;
+  }
+
+  .bi-sheet-body .bi-filters-grid {
+    gap: 0.45rem;
+  }
+
+  .bi-sheet-body .bi-filters-field-label {
+    min-height: 0;
+    margin-bottom: 0.15rem;
+  }
+
+  /* Desktop-спейсеры колонок (<div />) на мобилке не занимают ряды */
+  .bi-sheet-body .bi-filters-grid > div:empty {
+    display: none;
+  }
+
+  .bi-sheet-body .bi-filters-check {
+    min-height: 0;
+    padding-bottom: 0.15rem;
+  }
+
+  .bi-sheet-body .bi-filters-body {
+    margin-bottom: 0;
   }
 
   .bi-sheet-actions {
     flex: 0 0 auto;
     display: flex;
     gap: 0.5rem;
-    padding: 0.625rem 1rem 0.875rem;
+    padding: 0.5rem 1rem 0.75rem;
     border-top: 1px solid rgb(226 232 240);
     background: inherit;
   }
