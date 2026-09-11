@@ -184,6 +184,25 @@ th.bi-status-risk,
   color: inherit;
 }
 
+/* Карточки с графиками: явный класс или :has(recharts/plotly/gantt) */
+.bi-chart-card {
+  padding: 0.7rem;
+}
+
+@media (max-width: 1023px) {
+  /* Tremor Card по умолчанию p-6 (1.5rem) — на телефоне жмёт ось/подписи.
+     !important: перебить utility p-6 из tremorTwMerge. */
+  .bi-chart-card,
+  .tremor-Card-root:has(.recharts-responsive-container),
+  .tremor-Card-root:has(.bi-plotly-host),
+  .tremor-Card-root:has(.gantt-root),
+  [class*="tremor-Card"]:has(.recharts-responsive-container),
+  [class*="tremor-Card"]:has(.bi-plotly-host),
+  [class*="tremor-Card"]:has(.gantt-root) {
+    padding: 0.7rem !important;
+  }
+}
+
 /* ===== Login: construction analytics scene ===== */
 .login-page {
   background: #f4f7fb;
@@ -1719,54 +1738,99 @@ html.dark .bi-filter-chip-list::-webkit-scrollbar-thumb {
     color: rgb(52 211 153);
     box-shadow: none;
   }
+}
 
-  /* Каркас загрузки: мягкая «волна» по плейсхолдеру */
-  .bi-skeleton {
-    background: linear-gradient(
-      90deg,
-      rgba(148, 163, 184, 0.16) 25%,
-      rgba(148, 163, 184, 0.3) 37%,
-      rgba(148, 163, 184, 0.16) 63%
-    );
-    background-size: 400% 100%;
-    animation: bi-skeleton-wave 1.3s ease-in-out infinite;
+/* Глобальный скелетон: не накрывает сайдбар на lg+; ровно 1 экран.
+   Внутренний блок — как контент: max-w-7xl, при wide — на всю колонку. */
+.bi-global-skeleton {
+  left: 0;
+  right: 0;
+  bottom: auto;
+}
+
+.bi-global-skeleton-inner {
+  max-width: 80rem; /* max-w-7xl */
+}
+
+html[data-bi-wide="1"] .bi-global-skeleton-inner {
+  max-width: none;
+}
+
+@media (min-width: 1024px) {
+  .bi-global-skeleton {
+    left: 280px;
   }
 
-  html.dark .bi-skeleton {
-    background: linear-gradient(
-      90deg,
-      rgba(148, 163, 184, 0.1) 25%,
-      rgba(148, 163, 184, 0.22) 37%,
-      rgba(148, 163, 184, 0.1) 63%
-    );
-    background-size: 400% 100%;
+  html[data-bi-sidebar="collapsed"] .bi-global-skeleton {
+    left: 3rem;
   }
+}
 
-  @keyframes bi-skeleton-wave {
-    from {
-      background-position: 100% 50%;
-    }
-    to {
-      background-position: 0 50%;
-    }
+html.bi-skeleton-active,
+html.bi-skeleton-active body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Пока скелетон: PNG / ⛶ / modebar не торчат поверх (у них z-index > 40). */
+.bi-loading-veil .bi-chart-tool-btn,
+.bi-loading-veil .bi-fs-toggle,
+.bi-loading-veil .js-plotly-plot .modebar,
+.bi-loading-veil .js-plotly-plot .modebar-container,
+html.bi-skeleton-active .bi-chart-tool-btn,
+html.bi-skeleton-active .bi-fs-toggle,
+html.bi-skeleton-active .js-plotly-plot .modebar,
+html.bi-skeleton-active .js-plotly-plot .modebar-container {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Каркас загрузки — и телефон, и десктоп (раньше стили были только в mobile media). */
+.bi-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.16) 25%,
+    rgba(148, 163, 184, 0.3) 37%,
+    rgba(148, 163, 184, 0.16) 63%
+  );
+  background-size: 400% 100%;
+  animation: bi-skeleton-wave 1.3s ease-in-out infinite;
+}
+
+html.dark .bi-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.1) 25%,
+    rgba(148, 163, 184, 0.22) 37%,
+    rgba(148, 163, 184, 0.1) 63%
+  );
+  background-size: 400% 100%;
+}
+
+@keyframes bi-skeleton-wave {
+  from {
+    background-position: 100% 50%;
   }
-
-  @keyframes bi-sheet-up {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
+  to {
+    background-position: 0 50%;
   }
+}
 
-  @keyframes bi-sheet-fade {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+@keyframes bi-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes bi-sheet-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

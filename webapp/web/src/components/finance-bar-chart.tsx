@@ -177,7 +177,8 @@ export function FinanceBarChart({
   const chartWidth = Math.max(
     fullscreen ? viewport.width - 48 : 0,
     rows.length * slotPx * Math.max(seriesCount, showForecast ? 3 : 2) +
-      (compact ? 40 : 96),
+      (compact ? 40 : 96) +
+      (compact && (rows.length > 6 || categoryKey === "project") ? 48 : 0),
   );
   // При отклонении ось уходит в минус — выше блок, иначе мелкие суммы
   // (десятки млн при шкале до тысяч) сливаются с линией нуля.
@@ -393,16 +394,24 @@ export function FinanceBarChart({
       : []),
   ];
 
-  const yAxisWidth = compact ? 32 : 72;
+  /** Компакт: хватает на «6000», без лишней ширины «шторки». */
+  const yAxisWidth = compact ? 40 : 72;
+  /** Скошенные подписи X уходят влево — сдвигаем первую категорию правее шторки. */
+  const xAxisLeftPad =
+    compact && angled ? (categoryKey === "project" ? 44 : 32) : 0;
   const chartMargin = {
     top: compact ? 28 : 72,
     right: 12,
-    left: compact ? 0 : 8,
+    left: compact ? 4 : 8,
     bottom:
-      (angled ? 64 : 28) + (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
+      (angled ? (categoryKey === "project" ? 72 : 64) : 28) +
+      (hasNegDev ? (showUnitOnBars ? 52 : 28) : 0),
   };
   const yTickFmt = (v: number) =>
-    Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
+    Number(v).toLocaleString("ru-RU", {
+      maximumFractionDigits: 0,
+      useGrouping: !compact,
+    });
   const yAxisLabel =
     yAxisTitle && showUnitOnBars
       ? {
@@ -416,8 +425,13 @@ export function FinanceBarChart({
           },
         }
       : undefined;
-  /** Ширина закреплённой оси Y (подписи + «млн. руб.»). */
+  /** Ширина закреплённой оси Y (подписи + запас, чтобы цифры не резались). */
   const stickyAxisPx = yAxisWidth + (showUnitOnBars ? 22 : 10) + chartMargin.left;
+  /**
+   * Шторка только над plot: нижняя полоса с подписями X остаётся открытой.
+   * +8 — скошенный текст чуть заходит вверх в plot.
+   */
+  const stickyHeight = Math.max(0, height - chartMargin.bottom - (angled ? 8 : 0));
 
   return (
     <div
@@ -469,8 +483,25 @@ export function FinanceBarChart({
                   interval={0}
                   angle={angled ? -35 : 0}
                   textAnchor={angled ? "end" : "middle"}
-                  height={angled ? (hasNegDev ? 96 : 80) : hasNegDev ? 56 : 40}
+                  height={
+                    angled
+                      ? categoryKey === "project"
+                        ? hasNegDev
+                          ? 108
+                          : 92
+                        : hasNegDev
+                          ? 96
+                          : 80
+                      : hasNegDev
+                        ? 56
+                        : 40
+                  }
                   dy={hasNegDev ? 8 : 0}
+                  padding={
+                    xAxisLeftPad > 0
+                      ? { left: xAxisLeftPad, right: 8 }
+                      : undefined
+                  }
                 />
                 {/* Деления невидимы (их рисует sticky), но нужны для сетки. */}
                 <YAxis
@@ -645,10 +676,10 @@ export function FinanceBarChart({
           </div>
         </div>
         <div
-          className="pointer-events-none absolute inset-y-0 left-0 z-10 bg-white dark:bg-slate-950"
+          className="pointer-events-none absolute left-0 top-0 z-10 bg-white dark:bg-slate-950"
           style={{
             width: stickyAxisPx,
-            height,
+            height: stickyHeight,
             boxShadow: dark
               ? "6px 0 10px -6px rgba(0,0,0,0.55)"
               : "6px 0 10px -6px rgba(15,23,42,0.18)",
@@ -656,7 +687,15 @@ export function FinanceBarChart({
           aria-hidden
         >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={chartMargin}>
+            <BarChart
+              data={chartData}
+              margin={{
+                top: chartMargin.top,
+                right: 0,
+                left: chartMargin.left,
+                bottom: 0,
+              }}
+            >
               <YAxis
                 width={yAxisWidth}
                 tick={{

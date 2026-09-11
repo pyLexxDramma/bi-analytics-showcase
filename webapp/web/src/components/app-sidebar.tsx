@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   REPORT_ACCORDIONS,
@@ -21,6 +21,10 @@ import { getAdminToken } from "@/lib/admin-token";
 import { loadDataStatus } from "@/lib/data-status-store";
 import { saveLastIngestReport } from "@/lib/last-ingest-report";
 import {
+  getNavPendingHref,
+  subscribeNavLoading,
+} from "@/lib/nav-loading";
+import {
   ApiError,
   downloadSnapshotExport,
   fetchAdminJob,
@@ -33,6 +37,13 @@ import {
   type DataFreshness,
   type DataVersion,
 } from "@/lib/api";
+
+/**
+ * После первой клиентской гидрации — кэш для remount сайдбара без мигания меню.
+ * До гидрации undefined → в state null/false как на SSR (без hydration mismatch).
+ */
+let cachedSidebarSession: AuthUser | null | undefined;
+let cachedSidebarCollapsed: boolean | undefined;
 
 /** Короткая метка для свёрнутого рельса навигации. */
 function railGlyph(label: string): string {
@@ -130,7 +141,14 @@ export function AppSidebar({
 } = {}) {
   const pathname = usePathname();
   const router = useRouter();
-  const activeAccordion = accordionIdForPath(pathname);
+  const pendingHref = useSyncExternalStore(
+    subscribeNavLoading,
+    getNavPendingHref,
+    () => null,
+  );
+  /** Пока идёт переход — подсвечиваем кликнутый пункт, не ждём pathname. */
+  const activePath = pendingHref || pathname;
+  const activeAccordion = accordionIdForPath(activePath);
   const [openId, setOpenId] = useState<string | null>(activeAccordion);
   const [fileCount, setFileCount] = useState<number | null>(null);
   const [freshness, setFreshness] = useState<DataFreshness | null>(null);
@@ -142,9 +160,13 @@ export function AppSidebar({
   const [versionBusy, setVersionBusy] = useState(false);
   const [versionNote, setVersionNote] = useState<string | null>(null);
 
-  const [collapsed, setCollapsed] = useState(false);
-  /** localStorage недоступен на SSR — иначе hydration mismatch и «1 Error» в DevTools. */
-  const [session, setSession] = useState<AuthUser | null>(null);
+  // SSR и первый hydrate: null/false. Remount после гидрации: из кэша (без мигания меню).
+  const [collapsed, setCollapsed] = useState(
+    () => cachedSidebarCollapsed ?? false,
+  );
+  const [session, setSession] = useState<AuthUser | null>(
+    () => cachedSidebarSession ?? null,
+  );
 
   const navProps = onNavigate
     ? { onClick: () => onNavigate() }
@@ -155,18 +177,26 @@ export function AppSidebar({
   }, [activeAccordion]);
 
   useEffect(() => {
-    setSession(getAuthSession());
+    const next = getAuthSession();
+    cachedSidebarSession = next;
+    setSession(next);
   }, [pathname]);
 
   useEffect(() => {
     if (!collapsible) return;
-    setCollapsed(readSidebarCollapsed());
+    const next = readSidebarCollapsed();
+    cachedSidebarCollapsed = next;
+    setCollapsed(next);
+    document.documentElement.dataset.biSidebar = next ? "collapsed" : "expanded";
   }, [collapsible]);
 
   const toggleCollapsed = () => {
     setCollapsed((state) => {
-      writeSidebarCollapsed(!state);
-      return !state;
+      const next = !state;
+      writeSidebarCollapsed(next);
+      cachedSidebarCollapsed = next;
+      document.documentElement.dataset.biSidebar = next ? "collapsed" : "expanded";
+      return next;
     });
   };
 
@@ -233,7 +263,7 @@ export function AppSidebar({
   }, [router]);
 
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+    activePath === href || activePath.startsWith(`${href}/`);
   const visibleTop = canAccessReport(REPORT_TOP_TAB.id, session)
     ? REPORT_TOP_TAB
     : null;
@@ -731,6 +761,7 @@ export function AppSidebar({
             className="min-h-11 w-full rounded-md bg-[#fdecea] px-3 py-2 font-medium text-[#c62828] transition hover:bg-[#f8d7d3] dark:bg-red-950/60 dark:text-red-200 dark:hover:bg-red-900/70"
             onClick={() => {
               logout();
+              cachedSidebarSession = null;
               onNavigate?.();
               router.push("/login");
             }}

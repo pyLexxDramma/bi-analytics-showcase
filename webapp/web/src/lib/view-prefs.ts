@@ -7,6 +7,12 @@ const DENSITY_KEY = "bi_showcase_density_v1";
 
 export type Density = "comfortable" | "compact";
 
+/** Синхрон с глобальным скелетоном / CSS (`data-bi-wide`). */
+export function applyWideCanvasAttr(value: boolean): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.biWide = value ? "1" : "0";
+}
+
 export function readWideCanvas(): boolean {
   try {
     return localStorage.getItem(WIDE_KEY) === "1";
@@ -21,6 +27,7 @@ export function writeWideCanvas(value: boolean): void {
   } catch {
     /* приватный режим — настройка живёт до перезагрузки */
   }
+  applyWideCanvasAttr(value);
 }
 
 export function readDensity(): Density {
