@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { AskAiButton, AskAiTitleChip } from "@/components/ask-ai-button";
 import { ReportBugButton } from "@/components/report-bug-button";
@@ -9,19 +9,20 @@ import { CommandPalette } from "@/components/command-palette";
 import { DataFreshnessBadge } from "@/components/data-freshness-badge";
 import { ReportBreadcrumbs } from "@/components/report-breadcrumbs";
 import { ShortcutsHelp } from "@/components/shortcuts-help";
-import {
-  DashboardSkeleton,
-  useDelayedLoading,
-  useSlowLoadingHint,
-} from "@/components/dashboard-loading";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { ReportsSearchSheet } from "@/components/reports-search-sheet";
 import { confirmFeedback, tapFeedback } from "@/lib/haptics";
 import { ReportAccessProvider } from "@/lib/report-access-context";
 import { ReportUiAclProvider } from "@/lib/use-report-ui-acl";
 import { findNavItem } from "@/lib/nav";
+import {
+  getShowSkeleton,
+  setNavLoading,
+  setPageLoading,
+  subscribeNavLoading,
+  syncNavLoadingWithPage,
+} from "@/lib/nav-loading";
 import { pushRecentReport } from "@/lib/recent-reports";
-import { useIsMobileViewport } from "@/lib/use-is-mobile";
 import {
   applyThemeClass,
   readTheme,
@@ -33,6 +34,7 @@ import {
   readWideCanvas,
   writeDensity,
   writeWideCanvas,
+  applyWideCanvasAttr,
   type Density,
 } from "@/lib/view-prefs";
 import { fetchAuthMe } from "@/lib/api";
@@ -40,6 +42,10 @@ import { canAccessReport, isAuthenticated, logout, saveAuthSession } from "@/lib
 import { prefetchAdjacentReports } from "@/lib/prefetch-reports";
 import { firstAccessibleReportHref } from "@/lib/reports-index";
 import { PullRefreshProvider } from "@/lib/refresh-context";
+
+function useShowSkeleton(): boolean {
+  return useSyncExternalStore(subscribeNavLoading, getShowSkeleton, () => false);
+}
 
 export function AppShell({
   title,
@@ -49,7 +55,7 @@ export function AppShell({
 }: {
   title: string;
   subtitle?: string;
-  /** Пока true — после 1 с блюр + оверлей «Загрузка дашборда». */
+  /** Пока true — сразу скелетон дашборда (без задержки). */
   loading?: boolean;
   children: React.ReactNode;
 }) {
@@ -60,7 +66,7 @@ export function AppShell({
   const [density, setDensity] = useState<Density>("comfortable");
   const [flashData, setFlashData] = useState(false);
   const pathname = usePathname();
-  const mobile = useIsMobileViewport();
+  const showSkeleton = useShowSkeleton();
   const navItem = findNavItem(pathname);
   const showDataFreshness =
     !pathname.startsWith("/settings/profile") &&
@@ -74,16 +80,72 @@ export function AppShell({
   useEffect(() => {
     setAccessDenied(!!(navItem && !canAccessReport(navItem.id)));
   }, [navItem]);
-  const showLoading = useDelayedLoading(
-    !accessDenied && loading,
-    mobile ? 400 : 1000,
-  );
-  const slowHint = useSlowLoadingHint(!accessDenied && loading);
+
+  // Клик по внутреннему разделу → скелетон сразу, ещё до смены страницы.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      const el = (event.target as HTMLElement | null)?.closest?.("a[href]");
+      if (!el) return;
+      if (el.getAttribute("target") === "_blank" || el.hasAttribute("download")) {
+        return;
+      }
+      const href = el.getAttribute("href");
+      if (!href || !href.startsWith("/") || href.startsWith("//")) return;
+      let url: URL;
+      try {
+        url = new URL(href, window.location.origin);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin) return;
+      if (
+        url.pathname === pathname &&
+        url.search === window.location.search
+      ) {
+        return;
+      }
+      // Не скелетоним служебные экраны без AppShell-loading.
+      if (
+        url.pathname.startsWith("/login") ||
+        url.pathname.startsWith("/bug-status")
+      ) {
+        return;
+      }
+      setNavLoading(true, url.pathname);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [pathname]);
+
+  // Не снимаем скелетон по !loading на старой странице (URL уже новый).
+  useEffect(() => {
+    syncNavLoadingWithPage(loading, pathname);
+  }, [loading, pathname]);
+
+  // Глобальный хост скелетона (layout) — не remount AppShell.
+  useEffect(() => {
+    setPageLoading(!accessDenied && loading);
+    return () => setPageLoading(false);
+  }, [accessDenied, loading]);
+
+  const showLoading = !accessDenied && showSkeleton;
 
   useEffect(() => {
     applyThemeClass(readTheme());
     setDark(readTheme() === "dark");
-    setWide(readWideCanvas());
+    const wideCanvas = readWideCanvas();
+    setWide(wideCanvas);
+    applyWideCanvasAttr(wideCanvas);
     setDensity(readDensity());
   }, []);
 
@@ -203,7 +265,11 @@ export function AppShell({
         </div>
       ) : null}
 
-      <div className="relative min-h-screen min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong">
+      <div
+        className={`relative min-h-screen min-w-0 flex-1 overflow-x-hidden text-tremor-content-strong dark:text-dark-tremor-content-strong ${
+          showLoading ? "bi-loading-veil" : ""
+        }`}
+      >
         <div
           className={`bi-safe-area bi-has-tabbar mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 ${
             wide ? "max-w-7xl lg:max-w-none" : "max-w-7xl"
@@ -296,7 +362,10 @@ export function AppShell({
             </div>
           </header>
           <div
-            className={`min-w-0 max-w-full ${flashData ? "bi-data-flash" : ""}`}
+            className={`min-w-0 max-w-full ${
+              showLoading ? "invisible" : flashData ? "bi-data-flash" : ""
+            }`}
+            aria-hidden={showLoading || undefined}
           >
             {accessDenied ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-8 dark:border-amber-800 dark:bg-amber-950/40">
@@ -329,7 +398,6 @@ export function AppShell({
             )}
           </div>
         </div>
-        {showLoading ? <DashboardSkeleton wide={!mobile} slowHint={slowHint} /> : null}
         <MobileTabBar
           onOpenMenu={() => setMenuOpen((open) => !open)}
           menuOpen={menuOpen}

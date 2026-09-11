@@ -121,6 +121,23 @@ function wrapTickLabel(raw: string, opts?: { width?: number; maxLines?: number }
   return lines.join("<br>") || s;
 }
 
+/** Одно слово на строку — столбик под столбцом, без наезда соседних подписей. */
+function stackWordsAsColumn(raw: string): string {
+  const words = raw.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+  const lines: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!;
+    // «− Аванс» / «- Аванс» держим на одной строке
+    if ((w === "−" || w === "-") && words[i + 1]) {
+      lines.push(`${w} ${words[++i]}`);
+      continue;
+    }
+    lines.push(w);
+  }
+  return lines.join("<br>");
+}
+
 function canvasWidth(n: number, grouped: boolean): { scroll: boolean; width: number } {
   const px = grouped ? SLOT_GROUP_PX : SLOT_STACK_PX;
   const content = n * px + 80;
@@ -164,10 +181,25 @@ export function DebitCreditChart({
       const labels = rows.map((row) => row.label);
       const values = rows.map((row) => row.value);
       const colors = rows.map((row) => row.color);
-      // Полные названия метрик, в т.ч. «…обязательств по платежам».
+      // Мобилка: полные названия столбиком + шире слоты (при необходимости скролл в графике).
+      // Десктоп: перенос полных названий, в т.ч. «…обязательств по платежам».
       const ticktext = labels.map((label) =>
-        wrapTickLabel(label, { width: 18, maxLines: 4 }),
+        compact
+          ? stackWordsAsColumn(label)
+          : wrapTickLabel(label, { width: 18, maxLines: 4 }),
       );
+      const maxTickLines = Math.max(
+        1,
+        ...ticktext.map((t) => t.split("<br>").length),
+      );
+      const maxWordLen = Math.max(
+        1,
+        ...ticktext.flatMap((t) => t.split("<br>").map((line) => line.length)),
+      );
+      // Слот чуть шире длинного слова, чтобы соседние подписи не наезжали.
+      const slotPx = Math.max(88, Math.ceil(maxWordLen * 6.4 + 20));
+      const chartWidth = compact ? labels.length * slotPx + 48 : undefined;
+      const scroll = Boolean(compact && chartWidth && chartWidth > 360);
       const peak = Math.max(0.01, ...values.map((v) => Math.abs(v)));
       const negMin = Math.min(0, ...values);
       const yTop = peak * 1.14;
@@ -176,20 +208,20 @@ export function DebitCreditChart({
           ? -(Math.abs(negMin) * 1.14 + Math.max(Math.abs(negMin) * 0.12, 0.8))
           : 0;
       const dtick = niceDtick(Math.max(yTop, Math.abs(yBot)), compact);
-      const height = compact ? 360 : 720;
+      const height = compact ? 320 + maxTickLines * 14 : 720;
       // Для отрицательных столбцов «outside» уезжает вниз и пересекается с подписью оси X.
       const textPositions = values.map((v) => (v < 0 ? "inside" : "outside"));
 
       return {
-        scroll: false,
-        width: undefined as number | undefined,
+        scroll,
+        width: scroll ? chartWidth : undefined,
         data: [
           {
             type: "bar" as const,
             x: labels,
             y: values,
             marker: { color: colors },
-            width: 0.55,
+            width: scroll ? 0.58 : 0.55,
             text: values.map((v) => valueLabel(v, compact)),
             textposition: textPositions,
             textangle: 0,
@@ -202,12 +234,13 @@ export function DebitCreditChart({
         ],
         layout: {
           height,
-          autosize: true,
+          width: scroll ? chartWidth : undefined,
+          autosize: !scroll,
           barmode: "relative" as const,
-          bargap: 0.28,
+          bargap: scroll ? 0.28 : compact ? 0.22 : 0.28,
           showlegend: false,
           margin: compact
-            ? { l: 36, r: 12, t: 28, b: 150 }
+            ? { l: 36, r: 16, t: 28, b: Math.max(64, maxTickLines * 14 + 20) }
             : { l: 80, r: 40, t: 48, b: 180 },
           paper_bgcolor: "rgba(0,0,0,0)",
           plot_bgcolor: "rgba(0,0,0,0)",

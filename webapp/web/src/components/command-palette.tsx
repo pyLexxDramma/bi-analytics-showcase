@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { setNavLoading } from "@/lib/nav-loading";
 import { readRecentReports } from "@/lib/recent-reports";
 import { recentReports, searchReports, type FlatReport } from "@/lib/reports-index";
 
@@ -128,6 +129,7 @@ export function CommandPalette() {
 
   const go = (report: FlatReport) => {
     close();
+    setNavLoading(true, report.href);
     router.push(report.href);
   };
 

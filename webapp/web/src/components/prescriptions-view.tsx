@@ -470,28 +470,33 @@ export function PrescriptionsView() {
           <FullscreenPanel fill>
             {(zoomed) => (
               <Card className="rounded-xl">
-                <div className="pred-leg mb-2 flex flex-wrap items-center gap-4 text-sm text-tremor-content-strong dark:text-dark-tremor-content-strong">
-                  <span className="inline-flex items-center gap-1.5">
+                <div className="pred-leg mb-3 space-y-1.5 text-xs leading-snug text-tremor-content-strong dark:text-dark-tremor-content-strong sm:mb-2 sm:flex sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-1 sm:space-y-0 sm:text-sm">
+                  <p className="flex items-start gap-2 sm:items-center">
                     <span
-                      className="inline-block h-3.5 w-3.5 rounded-sm"
+                      className="mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm sm:mt-0 sm:h-3.5 sm:w-3.5"
                       style={{ background: "#E67E22" }}
                       aria-hidden
                     />
-                    <strong>Внутри столбца</strong> — только просроченные (не все).
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
+                    <span>
+                      <strong className="font-semibold">Оранжевый сегмент</strong>
+                      {" — только просроченные"}
+                    </span>
+                  </p>
+                  <p className="flex items-start gap-2 sm:items-center">
                     <span
-                      className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white sm:mt-0 sm:h-[18px] sm:w-[18px] sm:text-[11px]"
                       style={{ background: "#3498db" }}
                       aria-hidden
                     >
                       N
                     </span>
-                    <strong>Синий пузырёк справа</strong> —{" "}
-                    {filters.hide_resolved
-                      ? "все неустранённые по подрядчику."
-                      : "всего предписаний по подрядчику."}
-                  </span>
+                    <span>
+                      <strong className="font-semibold">Синий пузырёк</strong>
+                      {filters.hide_resolved
+                        ? " — все неустранённые по подрядчику"
+                        : " — всего предписаний по подрядчику"}
+                    </span>
+                  </p>
                 </div>
                 <div className="mt-2 hidden lg:block">
                   <PrescriptionsContractorChart

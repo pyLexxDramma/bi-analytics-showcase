@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { GlobalDashboardSkeletonHost } from "@/components/global-dashboard-skeleton";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -35,7 +36,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <GlobalDashboardSkeletonHost />
+      </body>
     </html>
   );
 }

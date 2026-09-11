@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import { uniquePlotCategories, wrapAxisLabel } from "@/lib/chart-labels";
 import { PLOTLY_CONFIG } from "@/lib/plotly-config";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
@@ -76,10 +77,21 @@ function EmptyChart() {
 function Chart({ data, xTitle, color, rows, horizontal = false }: { data: CountRow[]; xTitle: string; color: string | string[]; rows: CountRow[]; horizontal?: boolean }) {
   const theme = useChartOptions();
   const figure = useMemo(() => {
-    const labels = rows.map((row) => row.contractor ?? row.status ?? row.object ?? row.period ?? "—");
+    const rawLabels = rows.map((row) => row.contractor ?? row.status ?? row.object ?? row.period ?? "—");
+    const { keys: labels, texts: labelTexts } = uniquePlotCategories(rawLabels);
     const values = rows.map((row) => Number(row.count ?? row.new_docs ?? 0));
+    const perLine = theme.compact ? 16 : 28;
+    const wrappedY = horizontal
+      ? labelTexts.map((t) => wrapAxisLabel(t, perLine, theme.compact ? 3 : 2))
+      : [];
+    const maxYLines = horizontal
+      ? Math.max(1, ...wrappedY.map((w) => w.lines))
+      : 1;
+    const rowH = theme.compact
+      ? 28 + Math.max(0, maxYLines - 1) * 12
+      : 32 + Math.max(0, maxYLines - 1) * 10;
     const height = horizontal
-      ? Math.max(theme.compact ? 260 : 280, rows.length * (theme.compact ? 34 : 32) + 120)
+      ? Math.max(theme.compact ? 260 : 280, rows.length * rowH + 120)
       : theme.compact ? 320 : 450;
     return {
       data: [{
@@ -97,26 +109,41 @@ function Chart({ data, xTitle, color, rows, horizontal = false }: { data: CountR
       }],
       layout: {
         height,
+        // Горизонтальные: узкий l + automargin — иначе длинные названия подрядчиков
+        // клипятся слева (text-anchor end, фиксированный margin.l).
         margin: horizontal
-          ? { l: theme.compact ? 84 : 120, r: 36, t: 28, b: 48 }
+          ? { l: theme.compact ? 8 : 16, r: theme.compact ? 40 : 48, t: 28, b: 48 }
           : { l: 52, r: 28, t: 42, b: theme.compact ? 92 : 120 },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.paper,
         font: { family: "Inter, system-ui, sans-serif", color: theme.label },
         bargap: rows.length <= 4 ? 0.62 : 0.28,
         xaxis: horizontal
-          ? { title: "", gridcolor: theme.grid, tickfont: { color: theme.axis }, zeroline: false }
-          : { title: xTitle, tickangle: xTitle === "Объект" ? -45 : -35, tickfont: { color: theme.axis, size: theme.compact ? 10 : 12 }, categoryorder: "array" as const, categoryarray: labels },
+          ? { title: "", gridcolor: theme.grid, tickfont: { color: theme.axis }, zeroline: false, automargin: true }
+          : { title: xTitle, tickangle: xTitle === "Объект" ? -45 : -35, tickfont: { color: theme.axis, size: theme.compact ? 10 : 12 }, categoryorder: "array" as const, categoryarray: labels, automargin: true },
         yaxis: horizontal
-          ? { title: "", tickfont: { color: theme.label, size: theme.compact ? 10 : 12 }, categoryorder: "array" as const, categoryarray: labels }
-          : { title: "Количество", gridcolor: theme.grid, tickfont: { color: theme.axis }, rangemode: "tozero" as const },
+          ? {
+              title: "",
+              tickmode: "array" as const,
+              tickvals: labels,
+              ticktext: wrappedY.map((w) => w.text),
+              tickfont: { color: theme.label, size: theme.compact ? 10 : 12 },
+              categoryorder: "array" as const,
+              categoryarray: labels,
+              automargin: true,
+            }
+          : { title: "Количество", gridcolor: theme.grid, tickfont: { color: theme.axis }, rangemode: "tozero" as const, automargin: true },
         modebar: { bgcolor: "rgba(0,0,0,0)", color: theme.axis, activecolor: "#0f766e" },
       },
       config: { ...PLOTLY_CONFIG, ...(theme.compact ? { displayModeBar: false } : {}) },
     };
   }, [color, horizontal, rows, theme]);
   if (!data.length) return <EmptyChart />;
-  return <PlotlyFigure data={figure.data} layout={figure.layout} config={figure.config} useResizeHandler style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div className="min-w-0 overflow-x-hidden">
+      <PlotlyFigure data={figure.data} layout={figure.layout} config={figure.config} useResizeHandler style={{ width: "100%", height: "100%" }} />
+    </div>
+  );
 }
 
 export function ExecutiveOverdueChart({ rows, customer }: { rows: CountRow[]; customer?: boolean }) {
