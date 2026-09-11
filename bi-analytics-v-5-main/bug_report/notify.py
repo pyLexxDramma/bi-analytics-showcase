@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import smtplib
 from email.message import EmailMessage
 from typing import Any
@@ -55,6 +56,31 @@ def _send_smtp(settings: BugReportSettings, *, to_email: str, subject: str, body
         return False
 
 
+def _plain(text: str) -> str:
+    """Убрать лёгкий markdown (**bold**) для читаемого plain-text письма."""
+    t = (text or "").strip()
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    return t.strip()
+
+
+def _ticket_brief_block(row: dict[str, Any]) -> str:
+    """Блоки КРАТКО / ОПИСАНИЕ — как на странице статуса."""
+    title = _plain(str(row.get("ai_title") or row.get("title") or "").strip())
+    summary = _plain(str(row.get("ai_summary") or "").strip())
+    user_text = _plain(str(row.get("user_text") or "").strip())
+    description = summary or user_text
+    if len(description) > 1500:
+        description = description[:1500].rstrip() + "…"
+    parts: list[str] = []
+    if title:
+        parts.append(f"КРАТКО:\n{title}")
+    if description:
+        parts.append(f"ОПИСАНИЕ:\n{description}")
+    if not parts:
+        return ""
+    return "\n\n" + "\n\n".join(parts) + "\n"
+
+
 def _append_team_comment(body: str, comment: str | None) -> str:
     text = (comment or "").strip()
     if not text:
@@ -76,6 +102,7 @@ def notify_client(
     token = str(row.get("public_token") or "")
     link = status_page_url(token, settings)
     email = str(row.get("contact_email") or "").strip()
+    brief = _ticket_brief_block(row)
 
     if kind == "accepted":
         subject = f"Заявка №{ticket_no} принята"
@@ -83,6 +110,7 @@ def notify_client(
             f"Заявка №{ticket_no} принята.\n"
             "Напишем, когда будет готово к проверке или если понадобятся уточнения.\n"
         )
+        body += brief
         if link:
             body += f"\nСтатус заявки: {link}\n"
     elif kind == "in_progress":
@@ -92,12 +120,14 @@ def notify_client(
             "Напишем, когда будет готово к проверке "
             "или если понадобятся уточнения.\n"
         )
+        body += brief
         if link:
             body += f"\nСтатус заявки: {link}\n"
         body = _append_team_comment(body, comment)
     elif kind == "ready":
         subject = f"Заявка №{ticket_no} готова, можно проверить"
         body = f"Заявка №{ticket_no} готова, можно проверить.\n"
+        body += brief
         if link:
             body += f"\nОткрыть статус: {link}\n"
         body = _append_team_comment(body, comment)
@@ -112,6 +142,7 @@ def notify_client(
             f"(статус: {client_status_label('on_hold')}).\n"
             "Пожалуйста, ответьте команде BI или оформите уточнение.\n"
         )
+        body += brief
         if link:
             body += f"\nСтатус: {link}\n"
         body = _append_team_comment(body, comment)

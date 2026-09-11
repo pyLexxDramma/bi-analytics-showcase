@@ -186,6 +186,9 @@ def submit_bug_report(
             "contact_email": contact_email,
             "contact_telegram": contact_telegram,
             "client_status": CLIENT_STATUS_ACCEPTED,
+            "ai_title": classification.title,
+            "ai_summary": classification.summary,
+            "user_text": text,
         }
         notified_at = None
         if notify_client(row, kind="accepted", settings=settings):
@@ -264,6 +267,9 @@ def submit_bug_report(
             "public_token": public_token,
             "contact_email": contact_email,
             "contact_telegram": contact_telegram,
+            "ai_title": classification.title,
+            "ai_summary": classification.summary,
+            "user_text": text,
         }
         if notify_client(row, kind="accepted", settings=settings):
             update_bug_report(report_id, notified_accepted_at=_utc_now_iso())
