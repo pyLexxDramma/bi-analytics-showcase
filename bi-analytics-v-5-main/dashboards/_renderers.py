@@ -41252,9 +41252,11 @@ def _forecast_merge_bddcs_from_1c(project_df: pd.DataFrame, project_name: str) -
 
     t = bdf.copy()
     if proj:
+        # Soft-match как у _bdds_turnover_g_for_project: UI «Дмитровский»
+        # ↔ 1С «Дмитровский-1», иначе budget plan/fact лотов остаются 0.
         pn = _project_filter_norm_key(project_name)
         t["_pk"] = t[proj].map(_project_filter_norm_key)
-        t = t[t["_pk"] == pn]
+        t = t[t["_pk"].map(lambda rk: _project_norm_key_matches_msp_keys(rk, {pn}))]
     if t.empty:
         return out
 
