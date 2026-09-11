@@ -524,7 +524,11 @@ function DeveloperProjectsBody({
                     ]}
                   />
                   <p className="text-xs text-tremor-content dark:text-dark-tremor-content">
-                    Показано {mobileProjects.length} из {matrixProjects.length}
+                    Показано {mobileProjects.length} из{" "}
+                    {matrixProjects.length} проектов
+                    {columns.length
+                      ? ` · ${columns.length} контрольных точек`
+                      : ""}
                   </p>
                 </div>
                 <div className="lg:hidden">
