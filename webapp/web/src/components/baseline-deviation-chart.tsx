@@ -5,9 +5,13 @@ import { useMemo } from "react";
 import { Text } from "@tremor/react";
 import type { BaselineDeviationPayload } from "@/lib/api";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
+import {
+  MobileTimelineCards,
+  type MobileTimelineCardRow,
+} from "@/components/mobile-timeline-lanes";
 import { CHART_RU } from "@/lib/chart-ru";
 import { PLOTLY_CONFIG, plotlyLegendUnderLeft } from "@/lib/plotly-config";
-import { useIsMobileViewport } from "@/lib/use-is-mobile";
+import { useIsLandscape, useIsMobileViewport } from "@/lib/use-is-mobile";
 
 const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ssr: false,
@@ -20,19 +24,28 @@ const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
 
 const SCROLL_VISIBLE_ROWS = 18;
 const ROW_PX = 44;
-const BAR_WIDTH = 0.14;
-const LANE_GAP = 0.04;
+const ROW_PX_MOBILE = 64;
+const BAR_WIDTH_DESKTOP = 0.14;
+const BAR_WIDTH_MOBILE = 0.18;
+const LANE_GAP_DESKTOP = 0.04;
+const LANE_GAP_MOBILE = 0.06;
 const MARGIN_TOP = 28;
 const MARGIN_BOTTOM = 110;
 const DAY_MS = 24 * 3600 * 1000;
 const LABEL_COL_PCT_DESKTOP = 42;
-const LABEL_COL_PCT_MOBILE = 48;
+const LABEL_COL_PCT_MOBILE = 28;
 const LABEL_MAX_LINES = 4;
+
+type ChartRow = BaselineDeviationPayload["chart"]["rows"][number];
 
 function toMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
   const ms = Date.parse(iso);
   return Number.isFinite(ms) ? ms : null;
+}
+
+function msToIso(ms: number): string {
+  return new Date(ms).toISOString();
 }
 
 function fmtLabel(iso: string | null | undefined, fallback?: string | null): string {
@@ -93,10 +106,91 @@ function chartLegend(fullscreen: boolean) {
   });
 }
 
-function laneOffset(lane: "base" | "plan", hasPlan: boolean): number {
+function laneOffset(
+  lane: "base" | "plan",
+  hasPlan: boolean,
+  barWidth: number,
+  laneGap: number,
+): number {
   if (!hasPlan) return 0;
   const idx = lane === "base" ? 0 : 1;
-  return (idx - 0.5) * (BAR_WIDTH + LANE_GAP) * 2;
+  return (idx - 0.5) * (barWidth + laneGap) * 2;
+}
+
+function buildMobileRows(
+  rows: ChartRow[],
+  covenantMode: boolean,
+  rangeStartIso: string | null,
+): MobileTimelineCardRow[] {
+  const dates: number[] = [];
+  for (const row of rows) {
+    for (const value of [
+      row.base_start,
+      row.base_end,
+      row.plan_start,
+      row.plan_end,
+    ]) {
+      const ms = toMs(value);
+      if (ms != null) dates.push(ms);
+    }
+  }
+  const apiStart = toMs(rangeStartIso);
+  const originMs = dates.length
+    ? Math.min(...dates)
+    : apiStart ?? Date.now();
+  const originIso = msToIso(originMs);
+
+  return rows.map((row, index) => {
+    const title = row.project
+      ? `${row.project}: ${taskLabelOnly(row.label, row.project)}`
+      : taskLabelOnly(row.label, row.project) || row.label;
+    const dev = row.dev_end_days;
+    const overdue = dev != null && dev < 0;
+    return {
+      id: `${row.project ?? ""}-${row.task}-${index}`,
+      title,
+      titleHint: row.label,
+      badge:
+        dev != null && Number.isFinite(dev)
+          ? `${dev > 0 ? "+" : ""}${Math.round(dev)} дн.`
+          : null,
+      badgeClassName: overdue
+        ? "shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-red-700 dark:bg-red-950/60 dark:text-red-300"
+        : "shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+      primary: covenantMode
+        ? {
+            start: row.base_end,
+            end: row.base_end,
+            startLabel: "",
+            endLabel: fmtLabel(row.base_end, row.base_end_label) || "—",
+          }
+        : {
+            start: originIso,
+            end: row.base_end,
+            startLabel: "",
+            endLabel: fmtLabel(row.base_end, row.base_end_label) || undefined,
+          },
+      secondary: covenantMode
+        ? {
+            start: row.plan_end,
+            end: row.plan_end,
+            startLabel: "",
+            endLabel: fmtLabel(row.plan_end, row.plan_end_label) || "—",
+          }
+        : {
+            start: originIso,
+            end: row.plan_end,
+            startLabel: "",
+            endLabel: fmtLabel(row.plan_end, row.plan_end_label) || undefined,
+          },
+      stageDates: [
+        row.base_start,
+        row.base_end,
+        row.plan_start,
+        row.plan_end,
+      ],
+    };
+  });
 }
 
 export function BaselineDeviationChart({
@@ -107,29 +201,46 @@ export function BaselineDeviationChart({
   fullscreen?: boolean;
 }) {
   const mobile = useIsMobileViewport();
-  const labelColPct = mobile ? LABEL_COL_PCT_MOBILE : LABEL_COL_PCT_DESKTOP;
+  const landscape = useIsLandscape();
+  /** Как в «График проекта»: на портрете — карточки; Plotly — desktop или fullscreen+landscape. */
+  const expandedWide = mobile && fullscreen && landscape;
+  const fitMobile = mobile && !expandedWide;
+  const labelColPct = fitMobile
+    ? LABEL_COL_PCT_MOBILE
+    : mobile
+      ? 20
+      : LABEL_COL_PCT_DESKTOP;
+  const barWidth = mobile ? BAR_WIDTH_MOBILE : BAR_WIDTH_DESKTOP;
+  const laneGap = mobile ? LANE_GAP_MOBILE : LANE_GAP_DESKTOP;
+  const rowPxBase = mobile ? ROW_PX_MOBILE : ROW_PX;
   const rows = data.chart.rows;
   const baseColor = data.chart.base_color || "#14b8a6";
   const planColor = data.chart.plan_color || "#fb923c";
+  const covenantMode = data.chart.kind === "covenant_points";
+
+  const mobileRows = useMemo(
+    () => buildMobileRows(rows, covenantMode, data.chart.range_start),
+    [rows, covenantMode, data.chart.range_start],
+  );
 
   const built = useMemo(() => {
     if (!rows.length) return null;
-    const isCovenant = data.chart.kind === "covenant_points";
+    const isCovenant = covenantMode;
     const n = rows.length;
     const distinctProjects = new Set(
       rows.map((row) => String(row.project || "").trim()).filter(Boolean),
     );
     const showProjectPrefix = distinctProjects.size > 1;
-    const charsPerLine = fullscreen ? 52 : mobile ? 28 : 44;
+    const charsPerLine = fullscreen ? 52 : mobile ? 22 : 44;
     const taskNames = rows.map((row) => taskLabelOnly(row.label, row.project));
     const lineCounts = taskNames.map((name) =>
       wrapLineCount(name, charsPerLine, LABEL_MAX_LINES),
     );
     const maxNameLines = Math.max(1, ...lineCounts);
     const labelFont = fullscreen ? 12 : 10;
-    const taskFont = fullscreen ? 13 : mobile ? 11 : 12;
+    const taskFont = fullscreen ? 13 : mobile ? 10 : 12;
     const nameBlockPx = Math.ceil(maxNameLines * taskFont * 1.3);
-    const rowPx = Math.max(ROW_PX, (showProjectPrefix ? 20 : 8) + nameBlockPx);
+    const rowPx = Math.max(rowPxBase, (showProjectPrefix ? 20 : 8) + nameBlockPx);
 
     if (isCovenant) {
       const y = rows.map((_, i) => i);
@@ -262,8 +373,8 @@ export function BaselineDeviationChart({
 
     const hasPlan = rows.some((row) => toMs(row.plan_end) != null);
 
-    const baseY = rows.map((_, i) => i + laneOffset("base", hasPlan));
-    const planY = rows.map((_, i) => i + laneOffset("plan", hasPlan));
+    const baseY = rows.map((_, i) => i + laneOffset("base", hasPlan, barWidth, laneGap));
+    const planY = rows.map((_, i) => i + laneOffset("plan", hasPlan, barWidth, laneGap));
 
     const baseLen = rows.map((row) => {
       const end = toMs(row.base_end);
@@ -309,7 +420,7 @@ export function BaselineDeviationChart({
         base: baseBase,
         x: baseLen,
         marker: { color: baseColor },
-        width: BAR_WIDTH,
+        width: barWidth,
         text: baseTxt,
         textposition: "outside",
         textfont: { size: labelFont, color: baseColor, family: "Arial" },
@@ -329,7 +440,7 @@ export function BaselineDeviationChart({
         base: planBase,
         x: planLen,
         marker: { color: planColor },
-        width: BAR_WIDTH,
+        width: barWidth,
         text: planTxt,
         textposition: "outside",
         textfont: { size: labelFont, color: planColor, family: "Arial" },
@@ -370,8 +481,8 @@ export function BaselineDeviationChart({
       data: traces,
       layout: {
         barmode: "overlay",
-        bargap: 0.35,
-        bargroupgap: 0.45,
+        bargap: mobile ? 0.78 : 0.35,
+        bargroupgap: mobile ? laneGap : 0.45,
         height: chartHeight,
         autosize: true,
         margin: { l: 4, r: 96, t: MARGIN_TOP, b: MARGIN_BOTTOM },
@@ -392,6 +503,7 @@ export function BaselineDeviationChart({
           },
           gridcolor: "rgba(148,163,184,0.25)",
           zeroline: false,
+          fixedrange: mobile,
         },
         yaxis: {
           autorange: "reversed",
@@ -402,12 +514,58 @@ export function BaselineDeviationChart({
           showticklabels: false,
           zeroline: false,
           showgrid: false,
+          fixedrange: mobile,
         },
+        dragmode: mobile ? false : "zoom",
       },
       chartHeight,
       plotHeight,
     };
-  }, [rows, baseColor, planColor, fullscreen, data.chart.kind, mobile]);
+  }, [
+    rows,
+    baseColor,
+    planColor,
+    fullscreen,
+    covenantMode,
+    mobile,
+    barWidth,
+    laneGap,
+    rowPxBase,
+  ]);
+
+  if (!rows.length) {
+    return <DashboardEmptyState message="Нет задач для графика." />;
+  }
+
+  if (fitMobile) {
+    return (
+      <div className="space-y-2">
+        <MobileTimelineCards
+          rows={mobileRows}
+          primaryColor={baseColor}
+          secondaryColor={planColor}
+          primaryLegend={CHART_RU.baseEnd}
+          secondaryLegend={CHART_RU.planEnd}
+          primaryLaneLabel="Б"
+          secondaryLaneLabel="О"
+          covenantMode={covenantMode}
+          rangeStart={data.chart.range_start}
+          rangeEnd={data.chart.range_end}
+          intro={
+            covenantMode
+              ? "Каждая задача на общей шкале. Контрольные даты — ромбами у дорожек базового и текущего окончания."
+              : "Каждая задача на общей шкале времени. Даты закреплены у цветных дорожек базового и текущего окончания."
+          }
+        />
+        {data.chart.caption ? (
+          <Text className="text-xs text-tremor-content dark:text-dark-tremor-content">
+            {data.chart.caption}
+            {data.chart.capped ? " · график ограничен 400 строками" : ""}
+          </Text>
+        ) : null}
+      </div>
+    );
+  }
 
   if (!built) {
     return <DashboardEmptyState message="Нет задач для графика." />;
@@ -422,6 +580,12 @@ export function BaselineDeviationChart({
 
   return (
     <div className="space-y-2">
+      {expandedWide ? (
+        <Text className="mb-2 text-[11px] text-tremor-content dark:text-dark-tremor-content">
+          Листайте вверх/вниз — таймлайн увеличен. Чтобы вернуться к карточкам,
+          закройте развёрнутый вид или поверните телефон вертикально.
+        </Text>
+      ) : null}
       <div
         className={needScroll && !fullscreen ? "overflow-auto" : undefined}
         style={needScroll && !fullscreen ? { maxHeight: scrollH } : undefined}
