@@ -173,7 +173,7 @@ docker compose exec -T api python -c \
 
 echo "==> verify Trello + SMTP for bug reports"
 docker compose exec -T api python -c \
-  'from bug_report.settings import get_bug_report_settings; s=get_bug_report_settings(); print("trello", s.trello_configured, "smtp", s.smtp_configured, "status_base", (s.public_base_url or "")[:64]); raise SystemExit(0 if s.trello_configured else "TRELLO_* missing inside api — cloudpub still proxies to winbot")'
+  'import sys; sys.path.insert(0, "/core"); from bug_report.settings import get_bug_report_settings; s=get_bug_report_settings(); print("trello", s.trello_configured, "smtp", s.smtp_configured, "status_base", (s.public_base_url or "")[:64]); raise SystemExit(0 if s.trello_configured else "TRELLO_* missing inside api — cloudpub still proxies to winbot")'
 
 echo "==> initialize users database"
 docker compose exec -T api python -c \
