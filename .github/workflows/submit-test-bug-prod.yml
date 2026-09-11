@@ -1,0 +1,66 @@
+# One-off: submit test bug report on prod (LAN) via VPS localhost.
+name: Submit test bug prod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST test bugform on prod API
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.WEBAPP_VPS_HOST }}
+          username: ${{ secrets.WEBAPP_VPS_USER }}
+          password: ${{ secrets.WEBAPP_VPS_PASSWORD }}
+          key: ${{ secrets.WEBAPP_VPS_SSH_KEY }}
+          port: ${{ secrets.WEBAPP_VPS_PORT || 2275 }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+            payload=$(python3 - <<'PY'
+            import json
+            png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            print(json.dumps({
+              "key": "f21915ba03f6a71d",
+              "first_name": "Aleksey",
+              "last_name": "Temnikov",
+              "contact_email": "lexxdramma777@gmail.com",
+              "reporter": "Aleksey Temnikov",
+              "username": "admin",
+              "btype": "Интерфейс",
+              "subtype": "Вёрстка / визуал",
+              "whytype": "Тест prod: проверка письма accepted и колонки Анализ.",
+              "menugroup": "Админпанель",
+              "report": "Административная панель",
+              "block": "Форма баг-репорта",
+              "element": "Отправка заявки",
+              "contour": "prod ai.conall.ru",
+              "whendt": "2026-09-11T11:39:00",
+              "browser": "Cursor agent via Actions",
+              "role": "admin",
+              "filters": "тест prod",
+              "title": "test_prod: письмо + Анализ",
+              "actual": "Тестовая заявка с ai.conall.ru (VPS). Проверяем письмо на lexxdramma777@gmail.com и колонку Анализ.",
+              "expected": "Письмо accepted от bi-notify, карточка в Анализ.",
+              "proof": ["Так было на согласованном эталоне / в брифе"],
+              "severity": "Косметика",
+              "steps": "1. Открыть prod\n2. Заполнить форму\n3. Отправить",
+              "repro": "Всегда, при указанных шагах",
+              "conditions": "стенд prod via Actions SSH",
+              "attachments": [{"name": "test.png", "type": "image/png", "data": png}],
+            }, ensure_ascii=False))
+            PY
+            )
+            echo "=== POST http://127.0.0.1:3081/api/bugform/submit ==="
+            resp=$(curl -sS --max-time 90 -w "\nHTTP=%{http_code}" \
+              -H "Content-Type: application/json" \
+              -d "$payload" \
+              "http://127.0.0.1:3081/api/bugform/submit")
+            echo "$resp"
+            echo "$resp" | grep -q '"ok": *true\|"trello_url"\|"status_url"\|"user_seq"\|"bug_id"' || {
+              echo "UNEXPECTED_RESPONSE"
+              exit 1
+            }
