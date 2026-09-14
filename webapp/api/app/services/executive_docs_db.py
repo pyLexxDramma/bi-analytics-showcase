@@ -174,6 +174,24 @@ def _contractor_late_days(row: pd.Series, today: date) -> float:
     return float(base) if base is not None else np.nan
 
 
+def filter_by_creation_date(
+    frame: pd.DataFrame,
+    date_from: date | None,
+    date_to: date | None,
+    *,
+    col: str = "_cd",
+) -> pd.DataFrame:
+    """Срез по дате создания: [date_from, date_to], оба конца включительно."""
+    if frame is None or frame.empty or col not in frame.columns:
+        return frame
+    out = frame
+    if date_from is not None:
+        out = out[out[col] >= pd.Timestamp(date_from)]
+    if date_to is not None:
+        out = out[out[col] < pd.Timestamp(date_to) + pd.Timedelta(days=1)]
+    return out
+
+
 def build_executive_docs_payload(
     *,
     project: str | None = None,
@@ -334,6 +352,33 @@ def build_executive_docs_payload(
             payload["meta"]["version_id"] = version_id
             return payload
 
+        # Полный диапазон дат — до среза периода (чтобы UI не схлопывал date picker).
+        issue_min = cumulative["_cd"].min()
+        issue_max = cumulative["_cd"].max()
+        catalog_base = cumulative
+        # Период по CreationDate влияет на KPI, сводки и детальный отчёт.
+        cumulative = filter_by_creation_date(cumulative, date_from, date_to)
+        gran = granularity if granularity in GRANULARITIES else "month"
+        if cumulative.empty:
+            payload = _empty("Нет документов при выбранных фильтрах")
+            payload["meta"]["version_id"] = version_id
+            payload["filters"]["date_min"] = (
+                issue_min.date().isoformat() if pd.notna(issue_min) else None
+            )
+            payload["filters"]["date_max"] = (
+                issue_max.date().isoformat() if pd.notna(issue_max) else None
+            )
+            payload["filters"]["applied"] = {
+                "project": applied_project,
+                "contractor": contractor or "Все",
+                "doc_kind": doc_kind or "Все",
+                "date_from": date_from.isoformat() if date_from else None,
+                "date_to": date_to.isoformat() if date_to else None,
+                "granularity": gran,
+                "hide_overdue_if_signed": hide_overdue_if_signed,
+            }
+            return payload
+
         status = cumulative["Статус"].astype(str).str.strip()
         low = status.str.casefold()
         agree = low.eq("на согласовании")
@@ -380,15 +425,7 @@ def build_executive_docs_payload(
                 for name, value in counts.items()
             ]
 
-        gran = granularity if granularity in GRANULARITIES else "month"
-        # Dynamics: main uses cumulative (period filter unused for digits)
         dyn_src = cumulative.dropna(subset=["_cd"]).copy()
-        if date_from:
-            dyn_src = dyn_src[dyn_src["_cd"] >= pd.Timestamp(date_from)]
-        if date_to:
-            dyn_src = dyn_src[
-                dyn_src["_cd"] < pd.Timestamp(date_to) + pd.Timedelta(days=1)
-            ]
         dynamics: list[dict[str, Any]] = []
         if not dyn_src.empty:
             period_code = GRANULARITIES[gran][1]
@@ -438,17 +475,15 @@ def build_executive_docs_payload(
             )
 
         catalog_df = renderer._exec_doc_kinds_catalog_display(
-            cumulative, kind, catalog
+            catalog_base, kind, catalog
         ).fillna("")
-        issue_min = cumulative["_cd"].min()
-        issue_max = cumulative["_cd"].max()
         projects = sorted(
-            {_text(x, "") for x in cumulative[obj] if _text(x, "")},
+            {_text(x, "") for x in catalog_base[obj] if _text(x, "")},
             key=str.casefold,
         )
         contractors = (
             sorted(
-                {_text(x, "") for x in cumulative[contr] if _text(x, "")},
+                {_text(x, "") for x in catalog_base[contr] if _text(x, "")},
                 key=str.casefold,
             )
             if contr
@@ -473,7 +508,7 @@ def build_executive_docs_payload(
                 "contractors": ["Все", *contractors],
                 "doc_kinds": [
                     "Все",
-                    *renderer._exec_doc_kind_filter_options(cumulative, kind, catalog),
+                    *renderer._exec_doc_kind_filter_options(catalog_base, kind, catalog),
                 ],
                 "catalog": catalog_df.to_dict(orient="records"),
                 "date_min": issue_min.date().isoformat() if pd.notna(issue_min) else None,
