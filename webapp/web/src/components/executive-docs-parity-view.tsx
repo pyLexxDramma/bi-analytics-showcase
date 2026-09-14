@@ -576,7 +576,7 @@ export function ExecutiveDocsParityView() {
                     onReset={activeFilters.length ? reset : undefined}
                   />
                 ) : (
-                  <table className="bi-sticky-head bi-sticky-col min-w-max border-separate border-spacing-0 text-center text-sm">
+                  <table className="bi-sticky-head bi-sticky-col w-full min-w-max border-separate border-spacing-0 text-center text-sm">
                     <thead>
                       <tr>
                         {DETAIL_COLS.map(([key, label]) => (
