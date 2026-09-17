@@ -155,6 +155,39 @@ def _parent_is_pd_stage(parent_name: str) -> bool:
     return False
 
 
+def _is_main_pd_stage_only(stage_name: object) -> bool:
+    """Основная ПД для графика плана по месяцам — без корректировки и экспертизы."""
+    s = str(stage_name or "").casefold()
+    if not s:
+        return False
+    if "корректиров" in s or "экспертиз" in s:
+        return False
+    return "проектная документация" in s or "проектной документации" in s
+
+
+def _has_razdel_in_task_name(name: object) -> bool:
+    """Эталон заявки: в названии есть «Раздел» (без ТЗ / ТБЭ)."""
+    return "раздел" in str(name or "").casefold()
+
+
+def _monthly_chart_row_mask(
+    df: pd.DataFrame,
+    *,
+    stage_by_index: pd.Series,
+    name_col: str | None,
+) -> pd.Series:
+    """Узкий срез tremor.monthly: осн. ПД + «Раздел» в названии (KPI/деталка не трогаем)."""
+    if df is None or getattr(df, "empty", True):
+        return pd.Series(dtype=bool)
+    stage = stage_by_index.reindex(df.index).fillna("")
+    main = stage.map(_is_main_pd_stage_only)
+    if name_col and name_col in df.columns:
+        razdel = df[name_col].map(_has_razdel_in_task_name)
+    else:
+        razdel = pd.Series(False, index=df.index)
+    return main.fillna(False) & razdel.fillna(False)
+
+
 def _block_is_pd(series: pd.Series) -> pd.Series:
     b = series.astype(str).str.strip().str.casefold()
     return b.eq("пд")
@@ -943,7 +976,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v24-pd-stage-before-section|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v25-pd-monthly-main-razdel|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1359,25 +1392,39 @@ def build_project_documentation_payload(
                 )
 
         monthly: list[dict[str, Any]] = []
-        # Месячная динамика — по всем разделам ПД (metrics), не только delay_df,
-        # иначе зелёный факт почти всегда 0 и остаётся только красная просрочка.
+        # Месячная динамика (tremor.monthly) — узкий срез варианта 1:
+        # только осн. «Проектная документация» + «Раздел» в названии, дата = Базовое окончание.
+        # KPI / деталка / просрочка по-прежнему по полным metrics (осн.+корр.+экспертиза).
         month_base = scoped.loc[metrics.fillna(False)].copy() if metrics.any() else scoped.copy()
         if not month_base.empty:
-            bs_m = _to_dt(month_base[b_start]) if b_start and b_start in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
-            ss_m = _to_dt(month_base[s_start]) if s_start and s_start in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
-            bf_m = _to_dt(month_base[b_base]) if b_base and b_base in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
-            sf_m = _to_dt(month_base[s_fin]) if s_fin and s_fin in month_base.columns else pd.Series(pd.NaT, index=month_base.index)
+            name_for_monthly = masks.get("name_col")
+            monthly_keep = _monthly_chart_row_mask(
+                month_base,
+                stage_by_index=stage_by_index,
+                name_col=name_for_monthly,
+            )
+            month_base = month_base.loc[monthly_keep.fillna(False)].copy()
+        if not month_base.empty:
+            bf_m = (
+                _to_dt(month_base[b_base])
+                if b_base and b_base in month_base.columns
+                else pd.Series(pd.NaT, index=month_base.index)
+            )
+            sf_m = (
+                _to_dt(month_base[s_fin])
+                if s_fin and s_fin in month_base.columns
+                else pd.Series(pd.NaT, index=month_base.index)
+            )
             af_m = af.reindex(month_base.index)
             pc_m = pc.reindex(month_base.index).fillna(0.0)
-            plan_fin_m = bf_m.where(bf_m.notna(), sf_m)
-            month_base["_plan_end_dt"] = plan_fin_m
+            # Только «Базовое окончание» — без fallback на плановое окончание графика.
+            month_base["_plan_end_dt"] = bf_m
             if month_base["_plan_end_dt"].notna().any():
                 msrc = month_base[month_base["_plan_end_dt"].notna()].copy()
                 msrc["_pc"] = pc_m.reindex(msrc.index).fillna(0.0)
                 msrc["_af"] = af_m.reindex(msrc.index) if isinstance(af_m, pd.Series) else pd.NaT
                 msrc["_bf"] = bf_m.reindex(msrc.index)
                 msrc["_sf"] = sf_m.reindex(msrc.index)
-                # Без dedupe по шифру: корректировка и основная ПД — отдельные единицы плана.
                 # Накопительный срез на конец каждого месяца (как РД / ТЗ):
                 # жёлтый plan = срок наступил к as_of;
                 # зелёный fact = завершено вовремя;
