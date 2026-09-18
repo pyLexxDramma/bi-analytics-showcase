@@ -174,6 +174,11 @@ def _contractor_late_days(row: pd.Series, today: date) -> float:
     return float(base) if base is not None else np.nan
 
 
+def _customer_late_days(row: pd.Series, today: date) -> Optional[int]:
+    """Дни на согласовании у заказчика: от передачи, как колонка «ПРОСРОЧКА СОГЛАС.»."""
+    return _late_days_plan(row.get("_transfer"), None, today)
+
+
 def filter_by_creation_date(
     frame: pd.DataFrame,
     date_from: date | None,
@@ -405,7 +410,7 @@ def build_executive_docs_payload(
             sub_c["_late_days"] = pd.Series(dtype=float)
         if not sub_u.empty:
             sub_u["_late_days"] = sub_u.apply(
-                lambda r: _late_days_plan(r.get("_plan"), r.get("_fact"), today),
+                lambda r: _customer_late_days(r, today),
                 axis=1,
             )
         else:
@@ -446,9 +451,7 @@ def build_executive_docs_payload(
         detail = detail.sort_values("_cd", ascending=False, kind="stable")
         for _, row in detail.iterrows():
             submit_late = _late_days_plan(row.get("_plan"), row.get("_fact"), today)
-            agree_late = None
-            if pd.notna(row.get("_transfer")):
-                agree_late = _late_days_plan(row.get("_transfer"), None, today)
+            agree_late = _customer_late_days(row, today)
             if hide_overdue_if_signed and bool(signed.loc[row.name]):
                 submit_late = None
                 agree_late = None
