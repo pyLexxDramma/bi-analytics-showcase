@@ -643,7 +643,7 @@ API `parity=main_dashboard_forecast_budget`. Одиночный проект б�
 - Desktop-фильтры 1:1 с main: одна строка из 5 — Проект / Контрагент / Вид / **Период** (две даты в одном поле) / Гранулярность; чекбокс скрытия просрочки. Native select (светлый), не chips и не чёрный фон Streamlit.
 - Справочник видов ИД — expander **свёрнут** по умолчанию (как `expanded=False` в main).
 - KPI: 6 soft-cards в ряд (`exec-kpi` tones alert/warn/ok), подписи 1:1; заголовок «Таблица Исполнительная документация накопительно».
-- Просрочки подрядчик/заказчик: metric + бакеты + Plotly h-bar (`#f87171` / `#fbbf24`).
+- Просрочки подрядчик/заказчик: metric + бакеты + Plotly h-bar (`#f87171` / `#fbbf24`). Бакеты заказчика — дни от передачи на согласование (как колонка «Просрочка соглас.»), не `id_Deadline`.
 - Вкладки: накопительно (status color bars + objects full-width) / детальный (desktop table, mobile cards) / динамика Plotly.
 - Desktop Plotly modebar; mobile compact без modebar.
 - Цифры на стенде = main (139/0/15/1/48/63; overdue 48+15).
