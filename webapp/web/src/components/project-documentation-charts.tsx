@@ -229,10 +229,10 @@ export function PdDynamicsLineChart({
     });
     return {
       data: [
-        mk(plan, CHART_RU.planBp, PD_PLAN, 2.5, compact ? 7 : 8),
         mk(forecast, CHART_RU.forecast, PD_FCST, 3, compact ? 8 : 9, {
           dash: "dash",
         }),
+        mk(plan, CHART_RU.planBp, PD_PLAN, 2.5, compact ? 7 : 8),
         mk(fact, CHART_RU.factLine, PD_FACT, 2.5, compact ? 7 : 8),
       ],
       layout: {
@@ -396,10 +396,7 @@ export function PdMonthlyCumulativeChart({
           nticks: compact ? 5 : undefined,
         },
         yaxis: {
-          title: {
-            text: compact ? "" : "Месяц",
-            font: { size: 12, color: theme.axis },
-          },
+          title: { text: "" },
           tickmode: "array" as const,
           tickvals: yIdx,
           ticktext: labels,
