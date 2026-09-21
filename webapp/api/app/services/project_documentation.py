@@ -165,6 +165,66 @@ def _is_main_pd_stage_only(stage_name: object) -> bool:
     return "проектная документация" in s or "проектной документации" in s
 
 
+def _is_issuance_pd_stage(stage_name: object) -> bool:
+    """Allowlist родителей для графика динамики / KPI / таблицы выдачи.
+
+    1) «Этап. Проектная документация»
+    2) «Этап. ПРОЕКТНАЯ И РАБОЧАЯ ДОКУМЕНТАЦИЯ ПО ГАЗОСНАБЖЕНИЮ»
+    3) «Этап. ПРИМЫКАНИЕ К УЛИЧНО-ДОРОЖНОЙ СЕТИ»
+    Корректировка и экспертиза — нет.
+    """
+    s = str(stage_name or "").casefold().replace("ё", "е")
+    s = re.sub(r"\s+", " ", s).strip()
+    if not s or "этап" not in s:
+        return False
+    if "корректиров" in s or "экспертиз" in s:
+        return False
+    if "примыкание" in s and ("улично" in s or "дорожн" in s):
+        return True
+    if "газоснабж" in s and "проектн" in s:
+        return True
+    return "проектная документация" in s or "проектной документации" in s
+
+
+def _is_chart_pd_stage_ancestor(parent_name: str) -> bool:
+    """Ближайший PD-этап для среза выдачи: allowlist плюс корректировка/экспертиза.
+
+    Корректировку не перепрыгиваем к «Проектная документация» выше по стеку.
+    """
+    return _parent_is_pd_stage(parent_name) or _is_issuance_pd_stage(parent_name)
+
+
+def _issuance_row_mask(
+    *,
+    level: pd.Series,
+    cipher_ok: pd.Series,
+    stage_by_index: pd.Series,
+) -> pd.Series:
+    """Ур.5 + шифр + предок из allowlist (без требования block=ПД и без «Раздел» в имени)."""
+    idx = level.index
+    lv_ok = pd.to_numeric(level, errors="coerce").eq(5).fillna(False)
+    ciph = cipher_ok.reindex(idx).fillna(False)
+    stage = stage_by_index.reindex(idx).fillna("")
+    allowed = stage.map(_is_issuance_pd_stage).fillna(False)
+    return lv_ok & ciph & allowed
+
+
+def _task_level_numeric(df: pd.DataFrame, masks: dict[str, Any]) -> pd.Series:
+    from utils import outline_level_numeric  # type: ignore
+
+    level_col = masks.get("level_col")
+    hier = masks.get("hier_col")
+    lv_task = (
+        outline_level_numeric(df[level_col])
+        if level_col and level_col in df.columns
+        else pd.Series(np.nan, index=df.index)
+    )
+    if hier and hier in df.columns:
+        lv_struct = outline_level_numeric(df[hier])
+        lv_task = lv_task.where(lv_task.notna(), lv_struct) if lv_task.notna().any() else lv_struct
+    return lv_task
+
+
 def _has_razdel_in_task_name(name: object) -> bool:
     """Эталон заявки: в названии есть «Раздел» (без ТЗ / ТБЭ)."""
     return "раздел" in str(name or "").casefold()
@@ -214,10 +274,17 @@ def _immediate_parents(df: pd.DataFrame, level_col: str, name_col: str) -> pd.Se
     return pd.Series(out, index=df.index)
 
 
-def _pd_stage_ancestor_labels(df: pd.DataFrame, level_col: str, name_col: str) -> pd.Series:
+def _pd_stage_ancestor_labels(
+    df: pd.DataFrame,
+    level_col: str,
+    name_col: str,
+    *,
+    is_stage: Any | None = None,
+) -> pd.Series:
     """Ближайший предок-этап ПД (осн. / корректировка / экспертиза), не «Раздел 3…»."""
     from utils import outline_level_numeric  # type: ignore
 
+    pred = is_stage or _parent_is_pd_stage
     lv = outline_level_numeric(df[level_col])
     nm = df[name_col].map(lambda x: "" if pd.isna(x) else str(x))
     stack: list[tuple[float, str]] = []
@@ -233,7 +300,7 @@ def _pd_stage_ancestor_labels(df: pd.DataFrame, level_col: str, name_col: str) -
             stack.pop()
         stage = ""
         for _lvl, aname in reversed(stack):
-            if _parent_is_pd_stage(aname):
+            if pred(aname):
                 stage = aname
                 break
         out.append(stage)
@@ -459,6 +526,61 @@ def _cumsum_by_granularity(dates: pd.Series, row_mask: pd.Series, gran_key: str)
     daily = daily.sort_values("Дата")
     daily["Количество"] = daily["cnt"].cumsum()
     return daily[["Дата", "Количество"]]
+
+
+def _merge_pd_dynamics_series(
+    plan_curve: pd.DataFrame,
+    fact_curve: pd.DataFrame,
+    forecast_curve: pd.DataFrame,
+) -> list[dict[str, Any]]:
+    """Кумулятивы плана/факта/прогноза: forward-fill только внутри дат своей серии."""
+
+    def as_map(df: pd.DataFrame) -> dict[pd.Timestamp, float]:
+        if df is None or getattr(df, "empty", True):
+            return {}
+        out: dict[pd.Timestamp, float] = {}
+        for _, r in df.iterrows():
+            ts = pd.Timestamp(r["Дата"]).normalize()
+            out[ts] = float(r["Количество"])
+        return out
+
+    plan_m = as_map(plan_curve)
+    fact_m = as_map(fact_curve)
+    fcst_m = as_map(forecast_curve)
+    all_dates = sorted(set(plan_m) | set(fact_m) | set(fcst_m))
+    if not all_dates:
+        return []
+
+    def bounded(mp: dict[pd.Timestamp, float]) -> dict[pd.Timestamp, float | None]:
+        if not mp:
+            return {d: None for d in all_dates}
+        first, last = min(mp), max(mp)
+        last_v: float | None = None
+        out: dict[pd.Timestamp, float | None] = {}
+        for d in all_dates:
+            if d in mp:
+                last_v = mp[d]
+            if first <= d <= last:
+                out[d] = last_v
+            else:
+                out[d] = None
+        return out
+
+    plan_b = bounded(plan_m)
+    fact_b = bounded(fact_m)
+    fcst_b = bounded(fcst_m)
+    rows: list[dict[str, Any]] = []
+    for d in all_dates:
+        rows.append(
+            {
+                "period": d.strftime("%Y-%m-%d"),
+                "period_label": _axis_label(d),
+                "plan_bp": plan_b[d],
+                "forecast": fcst_b[d],
+                "fact": fact_b[d],
+            }
+        )
+    return rows
 
 
 def _trim_pd_dynamics_after_full_fact(
@@ -976,7 +1098,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v25-pd-monthly-main-razdel|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v26-pd-issuance-allowlist|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1076,8 +1198,15 @@ def build_project_documentation_payload(
             and name_for_stage in scoped.columns
         ):
             stage_by_index = _pd_stage_ancestor_labels(scoped, hier_for_stage, name_for_stage)
+            chart_stage_by_index = _pd_stage_ancestor_labels(
+                scoped,
+                hier_for_stage,
+                name_for_stage,
+                is_stage=_is_chart_pd_stage_ancestor,
+            )
         else:
             stage_by_index = pd.Series(dtype=object)
+            chart_stage_by_index = pd.Series(dtype=object)
         if applied_section != "Все":
             scoped = scoped.loc[labels_series.reindex(scoped.index).fillna("") == applied_section].copy()
             masks = _section_masks(scoped)
@@ -1095,10 +1224,16 @@ def build_project_documentation_payload(
         metrics = masks["metrics_mask"].fillna(False)
         if not metrics.any():
             metrics = masks["dynamics_mask"].fillna(False)
+        _, cipher_ok = _cipher_mask(scoped)
+        issuance = _issuance_row_mask(
+            level=_task_level_numeric(scoped, masks),
+            cipher_ok=cipher_ok,
+            stage_by_index=chart_stage_by_index,
+        ).fillna(False)
         pc = _pct_series(scoped)
-        done_v = int((metrics & (pc >= 99.99)).sum())
-        prog_v = int((metrics & (pc > 0) & (pc < 99.99)).sum())
-        wait_v = int((metrics & (pc <= 0)).sum())
+        done_v = int((issuance & (pc >= 99.99)).sum())
+        prog_v = int((issuance & (pc > 0) & (pc < 99.99)).sum())
+        wait_v = int((issuance & (pc <= 0)).sum())
         status_mix = []
         for name, val, color in (
             ("Завершено (100%)", done_v, "#2E86AB"),
@@ -1115,90 +1250,39 @@ def build_project_documentation_payload(
         act_col = _find_actual_finish(scoped)
         af = _to_dt(scoped[act_col]) if act_col and act_col in scoped.columns else pd.Series(pd.NaT, index=scoped.index)
 
-        chart_mask = metrics.copy()
-        chart_b = _pick_finish(scoped, chart_mask, baseline=b_base, schedule="plan end" if "plan end" in scoped.columns else s_fin) or b_base
-        chart_s = _pick_finish(scoped, chart_mask, baseline=s_fin, schedule="plan end" if "plan end" in scoped.columns else s_fin) or s_fin
-        plan_line = _mask_with_start_finish(scoped, chart_mask, b_start, chart_b)
-        fcst_line = _mask_with_start_finish(scoped, chart_mask, s_start, chart_s)
-        if not plan_line.any():
-            plan_line = _mask_with_finish(scoped, chart_mask, chart_b)
-        if not fcst_line.any():
-            fcst_line = _mask_with_finish(scoped, chart_mask, chart_s)
-
-        bf_bp = _to_dt(scoped[b_base]) if b_base and b_base in scoped.columns else pd.Series(pd.NaT, index=scoped.index)
-        if chart_b and chart_b in scoped.columns:
-            pick_bp = _to_dt(scoped[chart_b])
-            bf_bp = bf_bp.where(bf_bp.notna(), pick_bp)
-        sf = _to_dt(scoped[chart_s]) if chart_s and chart_s in scoped.columns else pd.Series(pd.NaT, index=scoped.index)
-        plan_dates = bf_bp.where(bf_bp.notna(), _to_dt(scoped[chart_b]) if chart_b and chart_b in scoped.columns else bf_bp)
+        chart_mask = issuance.copy()
+        bf_bp = (
+            _to_dt(scoped[b_base])
+            if b_base and b_base in scoped.columns
+            else pd.Series(pd.NaT, index=scoped.index)
+        )
+        sf = (
+            _to_dt(scoped[s_fin])
+            if s_fin and s_fin in scoped.columns
+            else pd.Series(pd.NaT, index=scoped.index)
+        )
+        plan_dates = bf_bp
 
         m_sec = chart_mask.fillna(False)
-        m_kpi = plan_line.fillna(False)
-        m_kpi_bp = m_kpi & plan_dates.notna()
-        plan_total = float(m_sec.sum()) if m_sec.any() else float(m_kpi_bp.sum())
+        m_kpi_bp = m_sec & plan_dates.notna()
+        plan_total = float(m_sec.sum())
         plan_to_date = int((m_kpi_bp & (plan_dates.dt.normalize() <= ts_today)).sum())
         done_sec = m_sec & ((pc >= 99.99) | (af.notna() & (af.dt.normalize() <= ts_today)))
-        fact_to_date = int(done_sec.sum())
+        fact_to_date = int((m_sec & (pc >= 99.99)).sum())
         deviation_to_date = int(fact_to_date - plan_to_date)
-        done_sec_dated = m_kpi_bp & ((pc >= 99.99) | (af.notna() & (af.dt.normalize() <= ts_today)))
 
         plan_curve = _cumsum_by_granularity(plan_dates, m_kpi_bp, gran_key)
-        fcst_curve = _cumsum_by_granularity(sf, fcst_line, gran_key)
-        fact_dates = af.copy()
-        proxy = done_sec_dated & fact_dates.isna()
-        if proxy.any():
-            fact_dates = fact_dates.where(~proxy, sf)
-        fact_curve = _cumsum_by_granularity(fact_dates, done_sec_dated & fact_dates.notna(), gran_key)
-
-        all_dates = sorted(
-            set(plan_curve["Дата"].tolist() if not plan_curve.empty else [])
-            | set(fcst_curve["Дата"].tolist() if not fcst_curve.empty else [])
-            | set(fact_curve["Дата"].tolist() if not fact_curve.empty else [])
-        )
-        dynamics: list[dict[str, Any]] = []
-        if all_dates:
-            anchor = (pd.Timestamp(min(all_dates)) - pd.Timedelta(days=1)).normalize()
-            plan_map = {pd.Timestamp(r["Дата"]): float(r["Количество"]) for _, r in plan_curve.iterrows()} if not plan_curve.empty else {}
-            fcst_map = {pd.Timestamp(r["Дата"]): float(r["Количество"]) for _, r in fcst_curve.iterrows()} if not fcst_curve.empty else {}
-            fact_map = {pd.Timestamp(r["Дата"]): float(r["Количество"]) for _, r in fact_curve.iterrows()} if not fact_curve.empty else {}
-            last_p = last_f = last_a = 0.0
-            seq = [anchor] + [pd.Timestamp(d) for d in all_dates]
-            for d in seq:
-                if d in plan_map:
-                    last_p = plan_map[d]
-                if d in fcst_map:
-                    last_f = fcst_map[d]
-                if d in fact_map:
-                    last_a = fact_map[d]
-                dynamics.append(
-                    {
-                        "period": d.strftime("%Y-%m-%d"),
-                        "period_label": _axis_label(d),
-                        "plan_bp": last_p,
-                        "forecast": last_f,
-                        "fact": last_a,
-                    }
-                )
-            # Прогноз стыкуется с фактом на дату отчёта; дальше — срок окончания невыданных.
-            remaining = chart_mask.fillna(False) & (~done_sec.fillna(False)) & sf.notna()
-            dynamics = _splice_pd_forecast_from_fact(
-                dynamics,
-                remaining_dates=sf,
-                remaining_mask=remaining,
-                report=report,
-                fact_at_report=float(fact_to_date),
-                gran_key=gran_key,
-            )
-            dynamics = _trim_pd_dynamics_after_full_fact(
-                dynamics, plan_total=float(plan_total)
-            )
+        done_finish = m_sec & (pc >= 99.99) & sf.notna()
+        fact_curve = _cumsum_by_granularity(sf, done_finish, gran_key)
+        fcst_curve = _cumsum_by_granularity(sf, m_sec & sf.notna(), gran_key)
+        dynamics = _merge_pd_dynamics_series(plan_curve, fact_curve, fcst_curve)
 
         nec = _necessary_productivity(
             float(plan_to_date - fact_to_date),
             plan_dates.loc[m_kpi_bp],
             report,
             mult_nec,
-            schedule_finish=sf.loc[fcst_line.fillna(False)],
+            schedule_finish=sf.loc[m_sec & sf.notna()],
         )
         period_start = report - timedelta(days=int(win_days) - 1)
         prod_n = int(
@@ -1214,8 +1298,8 @@ def build_project_documentation_payload(
         else:
             nec_val = float(nec)
 
-        # Таблица сроков — все разделы metrics (block=ПД), не только с парой start/finish.
-        tbl_mask = metrics.fillna(False)
+        # Таблица выдачи — тот же срез, что график (allowlist, без корректировок).
+        tbl_mask = m_sec
         idx_sec = scoped.index[tbl_mask]
         cipher_col = masks.get("cipher_col")
         rows_out: list[dict[str, Any]] = []
@@ -1555,7 +1639,7 @@ def build_project_documentation_payload(
                 "files": 0,
                 "doc_kind": "pd",
                 "title": "Проектная документация",
-                "rule": "MSP ур.5 + шифр + block=ПД (осн./корректировка/экспертиза)",
+                "rule": "график/KPI/выдача: ур.5+шифр+allowlist этапов; деталка: block=ПД (осн./корр./экспертиза)",
                 "parity": "main_project_documentation",
                 "version_id": int(version_id),
                 "error": None,

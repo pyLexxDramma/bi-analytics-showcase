@@ -1457,9 +1457,9 @@ export type ProjectDocumentationPayload = {
     dynamics: Array<{
       period: string;
       period_label: string;
-      plan_bp: number;
+      plan_bp: number | null;
       forecast: number | null;
-      fact?: number;
+      fact: number | null;
     }>;
     monthly: Array<{
       month: string;
