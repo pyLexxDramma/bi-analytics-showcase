@@ -2764,6 +2764,7 @@ export type TopProject = {
   rvDate: { plan: string; fact: string; delta: string };
   milestones: TopSchedRow[];
   covenants: TopSchedRow[];
+  cardCovenants?: TopSchedRow[];
   idOverdueContractor?: TopIdRow[];
   idOverdueCustomer?: TopIdRow[];
 };

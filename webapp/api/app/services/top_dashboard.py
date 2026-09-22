@@ -652,23 +652,57 @@ def _cell_to_sched(name: str, cell: dict[str, Any] | None) -> dict[str, Any]:
     return row
 
 
+def _column_score(name: str, label: str) -> int:
+    score = _match_score(name, label)
+    if _norm(name) == "право 2" and "застро" in _norm(label):
+        return max(score, 70) + 50
+    return score
+
+
 def _matrix_covenants(project_row: dict[str, Any] | None, columns: list[dict[str, Any]]) -> list[dict[str, Any]]:
     cells = (project_row or {}).get("cells") or {}
     out: list[dict[str, Any]] = []
     for name in COVENANTS_TZ:
-        cell = None
+        best_label = ""
+        best_key = ""
+        best_score = 0
         for col in columns:
             label = str(col.get("label") or col.get("key") or "")
-            if _match_name(name, label):
-                cell = cells.get(col.get("key")) or cells.get(label)
-                break
+            key = str(col.get("key") or label)
+            score = _column_score(name, label)
+            if score > best_score:
+                best_score = score
+                best_label = label
+                best_key = key
+        cell = None
+        if best_score >= 70:
+            cell = cells.get(best_key) or cells.get(best_label)
         if cell is None:
             for key, value in cells.items():
-                if _match_name(name, str(key)):
+                if _column_score(name, str(key)) >= 70 and (
+                    cell is None or _column_score(name, str(key)) > best_score
+                ):
                     cell = value
-                    break
+                    best_score = _column_score(name, str(key))
         out.append(_cell_to_sched(name, cell if isinstance(cell, dict) else None))
     return out
+
+
+def _current_month_bounds() -> tuple[date, date]:
+    today = date.today()
+    start = today.replace(day=1)
+    if today.month == 12:
+        end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    return start, end
+
+
+def _schedule_rows(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
+    rows = (payload or {}).get("rows")
+    if isinstance(rows, list):
+        return rows
+    return []
 
 
 def _match_schedule_rows(
@@ -722,9 +756,14 @@ def _smr_from_msp(frame: Any, project: str) -> dict[str, float] | None:
             proj_col = cols[key]
             break
     task_col = None
-    for key in ("task name", "название", "block", "блок"):
+    for key in ("task name", "название", "название задачи"):
         if key in cols:
             task_col = cols[key]
+            break
+    block_col = None
+    for key in ("функциональный блок", "block", "блок"):
+        if key in cols:
+            block_col = cols[key]
             break
     sub = work
     if proj_col:
@@ -733,12 +772,27 @@ def _smr_from_msp(frame: Any, project: str) -> dict[str, float] | None:
         if not best:
             return None
         sub = work.loc[work[proj_col].astype(str) == best]
-    if task_col:
-        smr_mask = sub[task_col].astype(str).str.contains("смр", case=False, na=False)
-        if bool(smr_mask.any()):
-            sub = sub.loc[smr_mask]
-    if sub.empty:
+    if sub.empty or not task_col:
         return None
+    exact = sub[task_col].astype(str).map(_stem).eq("смр")
+    if bool(exact.any()):
+        sub = sub.loc[exact]
+    elif block_col:
+        in_block = sub[block_col].astype(str).map(_stem).eq("смр")
+        if not bool(in_block.any()):
+            return None
+        sub = sub.loc[in_block]
+    else:
+        return None
+    level_col = None
+    for key in ("outline level", "level", "уровень"):
+        if key in cols and cols[key] in sub.columns:
+            level_col = cols[key]
+            break
+    if level_col and len(sub) > 1:
+        levels = pd.to_numeric(sub[level_col], errors="coerce")
+        if bool(levels.notna().any()):
+            sub = sub.loc[[levels.idxmin()]]
     pct_col = None
     for key in ("процент завершения", "pct complete", "percent complete", "% завершения"):
         if key in cols and cols[key] in sub.columns:
@@ -871,6 +925,9 @@ def _build_live(*, project: str | None) -> dict[str, Any] | None:
         logger.warning("top-dashboard prepare_web_db: %s", exc)
         return None
 
+    month, day_iso, _ = _gdrs_day_minus_one()
+    month_from, month_to = _current_month_bounds()
+
     dev = _safe("developer-projects", lambda: build_developer_projects_payload())
     labels = _filter_opts((dev or {}).get("filters", {}).get("projects"))
     if not labels:
@@ -882,21 +939,51 @@ def _build_live(*, project: str | None) -> dict[str, Any] | None:
         "gdrs-people",
         lambda: build_gdrs_payload(
             resource_kind="people",
+            months=month,
             plan_agg="За день",
             skud_agg="За день",
+            plan_day=day_iso,
+            skud_day=day_iso,
         ),
     )
     equip = _safe(
         "gdrs-equipment",
         lambda: build_gdrs_payload(
             resource_kind="equipment",
+            months=month,
             plan_agg="За день",
             skud_agg="За день",
+            plan_day=day_iso,
+            skud_day=day_iso,
         ),
     )
     presc = _safe("prescriptions", lambda: build_prescriptions_payload(hide_resolved=False))
     reasons = _safe("deviation-reasons", lambda: build_deviation_reasons_payload())
-    schedule = _safe("project-schedule", lambda: build_project_schedule_payload(show_reasons=True))
+    schedule = _safe("project-schedule", lambda: build_project_schedule_payload())
+    block_opts = _filter_opts(((schedule or {}).get("filters") or {}).get("blocks"))
+    mile_block = _best_key(block_opts, "Вехи СМР")
+    cov_block = _best_key(block_opts, "Ковенанты")
+    mile_payload = (
+        _safe(
+            "schedule-milestones",
+            lambda block=mile_block: build_project_schedule_payload(
+                block=block,
+                level="Детальный уровень",
+            ),
+        )
+        if mile_block
+        else None
+    )
+    cov_payload = (
+        _safe(
+            "schedule-covenants",
+            lambda block=cov_block: build_project_schedule_payload(block=block),
+        )
+        if cov_block
+        else None
+    )
+    mile_rows = _schedule_rows(mile_payload)
+    cov_rows = _schedule_rows(cov_payload)
     exec_all = _safe("executive-docs", lambda: build_executive_docs_payload())
     rd_all = _safe("rd-opts", lambda: build_working_documentation_payload())
     rd_opts = _filter_opts(((rd_all or {}).get("filters") or {}).get("projects"))
@@ -908,9 +995,6 @@ def _build_live(*, project: str | None) -> dict[str, Any] | None:
     equip_map = _gdrs_map(equip)
     presc_rows = list((presc or {}).get("rows") or [])
     reason_rows = list((reasons or {}).get("rows") or [])
-    sched_rows = list((schedule or {}).get("rows") or (schedule or {}).get("table") or [])
-    if not sched_rows and isinstance(schedule, dict):
-        sched_rows = list(schedule.get("gantt") or [])
     matrix = (dev or {}).get("matrix") or {}
     matrix_projects = list(matrix.get("projects") or [])
     matrix_cols = list(matrix.get("columns") or [])
@@ -954,7 +1038,11 @@ def _build_live(*, project: str | None) -> dict[str, Any] | None:
         exec_p = (
             _safe(
                 f"exec:{exec_opt}",
-                lambda opt=exec_opt: build_executive_docs_payload(project=opt),
+                lambda opt=exec_opt: build_executive_docs_payload(
+                    project=opt,
+                    date_from=month_from,
+                    date_to=month_to,
+                ),
             )
             if exec_opt
             else None
@@ -966,11 +1054,20 @@ def _build_live(*, project: str | None) -> dict[str, Any] | None:
             (r for r in matrix_projects if str(r.get("project") or "") == matrix_best),
             None,
         ) if matrix_best else None
-        covenants = _matrix_covenants(matrix_row, matrix_cols)
-        if all(c["plan"] == "—" for c in covenants) and sched_rows:
-            covenants = _match_schedule_rows(COVENANTS_TZ, sched_rows, label, covenant=True)
-        milestones = _match_schedule_rows(MILESTONES_TZ, sched_rows, label, covenant=False)
-        rv = next((c for c in covenants if c["name"] == "РВ"), _empty_date_row("РВ"))
+        card_rows = _matrix_covenants(matrix_row, matrix_cols)
+        card_keep = {"зос", "право 1", "выкуп зу", "право 2", "рв"}
+        card_covenants = [row for row in card_rows if _norm(row["name"]) in card_keep]
+        covenants = (
+            _match_schedule_rows(COVENANTS_TZ, cov_rows, label, covenant=True)
+            if cov_rows
+            else [_empty_date_row(name) for name in COVENANTS_TZ]
+        )
+        milestones = (
+            _match_schedule_rows(MILESTONES_TZ, mile_rows, label, covenant=False)
+            if mile_rows
+            else [_empty_date_row(name) for name in MILESTONES_TZ]
+        )
+        rv = next((c for c in card_rows if c["name"] == "РВ"), _empty_date_row("РВ"))
         rv_reason = "—"
         reason_labels = {str(row.get("project") or "") for row in reason_rows if str(row.get("project") or "").strip()}
         reason_best = _best_key(reason_labels, label)
@@ -1012,6 +1109,7 @@ def _build_live(*, project: str | None) -> dict[str, Any] | None:
             "rvDate": {"plan": rv["plan"], "fact": rv["fact"], "delta": rv["delta"]},
             "milestones": milestones,
             "covenants": covenants,
+            "cardCovenants": card_covenants,
             "idOverdueContractor": id_c,
             "idOverdueCustomer": id_u,
         }
@@ -1057,7 +1155,7 @@ def _live_job(applied: str, cache_key: str) -> None:
 
 def build_top_dashboard_payload(*, project: str | None = None) -> dict[str, Any]:
     applied = (project or "all").strip() or "all"
-    cache_key = f"v2|p={applied}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
+    cache_key = f"v3|p={applied}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     cached = cache_get("top-dashboard", cache_key, max_age_sec=1800)
     if cached is not None:
         return cached

@@ -75,7 +75,8 @@ function covenantOf(p: TopProject, name: string): TopSchedRow | undefined {
     "Право 2": ["Право 2"],
   };
   const keys = aliases[name] || [name];
-  return (p.covenants || []).find((c) =>
+  const rows = p.cardCovenants?.length ? p.cardCovenants : p.covenants || [];
+  return rows.find((c) =>
     keys.some((k) => c.name.toLowerCase() === k.toLowerCase()),
   );
 }

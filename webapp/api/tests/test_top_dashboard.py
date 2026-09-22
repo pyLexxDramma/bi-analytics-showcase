@@ -1,11 +1,17 @@
+from datetime import date, timedelta
+
 from app.services.top_dashboard import (
     COVENANTS_TZ,
     MILESTONES_TZ,
     _best_key,
     _cell_to_sched,
+    _column_score,
+    _current_month_bounds,
     _days_between,
     _delta_from_days,
+    _gdrs_day_minus_one,
     _is_rv_task,
+    _matrix_covenants,
     _stable_id,
     mock_payload,
 )
@@ -71,6 +77,41 @@ def test_cell_to_sched_matrix_negative_otkl_is_delay():
     row = _cell_to_sched("РВ", {"plan": "—", "fact": "—", "otkl": "-12"})
     assert row["delta"] == "-12д"
     assert row["statusClass"] == "delta-negative"
+
+
+def test_gdrs_day_is_yesterday_in_that_month():
+    month, day_iso, _ = _gdrs_day_minus_one()
+    yesterday = date.today() - timedelta(days=1)
+    assert day_iso == yesterday.isoformat()
+    assert str(yesterday.year) in month
+
+
+def test_current_month_bounds():
+    start, end = _current_month_bounds()
+    today = date.today()
+    assert start.day == 1
+    assert start.month == today.month
+    assert end.month == today.month
+    assert start <= today <= end
+
+
+def test_pravo2_prefers_developer_column():
+    assert _column_score("Право 2", "Право 2 на Застройщика") > _column_score("Право 2", "Право 2")
+    columns = [
+        {"key": "p2", "label": "Право 2"},
+        {"key": "p2z", "label": "Право 2 на Застройщика"},
+    ]
+    row = {
+        "project": "Дмитровский",
+        "cells": {
+            "p2": {"plan": "01.01.2026", "fact": "02.01.2026"},
+            "p2z": {"plan": "03.03.2026", "fact": "04.03.2026"},
+        },
+    }
+    covenants = _matrix_covenants(row, columns)
+    pravo2 = next(item for item in covenants if item["name"] == "Право 2")
+    assert pravo2["plan"] == "03.03.2026"
+    assert pravo2["fact"] == "04.03.2026"
 
 
 def test_is_rv_task():
