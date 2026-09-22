@@ -166,9 +166,12 @@ def _is_main_pd_stage_only(stage_name: object) -> bool:
 
 
 def _is_issuance_pd_stage(stage_name: object) -> bool:
-    """Allowlist предков MSP (газ / УДС / осн. ПД) — для разметки иерархии, не для среза графика.
+    """Allowlist родителей для линейного графика / KPI / таблицы выдачи (PR #20).
 
-    Корректировка и экспертиза — нет, чтобы не перепрыгивать к осн. ПД выше.
+    1) «Этап. Проектная документация» (ТЗ и ТБЭ входят — без фильтра «Раздел»)
+    2) «Этап. ПРОЕКТНАЯ И РАБОЧАЯ ДОКУМЕНТАЦИЯ ПО ГАЗОСНАБЖЕНИЮ»
+    3) «Этап. ПРИМЫКАНИЕ К УЛИЧНО-ДОРОЖНОЙ СЕТИ»
+    Корректировка и экспертиза — нет.
     """
     s = str(stage_name or "").casefold().replace("ё", "е")
     s = re.sub(r"\s+", " ", s).strip()
@@ -196,19 +199,18 @@ def _issuance_row_mask(
     level: pd.Series,
     cipher_ok: pd.Series,
     stage_by_index: pd.Series,
-    names: pd.Series,
 ) -> pd.Series:
-    """Срез #4: ур.5 + шифр + осн. ПД + «Раздел» в названии.
+    """Срез #6 / PR #20: ур.5 + шифр + предок из allowlist.
 
-    Линейный график, KPI вкладки, таблица выдачи. Без ТЗ/ТБЭ, газа, УДС и корректировок.
+    Линейный график, KPI вкладки, таблица выдачи. ТЗ/ТБЭ и газ входят.
+    Без требования block=ПД и без «Раздел» в имени. Корректировка — нет.
     """
     idx = level.index
     lv_ok = pd.to_numeric(level, errors="coerce").eq(5).fillna(False)
     ciph = cipher_ok.reindex(idx).fillna(False)
     stage = stage_by_index.reindex(idx).fillna("")
-    main = stage.map(_is_main_pd_stage_only).fillna(False)
-    razdel = names.reindex(idx).map(_has_razdel_in_task_name).fillna(False)
-    return lv_ok & ciph & main & razdel
+    allowed = stage.map(_is_issuance_pd_stage).fillna(False)
+    return lv_ok & ciph & allowed
 
 
 def _task_level_numeric(df: pd.DataFrame, masks: dict[str, Any]) -> pd.Series:
@@ -238,7 +240,7 @@ def _monthly_chart_row_mask(
     stage_by_index: pd.Series,
     name_col: str | None,
 ) -> pd.Series:
-    """Узкий срез по этапу+имени: осн. ПД + «Раздел» (без ур.5/шифра)."""
+    """Срез #4 / Марина: осн. ПД + «Раздел» в названии — только график по месяцам."""
     if df is None or getattr(df, "empty", True):
         return pd.Series(dtype=bool)
     stage = stage_by_index.reindex(df.index).fillna("")
@@ -1081,7 +1083,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v27-pd-razdel-chart|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v28-pd-split-slices|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1208,17 +1210,10 @@ def build_project_documentation_payload(
         if not metrics.any():
             metrics = masks["dynamics_mask"].fillna(False)
         _, cipher_ok = _cipher_mask(scoped)
-        name_for_chart = masks.get("name_col")
-        chart_names = (
-            scoped[name_for_chart]
-            if name_for_chart and name_for_chart in scoped.columns
-            else pd.Series("", index=scoped.index)
-        )
         issuance = _issuance_row_mask(
             level=_task_level_numeric(scoped, masks),
             cipher_ok=cipher_ok,
             stage_by_index=chart_stage_by_index,
-            names=chart_names,
         ).fillna(False)
         pc = _pct_series(scoped)
         done_v = int((issuance & (pc >= 99.99)).sum())
@@ -1294,7 +1289,7 @@ def build_project_documentation_payload(
         else:
             nec_val = float(nec)
 
-        # Таблица выдачи — тот же срез, что график (осн. ПД + «Раздел»).
+        # Таблица выдачи — тот же срез #6, что линейный график (allowlist, без корректировок).
         tbl_mask = m_sec
         idx_sec = scoped.index[tbl_mask]
         cipher_col = masks.get("cipher_col")
@@ -1472,10 +1467,18 @@ def build_project_documentation_payload(
                 )
 
         monthly: list[dict[str, Any]] = []
-        # Месячная динамика — тот же срез #4, что линейный график / KPI / выдача:
-        # ур.5 + шифр + осн. «Проектная документация» + «Раздел», дата плана = Базовое окончание.
-        # Деталка / просрочка по-прежнему по полным metrics (осн.+корр.+экспертиза).
-        month_base = scoped.loc[m_sec].copy() if m_sec.any() else scoped.iloc[0:0].copy()
+        # Срез #4 / Марина — только график «по месяцам», не линейный:
+        # осн. «Проектная документация» + «Раздел» в названии, дата = Базовое окончание.
+        # KPI / выдача / линейный график остаются на allowlist #6.
+        month_base = scoped.loc[metrics.fillna(False)].copy() if metrics.any() else scoped.copy()
+        if not month_base.empty:
+            name_for_monthly = masks.get("name_col")
+            monthly_keep = _monthly_chart_row_mask(
+                month_base,
+                stage_by_index=stage_by_index,
+                name_col=name_for_monthly,
+            )
+            month_base = month_base.loc[monthly_keep.fillna(False)].copy()
         if not month_base.empty:
             bf_m = (
                 _to_dt(month_base[b_base])
@@ -1627,7 +1630,7 @@ def build_project_documentation_payload(
                 "files": 0,
                 "doc_kind": "pd",
                 "title": "Проектная документация",
-                "rule": "график/KPI/выдача: ур.5+шифр+осн.ПД+«Раздел»; деталка: block=ПД (осн./корр./экспертиза)",
+                "rule": "линейный/KPI/выдача: ур.5+шифр+allowlist (осн./газ/УДС, ТЗ/ТБЭ, без корр.); monthly: осн.ПД+«Раздел»; деталка: block=ПД (осн./корр./экспертиза)",
                 "parity": "main_project_documentation",
                 "version_id": int(version_id),
                 "error": None,

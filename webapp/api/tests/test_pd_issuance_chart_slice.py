@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""График динамики ПД: срез осн. ПД + «Раздел», без корректировок, обрыв линий."""
+"""График динамики ПД: allowlist PR #20, без корректировок, обрыв линий."""
 from __future__ import annotations
 
 import pandas as pd
@@ -35,48 +35,32 @@ def test_issuance_stage_allowlist() -> None:
     assert _is_issuance_pd_stage("") is False
 
 
-def test_issuance_mask_keeps_razdel_drops_tz_gas_correction() -> None:
-    """Дмитровский #4: 17 «Раздел» осн. ПД; ТЗ/ТБЭ, газ (даже с «Раздел»), корр. — нет."""
+def test_issuance_mask_keeps_gas_tz_drops_correction() -> None:
+    """PR #20 / report #6: 19 осн. (в т.ч. ТЗ/ТБЭ) + газ; корректировка и УДС без шифра — нет."""
     df = pd.DataFrame(
         {
-            "level": [5, 5, 5, 5, 5, 5, 5, 5],
-            "task name": [
-                'Раздел 1 "ПЗ"',
-                'Раздел 2 "СПОЗУ"',
-                "ЗАДАНИЕ НА ПРОЕКТИРОВАНИЕ",
-                'Проект "Требования к обеспечению безопасной эксплуатации объекта"',
-                'Раздел 1 "ПЗ"',
-                "Проектная документация ГСН (внеплощадочная сеть) ТП ЧАСТЬ",
-                'Разработка ГСВ, в том числе Раздел 5.6. "Система газоснабжения"',
-                "ПРИМЫКАНИЕ К УДС",
-            ],
+            "level": [5, 5, 5, 5, 5, 5, 5],
         },
-        index=[10, 11, 12, 13, 14, 15, 16, 17],
+        index=[10, 11, 12, 13, 14, 15, 16],
     )
     stage = pd.Series(
         [
             "Этап . Проектная документация",
             "Этап . Проектная документация",
             "Этап . Проектная документация",
-            "Этап . Проектная документация",
             "Этап . КОРРЕКТИРОВКА ПРОЕКТНЫХ РАБОТ СТАДИИ П ",
             "Этап. ПРОЕКТНАЯ И РАБОЧАЯ ДОКУМЕНТАЦИЯ ПО ГАЗОСНАБЖЕНИЮ",
-            "Этап. ПРОЕКТНАЯ И РАБОЧАЯ ДОКУМЕНТАЦИЯ ПО ГАЗОСНАБЖЕНИЮ",
             "Этап. ПРИМЫКАНИЕ К УЛИЧНО-ДОРОЖНОЙ СЕТИ ",
+            "Этап . ОБЩЕСТРОИТЕЛЬНАЯ ЭКСПЕРТИЗА ПРОЕКТНОЙ ДОКУМЕНТАЦИИ, ПОЛУЧЕНИЕ РАЗРЕШЕНИЯ НА СТРОИТЕЛЬСТВО",
         ],
         index=df.index,
     )
     cipher_ok = pd.Series(
-        [True, True, True, True, True, True, True, False],
+        [True, True, True, True, True, False, True],
         index=df.index,
     )
-    mask = _issuance_row_mask(
-        level=df["level"],
-        cipher_ok=cipher_ok,
-        stage_by_index=stage,
-        names=df["task name"],
-    )
-    assert list(mask.tolist()) == [True, True, False, False, False, False, False, False]
+    mask = _issuance_row_mask(level=df["level"], cipher_ok=cipher_ok, stage_by_index=stage)
+    assert list(mask.tolist()) == [True, True, True, False, True, False, False]
 
 
 def test_ancestor_does_not_skip_correction_to_main_pd() -> None:
