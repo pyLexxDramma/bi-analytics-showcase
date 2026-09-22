@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -53,6 +54,30 @@ _PIE_COLORS = {
 _RENDERERS_MOD = "dashboards._renderers_rd"
 
 
+def _parse_real_date(value: object, mod: ModuleType | None = None) -> pd.Timestamp:
+    """Только явная дата. Текстовые комментарии без даты → NaT."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return pd.NaT
+    if isinstance(value, pd.Timestamp):
+        return value if pd.notna(value) else pd.NaT
+    s = str(value).strip()
+    if not s or s.casefold() in _BLANK:
+        return pd.NaT
+    if len(s) > 32 or not any(ch.isdigit() for ch in s):
+        return pd.NaT
+    parse = getattr(mod, "_rd_parse_chart_date_cell", None) if mod is not None else None
+    if callable(parse):
+        try:
+            parsed = parse(s)
+        except Exception:
+            parsed = None
+        ts = pd.to_datetime(parsed, errors="coerce", dayfirst=True)
+        if pd.notna(ts):
+            return pd.Timestamp(ts)
+    ts = pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
+    return pd.Timestamp(ts) if pd.notna(ts) else pd.NaT
+
+
 def _parse_detail_date(mod: ModuleType, series: pd.Series) -> pd.Series:
     parse = getattr(mod, "_rd_parse_chart_date_cell", None)
     if callable(parse):
@@ -60,10 +85,18 @@ def _parse_detail_date(mod: ModuleType, series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, errors="coerce", dayfirst=True)
 
 
+def _find_forecast_date_col(df: pd.DataFrame) -> str | None:
+    for col in df.columns:
+        name = re.sub(r"\s+", " ", str(col)).strip().casefold()
+        if "прогнозн" in name and "дат" in name:
+            return str(col)
+    return None
+
+
 def _plan_slice_from_detail(detail_tbl: pd.DataFrame, mod: ModuleType) -> pd.DataFrame:
     """План/факт только по отфильтрованным строкам детализации — без рыхлого джойна."""
     if detail_tbl is None or getattr(detail_tbl, "empty", True):
-        return pd.DataFrame(columns=["_plan_dt", "_tessa_production_dt"])
+        return pd.DataFrame(columns=["_plan_dt", "_tessa_production_dt", "_forecast_dyn_dt"])
     plan_col = "Дата выдачи разделов по Договору"
     prod_col = "Дата выдачи в производство работ"
     out = pd.DataFrame(index=detail_tbl.index)
@@ -81,6 +114,11 @@ def _plan_slice_from_detail(detail_tbl: pd.DataFrame, mod: ModuleType) -> pd.Dat
         issued = detail_tbl["Статус"].map(lambda x: canon(x) == prod_key).fillna(False)
         prod_dt = prod_dt.where(issued, pd.NaT)
     out["_tessa_production_dt"] = prod_dt
+    fcst_col = _find_forecast_date_col(detail_tbl)
+    if fcst_col:
+        out["_forecast_dyn_dt"] = detail_tbl[fcst_col].map(lambda v: _parse_real_date(v, mod))
+    else:
+        out["_forecast_dyn_dt"] = pd.NaT
     return out
 
 
@@ -760,39 +798,25 @@ def _detail_to_rows(df: pd.DataFrame) -> tuple[list[dict[str, Any]], list[str]]:
 
 
 def _forecast_date_series(plan_df: pd.DataFrame) -> pd.Series:
-    """«Прогнозная дата выдачи» из plan_df (_fact_dt после CSV pick или имя колонки)."""
+    """Прогнозная дата выдачи: только явные даты, без _fact_dt и без комментариев."""
     if plan_df is None or plan_df.empty:
         return pd.Series(dtype="datetime64[ns]")
     if "_forecast_dyn_dt" in plan_df.columns:
-        s = pd.to_datetime(plan_df["_forecast_dyn_dt"], errors="coerce")
-        if s.notna().any():
-            return s
-    if "_fact_dt" in plan_df.columns:
-        s = pd.to_datetime(plan_df["_fact_dt"], errors="coerce")
-        if s.notna().any():
-            return s
-    for col in (
-        "Прогнозная дата выдачи разделов",
-        "Прогнозная дата выдачи",
-        "Прогнозная дата",
-    ):
-        if col in plan_df.columns:
-            s = pd.to_datetime(
-                plan_df[col], errors="coerce", dayfirst=True, format="mixed"
-            )
-            if s.notna().any():
-                return s
+        parsed = plan_df["_forecast_dyn_dt"].map(_parse_real_date)
+        if parsed.notna().any():
+            return parsed
+    fcst_col = _find_forecast_date_col(plan_df)
+    if fcst_col:
+        parsed = plan_df[fcst_col].map(_parse_real_date)
+        if parsed.notna().any():
+            return parsed
     return pd.Series(pd.NaT, index=plan_df.index)
 
 
 def _forecast_month_increments(
     plan_df: pd.DataFrame, *, junction: pd.Timestamp
 ) -> dict[pd.Timestamp, float]:
-    """Не выданные разделы → прирост прогноза по месяцу «Прогнозной даты выдачи».
-
-    Факт выдачи — `_tessa_production_dt`. Нет прогнозной даты — fallback на `_plan_dt`
-    (иначе линия прогноза не строится при пустых датах CSV).
-    """
+    """Не выданные разделы → прирост по прогнозной дате MSP/CSV. Без fallback на договор."""
     if plan_df is None or plan_df.empty:
         return {}
     df = plan_df
@@ -801,15 +825,11 @@ def _forecast_month_increments(
     else:
         issued = pd.Series(pd.NaT, index=df.index)
     fcst = _forecast_date_series(df)
-    rem = issued.isna()
-    if not rem.any():
-        return {}
-    use_dt = fcst.where(fcst.notna(), pd.to_datetime(df.get("_plan_dt"), errors="coerce"))
-    rem = rem & use_dt.notna()
+    rem = issued.isna() & fcst.notna()
     if not rem.any():
         return {}
     jn = pd.Timestamp(junction).to_period("M").to_timestamp()
-    months = use_dt.loc[rem].dt.to_period("M").dt.to_timestamp()
+    months = fcst.loc[rem].dt.to_period("M").dt.to_timestamp()
     months = months.where(months >= jn, jn)
     return {pd.Timestamp(k): float(v) for k, v in months.value_counts().items()}
 
@@ -820,48 +840,32 @@ def _attach_forecast_from_fact(
     *,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Прогноз: начало = точка факта на сегодня; далее — по «Прогнозной дате выдачи»."""
+    """Прогноз от конца факта по датам MSP/CSV. Синюю и зелёную не протягивать."""
+    del today
     if not dynamics:
         return dynamics
-    today = today or date.today()
-    junction = pd.Timestamp(today).to_period("M").to_timestamp().normalize()
+    last_fact_d: pd.Timestamp | None = None
     fact_at_j = 0.0
-    last_period = None
     for row in dynamics:
+        if row.get("fact") is None:
+            continue
         try:
             d = pd.Timestamp(str(row["period"])[:10]).normalize()
         except Exception:
             continue
-        last_period = d
-        if d <= junction:
-            fact_at_j = float(row.get("fact") or 0.0)
+        last_fact_d = d
+        fact_at_j = float(row.get("fact") or 0.0)
+    if last_fact_d is None:
+        return [{**r, "forecast": None} for r in dynamics]
 
+    junction = last_fact_d
     increments = _forecast_month_increments(plan_df, junction=junction)
+    if not increments:
+        return [{**r, "forecast": None} for r in dynamics]
+
     by_period: dict[str, dict[str, Any]] = {
         str(r["period"])[:10]: dict(r) for r in dynamics
     }
-    jkey = junction.strftime("%Y-%m-%d")
-    if jkey not in by_period:
-        left: dict[str, Any] | None = None
-        for row in dynamics:
-            try:
-                d = pd.Timestamp(str(row["period"])[:10]).normalize()
-            except Exception:
-                continue
-            if d <= junction:
-                left = dict(row)
-        seed = left or {
-            "period": jkey,
-            "period_label": _axis_label(junction),
-            "plan": 0.0,
-            "fact": fact_at_j,
-        }
-        by_period[jkey] = {
-            **seed,
-            "period": jkey,
-            "period_label": _axis_label(junction),
-            "fact": fact_at_j,
-        }
     for m in increments:
         k = pd.Timestamp(m).strftime("%Y-%m-%d")
         if k not in by_period:
@@ -869,46 +873,24 @@ def _attach_forecast_from_fact(
                 "period": k,
                 "period_label": _axis_label(pd.Timestamp(m)),
                 "plan": None,
-                "fact": fact_at_j,
+                "fact": None,
+                "forecast": None,
             }
 
-    # Всегда нужна хотя бы одна точка после стыка — иначе «Прогноз» = одна точка на факте.
-    need_tail = True
-    if increments and any(pd.Timestamp(m) > junction for m in increments):
-        need_tail = False
-    if need_tail:
-        nxt = (junction + pd.DateOffset(months=1)).to_period("M").to_timestamp()
-        if last_period is not None and last_period > junction:
-            nxt = max(nxt, last_period)
-        nk = nxt.strftime("%Y-%m-%d")
-        if nk not in by_period:
-            by_period[nk] = {
-                "period": nk,
-                "period_label": _axis_label(nxt),
-                "plan": None,
-                "fact": fact_at_j,
-            }
-
+    last_inc = max(increments)
     ordered = sorted(by_period.values(), key=lambda r: str(r["period"])[:10])
-    last_p = 0.0
     for r in ordered:
-        if r.get("plan") is not None:
-            last_p = float(r["plan"] or 0.0)
-        r["plan"] = last_p
         d = pd.Timestamp(str(r["period"])[:10]).normalize()
         if d < junction:
             r["forecast"] = None
             continue
-        if d == junction:
-            r["fact"] = float(round(fact_at_j))
-            r["forecast"] = float(round(fact_at_j))
+        if d > last_inc:
+            r["forecast"] = None
             continue
         cum_inc = sum(float(v) for m, v in increments.items() if pd.Timestamp(m) <= d)
-        capped = fact_at_j + cum_inc
-        if last_p > 0:
-            capped = min(capped, last_p)
-        r["forecast"] = float(round(capped))
-        r["fact"] = float(round(fact_at_j))
+        r["forecast"] = float(round(fact_at_j + cum_inc))
+        if d > junction:
+            r["fact"] = None
     return ordered
 
 
@@ -984,6 +966,10 @@ def _build_dynamics(plan_df: pd.DataFrame, mod: ModuleType) -> list[dict[str, An
         for _, r in dynamics_df[dynamics_df["Тип"] == "Факт"].iterrows()
     }
     all_x = sorted(set(plan_map) | set(fact_map))
+    plan_first = min(plan_map) if plan_map else None
+    plan_last = max(plan_map) if plan_map else None
+    fact_first = min(fact_map) if fact_map else None
+    fact_last = max(fact_map) if fact_map else None
     out: list[dict[str, Any]] = []
     last_p = last_f = 0.0
     for d in all_x:
@@ -991,12 +977,14 @@ def _build_dynamics(plan_df: pd.DataFrame, mod: ModuleType) -> list[dict[str, An
             last_p = plan_map[d]
         if d in fact_map:
             last_f = fact_map[d]
+        plan_v: float | None = last_p if plan_first is not None and plan_first <= d <= plan_last else None
+        fact_v: float | None = last_f if fact_first is not None and fact_first <= d <= fact_last else None
         out.append(
             {
                 "period": d.strftime("%Y-%m-%d"),
                 "period_label": _axis_label(d),
-                "plan": last_p,
-                "fact": last_f,
+                "plan": plan_v,
+                "fact": fact_v,
                 "forecast": None,
             }
         )
@@ -1023,7 +1011,7 @@ def _align_dynamics_fact_to_kpi(
             d = date.fromisoformat(str(row["period"])[:10])
         except ValueError:
             continue
-        if d <= today:
+        if d <= today and row.get("fact") is not None:
             curve_today = float(row.get("fact") or 0.0)
     if target <= 0 or curve_today <= 0:
         return dynamics
@@ -1036,21 +1024,18 @@ def _align_dynamics_fact_to_kpi(
         except ValueError:
             out.append(r)
             continue
-        fact_v = float(row.get("fact") or 0.0) * scale
-        if d <= today:
-            fact_v = min(fact_v, target)
-        else:
-            # После «сегодня» кривая не уезжает выше KPI.
-            fact_v = target
+        if row.get("fact") is None or d > today:
+            out.append(r)
+            continue
+        fact_v = min(float(row.get("fact") or 0.0) * scale, target)
         r["fact"] = round(fact_v, 1)
         out.append(r)
-    # Точка «на сегодня» ровно равна KPI.
     for i in range(len(out) - 1, -1, -1):
         try:
             d = date.fromisoformat(str(out[i]["period"])[:10])
         except ValueError:
             continue
-        if d <= today:
+        if d <= today and out[i].get("fact") is not None:
             out[i]["fact"] = float(round(target))
             break
     return out
@@ -1074,8 +1059,10 @@ def _exec_kpis(
         for row in dynamics:
             d = date.fromisoformat(row["period"])
             if d <= today:
-                pd_fb = float(row["plan"])
-                fd_fb = float(row["fact"])
+                if row.get("plan") is not None:
+                    pd_fb = float(row["plan"] or 0.0)
+                if row.get("fact") is not None:
+                    fd_fb = float(row["fact"] or 0.0)
     rd_summ = None
     if not status_filtered:
         try:
@@ -1259,7 +1246,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v42-rd-kpi-status-cards",
+            "v43-rd-plan-cutoff-msp-forecast",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),

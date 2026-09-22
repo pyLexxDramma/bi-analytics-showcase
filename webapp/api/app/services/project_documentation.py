@@ -624,51 +624,52 @@ def _splice_pd_forecast_from_fact(
     *,
     remaining_dates: pd.Series,
     remaining_mask: pd.Series,
-    report: date,
-    fact_at_report: float,
     gran_key: str,
 ) -> list[dict[str, Any]]:
-    """Прогноз ПД: стык с фактом на дату отчёта; дальше — срок окончания невыданных."""
+    """Рыжая от конца зелёной: только невыданные с датой Finish; синюю не протягивать."""
     if not dynamics:
         return dynamics
-    junction = _bucket_ts(pd.Timestamp(report), gran_key)
-    rem = remaining_mask.fillna(False)
-    dt = _to_dt(remaining_dates)
-    rem = rem & dt.notna()
+    rem = remaining_mask.fillna(False) if remaining_mask is not None else pd.Series(dtype=bool)
+    dt = _to_dt(remaining_dates) if remaining_dates is not None else pd.Series(dtype="datetime64[ns]")
+    if rem.empty or dt.empty:
+        rem = rem.reindex(dt.index).fillna(False) if len(dt.index) else rem
+    else:
+        rem = rem.reindex(dt.index).fillna(False) if not rem.index.equals(dt.index) else rem
+        rem = rem & dt.notna()
+
+    last_fact_d: pd.Timestamp | None = None
+    last_fact_v = 0.0
+    for row in dynamics:
+        if row.get("fact") is None:
+            continue
+        try:
+            d = pd.Timestamp(str(row["period"])[:10]).normalize()
+        except Exception:
+            continue
+        last_fact_d = d
+        last_fact_v = float(row.get("fact") or 0.0)
+    if not bool(rem.any() if len(rem) else False):
+        for row in dynamics:
+            row["forecast"] = None
+        return dynamics
+
+    junction = last_fact_d
     increments: dict[pd.Timestamp, float] = {}
-    if rem.any():
-        for raw in dt.loc[rem]:
-            b = _bucket_ts(pd.Timestamp(raw), gran_key)
-            if b < junction:
-                b = junction
-            increments[b] = increments.get(b, 0.0) + 1.0
+    for raw in dt.loc[rem]:
+        b = _bucket_ts(pd.Timestamp(raw), gran_key)
+        if junction is not None and b < junction:
+            b = junction
+        increments[b] = increments.get(b, 0.0) + 1.0
+    if not increments:
+        for row in dynamics:
+            row["forecast"] = None
+        return dynamics
+    if junction is None:
+        junction = min(increments)
 
     by_period: dict[str, dict[str, Any]] = {
         str(r["period"])[:10]: dict(r) for r in dynamics
     }
-    jkey = junction.strftime("%Y-%m-%d")
-    if jkey not in by_period:
-        left = None
-        for row in dynamics:
-            try:
-                d = pd.Timestamp(str(row["period"])[:10]).normalize()
-            except Exception:
-                continue
-            if d <= junction:
-                left = dict(row)
-        seed = left or {
-            "period": jkey,
-            "period_label": _axis_label(junction),
-            "plan_bp": 0.0,
-            "fact": fact_at_report,
-            "forecast": fact_at_report,
-        }
-        by_period[jkey] = {
-            **seed,
-            "period": jkey,
-            "period_label": _axis_label(junction),
-            "fact": float(fact_at_report),
-        }
     for m in increments:
         k = pd.Timestamp(m).strftime("%Y-%m-%d")
         if k not in by_period:
@@ -676,45 +677,25 @@ def _splice_pd_forecast_from_fact(
                 "period": k,
                 "period_label": _axis_label(pd.Timestamp(m)),
                 "plan_bp": None,
-                "fact": float(fact_at_report),
-                "forecast": None,
-            }
-    if increments and not any(pd.Timestamp(m) > junction for m in increments):
-        if gran_key == "week":
-            nxt = junction + pd.Timedelta(days=7)
-        elif gran_key == "month":
-            nxt = (junction + pd.DateOffset(months=1)).normalize()
-        else:
-            nxt = junction + pd.Timedelta(days=1)
-        nxt = _bucket_ts(nxt, gran_key)
-        nk = nxt.strftime("%Y-%m-%d")
-        if nk not in by_period:
-            by_period[nk] = {
-                "period": nk,
-                "period_label": _axis_label(nxt),
-                "plan_bp": None,
-                "fact": float(fact_at_report),
+                "fact": None,
                 "forecast": None,
             }
 
+    last_inc = max(increments)
     ordered = sorted(by_period.values(), key=lambda r: str(r["period"])[:10])
-    last_p = 0.0
     for r in ordered:
-        if r.get("plan_bp") is not None:
-            last_p = float(r["plan_bp"] or 0.0)
-        r["plan_bp"] = last_p
         d = pd.Timestamp(str(r["period"])[:10]).normalize()
+        fact_v = r.get("fact")
         if d < junction:
+            r["forecast"] = None if fact_v is None else float(round(float(fact_v)))
+            continue
+        if d > last_inc:
             r["forecast"] = None
             continue
-        if d == junction:
-            r["fact"] = float(round(fact_at_report))
-            r["forecast"] = float(round(fact_at_report))
-            continue
         cum_inc = sum(float(v) for m, v in increments.items() if pd.Timestamp(m) <= d)
-        r["forecast"] = float(round(fact_at_report + cum_inc))
-        # Факт после даты отчёта не продлеваем — плато на факте отчёта
-        r["fact"] = float(round(fact_at_report))
+        r["forecast"] = float(round(last_fact_v + cum_inc))
+        if d > junction:
+            r["fact"] = None
     return ordered
 
 
@@ -1098,7 +1079,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v26-pd-issuance-allowlist|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v27-pd-forecast-from-fact|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1274,8 +1255,14 @@ def build_project_documentation_payload(
         plan_curve = _cumsum_by_granularity(plan_dates, m_kpi_bp, gran_key)
         done_finish = m_sec & (pc >= 99.99) & sf.notna()
         fact_curve = _cumsum_by_granularity(sf, done_finish, gran_key)
-        fcst_curve = _cumsum_by_granularity(sf, m_sec & sf.notna(), gran_key)
-        dynamics = _merge_pd_dynamics_series(plan_curve, fact_curve, fcst_curve)
+        dynamics = _merge_pd_dynamics_series(plan_curve, fact_curve, pd.DataFrame())
+        remaining = m_sec & (pc < 99.99)
+        dynamics = _splice_pd_forecast_from_fact(
+            dynamics,
+            remaining_dates=sf,
+            remaining_mask=remaining,
+            gran_key=gran_key,
+        )
 
         nec = _necessary_productivity(
             float(plan_to_date - fact_to_date),

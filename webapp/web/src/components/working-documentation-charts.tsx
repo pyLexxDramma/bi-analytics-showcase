@@ -19,9 +19,10 @@ const PlotlyFigure = dynamic(() => import("@/components/plotly-figure"), {
   ),
 });
 
-const RD_PLAN = "#2E86AB";
-const RD_FACT = "#F39C12";
-const RD_FCST = "#9B59B6";
+/** Цвета линий как у ПД: план синий / факт зелёный / прогноз рыжий. */
+const RD_PLAN = "#29b6f6";
+const RD_FACT = "#27AE60";
+const RD_FCST = "#ff8c2d";
 const RD_MONTH_PLAN = "#F39C12";
 const RD_MONTH_FACT = "#27AE60";
 const RD_MONTH_OVERDUE = "#C0392B";
@@ -161,7 +162,7 @@ export function RdExecutionPieChart({
   );
 }
 
-/** Line «Динамика выдачи РД»: lines+markers+text, План #2E86AB / Факт #F39C12. */
+/** Line «Динамика выдачи РД»: план синий / факт зелёный / прогноз рыжий. */
 export function RdDynamicsLineChart({
   rows,
   fullscreen = false,
@@ -181,8 +182,12 @@ export function RdDynamicsLineChart({
         ? 360
         : 420;
     const x = rows.map((r) => r.period_label || r.period);
-    const plan = rows.map((r) => r.plan);
-    const fact = rows.map((r) => r.fact);
+    const plan = rows.map((r) =>
+      r.plan == null || Number.isNaN(Number(r.plan)) ? null : Number(r.plan),
+    );
+    const fact = rows.map((r) =>
+      r.fact == null || Number.isNaN(Number(r.fact)) ? null : Number(r.fact),
+    );
     const forecast = rows.map((r) =>
       r.forecast == null || Number.isNaN(Number(r.forecast))
         ? null
@@ -192,8 +197,8 @@ export function RdDynamicsLineChart({
       showForecast && forecast.some((v) => v != null && Number.isFinite(v));
     const yMax = Math.max(
       1,
-      ...plan,
-      ...fact,
+      ...plan.map((v) => (v == null ? 0 : v)),
+      ...fact.map((v) => (v == null ? 0 : v)),
       ...forecast.map((v) => (v == null ? 0 : v)),
     );
     const yHead = Math.max(yMax * (compact ? 0.08 : 0.1), 4);
@@ -238,10 +243,7 @@ export function RdDynamicsLineChart({
       cliponaxis: false,
       hovertemplate: `<b>%{x}</b><br>${name}: %{y}<extra></extra>`,
     });
-    const data: Array<Record<string, unknown>> = [
-      mk(plan, CHART_RU.plan, RD_PLAN),
-      mk(fact, CHART_RU.fact, RD_FACT),
-    ];
+    const data: Array<Record<string, unknown>> = [];
     if (hasForecast) {
       data.push(
         mk(forecast, CHART_RU.forecastRd, RD_FCST, {
@@ -250,6 +252,7 @@ export function RdDynamicsLineChart({
         }),
       );
     }
+    data.push(mk(plan, CHART_RU.plan, RD_PLAN), mk(fact, CHART_RU.fact, RD_FACT));
     return {
       data,
       layout: {

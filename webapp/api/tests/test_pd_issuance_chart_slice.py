@@ -10,6 +10,7 @@ from app.services.project_documentation import (
     _merge_pd_dynamics_series,
     _pd_stage_ancestor_labels,
     _parent_is_pd_stage,
+    _splice_pd_forecast_from_fact,
 )
 
 
@@ -142,3 +143,64 @@ def test_dynamics_stops_at_last_date_of_each_series() -> None:
     assert may["plan_bp"] == 22.0
     assert may["forecast"] is None
     assert may["fact"] is None
+
+
+def test_forecast_starts_from_last_fact_remaining_only() -> None:
+    """Рыжая от конца зелёной: только % ≠ 100; синяя не протягивается."""
+    plan = pd.DataFrame(
+        {
+            "Дата": [pd.Timestamp("2025-03-01"), pd.Timestamp("2025-05-01")],
+            "Количество": [19.0, 22.0],
+        }
+    )
+    fact = pd.DataFrame({"Дата": [pd.Timestamp("2025-01-01")], "Количество": [19.0]})
+    rows = _merge_pd_dynamics_series(plan, fact, pd.DataFrame())
+    remaining = pd.Series(
+        [pd.Timestamp("2025-03-31"), pd.Timestamp("2025-03-31"), pd.Timestamp("2025-03-31")]
+    )
+    mask = pd.Series([True, True, True])
+    rows = _splice_pd_forecast_from_fact(
+        rows,
+        remaining_dates=remaining,
+        remaining_mask=mask,
+        gran_key="month",
+    )
+    by = {r["period"]: r for r in rows}
+    jan = by["2025-01-01"]
+    assert jan["fact"] == 19.0
+    assert jan["forecast"] == 19.0
+    mar = by["2025-03-01"]
+    assert mar["forecast"] == 22.0
+    assert mar["fact"] is None
+    assert mar["plan_bp"] == 19.0
+    may = by["2025-05-01"]
+    assert may["plan_bp"] == 22.0
+    assert may["forecast"] is None
+    assert "2026-10-01" not in by
+
+
+def test_forecast_absent_when_all_complete() -> None:
+    """Ленинский: все 100% — рыжей дальше факта нет, синяя обрывается на своей дате."""
+    plan = pd.DataFrame(
+        {"Дата": [pd.Timestamp("2025-03-01")], "Количество": [22.0]}
+    )
+    fact = pd.DataFrame(
+        {
+            "Дата": [pd.Timestamp("2025-03-01"), pd.Timestamp("2026-05-01")],
+            "Количество": [3.0, 22.0],
+        }
+    )
+    rows = _merge_pd_dynamics_series(plan, fact, pd.DataFrame())
+    rows = _splice_pd_forecast_from_fact(
+        rows,
+        remaining_dates=pd.Series(dtype="datetime64[ns]"),
+        remaining_mask=pd.Series(dtype=bool),
+        gran_key="month",
+    )
+    by = {r["period"]: r for r in rows}
+    assert max(by) == "2026-05-01"
+    assert by["2025-03-01"]["plan_bp"] == 22.0
+    assert by["2026-05-01"]["plan_bp"] is None
+    assert by["2026-05-01"]["fact"] == 22.0
+    assert all(r["forecast"] is None for r in rows)
+    assert "2026-10-01" not in by
