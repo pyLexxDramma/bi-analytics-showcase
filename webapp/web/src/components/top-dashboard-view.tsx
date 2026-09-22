@@ -360,7 +360,7 @@ function Detail({ proj }: { proj: TopProject }) {
 type ChartJs = {
   register: (plugin: unknown) => void;
   new (
-    ctx: CanvasRenderingContext2D,
+    ctx: HTMLCanvasElement,
     cfg: Record<string, unknown>,
   ): { destroy: () => void };
 };
