@@ -246,7 +246,8 @@ def test_roles_catalog_admin_only(ask_client: TestClient):
     assert res.status_code == 200
     data = res.json()
     assert "roles" in data and "screens" in data
-    assert len(data["screens"]) == 16
+    assert len(data["screens"]) == 17
+    assert any(s.get("nav_id") == "top-dashboard" for s in data["screens"])
     codes = {r["code"] for r in data["roles"]}
     assert "superadmin" in codes
     assert "manager" in codes
