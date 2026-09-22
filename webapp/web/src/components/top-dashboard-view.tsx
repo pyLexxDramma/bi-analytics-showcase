@@ -422,7 +422,7 @@ function DetailInner({
   const prescRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    let charts: Array<{ destroy: () => void }> = [];
+    const charts: Array<{ destroy: () => void }> = [];
     let cancelled = false;
     (async () => {
       const Chart = await loadChartJs();
