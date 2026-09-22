@@ -1,11 +1,11 @@
 "use client";
 
-import { REPORT_ACCORDIONS, REPORT_STANDALONE, REPORT_TOP_TAB } from "@/lib/nav";
+import { REPORT_ACCORDIONS, REPORT_STANDALONE, REPORT_TOP_TABS } from "@/lib/nav";
 
 /** Соседние отчёты в меню — тихий prefetch RSC для быстрого перехода. */
 export function prefetchAdjacentReports(pathname: string): void {
   if (typeof window === "undefined") return;
-  const hrefs: string[] = [REPORT_TOP_TAB.href];
+  const hrefs: string[] = REPORT_TOP_TABS.map((tab) => tab.href);
   for (const acc of REPORT_ACCORDIONS) {
     for (const item of acc.items) hrefs.push(item.href);
   }

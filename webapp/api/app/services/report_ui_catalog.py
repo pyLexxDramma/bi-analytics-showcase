@@ -98,6 +98,16 @@ REPORT_UI_CATALOG: list[dict[str, Any]] = [
         ],
     },
     {
+        "nav_id": "top-dashboard",
+        "title": "ТОП менеджмент",
+        "filters": [{"id": "project", "label": "Показать"}],
+        "widgets": [
+            {"id": "kpi", "label": "KPI-лента"},
+            {"id": "cards", "label": "Карточки объектов"},
+            {"id": "detail", "label": "Карточка объекта"},
+        ],
+    },
+    {
         "nav_id": "prescriptions",
         "title": "Предписания",
         "filters": [

@@ -30,6 +30,16 @@ export const REPORT_TOP_TAB: ReportLeaf = {
   kind: "tab",
 };
 
+export const REPORT_TOP_DASHBOARD: ReportLeaf = {
+  id: "top-dashboard",
+  href: "/top",
+  label: "ТОП менеджмент",
+  ready: true,
+  kind: "tab",
+};
+
+export const REPORT_TOP_TABS: ReportLeaf[] = [REPORT_TOP_TAB, REPORT_TOP_DASHBOARD];
+
 export const REPORT_ACCORDIONS: ReportAccordion[] = [
   {
     id: "finance",
@@ -149,7 +159,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     id: "developer",
     title: "Девелоперские проекты",
-    items: [REPORT_TOP_TAB],
+    items: REPORT_TOP_TABS,
   },
   ...REPORT_ACCORDIONS.map((a) => ({
     id: a.id,
@@ -173,11 +183,10 @@ export function accordionIdForPath(pathname: string): string | null {
 }
 
 export function findNavItem(pathname: string): NavItem | ReportLeaf | null {
-  if (
-    pathname === REPORT_TOP_TAB.href ||
-    pathname.startsWith(`${REPORT_TOP_TAB.href}/`)
-  ) {
-    return REPORT_TOP_TAB;
+  for (const tab of REPORT_TOP_TABS) {
+    if (pathname === tab.href || pathname.startsWith(`${tab.href}/`)) {
+      return tab;
+    }
   }
   for (const acc of REPORT_ACCORDIONS) {
     for (const item of acc.items) {
@@ -196,11 +205,10 @@ export function findNavItem(pathname: string): NavItem | ReportLeaf | null {
 
 /** Хлебные крошки: раздел → отчёт (для шапки экрана). */
 export function findNavTrail(pathname: string): Array<{ label: string; href?: string }> {
-  if (
-    pathname === REPORT_TOP_TAB.href ||
-    pathname.startsWith(`${REPORT_TOP_TAB.href}/`)
-  ) {
-    return [{ label: REPORT_TOP_TAB.label }];
+  for (const tab of REPORT_TOP_TABS) {
+    if (pathname === tab.href || pathname.startsWith(`${tab.href}/`)) {
+      return [{ label: tab.label }];
+    }
   }
   for (const acc of REPORT_ACCORDIONS) {
     for (const item of acc.items) {

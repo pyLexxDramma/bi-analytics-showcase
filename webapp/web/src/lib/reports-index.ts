@@ -1,4 +1,4 @@
-import { REPORT_ACCORDIONS, REPORT_STANDALONE, REPORT_TOP_TAB } from "@/lib/nav";
+import { REPORT_ACCORDIONS, REPORT_STANDALONE, REPORT_TOP_TABS } from "@/lib/nav";
 import { canAccessReport } from "@/lib/auth";
 
 export type FlatReport = {
@@ -10,12 +10,12 @@ export type FlatReport = {
 
 /** Плоский список отчётов из `nav.ts` — общий для мобильного поиска и палитры. */
 export const FLAT_REPORTS: FlatReport[] = [
-  {
-    id: REPORT_TOP_TAB.id,
-    href: REPORT_TOP_TAB.href,
-    label: REPORT_TOP_TAB.label,
+  ...REPORT_TOP_TABS.map((tab) => ({
+    id: tab.id,
+    href: tab.href,
+    label: tab.label,
     group: "Основное",
-  },
+  })),
   ...REPORT_ACCORDIONS.flatMap((acc) =>
     acc.items.map((item) => ({
       id: item.id,

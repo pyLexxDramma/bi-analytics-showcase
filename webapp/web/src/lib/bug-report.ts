@@ -1,6 +1,6 @@
 import { collectAskAiFiltersFromSearch } from "@/lib/ask-ai-reports";
 import type { AuthUser } from "@/lib/auth";
-import { accordionIdForPath, findNavItem, REPORT_TOP_TAB } from "@/lib/nav";
+import { accordionIdForPath, findNavItem, REPORT_TOP_DASHBOARD, REPORT_TOP_TAB } from "@/lib/nav";
 
 /** Локальная форма (public/bugform); submit через /api/bugform/submit → winbot. */
 const DEFAULT_BUG_FORM_PATH = "/bugform/index.html";
@@ -36,6 +36,9 @@ export function resolveBugReportContext(
   }
 
   if (nav.id === REPORT_TOP_TAB.id) {
+    return { menugroup: "Девелоперские проекты", report: nav.label };
+  }
+  if (nav.id === REPORT_TOP_DASHBOARD.id) {
     return { menugroup: "Девелоперские проекты", report: nav.label };
   }
   if (nav.id === "prescriptions") {

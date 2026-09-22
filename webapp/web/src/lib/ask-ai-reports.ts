@@ -15,6 +15,13 @@ export const ASK_AI_SCREENS: Record<string, AskAiScreen> = {
     ctxHint:
       "Матрица девелоперских проектов: статусы, сроки, ключевые метрики по проектам.",
   },
+  "top-dashboard": {
+    report: "screen_top_dashboard",
+    title: "ТОП менеджмент",
+    src: "top",
+    ctxHint:
+      "Сводка ТОП-менеджмента: БДДС, БДР, ГДРС, РД, предписания, СМР, РВ и ковенанты.",
+  },
   bdds: {
     report: "screen_bdds",
     title: "БДДС (расходы)",

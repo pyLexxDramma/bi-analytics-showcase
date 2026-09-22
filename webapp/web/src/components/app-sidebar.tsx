@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   REPORT_ACCORDIONS,
   REPORT_STANDALONE,
-  REPORT_TOP_TAB,
+  REPORT_TOP_TABS,
   accordionIdForPath,
 } from "@/lib/nav";
 import {
@@ -264,9 +264,9 @@ export function AppSidebar({
 
   const isActive = (href: string) =>
     activePath === href || activePath.startsWith(`${href}/`);
-  const visibleTop = canAccessReport(REPORT_TOP_TAB.id, session)
-    ? REPORT_TOP_TAB
-    : null;
+  const visibleTopTabs = REPORT_TOP_TABS.filter((tab) =>
+    canAccessReport(tab.id, session),
+  );
   const visibleAccordions = REPORT_ACCORDIONS.map((acc) => ({
     ...acc,
     items: acc.items.filter((i) => canAccessReport(i.id, session)),
@@ -275,7 +275,7 @@ export function AppSidebar({
     canAccessReport(i.id, session),
   );
   const railItems = [
-    ...(visibleTop ? [visibleTop] : []),
+    ...visibleTopTabs,
     ...visibleAccordions.flatMap((acc) => acc.items),
     ...visibleStandalone,
   ];
@@ -510,19 +510,20 @@ export function AppSidebar({
         <section className="mb-5">
           <SectionTitle>Отчёты</SectionTitle>
           <div className="flex flex-col gap-1.5">
-            {visibleTop ? (
+            {visibleTopTabs.map((tab) => (
               <Link
-                href={visibleTop.href}
+                key={tab.id}
+                href={tab.href}
                 {...navProps}
                 className={`rounded-md px-3 py-2.5 font-medium transition ${
-                  isActive(visibleTop.href)
+                  isActive(tab.href)
                     ? "bi-nav-active border"
                     : "border border-transparent bg-white hover:bg-gray-100 dark:bg-dark-tremor-background-subtle"
                 }`}
               >
-                {visibleTop.label}
+                {tab.label}
               </Link>
-            ) : null}
+            ))}
 
             {visibleAccordions.map((acc) => {
               const open = openId === acc.id;

@@ -376,6 +376,28 @@ def ensure_roles_seeded(nav_screens: Optional[Dict[str, Dict]] = None) -> None:
                 )
 
     _apply_role_full_access_migrations(cur, nav_ids)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS rbac_migrations (
+            name TEXT PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute("SELECT 1 FROM rbac_migrations WHERE name = ?", ("top_dashboard_v1",))
+    if cur.fetchone() is None:
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO role_reports (role_code, report_id)
+            SELECT role_code, 'top-dashboard'
+            FROM role_reports
+            WHERE report_id = 'developer-projects'
+            """
+        )
+        cur.execute(
+            "INSERT OR IGNORE INTO rbac_migrations (name) VALUES (?)",
+            ("top_dashboard_v1",),
+        )
     conn.commit()
     conn.close()
 

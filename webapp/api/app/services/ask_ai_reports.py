@@ -14,6 +14,13 @@ SCREENS: dict[str, dict[str, Any]] = {
         "auth_names": ["Девелоперские проекты"],
         "ctx_hint": "Матрица девелоперских проектов: статусы, сроки, ключевые метрики по проектам.",
     },
+    "top-dashboard": {
+        "report": "screen_top_dashboard",
+        "title": "ТОП менеджмент",
+        "src": "top",
+        "auth_names": ["ТОП менеджмент", "ТОП-дашборд", "Executive Dashboard"],
+        "ctx_hint": "Сводка ТОП-менеджмента: БДДС, БДР, ГДРС, РД, предписания, СМР, РВ и ковенанты.",
+    },
     "bdds": {
         "report": "screen_bdds",
         "title": "БДДС (расходы)",

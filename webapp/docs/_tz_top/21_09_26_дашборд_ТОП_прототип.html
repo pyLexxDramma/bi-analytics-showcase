@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Стройконтроль | Executive Dashboard v6</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #eef2f7;
+            font-family: 'Inter', sans-serif;
+            padding: 20px 28px;
+            color: #1a2c3e;
+        }
+        .dashboard {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .kpi-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: space-between;
+            background: white;
+            border-radius: 28px;
+            padding: 14px 24px;
+            margin-bottom: 28px;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.05);
+        }
+        .kpi-item {
+            flex: 1;
+            min-width: 140px;
+            text-align: center;
+        }
+        .kpi-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: #2c7a9e;
+        }
+        .kpi-number {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #1a4c6e;
+        }
+        .val-group { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }
+        .val-sublabel { font-size: 0.55rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; opacity: 0.4; margin-top: 1px; }
+        .val-sep { margin: 0 4px; opacity: 0.5; }
+        .badge-green { background: #e0f2e3; color: #2b6e3c; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; }
+        .indicator-green, .indicator-yellow, .indicator-red {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 12px;
+            margin-right: 6px;
+        }
+        .indicator-green { background: #2ecc71; }
+        .indicator-yellow { background: #f39c12; }
+        .indicator-red { background: #e74c3c; }
+
+        .filter-bar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 28px;
+        }
+        .filter-selector {
+            background: white;
+            border-radius: 60px;
+            padding: 6px 12px 6px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        select {
+            background: #f5faff;
+            border: 1px solid #cbdde9;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+        }
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+            gap: 24px;
+        }
+        .project-card {
+            border-radius: 28px;
+            padding: 20px;
+            transition: all 0.2s;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+            border: 1px solid rgba(255,255,255,0.6);
+        }
+        .bg-critical { background: #ffe8e6; border-left: 6px solid #c0392b; }
+        .bg-warning { background: #fff4e5; border-left: 6px solid #e67e22; }
+        .bg-good { background: #e6f4ea; border-left: 6px solid #2e7d64; }
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .project-name {
+            font-weight: 800;
+            font-size: 1.3rem;
+        }
+        .status-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 40px;
+            background: white;
+        }
+        .metric-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+        }
+        .metric-label {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .badge-red { background: #fee2e2; color: #bc3f2c; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; }
+        .reason-text {
+            background: #fef7e0;
+            border-radius: 20px;
+            padding: 10px;
+            font-size: 0.75rem;
+            margin-top: 12px;
+            font-weight: 500;
+        }
+        .detail-container {
+            background: white;
+            border-radius: 32px;
+            padding: 24px;
+            margin-top: 16px;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 28px;
+        }
+        .detail-card {
+            background: #fafdff;
+            border-radius: 28px;
+            padding: 22px;
+            border: 1px solid #eef2f8;
+            display: flex;
+            flex-direction: column;
+        }
+        .card-title {
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 18px;
+            border-left: 4px solid #2c9baf;
+            padding-left: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .flex-between {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            font-size: 0.85rem;
+            align-items: center;
+        }
+        .chart-container {
+            width: 100%;
+            margin-top: 16px;
+            flex-shrink: 0;
+        }
+        canvas {
+            max-height: 200px;
+            width: 100%;
+        }
+        .milestone-table, .covenant-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+            margin-top: 12px;
+        }
+        .milestone-table th, .covenant-table th {
+            text-align: left;
+            padding: 6px 4px;
+            background: #eef2f7;
+            font-weight: 600;
+        }
+        .milestone-table td, .covenant-table td {
+            padding: 6px 4px;
+            border-bottom: 1px solid #e9edf2;
+        }
+        .delta-positive { color: #2b6e3c; background: #e0f2e3; display: inline-block; padding: 0 6px; border-radius: 16px; }
+        .delta-negative { color: #c0392b; background: #fee2e2; display: inline-block; padding: 0 6px; border-radius: 16px; }
+        .progress-bar-wrap { margin-top: 8px; }
+        .progress-bar-track { width: 100%; height: 22px; background: #e2e8f0; border-radius: 12px; overflow: hidden; position: relative; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #2c9baf, #3fc6b0); border-radius: 12px 0 0 12px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; color: #fff; font-size: 0.7rem; font-weight: 700; }
+        .progress-bar-labels { display: flex; justify-content: space-between; font-size: 0.7rem; margin-top: 6px; color: #5f7d9c; font-weight: 500; }
+        .overdue-table { width: 100%; border-collapse: collapse; font-size: 0.68rem; margin-top: 8px; }
+        .overdue-table th { text-align: left; padding: 5px 4px; background: #eef2f7; font-weight: 600; }
+        .overdue-table td { padding: 5px 4px; border-bottom: 1px solid #e9edf2; }
+        .full-list {
+            max-height: none;
+            overflow-y: visible;
+        }
+        @media (max-width: 1000px) {
+            body { padding: 16px; }
+            .projects-grid { grid-template-columns: 1fr; }
+            .detail-grid { grid-template-columns: 1fr; }
+        }
+        .footer-note {
+            text-align: center;
+            font-size: 0.7rem;
+            margin-top: 28px;
+            color: #5f7d9c;
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="kpi-strip" id="kpiStrip"></div>
+    <div class="filter-bar">
+        <div class="filter-selector">
+            <label>🔍 Показать:</label>
+            <select id="projectFilter">
+                <option value="all">📊 Все проекты (сводка)</option>
+            </select>
+        </div>
+    </div>
+    <div id="mainContent"></div>
+    <div class="footer-note">🟢 зелёный круг — план выполнен, 🔴 красный — отклонение, 🟡 жёлтый — близко к норме. В режиме "один проект" — полные таблицы вех и ковенантов (без прокрутки), все факты заполнены датами, на диаграммах постоянные числовые подписи.</div>
+</div>
+
+<script>
+    // ========== ПОЛНЫЕ ПЕРЕЧНИ ВЕХ И КОВЕНАНТОВ (добавлены ЗОС, Право 1, выкуп ЗУ, Право 2) ==========
+    const allMilestones = [
+        "Завершение СМР по блоку А до ЗОС",
+        "Завершение СМР по блоку U1. U2 до ЗОС",
+        "Завершение СМР по блоку U3. U4 до ЗОС",
+        "Завершение СМР по КПП до ЗОС",
+        "Завершение СМР по блокам",
+        "Завершение СМР по техническим помещениям",
+        "Завершение работ по отделке",
+        "Завершение работ по эл.сетям + оборудование",
+        "Завершение работ по газовым сетям + оборудование",
+        "Завершение работ по НВК и оборудование",
+        "Завершение СМР по ЗАВОД до ЗОС"
+    ];
+    const allCovenants = [
+        "ГПЗУ", "Стадия П", "Корректировка стадии П", "стадия РД", "СЗЗ", "Экспертиза",
+        "Корректировка экспертизы", "Разрешение РС", "КОД, ОТКР. ФИНАНС. (начало финансирования)",
+        "СМР (начало)", "Корректировка РС", "Пуск электричества", "Пуск газа", "ЗОС", "РВ", 
+        "Право 1", "ВЫКУП ЗУ", "Право 2"
+    ];
+
+    function generateMilestonesForProject(projectId, shiftDays = 0) {
+        const baseDate = new Date(2025, 0, 15);
+        return allMilestones.map((name, idx) => {
+            const planDate = new Date(baseDate);
+            planDate.setDate(baseDate.getDate() + idx * 12 + shiftDays);
+            const planStr = planDate.toLocaleDateString('ru-RU');
+            let factDate = new Date(planDate);
+            let deltaDays;
+            if (projectId === 'len') {
+                deltaDays = idx % 2 === 0 ? -Math.floor(Math.random() * 10) - 1 : Math.floor(Math.random() * 5) + 2;
+            } else if (projectId === 'novo' || projectId === 'dmitr') {
+                deltaDays = Math.floor(Math.random() * 35) + 15;
+            } else {
+                deltaDays = Math.floor(Math.random() * 25) - 5;
+            }
+            factDate.setDate(planDate.getDate() + deltaDays);
+            const factStr = factDate.toLocaleDateString('ru-RU');
+            const delta = deltaDays === 0 ? "0д" : (deltaDays > 0 ? `-${deltaDays}д` : `+${Math.abs(deltaDays)}д`);
+            const statusClass = deltaDays > 0 ? 'delta-negative' : (deltaDays < 0 ? 'delta-positive' : '');
+            return { name, plan: planStr, fact: factStr, delta, statusClass };
+        });
+    }
+
+    function generateCovenantsForProject(projectId, shiftDays = 0) {
+        const baseDate = new Date(2024, 8, 1);
+        return allCovenants.map((name, idx) => {
+            const planDate = new Date(baseDate);
+            planDate.setDate(baseDate.getDate() + idx * 14 + shiftDays);
+            const planStr = planDate.toLocaleDateString('ru-RU');
+            let factDate = new Date(planDate);
+            let deltaDays;
+            if (name === "РВ" || name === "ЗОС" || name === "Право 1" || name === "ВЫКУП ЗУ" || name === "Право 2") {
+                if (projectId === 'len') {
+                    deltaDays = -5;
+                } else {
+                    deltaDays = Math.floor(Math.random() * 40) + 20;
+                }
+            } else {
+                if (projectId === 'len') {
+                    deltaDays = idx % 2 === 0 ? -Math.floor(Math.random() * 8) - 1 : Math.floor(Math.random() * 10) + 2;
+                } else if (projectId === 'novo' || projectId === 'dmitr') {
+                    deltaDays = Math.floor(Math.random() * 45) + 15;
+                } else {
+                    deltaDays = Math.floor(Math.random() * 20) - 3;
+                }
+            }
+            factDate.setDate(planDate.getDate() + deltaDays);
+            const factStr = factDate.toLocaleDateString('ru-RU');
+            const delta = deltaDays === 0 ? "0д" : (deltaDays > 0 ? `-${deltaDays}д` : `+${Math.abs(deltaDays)}д`);
+            const statusClass = deltaDays > 0 ? 'delta-negative' : (deltaDays < 0 ? 'delta-positive' : '');
+            return { name, plan: planStr, fact: factStr, delta, statusClass };
+        });
+    }
+
+    // Базовые данные проектов (финансы, ресурсы, документация)
+    const projectsData = [
+        { id: "dmitr", name: "Дмитровский 1", short: "DMI-1", status: "critical",
+          dds: { plan: 3200, fact: 3780 }, bdr: { plan: 2900, fact: 3410 },
+          labor: { plan: 320, fact: 184 }, equip: { plan: 45, fact: 32 },
+          smr: { planPercent: 52, factPercent: 47 },
+          rd: { planSheets: 420, factSheets: 286, planPercent: 100, factPercent: 68, customerOverdue: 14, contractorOverdue: 23 },
+          prescriptions: { totalIssued: 24, closed: 12, overdue: 12, critOverdue: 4, nonCritOverdue: 8 },
+          execDocs: { total: 180, done: 84 },
+          reason: "Срыв поставок металлоконструкций, корректировка стадии П, дефицит кадров",
+          rvReason: "Задержка экспертизы и срыв поставок",
+          rvDate: { plan: "01.12.2025", fact: "—", delta: "критический сдвиг" } },
+        { id: "esip", name: "Есипово 5", short: "ESP-5", status: "warning",
+          dds: { plan: 2750, fact: 3020 }, bdr: { plan: 2520, fact: 2790 },
+          labor: { plan: 245, fact: 198 }, equip: { plan: 35, fact: 27 },
+          smr: { planPercent: 68, factPercent: 61 },
+          rd: { planSheets: 490, factSheets: 363, planPercent: 100, factPercent: 74, customerOverdue: 18, contractorOverdue: 28 },
+          prescriptions: { totalIssued: 19, closed: 11, overdue: 8, critOverdue: 3, nonCritOverdue: 5 },
+          execDocs: { total: 210, done: 128 },
+          reason: "Задержка корректировки экспертизы, отставание по СМР",
+          rvReason: "Корректировка экспертизы затянулась",
+          rvDate: { plan: "20.12.2025", fact: "—", delta: "под риском" } },
+        { id: "zhuk", name: "Жуковский 1", short: "ZHK-1", status: "warning",
+          dds: { plan: 2450, fact: 2670 }, bdr: { plan: 2280, fact: 2480 },
+          labor: { plan: 215, fact: 168 }, equip: { plan: 32, fact: 24 },
+          smr: { planPercent: 64, factPercent: 53 },
+          rd: { planSheets: 370, factSheets: 300, planPercent: 100, factPercent: 81, customerOverdue: 9, contractorOverdue: 17 },
+          prescriptions: { totalIssued: 14, closed: 7, overdue: 7, critOverdue: 2, nonCritOverdue: 5 },
+          execDocs: { total: 160, done: 85 },
+          reason: "Низкая явка ресурсов по техническим помещениям",
+          rvReason: "Отставание по эл.сетям и разрешению РС",
+          rvDate: { plan: "01.11.2025", fact: "—", delta: "вероятен сдвиг" } },
+        { id: "len", name: "Ленинский", short: "LEN-2", status: "good",
+          dds: { plan: 2100, fact: 1980 }, bdr: { plan: 1950, fact: 1840 },
+          labor: { plan: 210, fact: 228 }, equip: { plan: 28, fact: 30 },
+          smr: { planPercent: 85, factPercent: 89 },
+          rd: { planSheets: 315, factSheets: 302, planPercent: 100, factPercent: 96, customerOverdue: 2, contractorOverdue: 5 },
+          prescriptions: { totalIssued: 8, closed: 8, overdue: 0, critOverdue: 0, nonCritOverdue: 0 },
+          execDocs: { total: 140, done: 125 },
+          reason: "Опережение графика, экономия бюджета",
+          rvReason: "—",
+          rvDate: { plan: "15.10.2025", fact: "10.10.2025", delta: "-5д (опережение)" } },
+        { id: "novo", name: "Новорижский", short: "NOV-R", status: "critical",
+          dds: { plan: 3800, fact: 4350 }, bdr: { plan: 3500, fact: 4020 },
+          labor: { plan: 350, fact: 205 }, equip: { plan: 50, fact: 31 },
+          smr: { planPercent: 45, factPercent: 29 },
+          rd: { planSheets: 610, factSheets: 342, planPercent: 100, factPercent: 56, customerOverdue: 35, contractorOverdue: 52 },
+          prescriptions: { totalIssued: 32, closed: 12, overdue: 20, critOverdue: 7, nonCritOverdue: 13 },
+          execDocs: { total: 260, done: 75 },
+          reason: "Критическое отставание по экспертизе, срыв СМР",
+          rvReason: "Экспертиза не пройдена, пуск электричества отложен",
+          rvDate: { plan: "30.06.2026", fact: "—", delta: "срыв сроков" } }
+    ];
+
+    projectsData.forEach(p => {
+        let shift = p.id === 'len' ? -15 : (p.id === 'novo' ? 40 : (p.id === 'dmitr' ? 20 : 10));
+        p.milestones = generateMilestonesForProject(p.id, shift);
+        p.covenants = generateCovenantsForProject(p.id, shift);
+        const rvCov = p.covenants.find(c => c.name === "РВ");
+        if (rvCov) {
+            p.rvDate = { plan: rvCov.plan, fact: rvCov.fact, delta: rvCov.delta };
+        }
+    });
+
+    function getIndicator(planVal, factVal, isPercent=false) {
+        let ratio = isPercent ? factVal / planVal : factVal / planVal;
+        if (ratio >= 0.95) return 'green';
+        if (ratio >= 0.8) return 'yellow';
+        return 'red';
+    }
+
+    // Пара значений с подписями "план"/"факт" (или произвольными) под каждым числом
+    function valPair(planVal, factVal, unit = '', planLabel = 'план', factLabel = 'факт') {
+        return `<span class="val-group"><span>${planVal}${unit}</span><span class="val-sublabel">${planLabel}</span></span><span class="val-sep">/</span><span class="val-group"><span>${factVal}${unit}</span><span class="val-sublabel">${factLabel}</span></span>`;
+    }
+
+    function updateKpiStrip(projectsArray) {
+        const totalDdsPlan = projectsArray.reduce((s,p) => s + p.dds.plan, 0);
+        const totalDdsFact = projectsArray.reduce((s,p) => s + p.dds.fact, 0);
+        const totalBdrPlan = projectsArray.reduce((s,p) => s + p.bdr.plan, 0);
+        const totalBdrFact = projectsArray.reduce((s,p) => s + p.bdr.fact, 0);
+        const totalLaborPlan = projectsArray.reduce((s,p) => s + p.labor.plan, 0);
+        const totalLaborFact = projectsArray.reduce((s,p) => s + p.labor.fact, 0);
+        const totalEquipPlan = projectsArray.reduce((s,p) => s + p.equip.plan, 0);
+        const totalEquipFact = projectsArray.reduce((s,p) => s + p.equip.fact, 0);
+        const avgSmrPlan = projectsArray.reduce((s,p) => s + p.smr.planPercent, 0) / projectsArray.length;
+        const avgSmrFact = projectsArray.reduce((s,p) => s + p.smr.factPercent, 0) / projectsArray.length;
+        const avgRdFact = projectsArray.reduce((s,p) => s + p.rd.factPercent, 0) / projectsArray.length;
+        const totalPresc = projectsArray.reduce((s,p) => s + p.prescriptions.overdue, 0);
+        const ddsInd = getIndicator(totalDdsPlan, totalDdsFact);
+        const bdrInd = getIndicator(totalBdrPlan, totalBdrFact);
+        const laborInd = getIndicator(totalLaborPlan, totalLaborFact);
+        const equipInd = getIndicator(totalEquipPlan, totalEquipFact);
+        const smrInd = getIndicator(avgSmrPlan, avgSmrFact, true);
+        const rdInd = getIndicator(100, avgRdFact, true);
+        const totalCritOverdue = projectsArray.reduce((s,p) => s + p.prescriptions.critOverdue, 0);
+        const totalNonCritOverdue = projectsArray.reduce((s,p) => s + p.prescriptions.nonCritOverdue, 0);
+        document.getElementById('kpiStrip').innerHTML = `
+            <div class="kpi-item"><div class="kpi-label"><span class="indicator-${ddsInd}"></span> БДДС</div><div class="kpi-number">${valPair((totalDdsPlan/1000).toFixed(1), (totalDdsFact/1000).toFixed(1))} млрд</div></div>
+            <div class="kpi-item"><div class="kpi-label"><span class="indicator-${bdrInd}"></span> БДР</div><div class="kpi-number">${valPair((totalBdrPlan/1000).toFixed(1), (totalBdrFact/1000).toFixed(1))} млрд</div></div>
+            <div class="kpi-item"><div class="kpi-label"><span class="indicator-${laborInd}"></span> Люди</div><div class="kpi-number">${valPair(totalLaborPlan, totalLaborFact)}</div></div>
+            <div class="kpi-item"><div class="kpi-label"><span class="indicator-${equipInd}"></span> Техника</div><div class="kpi-number">${valPair(totalEquipPlan, totalEquipFact)}</div></div>
+            <div class="kpi-item"><div class="kpi-label"><span class="indicator-${smrInd}"></span> % СМР</div><div class="kpi-number">${Math.round(avgSmrFact)}% <span class="val-sublabel" style="display:inline">(${Math.round(avgSmrPlan)}/${Math.round(avgSmrFact)})</span></div></div>
+            <div class="kpi-item"><div class="kpi-label"><span class="indicator-${rdInd}"></span> % РД</div><div class="kpi-number">${Math.round(avgRdFact)}% <span class="val-sublabel" style="display:inline">(100/${Math.round(avgRdFact)})</span></div></div>
+            <div class="kpi-item"><div class="kpi-label">⚠️ Просроченные предписания (крит. и некрит.)</div><div class="kpi-number">${valPair(totalCritOverdue, totalNonCritOverdue, '', 'крит.', 'не крит.')}</div></div>
+        `;
+    }
+
+    function renderAllProjects() {
+        const sorted = [...projectsData].sort((a,b) => {
+            const order = { critical:0, warning:1, good:2 };
+            return order[a.status] - order[b.status];
+        });
+        let html = `<div class="projects-grid">`;
+        sorted.forEach(p => {
+            const bgClass = p.status === 'critical' ? 'bg-critical' : (p.status === 'warning' ? 'bg-warning' : 'bg-good');
+            const statusText = p.status === 'critical' ? 'Критический' : (p.status === 'warning' ? 'Требует внимания' : 'В норме');
+            const ddsInd = getIndicator(p.dds.plan, p.dds.fact);
+            const bdrInd = getIndicator(p.bdr.plan, p.bdr.fact);
+            const laborInd = getIndicator(p.labor.plan, p.labor.fact);
+            const equipInd = getIndicator(p.equip.plan, p.equip.fact);
+            const rdInd = getIndicator(100, p.rd.factPercent, true);
+            const rvInd = (p.rvDate.fact && p.rvDate.fact !== '—') ? 'green' : 'red';
+            // Ищем ковенанты для отображения в карточке
+            const zos = p.covenants.find(c => c.name === "ЗОС");
+            const pravo1 = p.covenants.find(c => c.name === "Право 1");
+            const vykup = p.covenants.find(c => c.name === "ВЫКУП ЗУ");
+            const pravo2 = p.covenants.find(c => c.name === "Право 2");
+            html += `
+                <div class="project-card ${bgClass}">
+                    <div class="project-header">
+                        <span class="project-name">🏢 ${p.name}</span>
+                        <span class="status-badge">${statusText}</span>
+                    </div>
+                    <div class="metric-line"><span class="metric-label"><span class="indicator-${ddsInd}"></span> БДДС (млн)</span><span>${valPair(p.dds.plan, p.dds.fact)} <span class="val-sublabel" style="display:inline">(${((p.dds.fact-p.dds.plan)/p.dds.plan*100).toFixed(0)}%)</span></span></div>
+                    <div class="metric-line"><span class="metric-label"><span class="indicator-${bdrInd}"></span> БДР (млн)</span><span>${valPair(p.bdr.plan, p.bdr.fact)}</span></div>
+                    <div class="metric-line"><span class="metric-label"><span class="indicator-${laborInd}"></span> Люди</span><span>${valPair(p.labor.plan, p.labor.fact)}</span></div>
+                    <div class="metric-line"><span class="metric-label"><span class="indicator-${equipInd}"></span> Техника</span><span>${valPair(p.equip.plan, p.equip.fact)}</span></div>
+                    <div class="metric-line"><span class="metric-label"><span class="indicator-${rdInd}"></span> РД</span><span>${p.rd.factPercent}% (${p.rd.factSheets}/${p.rd.planSheets})</span></div>
+                    <div class="metric-line"><span class="metric-label">⚠️ Просроченные предписания (крит. и некрит.)</span><span>${valPair(p.prescriptions.critOverdue, p.prescriptions.nonCritOverdue, '', 'крит.', 'не крит.')}</span></div>
+                    <div class="metric-line"><span class="metric-label"><span class="indicator-${rvInd}"></span> Срок РВ</span><span>${p.rvDate.plan} / ${p.rvDate.fact} <span class="${p.rvDate.delta && p.rvDate.delta.startsWith('+') ? 'badge-green' : 'badge-red'}">${p.rvDate.delta}</span></span></div>
+                    <div class="metric-line"><span class="metric-label">📌 ЗОС</span><span>${zos ? zos.plan : '—'} / ${zos ? zos.fact : '—'} <span class="${zos ? zos.statusClass : ''}">(${zos ? zos.delta : '—'})</span></span></div>
+                    <div class="metric-line"><span class="metric-label">📌 Право 1</span><span>${pravo1 ? pravo1.plan : '—'} / ${pravo1 ? pravo1.fact : '—'} <span class="${pravo1 ? pravo1.statusClass : ''}">(${pravo1 ? pravo1.delta : '—'})</span></span></div>
+                    <div class="metric-line"><span class="metric-label">📌 Выкуп ЗУ</span><span>${vykup ? vykup.plan : '—'} / ${vykup ? vykup.fact : '—'} <span class="${vykup ? vykup.statusClass : ''}">(${vykup ? vykup.delta : '—'})</span></span></div>
+                    <div class="metric-line"><span class="metric-label">📌 Право 2</span><span>${pravo2 ? pravo2.plan : '—'} / ${pravo2 ? pravo2.fact : '—'} <span class="${pravo2 ? pravo2.statusClass : ''}">(${pravo2 ? pravo2.delta : '—'})</span></span></div>
+                    <div class="reason-text"><strong>📌 Причина смещения срока РВ:</strong> ${p.rvReason || p.reason}</div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        document.getElementById('mainContent').innerHTML = html;
+    }
+
+    function renderSingleProject(proj) {
+        const bgHeader = proj.status === 'critical' ? '#ffe8e6' : (proj.status === 'warning' ? '#fff4e5' : '#e6f4ea');
+
+        // Мок-строки для таблиц "Просрочка подрядчика/заказчика" (агрегаты см. proj.rd.contractorOverdue/customerOverdue)
+        const contractorPool = ["ООО СтройМонтаж", "СК Развитие", "ГК Фундамент", "ООО ИнжСети"];
+        function buildOverdueRows(totalCount, days) {
+            if (!totalCount) return `<tr><td colspan="3">Нет просрочек</td></tr>`;
+            const rowsToShow = Math.min(totalCount, 4);
+            let rows = '';
+            for (let i = 0; i < rowsToShow; i++) {
+                rows += `<tr><td>${contractorPool[i % contractorPool.length]}</td><td>ИД-${(1000 + i * 7 + totalCount)}</td><td>${days + i * 2}д</td></tr>`;
+            }
+            if (totalCount > rowsToShow) rows += `<tr><td colspan="3">…и ещё ${totalCount - rowsToShow}</td></tr>`;
+            return rows;
+        }
+        const contractorOverdueRows = buildOverdueRows(proj.rd.contractorOverdue, 5);
+        const customerOverdueRows = buildOverdueRows(proj.rd.customerOverdue, 3);
+
+        let milestonesHtml = `<table class="milestone-table"><thead><tr><th>Веха СМР</th><th>План</th><th>Факт</th><th>Отклонение</th></tr></thead><tbody>`;
+        proj.milestones.forEach(m => {
+            milestonesHtml += `<tr><td>${m.name}</td><td>${m.plan}</td><td>${m.fact}</td><td><span class="${m.statusClass}">${m.delta}</span></td></tr>`;
+        });
+        milestonesHtml += `</tbody></table>`;
+        
+        let covenantsHtml = `<table class="covenant-table"><thead><tr><th>Ковенант</th><th>План</th><th>Факт</th><th>Отклонение</th></tr></thead><tbody>`;
+        proj.covenants.forEach(c => {
+            covenantsHtml += `<tr><td>${c.name}</td><td>${c.plan}</td><td>${c.fact}</td><td><span class="${c.statusClass}">${c.delta}</span></td></tr>`;
+        });
+        covenantsHtml += `</tbody></table>`;
+        
+        const html = `
+            <div class="detail-container" style="background:${bgHeader};">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                    <h2 style="font-weight:800;">🏢 ${proj.name} (${proj.short})</h2>
+                    <span class="status-badge" style="background:white;">${proj.status === 'critical' ? 'Критический' : (proj.status === 'warning' ? 'Требует внимания' : 'В норме')}</span>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-card">
+                        <div class="card-title"><span class="indicator-${getIndicator(proj.dds.plan, proj.dds.fact)}"></span> Финансы</div>
+                        <div class="flex-between"><span>БДДС (млн)</span><span><strong>${proj.dds.plan} / ${proj.dds.fact}</strong> (${((proj.dds.fact-proj.dds.plan)/proj.dds.plan*100).toFixed(1)}%)</span></div>
+                        <div class="flex-between"><span>БДР (млн)</span><span>${proj.bdr.plan} / ${proj.bdr.fact}</span></div>
+                        <div class="chart-container"><canvas id="financeChart"></canvas></div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="card-title"><span class="indicator-${getIndicator(proj.labor.plan, proj.labor.fact)}"></span> Трудозатраты</div>
+                        <div class="flex-between"><span>Люди</span><span>${proj.labor.plan} / ${proj.labor.fact}</span></div>
+                        <div class="flex-between"><span>Техника</span><span>${proj.equip.plan} / ${proj.equip.fact}</span></div>
+                        <div class="chart-container"><canvas id="resourcesChart"></canvas></div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="card-title">📄 Документация</div>
+                        <div style="margin-bottom: 16px;"><strong>Рабочая документация (РД)</strong></div>
+                        <div class="chart-container"><canvas id="rdChart"></canvas></div>
+                        <div style="margin: 16px 0 8px;"><strong>⚠️ Просроченные предписания (крит. и некрит.)</strong></div>
+                        <div class="chart-container"><canvas id="prescChart"></canvas></div>
+                        <div style="margin: 16px 0 8px;"><strong>Исполнительная документация</strong></div>
+                        <div class="progress-bar-wrap">
+                            <div class="progress-bar-track"><div class="progress-bar-fill" id="execDocsFill"></div></div>
+                            <div class="progress-bar-labels"><span id="execDocsDoneLabel"></span><span id="execDocsRemainingLabel"></span></div>
+                        </div>
+                        <div style="margin-top: 14px; font-size: 0.75rem; font-weight: 600; color: #bc3f2c;">Просрочка подрядчика</div>
+                        <table class="overdue-table"><thead><tr><th>Подрядчик</th><th>№ документа</th><th>Просрочка сдачи</th></tr></thead>
+                            <tbody>${contractorOverdueRows}</tbody></table>
+                        <div style="margin-top: 12px; font-size: 0.75rem; font-weight: 600; color: #bc3f2c;">Просрочка заказчика</div>
+                        <table class="overdue-table"><thead><tr><th>Подрядчик</th><th>№ документа</th><th>Просрочка согласования</th></tr></thead>
+                            <tbody>${customerOverdueRows}</tbody></table>
+                    </div>
+                    <div class="detail-card">
+                        <div class="card-title">🏗️ Ход СМР и причины</div>
+                        <div class="flex-between"><span>% СМР план/факт</span><span>${proj.smr.planPercent}% / ${proj.smr.factPercent}%</span></div>
+                        <div class="reason-text"><strong>Причина смещения РВ:</strong> ${proj.rvReason || proj.reason}</div>
+                        <div style="margin-top: 12px;"><strong>Вехи СМР (план/факт/отклонение)</strong></div>
+                        <div class="full-list">${milestonesHtml}</div>
+                        <div style="margin-top: 12px;"><strong>Ковенанты (план/факт/отклонение)</strong></div>
+                        <div class="full-list">${covenantsHtml}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('mainContent').innerHTML = html;
+        
+        Chart.register(ChartDataLabels);
+        const ctxFinance = document.getElementById('financeChart')?.getContext('2d');
+        if(ctxFinance) new Chart(ctxFinance, { type: 'bar', data: { labels: ['БДДС', 'БДР'], datasets: [{ label: 'План (млн)', data: [proj.dds.plan, proj.bdr.plan], backgroundColor: '#6f9fc0', barPercentage: 0.5, categoryPercentage: 0.6 }, { label: 'Факт (млн)', data: [proj.dds.fact, proj.bdr.fact], backgroundColor: '#e2863b', barPercentage: 0.5, categoryPercentage: 0.6 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { datalabels: { anchor: 'end', align: 'top', formatter: (val) => val, font: { weight: 'bold', size: 10 } }, legend: { position: 'top' } } } });
+        const ctxResources = document.getElementById('resourcesChart')?.getContext('2d');
+        if(ctxResources) new Chart(ctxResources, { type: 'bar', data: { labels: ['Люди (чел)', 'Техника (ед)'], datasets: [{ label: 'План', data: [proj.labor.plan, proj.equip.plan], backgroundColor: '#6f9fc0', barPercentage: 0.5, categoryPercentage: 0.6 }, { label: 'Факт', data: [proj.labor.fact, proj.equip.fact], backgroundColor: '#e2863b', barPercentage: 0.5, categoryPercentage: 0.6 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { datalabels: { anchor: 'end', align: 'top', formatter: (val) => val, font: { weight: 'bold', size: 10 } } } } });
+        
+        const rdDone = proj.rd.factSheets;
+        const rdTotal = proj.rd.planSheets;
+        const rdRemaining = rdTotal - rdDone;
+        const ctxRd = document.getElementById('rdChart')?.getContext('2d');
+        if(ctxRd) new Chart(ctxRd, { type: 'doughnut', data: { labels: ['Выдано в ПР', 'Не выдано'], datasets: [{ data: [rdDone, rdRemaining], backgroundColor: ['#2c9baf', '#e2e8f0'] }] }, options: { responsive: true, plugins: { datalabels: { formatter: (val, ctx) => { let total = rdDone + rdRemaining; let pct = ((val / total)*100).toFixed(0); return `${val} (${pct}%)`; }, color: (ctx) => ctx.dataIndex === 0 ? '#fff' : '#1a4c6e', font: { weight: 'bold' } }, legend: { position: 'bottom' } } } });
+
+        const critOv = proj.prescriptions.critOverdue;
+        const nonCritOv = proj.prescriptions.nonCritOverdue;
+        const ctxPresc = document.getElementById('prescChart')?.getContext('2d');
+        if(ctxPresc) new Chart(ctxPresc, { type: 'doughnut', data: { labels: ['Крит.', 'Не крит.'], datasets: [{ data: [critOv, nonCritOv], backgroundColor: ['#2c9baf', '#e74c3c'] }] }, options: { responsive: true, plugins: { datalabels: { formatter: (val) => val, color: '#fff', font: { weight: 'bold' } }, legend: { position: 'bottom' } } } });
+
+        const execDone = proj.execDocs.done;
+        const execTotal = proj.execDocs.total;
+        const execRemaining = execTotal - execDone;
+        const execPct = Math.round((execDone / execTotal) * 100);
+        const execFill = document.getElementById('execDocsFill');
+        if (execFill) {
+            execFill.style.width = execPct + '%';
+            execFill.textContent = execPct >= 15 ? execPct + '%' : '';
+        }
+        const execDoneLbl = document.getElementById('execDocsDoneLabel');
+        const execRemLbl = document.getElementById('execDocsRemainingLabel');
+        if (execDoneLbl) execDoneLbl.textContent = `Выполнено: ${execDone} (${execPct}%)`;
+        if (execRemLbl) execRemLbl.textContent = `Осталось: ${execRemaining}`;
+    }
+
+    function init() {
+        const select = document.getElementById('projectFilter');
+        select.innerHTML = '<option value="all">📊 Все проекты (сводка)</option>' + projectsData.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+        function handleChange() {
+            const val = select.value;
+            if (val === 'all') {
+                updateKpiStrip(projectsData);
+                renderAllProjects();
+            } else {
+                const selected = projectsData.find(p => p.id === val);
+                updateKpiStrip([selected]);
+                renderSingleProject(selected);
+            }
+        }
+        select.addEventListener('change', handleChange);
+        updateKpiStrip(projectsData);
+        renderAllProjects();
+    }
+    init();
+</script>
+</body>
+</html>

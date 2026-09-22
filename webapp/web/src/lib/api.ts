@@ -2715,3 +2715,81 @@ export async function replyAssistantQuestion(
     answer,
   }, { headers: authHeaders() });
 }
+
+export type TopPair = { plan: number; fact: number };
+export type TopPct = { planPercent: number; factPercent: number };
+export type TopRd = {
+  planSheets: number;
+  factSheets: number;
+  planPercent: number;
+  factPercent: number;
+  customerOverdue: number;
+  contractorOverdue: number;
+};
+export type TopPresc = {
+  totalIssued: number;
+  closed: number;
+  overdue: number;
+  critOverdue: number;
+  nonCritOverdue: number;
+};
+export type TopSchedRow = {
+  name: string;
+  plan: string;
+  fact: string;
+  delta: string;
+  statusClass?: string;
+};
+export type TopIdRow = {
+  contractor: string;
+  doc: string;
+  days: string;
+  more?: boolean;
+};
+export type TopProject = {
+  id: string;
+  name: string;
+  short: string;
+  status: "critical" | "warning" | "good" | string;
+  dds: TopPair;
+  bdr: TopPair;
+  labor: TopPair;
+  equip: TopPair;
+  smr: TopPct;
+  rd: TopRd;
+  prescriptions: TopPresc;
+  execDocs: { total: number; done: number };
+  reason: string;
+  rvReason: string;
+  rvDate: { plan: string; fact: string; delta: string };
+  milestones: TopSchedRow[];
+  covenants: TopSchedRow[];
+  idOverdueContractor?: TopIdRow[];
+  idOverdueCustomer?: TopIdRow[];
+};
+
+export type TopDashboardPayload = {
+  meta: {
+    source: string;
+    data_mode?: string;
+    parity?: string;
+    error?: string | null;
+  };
+  filters: {
+    projects: Array<{ id: string; name: string }>;
+    applied: { project: string };
+  };
+  milestonesCatalog?: string[];
+  covenantsCatalog?: string[];
+  projects: TopProject[];
+};
+
+export async function fetchTopDashboard(
+  project = "all",
+): Promise<TopDashboardPayload> {
+  return apiGet<TopDashboardPayload>(
+    "/api/top-dashboard",
+    { project },
+    { timeoutMs: 180_000 },
+  );
+}

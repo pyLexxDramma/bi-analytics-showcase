@@ -38,6 +38,7 @@ from app.routers import (
     project_documentation,
     project_schedule,
     settings_router,
+    top_dashboard,
     versions,
     working_documentation,
 )
@@ -87,6 +88,7 @@ app.add_middleware(
 )
 app.include_router(debit_credit.router)
 app.include_router(developer_projects.router)
+app.include_router(top_dashboard.router)
 app.include_router(bdds.router)
 app.include_router(bdr.router)
 app.include_router(approved_budget.router)
@@ -155,6 +157,14 @@ def list_dashboards():
                 "status": "ready",
                 "path": "/developer-projects",
                 "api": "/api/developer-projects",
+            },
+            {
+                "id": "top-dashboard",
+                "title": "ТОП менеджмент",
+                "section": "Девелоперские проекты",
+                "status": "ready",
+                "path": "/top",
+                "api": "/api/top-dashboard",
             },
             {
                 "id": "bdds",
