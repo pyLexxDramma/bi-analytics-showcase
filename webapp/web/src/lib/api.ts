@@ -1620,9 +1620,9 @@ export type WorkingDocumentationPayload = {
     dynamics: Array<{
       period: string;
       period_label: string;
-      plan: number;
-      fact: number;
-      /** Стык с фактом → дальше по «Прогнозной дате выдачи»; null до стыка. */
+      plan: number | null;
+      fact: number | null;
+      /** От конца факта по дате MSP/CSV; null если невыданных с датой нет. */
       forecast?: number | null;
     }>;
     monthly: Array<{
