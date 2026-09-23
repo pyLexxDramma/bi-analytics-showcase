@@ -88,7 +88,17 @@ def _parse_detail_date(mod: ModuleType, series: pd.Series) -> pd.Series:
 def _find_forecast_date_col(df: pd.DataFrame) -> str | None:
     for col in df.columns:
         name = re.sub(r"\s+", " ", str(col)).strip().casefold()
-        if "прогнозн" in name and "дат" in name:
+        if "прогнозн" in name and "дат" in name and "отклонен" not in name:
+            return str(col)
+    return None
+
+
+def _find_detail_date_col(df: pd.DataFrame, *needles: str, exclude: tuple[str, ...] = ()) -> str | None:
+    for col in df.columns:
+        name = re.sub(r"\s+", " ", str(col)).strip().casefold()
+        if any(x in name for x in exclude):
+            continue
+        if all(n in name for n in needles):
             return str(col)
     return None
 
@@ -97,14 +107,26 @@ def _plan_slice_from_detail(detail_tbl: pd.DataFrame, mod: ModuleType) -> pd.Dat
     """План/факт только по отфильтрованным строкам детализации — без рыхлого джойна."""
     if detail_tbl is None or getattr(detail_tbl, "empty", True):
         return pd.DataFrame(columns=["_plan_dt", "_tessa_production_dt", "_forecast_dyn_dt"])
-    plan_col = "Дата выдачи разделов по Договору"
-    prod_col = "Дата выдачи в производство работ"
+    plan_col = (
+        "Дата выдачи разделов по Договору"
+        if "Дата выдачи разделов по Договору" in detail_tbl.columns
+        else _find_detail_date_col(
+            detail_tbl, "дат", "договор", exclude=("прогнозн", "отклонен")
+        )
+    )
+    prod_col = (
+        "Дата выдачи в производство работ"
+        if "Дата выдачи в производство работ" in detail_tbl.columns
+        else _find_detail_date_col(
+            detail_tbl, "дат", "производств", exclude=("прогнозн", "отклонен")
+        )
+    )
     out = pd.DataFrame(index=detail_tbl.index)
-    if plan_col in detail_tbl.columns:
+    if plan_col and plan_col in detail_tbl.columns:
         out["_plan_dt"] = _parse_detail_date(mod, detail_tbl[plan_col])
     else:
         out["_plan_dt"] = pd.NaT
-    if prod_col in detail_tbl.columns:
+    if prod_col and prod_col in detail_tbl.columns:
         prod_dt = _parse_detail_date(mod, detail_tbl[prod_col])
     else:
         prod_dt = pd.Series(pd.NaT, index=detail_tbl.index)
@@ -840,12 +862,9 @@ def _attach_forecast_from_fact(
     *,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Прогноз от конца факта по датам MSP/CSV. Синюю и зелёную не протягивать."""
+    """Рыжая = число невыданных с явной прогнозной датой. Не fact+N и не договор."""
     del today
-    if not dynamics:
-        return dynamics
     last_fact_d: pd.Timestamp | None = None
-    fact_at_j = 0.0
     for row in dynamics:
         if row.get("fact") is None:
             continue
@@ -854,14 +873,13 @@ def _attach_forecast_from_fact(
         except Exception:
             continue
         last_fact_d = d
-        fact_at_j = float(row.get("fact") or 0.0)
-    if last_fact_d is None:
-        return [{**r, "forecast": None} for r in dynamics]
-
-    junction = last_fact_d
+    junction = last_fact_d if last_fact_d is not None else pd.Timestamp("1970-01-01")
     increments = _forecast_month_increments(plan_df, junction=junction)
     if not increments:
         return [{**r, "forecast": None} for r in dynamics]
+
+    if last_fact_d is None:
+        junction = min(increments)
 
     by_period: dict[str, dict[str, Any]] = {
         str(r["period"])[:10]: dict(r) for r in dynamics
@@ -881,15 +899,15 @@ def _attach_forecast_from_fact(
     ordered = sorted(by_period.values(), key=lambda r: str(r["period"])[:10])
     for r in ordered:
         d = pd.Timestamp(str(r["period"])[:10]).normalize()
-        if d < junction:
-            r["forecast"] = None
-            continue
-        if d > last_inc:
+        if d < junction or d > last_inc:
             r["forecast"] = None
             continue
         cum_inc = sum(float(v) for m, v in increments.items() if pd.Timestamp(m) <= d)
-        r["forecast"] = float(round(fact_at_j + cum_inc))
-        if d > junction:
+        if cum_inc <= 0:
+            r["forecast"] = None
+            continue
+        r["forecast"] = float(round(cum_inc))
+        if last_fact_d is not None and d > last_fact_d:
             r["fact"] = None
     return ordered
 
@@ -1246,7 +1264,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v43-rd-plan-cutoff-msp-forecast",
+            "v44-rd-forecast-remaining-dated",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
@@ -1793,8 +1811,13 @@ def build_working_documentation_payload(
             issued_production=int(issued_production),
         )
         if show_fc:
+            fcst_src = (
+                _plan_slice_from_detail(detail_tbl, mod)
+                if not getattr(detail_tbl, "empty", True)
+                else dyn_src
+            )
             dynamics = _attach_forecast_from_fact(
-                dynamics, dyn_src, today=date.today()
+                dynamics, fcst_src, today=date.today()
             )
         else:
             dynamics = [{**r, "forecast": None} for r in dynamics]
