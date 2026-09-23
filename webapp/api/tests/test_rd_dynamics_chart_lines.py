@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""РД: обрыв плана, прогноз только по датам, без комментариев и без хвоста."""
+"""РД: обрыв плана, прогноз по явным датам (включая уже выданные)."""
 from __future__ import annotations
 
 from datetime import date
@@ -16,7 +16,14 @@ from app.services.working_documentation import (
 
 
 class _Mod:
-    """Рендерер не нужен: даты разбираем сами."""
+    """Статус как в TESSA: дата выдачи не делает строку выданной."""
+
+    _RD_TESSA_STATUS_PRODUCTION = "Выдано в производство работ"
+
+    @staticmethod
+    def _rd_canonical_tessa_rd_status(value: object) -> str | None:
+        s = str(value or "").strip()
+        return s or None
 
 
 def test_parse_real_date_keeps_msp_rejects_comments() -> None:
@@ -41,6 +48,63 @@ def test_plan_slice_copies_forecast_date_not_contract() -> None:
     assert pd.Timestamp(out["_plan_dt"].iloc[0]).date() == date(2026, 10, 31)
 
 
+def test_forecast_includes_issued_es_and_rework_gp_in_august() -> None:
+    """Стенд: ЭС выдано 12.08 + ГП на доработке 03.08 → рыжая 2 в августе, не сентябре."""
+    detail = pd.DataFrame(
+        {
+            "Полный шифр": ["65-ХСА-1/24-ЭС", "65-ХСА-1/24-ГП", "65-ХСА-1/24-НСП"],
+            "Дата выдачи по договору": ["31.10.2026", "31.10.2026", "31.05.2025"],
+            "Прогнозная дата выдачи": ["12.08.2026", "03.08.2026", ""],
+            "Дата выдачи в производство работ": ["12.08.2026", "", "03.05.2026"],
+            "Статус": [
+                "Выдано в производство работ",
+                "Возвращено на доработку",
+                "Выдано в производство работ",
+            ],
+        }
+    )
+    out = _plan_slice_from_detail(detail, _Mod())
+    assert int(out["_forecast_dyn_dt"].notna().sum()) == 2
+    inc = _forecast_month_increments(out, junction=pd.Timestamp("2026-09-01"))
+    assert sum(inc.values()) == 2.0
+    assert pd.Timestamp("2026-08-01") in inc
+    assert pd.Timestamp("2026-09-01") not in inc
+    assert pd.Timestamp("2026-10-01") not in inc
+
+    dyn = [
+        {
+            "period": "2025-05-01",
+            "period_label": "Май 2025",
+            "plan": 198.0,
+            "fact": None,
+            "forecast": None,
+        },
+        {
+            "period": "2026-08-01",
+            "period_label": "Авг 2026",
+            "plan": None,
+            "fact": 167.0,
+            "forecast": None,
+        },
+        {
+            "period": "2026-09-01",
+            "period_label": "Сен 2026",
+            "plan": None,
+            "fact": 170.0,
+            "forecast": None,
+        },
+    ]
+    attached = _attach_forecast_from_fact(dyn, out, today=date(2026, 9, 23))
+    by = {r["period"]: r for r in attached}
+    assert by["2026-08-01"]["forecast"] == 2.0
+    assert by["2026-08-01"]["fact"] == 167.0
+    assert by["2026-09-01"]["forecast"] is None
+    assert by["2026-09-01"]["fact"] == 170.0
+    assert by["2025-05-01"]["forecast"] is None
+    assert by["2025-05-01"]["plan"] == 198.0
+    assert "2026-10-01" not in by
+
+
 def test_build_dynamics_plan_stops_at_last_plan_date() -> None:
     plan_df = pd.DataFrame(
         {
@@ -59,35 +123,32 @@ def test_build_dynamics_plan_stops_at_last_plan_date() -> None:
     assert aug["fact"] == 1.0
 
 
-def test_forecast_uses_august_not_contract_october() -> None:
-    """65-ХСА-1/24: дата MSP/CSV август, не договор октябрь и не комментарий."""
+def test_forecast_survives_when_fact_line_missing() -> None:
+    """Без зелёной рыжая всё равно = 2 в августе."""
     plan_df = pd.DataFrame(
         {
             "_plan_dt": [pd.Timestamp("2026-10-31"), pd.Timestamp("2026-10-31")],
-            "_tessa_production_dt": [pd.Timestamp("2026-08-10"), pd.NaT],
-            "_forecast_dyn_dt": [pd.NaT, pd.Timestamp("2026-08-31")],
+            "_tessa_production_dt": [pd.NaT, pd.NaT],
+            "_forecast_dyn_dt": [
+                pd.Timestamp("2026-08-12"),
+                pd.Timestamp("2026-08-03"),
+            ],
         }
     )
-    inc = _forecast_month_increments(plan_df, junction=pd.Timestamp("2026-08-01"))
-    assert pd.Timestamp("2026-08-01") in inc
-    assert pd.Timestamp("2026-10-01") not in inc
-    assert sum(inc.values()) == 1.0
-
     dyn = [
         {
-            "period": "2026-08-01",
-            "period_label": "Авг 2026",
-            "plan": None,
-            "fact": 167.0,
+            "period": "2025-05-01",
+            "period_label": "Май 2025",
+            "plan": 2.0,
+            "fact": None,
             "forecast": None,
         }
     ]
-    out = _attach_forecast_from_fact(dyn, plan_df, today=date(2026, 9, 22))
+    out = _attach_forecast_from_fact(dyn, plan_df, today=date(2026, 9, 23))
     by = {r["period"]: r for r in out}
-    assert "2026-10-01" not in by
-    assert by["2026-08-01"]["forecast"] == 168.0
-    assert by["2026-08-01"]["plan"] is None
-    assert all(r.get("plan") in (None, 0.0) or r["period"] <= "2026-05-01" for r in out)
+    assert by["2026-08-01"]["forecast"] == 2.0
+    assert by["2025-05-01"]["forecast"] is None
+    assert by["2025-05-01"]["plan"] == 2.0
 
 
 def test_forecast_skips_rows_without_date() -> None:
@@ -100,3 +161,14 @@ def test_forecast_skips_rows_without_date() -> None:
     )
     inc = _forecast_month_increments(plan_df, junction=pd.Timestamp("2026-09-01"))
     assert inc == {}
+    dyn = [
+        {
+            "period": "2026-08-01",
+            "period_label": "Авг 2026",
+            "plan": None,
+            "fact": 167.0,
+            "forecast": None,
+        }
+    ]
+    out = _attach_forecast_from_fact(dyn, plan_df, today=date(2026, 9, 23))
+    assert all(r.get("forecast") is None for r in out)
