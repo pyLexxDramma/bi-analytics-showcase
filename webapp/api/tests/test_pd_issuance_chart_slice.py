@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""График динамики ПД: allowlist родителей, без корректировок, обрыв линий."""
+"""График динамики ПД: allowlist PR #20, без корректировок, обрыв линий."""
 from __future__ import annotations
 
 import pandas as pd
@@ -36,7 +36,7 @@ def test_issuance_stage_allowlist() -> None:
 
 
 def test_issuance_mask_keeps_gas_tz_drops_correction() -> None:
-    """Дмитровский: 19 осн. (в т.ч. ТЗ/ТБЭ) + 3 газ − 18 корр. УДС без шифра не входит."""
+    """PR #20 / report #6: 19 осн. (в т.ч. ТЗ/ТБЭ) + газ; корректировка и УДС без шифра — нет."""
     df = pd.DataFrame(
         {
             "level": [5, 5, 5, 5, 5, 5, 5],

@@ -16,6 +16,8 @@ def test_main_pd_stage_excludes_correction_and_expertise() -> None:
     assert _is_main_pd_stage_only("Проектная документация") is True
     assert _is_main_pd_stage_only("Этап . КОРРЕКТИРОВКА ПРОЕКТНЫХ РАБОТ СТАДИИ П") is False
     assert _is_main_pd_stage_only("Этап . Экспертиза ПД") is False
+    assert _is_main_pd_stage_only("Этап. ПРОЕКТНАЯ И РАБОЧАЯ ДОКУМЕНТАЦИЯ ПО ГАЗОСНАБЖЕНИЮ") is False
+    assert _is_main_pd_stage_only("Этап. ПРИМЫКАНИЕ К УЛИЧНО-ДОРОЖНОЙ СЕТИ") is False
     assert _is_main_pd_stage_only("") is False
 
 

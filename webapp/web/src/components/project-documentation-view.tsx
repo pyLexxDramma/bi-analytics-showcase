@@ -560,6 +560,10 @@ function ProjectDocumentationScreen({
             {(zoomed) => (
               <Card className="rounded-xl">
                 <Title>График Динамика выдачи ПД</Title>
+                <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
+                  Срез выдачи (как KPI и таблица): ур.5 + шифр, этапы осн. ПД / газ / УДС.
+                  ТЗ и ТБЭ входят, корректировки нет.
+                </Text>
                 <div className="mt-4">
                   <PdDynamicsLineChart rows={dynamics} fullscreen={zoomed} />
                 </div>
@@ -821,6 +825,9 @@ function ProjectDocumentationScreen({
             {(zoomed) => (
               <Card className="rounded-xl">
                 <Title>Динамика выдачи ПД по месяцам</Title>
+                <Text className="mt-1 text-xs text-tremor-content dark:text-dark-tremor-content">
+                  Срез «Раздел»: только основная ПД, в названии есть «Раздел». План по базовому окончанию.
+                </Text>
                 <div className="mt-4">
                   <PdMonthlyCumulativeChart rows={monthly} fullscreen={zoomed} />
                 </div>

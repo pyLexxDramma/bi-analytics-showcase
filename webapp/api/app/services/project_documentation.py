@@ -166,9 +166,9 @@ def _is_main_pd_stage_only(stage_name: object) -> bool:
 
 
 def _is_issuance_pd_stage(stage_name: object) -> bool:
-    """Allowlist родителей для графика динамики / KPI / таблицы выдачи.
+    """Allowlist родителей для линейного графика / KPI / таблицы выдачи (PR #20).
 
-    1) «Этап. Проектная документация»
+    1) «Этап. Проектная документация» (ТЗ и ТБЭ входят — без фильтра «Раздел»)
     2) «Этап. ПРОЕКТНАЯ И РАБОЧАЯ ДОКУМЕНТАЦИЯ ПО ГАЗОСНАБЖЕНИЮ»
     3) «Этап. ПРИМЫКАНИЕ К УЛИЧНО-ДОРОЖНОЙ СЕТИ»
     Корректировка и экспертиза — нет.
@@ -200,7 +200,11 @@ def _issuance_row_mask(
     cipher_ok: pd.Series,
     stage_by_index: pd.Series,
 ) -> pd.Series:
-    """Ур.5 + шифр + предок из allowlist (без требования block=ПД и без «Раздел» в имени)."""
+    """Срез #6 / PR #20: ур.5 + шифр + предок из allowlist.
+
+    Линейный график, KPI вкладки, таблица выдачи. ТЗ/ТБЭ и газ входят.
+    Без требования block=ПД и без «Раздел» в имени. Корректировка — нет.
+    """
     idx = level.index
     lv_ok = pd.to_numeric(level, errors="coerce").eq(5).fillna(False)
     ciph = cipher_ok.reindex(idx).fillna(False)
@@ -236,7 +240,7 @@ def _monthly_chart_row_mask(
     stage_by_index: pd.Series,
     name_col: str | None,
 ) -> pd.Series:
-    """Узкий срез tremor.monthly: осн. ПД + «Раздел» в названии (KPI/деталка не трогаем)."""
+    """Срез #4 / Марина: осн. ПД + «Раздел» в названии — только график по месяцам."""
     if df is None or getattr(df, "empty", True):
         return pd.Series(dtype=bool)
     stage = stage_by_index.reindex(df.index).fillna("")
@@ -1079,7 +1083,7 @@ def build_project_documentation_payload(
     tab: str | None = "main",
 ) -> dict[str, Any]:
     cache_key = (
-        f"v27-pd-forecast-from-fact|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
+        f"v28-pd-split-slices|p={project or 'Все'}|s={section or 'Все'}|per={period or ''}"
         f"|g={granularity or 'week'}|d={report_date or ''}|vm={view_mode or 'project'}"
         f"|t={tab or 'main'}|db={WEB_DB_PATH}|mtime={db_status().get('mtime')}"
     )
@@ -1285,7 +1289,7 @@ def build_project_documentation_payload(
         else:
             nec_val = float(nec)
 
-        # Таблица выдачи — тот же срез, что график (allowlist, без корректировок).
+        # Таблица выдачи — тот же срез #6, что линейный график (allowlist, без корректировок).
         tbl_mask = m_sec
         idx_sec = scoped.index[tbl_mask]
         cipher_col = masks.get("cipher_col")
@@ -1463,9 +1467,9 @@ def build_project_documentation_payload(
                 )
 
         monthly: list[dict[str, Any]] = []
-        # Месячная динамика (tremor.monthly) — узкий срез варианта 1:
-        # только осн. «Проектная документация» + «Раздел» в названии, дата = Базовое окончание.
-        # KPI / деталка / просрочка по-прежнему по полным metrics (осн.+корр.+экспертиза).
+        # Срез #4 / Марина — только график «по месяцам», не линейный:
+        # осн. «Проектная документация» + «Раздел» в названии, дата = Базовое окончание.
+        # KPI / выдача / линейный график остаются на allowlist #6.
         month_base = scoped.loc[metrics.fillna(False)].copy() if metrics.any() else scoped.copy()
         if not month_base.empty:
             name_for_monthly = masks.get("name_col")
@@ -1626,7 +1630,7 @@ def build_project_documentation_payload(
                 "files": 0,
                 "doc_kind": "pd",
                 "title": "Проектная документация",
-                "rule": "график/KPI/выдача: ур.5+шифр+allowlist этапов; деталка: block=ПД (осн./корр./экспертиза)",
+                "rule": "линейный/KPI/выдача: ур.5+шифр+allowlist (осн./газ/УДС, ТЗ/ТБЭ, без корр.); monthly: осн.ПД+«Раздел»; деталка: block=ПД (осн./корр./экспертиза)",
                 "parity": "main_project_documentation",
                 "version_id": int(version_id),
                 "error": None,
