@@ -279,6 +279,14 @@ def _project_name_fusion_base(s: str) -> str:
     return t
 
 
+def _series_project_norm_keys(series: pd.Series) -> pd.Series:
+    """Ключи сравнения для колонки: один вызов нормализации на уникальное значение."""
+    if series is None or getattr(series, "empty", True):
+        return series
+    mapping = {v: project_filter_norm_key(v) for v in pd.unique(series)}
+    return series.map(mapping)
+
+
 def project_filter_norm_key(val) -> str:
     """Ключ сравнения названий проекта (пробел/дефис, римские → арабские)."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -474,5 +482,10 @@ def filter_dataframe_by_project_labels(
     keys.discard("")
     if not keys:
         return df.copy()
-    rk = df[col].map(project_filter_norm_key)
-    return df[rk.map(lambda k: _project_norm_key_matches_msp_keys(k, keys))].copy()
+    rk = _series_project_norm_keys(df[col])
+    ok = {
+        k
+        for k in pd.unique(rk.dropna())
+        if _project_norm_key_matches_msp_keys(str(k), keys)
+    }
+    return df.loc[rk.isin(ok)].copy()

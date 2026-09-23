@@ -6124,14 +6124,25 @@ def _deviations_project_slice_by_key(df: pd.DataFrame, state_key: str) -> pd.Dat
     return df.copy() if df is not None else df
 
 
+def _series_project_norm_keys(series: pd.Series) -> pd.Series:
+    from dashboards.project_labels import _series_project_norm_keys as _uniq_keys
+
+    return _uniq_keys(series)
+
+
 def _project_norm_key_filter_mask(series: pd.Series, selected_label) -> pd.Series:
     """True для строк, чей project name совпадает с выбранной подписью (в т.ч. «Дмитровский» / «Дмитровский-1»)."""
     sel_k = _project_filter_norm_key(selected_label)
     if not sel_k:
         return pd.Series(True, index=series.index)
     msp_keys = {sel_k}
-    rk = series.map(_project_filter_norm_key)
-    return rk.map(lambda k: _project_norm_key_matches_msp_keys(k, msp_keys))
+    rk = _series_project_norm_keys(series)
+    ok = {
+        k
+        for k in pd.unique(rk.dropna())
+        if _project_norm_key_matches_msp_keys(str(k), msp_keys)
+    }
+    return rk.isin(ok).fillna(False)
 
 
 def _deviations_filter_df_by_project_name(
@@ -14470,6 +14481,107 @@ def _render_debit_credit_bar_chart(
         _render_dk_chart_html_legend(_leg_items)
 
 
+def _norm_msp_text(v) -> str:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return ""
+    return str(v).replace("\xa0", " ").replace("\u200b", "").replace("\ufeff", "").strip()
+
+
+def _annotate_msp_stage_and_lot(df: pd.DataFrame) -> pd.DataFrame:
+    """Лот и этап ур.2 по дереву MSP. Обход по спискам, без DataFrame.iterrows."""
+    if df is None or getattr(df, "empty", True):
+        return df
+    out = df.copy()
+    task_col = "task name" if "task name" in out.columns else ("Название" if "Название" in out.columns else None)
+    lvl_col = "level structure" if "level structure" in out.columns else ("level" if "level" in out.columns else None)
+    proj_col = "project name" if "project name" in out.columns else None
+    lot_src = "lot" if "lot" in out.columns else ("ЛОТ" if "ЛОТ" in out.columns else None)
+    if task_col is None or lvl_col is None:
+        if "stage_l2" not in out.columns:
+            out["stage_l2"] = ""
+        if "lot_effective" not in out.columns:
+            out["lot_effective"] = out.get(lot_src, "")
+        return out
+
+    sort_col = "task id seq" if "task id seq" in out.columns else ("Ид" if "Ид" in out.columns else None)
+
+    def _process_group(g: pd.DataFrame) -> pd.DataFrame:
+        gg = g
+        if sort_col and sort_col in gg.columns:
+            gg = gg.sort_values(sort_col, key=lambda s: pd.to_numeric(s, errors="coerce"))
+        levels = pd.to_numeric(gg[lvl_col], errors="coerce").to_numpy()
+        tasks = [_norm_msp_text(v) for v in gg[task_col].tolist()]
+        if lot_src and lot_src in gg.columns:
+            lots = [_norm_msp_text(v) for v in gg[lot_src].tolist()]
+        else:
+            lots = [""] * len(gg)
+        n = len(gg)
+        stage_vals = [""] * n
+        lot_vals = [""] * n
+        stack_task: dict[int, str] = {}
+        stack_lot: dict[int, str] = {}
+        for i in range(n):
+            lv = levels[i]
+            try:
+                lvi = int(lv)
+            except Exception:
+                lvi = -1
+            if lvi > 0:
+                for k in list(stack_task.keys()):
+                    if k >= lvi:
+                        del stack_task[k]
+                for k in list(stack_lot.keys()):
+                    if k >= lvi:
+                        del stack_lot[k]
+            tname = tasks[i]
+            lot_here = lots[i]
+            stage_vals[i] = tname if (lvi == 2 and tname) else stack_task.get(2, "")
+            lot_vals[i] = lot_here if lot_here else (
+                stack_lot.get(2, "") or stack_lot.get(3, "") or stack_lot.get(1, "")
+            )
+            if lvi > 0 and tname:
+                stack_task[lvi] = tname
+            if lvi > 0 and lot_here:
+                stack_lot[lvi] = lot_here
+        gg = gg.copy()
+        gg["stage_l2"] = stage_vals
+        gg["lot_effective"] = lot_vals
+        return gg
+
+    if proj_col and proj_col in out.columns:
+        parts = [
+            _process_group(g)
+            for _, g in out.groupby(out[proj_col].astype(str), sort=False)
+        ]
+        return pd.concat(parts, axis=0) if parts else out
+    return _process_group(out)
+
+
+_MSP_STAGE_LOT_CACHE: dict[tuple, pd.DataFrame] = {}
+
+
+def _memo_msp_stage_lot(df: pd.DataFrame) -> pd.DataFrame:
+    """Один проход по дереву MSP на версию данных; смена фильтра его не повторяет."""
+    if df is None or getattr(df, "empty", True):
+        return df
+    try:
+        from web_db_read import web_db_mtime
+
+        mtime = web_db_mtime()
+    except Exception:
+        mtime = 0.0
+    sig = (float(mtime), int(df.shape[0]), int(df.shape[1]))
+    cached = _MSP_STAGE_LOT_CACHE.get(sig)
+    if isinstance(cached, pd.DataFrame):
+        return cached.copy()
+    built = _annotate_msp_stage_and_lot(df)
+    if isinstance(built, pd.DataFrame):
+        _MSP_STAGE_LOT_CACHE.clear()
+        _MSP_STAGE_LOT_CACHE[sig] = built
+        return built.copy()
+    return built
+
+
 def dashboard_budget_by_period(df):
 
     from dashboards.finance_from_1c import resolve_reference_1c_dannye
@@ -14478,96 +14590,8 @@ def dashboard_budget_by_period(df):
     if _bdds_ref_boot is not None and not _bdds_ref_boot.empty:
         st.session_state["reference_1c_dannye"] = _bdds_ref_boot
 
-    def _derive_bdds_dimensions(_df: pd.DataFrame) -> pd.DataFrame:
-        """
-        ТЗ БДДС:
-        - Лот: брать из MSP и прокидывать на дочерние задачи.
-        - Этап: название задачи уровня 2.
-        """
-        if _df is None or getattr(_df, "empty", True):
-            return _df
-        out = _df.copy()
-        task_col = "task name" if "task name" in out.columns else ("Название" if "Название" in out.columns else None)
-        lvl_col = "level structure" if "level structure" in out.columns else ("level" if "level" in out.columns else None)
-        proj_col = "project name" if "project name" in out.columns else None
-        lot_src = (
-            "lot" if "lot" in out.columns else ("ЛОТ" if "ЛОТ" in out.columns else None)
-        )
-        if task_col is None or lvl_col is None:
-            if "stage_l2" not in out.columns:
-                out["stage_l2"] = ""
-            if "lot_effective" not in out.columns:
-                out["lot_effective"] = out.get(lot_src, "")
-            return out
-
-        if "task id seq" in out.columns:
-            sort_col = "task id seq"
-        elif "Ид" in out.columns:
-            sort_col = "Ид"
-        else:
-            sort_col = None
-
-        def _norm_text(v):
-            if v is None or (isinstance(v, float) and pd.isna(v)):
-                return ""
-            return str(v).replace("\xa0", " ").replace("\u200b", "").replace("\ufeff", "").strip()
-
-        def _process_group(g: pd.DataFrame) -> pd.DataFrame:
-            gg = g.copy()
-            if sort_col and sort_col in gg.columns:
-                gg = gg.sort_values(sort_col, key=lambda s: pd.to_numeric(s, errors="coerce")).copy()
-            stage_vals = []
-            lot_vals = []
-            stack_task = {}
-            stack_lot = {}
-            for _, r in gg.iterrows():
-                lv = pd.to_numeric(r.get(lvl_col), errors="coerce")
-                try:
-                    lvi = int(lv)
-                except Exception:
-                    lvi = -1
-                if lvi > 0:
-                    for k in list(stack_task.keys()):
-                        if k >= lvi:
-                            del stack_task[k]
-                    for k in list(stack_lot.keys()):
-                        if k >= lvi:
-                            del stack_lot[k]
-
-                tname = _norm_text(r.get(task_col))
-                lot_here = _norm_text(r.get(lot_src)) if lot_src else ""
-                if lvi == 2 and tname:
-                    stage = tname
-                else:
-                    stage = stack_task.get(2, "")
-
-                if lot_here:
-                    lot_eff = lot_here
-                else:
-                    lot_eff = stack_lot.get(2, "") or stack_lot.get(3, "") or stack_lot.get(1, "")
-
-                stage_vals.append(stage)
-                lot_vals.append(lot_eff)
-
-                if lvi > 0 and tname:
-                    stack_task[lvi] = tname
-                if lvi > 0 and lot_here:
-                    stack_lot[lvi] = lot_here
-            gg["stage_l2"] = stage_vals
-            gg["lot_effective"] = lot_vals
-            return gg
-
-        if proj_col and proj_col in out.columns:
-            parts = []
-            for _, g in out.groupby(out[proj_col].astype(str), sort=False):
-                parts.append(_process_group(g))
-            out = pd.concat(parts, axis=0)
-        else:
-            out = _process_group(out)
-        return out
-
     # Сетка фильтров; чекбоксы — после фильтров (П.9)
-    df = _derive_bdds_dimensions(df)
+    df = _memo_msp_stage_lot(df)
     if "project name" in df.columns:
         df = _project_column_apply_canonical(df, "project name")
 
@@ -16400,8 +16424,7 @@ def dashboard_bdr(df):
         return s
 
     def _derive_bdr_dimensions(_df: pd.DataFrame) -> pd.DataFrame:
-        if _df is None or getattr(_df, "empty", True):
-            return _df
+        return _memo_msp_stage_lot(_df)
         out = _df.copy()
         task_col = "task name" if "task name" in out.columns else ("Название" if "Название" in out.columns else None)
         lvl_col = "level structure" if "level structure" in out.columns else ("level" if "level" in out.columns else None)

@@ -760,7 +760,9 @@ def period_date_range_input(
         if start is None or end is None:
             ss.pop(key, None)
         else:
-            ss[key] = (start, end)
+            new_pair = (start, end)
+            if ss.get(key) != new_pair:
+                ss[key] = new_pair
     if default is not None:
         default = _clamp_date_range_pair(default, min_value, max_value)
         if default[0] is None or default[1] is None:

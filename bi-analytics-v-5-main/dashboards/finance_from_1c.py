@@ -1456,23 +1456,6 @@ def resolve_reference_1c_dannye(
                 return loaded
     except Exception:
         pass
-    try:
-        from web_loader import (
-            _load_1c_json_spravochniki,
-            pick_latest_snapshot_files,
-            scan_web_files,
-        )
-
-        files, _ = pick_latest_snapshot_files(scan_web_files(extensions=(".json",)))
-        for fi in reversed(files):
-            if not str(fi.get("name", "")).lower().endswith(".json"):
-                continue
-            probe = _load_1c_json_spravochniki(fi["path"])
-            if probe is not None and not probe.empty:
-                st.session_state["reference_1c_dannye"] = probe
-                return probe
-    except Exception:
-        pass
     return None
 
 
