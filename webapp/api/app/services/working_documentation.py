@@ -836,23 +836,17 @@ def _forecast_date_series(plan_df: pd.DataFrame) -> pd.Series:
 
 
 def _forecast_month_increments(
-    plan_df: pd.DataFrame, *, junction: pd.Timestamp
+    plan_df: pd.DataFrame, *, junction: pd.Timestamp | None = None
 ) -> dict[pd.Timestamp, float]:
-    """Не выданные разделы → прирост по прогнозной дате MSP/CSV. Без fallback на договор."""
+    """Все строки с явной прогнозной датой, в их месяце. Без clamp к факту и без договора."""
+    del junction
     if plan_df is None or plan_df.empty:
         return {}
-    df = plan_df
-    if "_tessa_production_dt" in df.columns:
-        issued = pd.to_datetime(df["_tessa_production_dt"], errors="coerce")
-    else:
-        issued = pd.Series(pd.NaT, index=df.index)
-    fcst = _forecast_date_series(df)
-    rem = issued.isna() & fcst.notna()
-    if not rem.any():
+    fcst = _forecast_date_series(plan_df)
+    mask = fcst.notna()
+    if not mask.any():
         return {}
-    jn = pd.Timestamp(junction).to_period("M").to_timestamp()
-    months = fcst.loc[rem].dt.to_period("M").dt.to_timestamp()
-    months = months.where(months >= jn, jn)
+    months = fcst.loc[mask].dt.to_period("M").dt.to_timestamp()
     return {pd.Timestamp(k): float(v) for k, v in months.value_counts().items()}
 
 
@@ -862,25 +856,14 @@ def _attach_forecast_from_fact(
     *,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Рыжая = число невыданных с явной прогнозной датой. Не fact+N и не договор."""
+    """Рыжая = число строк с явной прогнозной датой в их месяце. Не fact+N."""
     del today
-    last_fact_d: pd.Timestamp | None = None
-    for row in dynamics:
-        if row.get("fact") is None:
-            continue
-        try:
-            d = pd.Timestamp(str(row["period"])[:10]).normalize()
-        except Exception:
-            continue
-        last_fact_d = d
-    junction = last_fact_d if last_fact_d is not None else pd.Timestamp("1970-01-01")
-    increments = _forecast_month_increments(plan_df, junction=junction)
+    increments = _forecast_month_increments(plan_df)
     if not increments:
         return [{**r, "forecast": None} for r in dynamics]
 
-    if last_fact_d is None:
-        junction = min(increments)
-
+    first_inc = min(increments)
+    last_inc = max(increments)
     by_period: dict[str, dict[str, Any]] = {
         str(r["period"])[:10]: dict(r) for r in dynamics
     }
@@ -895,20 +878,14 @@ def _attach_forecast_from_fact(
                 "forecast": None,
             }
 
-    last_inc = max(increments)
     ordered = sorted(by_period.values(), key=lambda r: str(r["period"])[:10])
     for r in ordered:
         d = pd.Timestamp(str(r["period"])[:10]).normalize()
-        if d < junction or d > last_inc:
+        if d < first_inc or d > last_inc:
             r["forecast"] = None
             continue
         cum_inc = sum(float(v) for m, v in increments.items() if pd.Timestamp(m) <= d)
-        if cum_inc <= 0:
-            r["forecast"] = None
-            continue
-        r["forecast"] = float(round(cum_inc))
-        if last_fact_d is not None and d > last_fact_d:
-            r["fact"] = None
+        r["forecast"] = float(round(cum_inc)) if cum_inc > 0 else None
     return ordered
 
 
@@ -1264,7 +1241,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v44-rd-forecast-remaining-dated",
+            "v45-rd-forecast-dated-month",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
