@@ -236,19 +236,34 @@ def create_bug_report_card(
     card_url = str(data.get("url", "") or data.get("shortUrl", ""))
     if not card_id:
         raise ValueError("Trello returned empty card id")
+    # urllib3 держит connect-timeout на сокете, пока тело ещё уходит.
+    # 3 с хватает на крошечный файл и обрывает обычный скриншот.
+    upload_timeout = (120.0, 120.0)
     for filename, content, mime in _normalize_attachments(attachment, attachments):
-        try:
-            requests.post(
-                f"{TRELLO_API}/cards/{card_id}/attachments",
-                params=_auth_params(settings),
-                files={"file": (filename, content, mime or "application/octet-stream")},
-                timeout=(3.0, 30.0),
-            ).raise_for_status()
-        except requests.RequestException as exc:
+        last_error: Exception | None = None
+        for attempt in range(1, 3):
+            try:
+                requests.post(
+                    f"{TRELLO_API}/cards/{card_id}/attachments",
+                    params=_auth_params(settings),
+                    files={"file": (filename, content, mime or "application/octet-stream")},
+                    timeout=upload_timeout,
+                ).raise_for_status()
+                last_error = None
+                break
+            except requests.RequestException as exc:
+                last_error = exc
+                logger.warning(
+                    "bug_report Trello attachment failed for %s (%s) attempt %s: %s",
+                    card_id,
+                    filename,
+                    attempt,
+                    exc,
+                )
+        if last_error is not None:
             logger.warning(
-                "bug_report Trello attachment failed for %s (%s): %s",
+                "bug_report Trello attachment gave up for %s (%s)",
                 card_id,
                 filename,
-                exc,
             )
     return TrelloCardResult(card_id=card_id, card_url=card_url)
