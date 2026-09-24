@@ -111,3 +111,21 @@ jobs:
           BUG_REPORT_SMTP_SSL: ${{ secrets.BUG_REPORT_SMTP_SSL }}
           BUG_REPORT_TELEGRAM_BOT_TOKEN: ${{ secrets.BUG_REPORT_TELEGRAM_BOT_TOKEN }}
           BUG_REPORT_SYNC_KEY: ${{ secrets.BUG_REPORT_SYNC_KEY }}
+
+  filter-speed:
+    needs: deploy-prod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Filter code still avoids the slow path
+        run: python tools/check_report_filter_speed.py --static
+      - name: Time project and period filters on ai.conall.ru
+        env:
+          REPORT_PASSWORD: ${{ secrets.REPORT_PASSWORD }}
+          REPORT_USER: admin
+          REPORT_BASE_URL: https://ai.conall.ru
+          REPORT_SLOW_SEC: "10"
+        run: python tools/check_report_filter_speed.py --live
