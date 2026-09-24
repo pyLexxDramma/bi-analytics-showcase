@@ -369,7 +369,7 @@ def build_gdrs_payload(
     # поэтому результат кэшируем на диск, как у остальных отчётов.
     cache_key = "|".join(
         [
-            "v1",
+            "v2",
             f"kind={resource_kind}",
             f"projects={projects or ''}",
             f"contractors={contractors or ''}",
@@ -487,14 +487,19 @@ def build_gdrs_payload(
         else g.gdrs_agg_label_to_key(skud_lbl)
     )
 
-    # График динамики остаётся контекстом месяца: дневной режим на него не влияет
-    # (выбранный день подсвечивается на фронте), недельный — как раньше.
-    _dyn_plan_agg = g.GDRS_AGG_MONTH if plan_day_ts is not None else _plan_agg
-    _dyn_skud_agg = g.GDRS_AGG_MONTH if skud_day_ts is not None else _skud_agg
-
     dyn_lbl = (dyn_agg or "").strip() or "День"
     if dyn_lbl not in _DYN_OPTS:
         dyn_lbl = "День"
+
+    # Дневная группировка: ключи как у таблицы (в т.ч. day:YYYY-MM-DD) → matching series.
+    # Неделя/месяц при выбранном «За день» в таблице — по-прежнему month_avg
+    # (недельный/месячный ряд не должен переключаться на дневные ключи).
+    if dyn_lbl == "День":
+        _dyn_plan_agg = _plan_agg
+        _dyn_skud_agg = _skud_agg
+    else:
+        _dyn_plan_agg = g.GDRS_AGG_MONTH if plan_day_ts is not None else _plan_agg
+        _dyn_skud_agg = g.GDRS_AGG_MONTH if skud_day_ts is not None else _skud_agg
 
     # Контрагенты: fact ∩ 1С_Kontr ∪ plan ∩ 1С_Kontr.
     contractor_options: list[str] = []
@@ -837,21 +842,143 @@ def build_gdrs_payload(
         dyn_from = date_from.normalize() if pd.notna(date_from) else pd.Timestamp.today().normalize()
         dyn_to = date_to.normalize() if pd.notna(date_to) else dyn_from
         try:
-            dyn = g.gdrs_dynamics_build_series(
-                fact_dyn,
-                dyn_from,
-                dyn_to,
-                dyn_lbl,
-                [],
-                [],
-                uniq_pairs,
-                plan_col,
-                plan_aggregate_loader=_plan_loader,
-                month_periods=sel_periods,
-                term_index=term_index,
-                plan_agg=_dyn_plan_agg,
-                skud_agg=_dyn_skud_agg,
+            _month_avg_both = (
+                g.gdrs_agg_week_num(_dyn_plan_agg) is None
+                and g.gdrs_agg_day_date(_dyn_plan_agg) is None
+                and g.gdrs_agg_week_num(_dyn_skud_agg) is None
+                and g.gdrs_agg_day_date(_dyn_skud_agg) is None
             )
+            if dyn_lbl == "День":
+                # Каждая точка = Итого таблицы, если выбрать этот день как план и СКУД.
+                dyn = g.gdrs_dynamics_build_day_series_matching_table(
+                    fact_dyn if not fact_dyn.empty else long_fact_period,
+                    dyn_from,
+                    dyn_to,
+                    vid=vid,
+                    plan_col=plan_col,
+                    plan_aggregate_loader=_plan_loader,
+                    projects=sel_projects or None,
+                    contractors=sel_contractors or None,
+                    kontr_index=kontr_index,
+                    term_index=term_index,
+                    month_periods=sel_periods,
+                    only_with_plan=only_plan,
+                )
+            elif dyn_lbl == "Месяц" and _month_avg_both:
+                # Точка месяца = Итого build_main_table за этот месяц (не среднее дневных).
+                month_totals: list[dict[str, Any]] = []
+                _periods = list(sel_periods) if sel_periods else []
+                _single_month = (
+                    len(_periods) == 1
+                    and g._gdrs_single_calendar_month(dyn_from, dyn_to)
+                )
+                if _single_month:
+                    month_totals.append(
+                        {
+                            "period": _periods[0],
+                            "plan": int(kpis["plan"]),
+                            "fact": int(kpis["fact"]),
+                        }
+                    )
+                else:
+                    for _per in _periods:
+                        m_lo = max(dyn_from, pd.Timestamp(_per.start_time).normalize())
+                        m_hi = min(dyn_to, pd.Timestamp(_per.end_time).normalize())
+                        if m_hi < m_lo:
+                            continue
+                        _wp_by_week: dict[int, pd.DataFrame] = {}
+                        _wp_as_of: dict[int, pd.Timestamp] = {}
+                        if g.gdrs_matrix_show_week_columns(
+                            g.GDRS_AGG_MONTH,
+                            g.GDRS_AGG_MONTH,
+                            date_from=m_lo,
+                            date_to=m_hi,
+                        ):
+                            for wn in g.gdrs_week_numbers_in_period(m_lo, m_hi):
+                                w_end = g.week_end_in_filtered_fact(
+                                    long_fact_period,
+                                    vid=vid,
+                                    date_from=m_lo,
+                                    date_to=m_hi,
+                                    week_num=wn,
+                                    projects=sel_projects or None,
+                                    contractors=sel_contractors or None,
+                                )
+                                if w_end is None or not pd.notna(w_end):
+                                    continue
+                                _wp_as_of[wn] = pd.Timestamp(w_end).normalize()
+                                _wp_by_week[wn] = _plan_loader(_wp_as_of[wn])
+                        _m_snap = g.gdrs_plan_snapshot_date(
+                            long_fact_period,
+                            vid=vid,
+                            date_from=m_lo,
+                            date_to=m_hi,
+                            plan_agg=g.GDRS_AGG_MONTH,
+                            projects=sel_projects or None,
+                            contractors=sel_contractors or None,
+                        )
+                        _m_plan = _plan_loader(pd.Timestamp(_m_snap).normalize())
+                        _m_table = g.build_main_table(
+                            long_fact_period,
+                            _m_plan,
+                            vid=vid,
+                            date_from=m_lo,
+                            date_to=m_hi,
+                            projects=sel_projects or None,
+                            contractors=sel_contractors or None,
+                            only_with_plan=only_plan,
+                            article_by_contract_norm=by_dog or None,
+                            article_sig_pc_sets=by_sig_pc or None,
+                            article_sig_sets=by_sig or None,
+                            article_by_project_contractor=by_pc or None,
+                            article_pc_sets=by_pc_sets or None,
+                            plan_agg=g.GDRS_AGG_MONTH,
+                            skud_agg=g.GDRS_AGG_MONTH,
+                            weekly_plan_by_week=_wp_by_week or None,
+                            weekly_plan_as_of=_wp_as_of or None,
+                            kontr_index=kontr_index,
+                            term_index=term_index,
+                            plan_as_of=pd.Timestamp(_m_snap).normalize(),
+                            plan_aggregate_loader=_plan_loader,
+                            resursi_all_fact=long_fact,
+                            dogovor_records=dog_records,
+                        )
+                        if _m_table is None or _m_table.empty:
+                            month_totals.append(
+                                {"period": _per, "plan": 0, "fact": 0}
+                            )
+                            continue
+                        _m_gt = _m_table[_m_table["row_kind"] == "grand_total"]
+                        if _m_gt.empty:
+                            month_totals.append(
+                                {"period": _per, "plan": 0, "fact": 0}
+                            )
+                        else:
+                            _mr = _m_gt.iloc[0]
+                            month_totals.append(
+                                {
+                                    "period": _per,
+                                    "plan": int(round(_num(_mr.get("plan")))),
+                                    "fact": int(round(_num(_mr.get("skud")))),
+                                }
+                            )
+                dyn = g.gdrs_dynamics_month_points_from_table_totals(month_totals)
+            else:
+                dyn = g.gdrs_dynamics_build_series(
+                    fact_dyn,
+                    dyn_from,
+                    dyn_to,
+                    dyn_lbl,
+                    [],
+                    [],
+                    uniq_pairs,
+                    plan_col,
+                    plan_aggregate_loader=_plan_loader,
+                    month_periods=sel_periods,
+                    term_index=term_index,
+                    plan_agg=_dyn_plan_agg,
+                    skud_agg=_dyn_skud_agg,
+                )
         except Exception:
             dyn = pd.DataFrame()
 
