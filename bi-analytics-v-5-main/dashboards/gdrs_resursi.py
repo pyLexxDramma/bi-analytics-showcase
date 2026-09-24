@@ -3394,7 +3394,13 @@ def gdrs_dynamics_bucket_snapshot_end(
     date_from: Optional[pd.Timestamp] = None,
     date_to: Optional[pd.Timestamp] = None,
 ) -> pd.Timestamp:
-    """Конец периода группировки (неделя/месяц/год) для snapshot плана из 1С."""
+    """Срез плана для gdrs_dynamics_build_series (неделя/месяц и внутренние дни бакета).
+
+    Для kind «день» внутри бакета — конец календарной недели периода (как раньше):
+    все дни недели дают один и тот же week-end snapshot. Дневной ряд, совпадающий
+    с Итого таблицы, грузит план на календарный день сам
+    (gdrs_dynamics_build_day_series_matching_table) и этот helper не использует.
+    """
     b = pd.Timestamp(bucket_start).normalize()
     end = pd.Timestamp(period_end).normalize()
     lo = pd.Timestamp(date_from).normalize() if date_from is not None else None
@@ -3421,6 +3427,275 @@ def gdrs_dynamics_bucket_snapshot_end(
     else:
         snap = b
     return min(pd.Timestamp(snap).normalize(), end)
+
+
+def _gdrs_day_mode_grand_plan_fact(
+    fact: pd.DataFrame,
+    fact_id_pick: pd.DataFrame,
+    day: pd.Timestamp,
+    plan_df: pd.DataFrame,
+    plan_col: str,
+    *,
+    projects: Optional[list[str]] = None,
+    contractors: Optional[list[str]] = None,
+    kontr_index: Optional[GdrsKontrIndex] = None,
+    term_index: Optional[GdrsTerminationIndex] = None,
+    only_with_plan: bool = False,
+) -> tuple[int, int]:
+    """План/факт «Итого» за один календарный день — та же логика пар и округления, что build_main_table."""
+    pair_cols = ["_gk_proj", "_gk_ctr"]
+    day = pd.Timestamp(day).normalize()
+    plan_work = plan_df.copy() if plan_df is not None and not plan_df.empty else pd.DataFrame()
+    if not plan_work.empty:
+        plan_work = _gdrs_add_pair_keys(plan_work, kontr_index, dedupe_fact=False)
+        plan_work = gdrs_drop_excluded_contractors(plan_work)
+
+    by_id, by_id_name, by_norm = _build_plan_lookup(plan_work, plan_col)
+    id_pick = fact_id_pick.copy() if fact_id_pick is not None and not fact_id_pick.empty else pd.DataFrame(
+        columns=pair_cols + ["project_name", "contractor_name", "project_id", "contractor_id"]
+    )
+
+    plan_pairs_df = _filter_plan_slice(plan_work, projects, contractors)
+    if plan_pairs_df is not None and not plan_pairs_df.empty:
+        plan_pairs_df = plan_pairs_df.copy()
+        if "_gk_proj" not in plan_pairs_df.columns:
+            plan_pairs_df = _gdrs_add_pair_keys(plan_pairs_df, kontr_index, dedupe_fact=False)
+        try:
+            from dashboards.project_labels import apply_unified_project_column
+
+            plan_pairs_df = apply_unified_project_column(plan_pairs_df, "project_name")
+        except Exception:
+            pass
+        if plan_col in plan_pairs_df.columns:
+            plan_pairs_df["_plan_val"] = pd.to_numeric(
+                plan_pairs_df[plan_col], errors="coerce"
+            ).fillna(0.0)
+            plan_pairs_df = plan_pairs_df[plan_pairs_df["_plan_val"] > 0]
+        if kontr_index is not None and not plan_pairs_df.empty:
+            plan_pairs_df = plan_pairs_df[
+                plan_pairs_df.apply(
+                    lambda r: gdrs_contractor_in_kontr(
+                        str(r.get("contractor_id", "")),
+                        str(r.get("contractor_name", "")),
+                        kontr_index,
+                    ),
+                    axis=1,
+                )
+            ]
+        if not plan_pairs_df.empty:
+            plan_ids = (
+                plan_pairs_df.groupby(pair_cols, dropna=False)
+                .agg(
+                    project_name=("project_name", _first_nonempty),
+                    contractor_name=("contractor_name", _first_nonempty),
+                    project_id=("project_id", _first_nonempty),
+                    contractor_id=("contractor_id", _first_nonempty),
+                )
+                .reset_index()
+            )
+            id_pick = pd.concat([id_pick, plan_ids], ignore_index=True)
+            id_pick = id_pick.sort_values(pair_cols, kind="mergesort").drop_duplicates(
+                subset=pair_cols, keep="first"
+            )
+
+    if id_pick is None or id_pick.empty:
+        return 0, 0
+
+    day_fact = fact
+    if fact is not None and not fact.empty and "date" in fact.columns:
+        day_fact = fact[fact["date"].dt.normalize() == day]
+    skud_map: dict[tuple, float] = {}
+    if day_fact is not None and not day_fact.empty:
+        day_sum = (
+            day_fact.groupby(pair_cols, dropna=False)["fact"]
+            .sum()
+            .reset_index(name="skud_raw")
+        )
+        for _, r in day_sum.iterrows():
+            skud_map[(str(r["_gk_proj"]).strip(), str(r["_gk_ctr"]).strip())] = float(
+                r["skud_raw"]
+            )
+
+    rows = id_pick.copy()
+    plans: list[float] = []
+    skuds: list[float] = []
+    for _, r in rows.iterrows():
+        key = (str(r["_gk_proj"]).strip(), str(r["_gk_ctr"]).strip())
+        plans.append(
+            float(
+                _lookup_plan(
+                    str(r.get("project_id", "")),
+                    str(r.get("contractor_id", "")),
+                    str(r.get("project_name", "")),
+                    str(r.get("contractor_name", "")),
+                    by_id,
+                    by_id_name,
+                    by_norm,
+                    as_of_date=day,
+                    term_index=term_index,
+                )
+            )
+        )
+        skuds.append(round(float(skud_map.get(key, 0.0))))
+    rows["plan"] = plans
+    rows["skud"] = skuds
+    rows["row_kind"] = "row"
+    for w in ("w1", "w2", "w3", "w4", "w5", "w6", "p1", "p2", "p3", "p4", "p5", "p6"):
+        rows[w] = 0.0
+
+    rows = _gdrs_collapse_rows_by_contractor_key(rows, kontr_index)
+    rows = _gdrs_resolve_contractor_display(rows, kontr_index)
+    rows = rows.drop(columns=["_gk_proj", "_gk_ctr"], errors="ignore")
+    rows = gdrs_apply_kontr_plan_gate(
+        rows, kontr_index, term_index=term_index, plan_as_of=day
+    )
+    rows = gdrs_drop_excluded_contractors(rows)
+    if only_with_plan:
+        rows = rows[rows["plan"] > 0].copy()
+    if rows.empty:
+        return 0, 0
+    rows = rows[(rows["plan"] > 0) | (rows["skud"] > 0)].copy()
+    if rows.empty:
+        return 0, 0
+    return int(round(float(rows["plan"].sum()))), int(round(float(rows["skud"].sum())))
+
+
+def gdrs_dynamics_build_day_series_matching_table(
+    long_fact: pd.DataFrame,
+    date_from: pd.Timestamp,
+    date_to: pd.Timestamp,
+    *,
+    vid: str,
+    plan_col: str,
+    plan_aggregate_loader,
+    projects: Optional[list[str]] = None,
+    contractors: Optional[list[str]] = None,
+    kontr_index: Optional[GdrsKontrIndex] = None,
+    term_index: Optional[GdrsTerminationIndex] = None,
+    month_periods: Optional[Iterable[pd.Period]] = None,
+    only_with_plan: bool = False,
+) -> pd.DataFrame:
+    """Дневной ряд динамики: каждая точка = Итого таблицы, если выбрать этот день как план и СКУД.
+
+    Один проход по дням с общим кэшем plan_aggregate_loader; без повторных build_main_table.
+    """
+    dyn_from = pd.Timestamp(date_from).normalize()
+    dyn_to = pd.Timestamp(date_to).normalize()
+    fact = _filter_fact_slice(
+        long_fact,
+        vid=vid,
+        date_from=dyn_from,
+        date_to=dyn_to,
+        projects=projects,
+        contractors=contractors,
+    )
+    fact = _gdrs_add_pair_keys(fact, kontr_index, dedupe_fact=True)
+    fact = gdrs_drop_excluded_contractors(fact)
+    fact = gdrs_filter_fact_kontr_intersection(fact, kontr_index)
+    _skud_as_of = gdrs_skud_as_of(dyn_to, fact)
+    if fact is not None and not fact.empty and "date" in fact.columns:
+        fact = fact.copy()
+        fact["date"] = pd.to_datetime(fact["date"], errors="coerce")
+        fact = fact[fact["date"].notna() & (fact["date"].dt.normalize() <= _skud_as_of)]
+
+    pair_cols = ["_gk_proj", "_gk_ctr"]
+    if fact is not None and not fact.empty:
+        fact_id_pick = (
+            fact.groupby(pair_cols, dropna=False)
+            .agg(
+                project_name=("project_name", _first_nonempty),
+                contractor_name=("contractor_name", _first_nonempty),
+                project_id=("project_id", _first_nonempty),
+                contractor_id=("contractor_id", _first_nonempty),
+            )
+            .reset_index()
+        )
+    else:
+        fact_id_pick = pd.DataFrame(
+            columns=pair_cols + ["project_name", "contractor_name", "project_id", "contractor_id"]
+        )
+        fact = pd.DataFrame(
+            columns=[
+                "project_id",
+                "project_name",
+                "contractor_id",
+                "contractor_name",
+                "date",
+                "fact",
+                "_gk_proj",
+                "_gk_ctr",
+            ]
+        )
+
+    grid = pd.DataFrame({"bucket": gdrs_dynamics_bucket_starts(dyn_from, dyn_to, "День")})
+    if month_periods:
+        _mset = set(month_periods)
+        grid = grid[grid["bucket"].dt.to_period("M").isin(_mset)].reset_index(drop=True)
+
+    plan_cache: dict[pd.Timestamp, pd.DataFrame] = {}
+    plans: list[int] = []
+    facts: list[int] = []
+    for bkt in grid["bucket"]:
+        day = pd.Timestamp(bkt).normalize()
+        if day not in plan_cache:
+            plan_cache[day] = plan_aggregate_loader(day)
+        p_tot, f_tot = _gdrs_day_mode_grand_plan_fact(
+            fact,
+            fact_id_pick,
+            day,
+            plan_cache[day],
+            plan_col,
+            projects=projects,
+            contractors=contractors,
+            kontr_index=kontr_index,
+            term_index=term_index,
+            only_with_plan=only_with_plan,
+        )
+        plans.append(p_tot)
+        facts.append(f_tot)
+
+    dyn = grid.copy()
+    dyn["План"] = plans
+    dyn["Факт"] = facts
+    dyn["x_label"] = [
+        gdrs_dynamics_bucket_display_label(
+            b, "День", date_from=dyn_from, date_to=dyn_to
+        )
+        for b in dyn["bucket"]
+    ]
+    dyn["Период"] = dyn["x_label"]
+    return dyn
+
+
+def gdrs_dynamics_month_points_from_table_totals(
+    month_totals: Iterable[dict],
+) -> pd.DataFrame:
+    """Сетка динамики «Месяц» из уже посчитанных Итого таблицы (план/факт по месяцу).
+
+    Каждый элемент: period (Period|Timestamp), plan (int), fact (int).
+    Не усредняет дневной ряд — daily mean ≠ недельное среднее таблицы.
+    """
+    rows: list[dict] = []
+    for item in month_totals:
+        per = item.get("period")
+        if isinstance(per, pd.Period):
+            bucket = pd.Timestamp(per.start_time).normalize()
+            label = f"{per.month:02d}.{per.year}"
+        else:
+            bucket = pd.Timestamp(per).normalize()
+            label = f"{bucket.month:02d}.{bucket.year}"
+        rows.append(
+            {
+                "bucket": bucket,
+                "План": int(item.get("plan") or 0),
+                "Факт": int(item.get("fact") or 0),
+                "x_label": label,
+                "Период": label,
+            }
+        )
+    if not rows:
+        return pd.DataFrame(columns=["bucket", "План", "Факт", "x_label", "Период"])
+    return pd.DataFrame(rows)
 
 
 def gdrs_dynamics_plan_total_for_pairs(
