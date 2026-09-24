@@ -53,6 +53,7 @@ import {
   isIdentityCol,
   parseSortableNumber,
 } from "@/lib/deviation-cell-style";
+import { compareSortEntries } from "@/lib/table-sort-compare";
 import { useIsMobileViewport } from "@/lib/use-is-mobile";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
@@ -91,19 +92,6 @@ function deviationClass(value: number | null | undefined): string {
   return value < 0
     ? "font-semibold text-[hsl(348,100%,45%)] dark:text-[#ff5454]"
     : "font-semibold text-[#15803d] dark:text-[#46d68a]";
-}
-
-function compareVal(a: unknown, b: unknown): number {
-  if (a == null && b == null) return 0;
-  if (a == null || a === "" || a === "—") return 1;
-  if (b == null || b === "" || b === "—") return -1;
-  const na = parseSortableNumber(a);
-  const nb = parseSortableNumber(b);
-  if (na != null && nb != null) return na - nb;
-  return String(a).localeCompare(String(b), "ru", {
-    numeric: true,
-    sensitivity: "base",
-  });
 }
 
 function highlightFromDays(
@@ -219,10 +207,9 @@ function DetailTable({
   const sortedRows = useMemo(() => {
     if (!sort) return rows;
     const copy = [...rows];
-    copy.sort((a, b) => {
-      const cmp = compareVal(a[sort.key], b[sort.key]);
-      return sort.asc ? cmp : -cmp;
-    });
+    copy.sort((a, b) =>
+      compareSortEntries(a[sort.key], b[sort.key], sort.asc),
+    );
     return copy;
   }, [rows, sort]);
 

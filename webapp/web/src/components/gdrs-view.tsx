@@ -58,6 +58,7 @@ import {
 import { useRefreshTick } from "@/lib/refresh-context";
 import { ChartTableSyncProvider, SyncTableRow } from "@/lib/chart-table-sync";
 import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
+import { compareSortEntries } from "@/lib/table-sort-compare";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
 
 type ResourceKind = "people" | "equipment";
@@ -303,28 +304,6 @@ function deviationStyle(num: number | null | undefined, dark = false) {
     : { backgroundColor: "rgba(248,113,113,0.28)", color: "#b91c1c" };
 }
 
-function parseSortableNumber(raw: unknown): number | null {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (raw == null) return null;
-  const s = String(raw).trim().replace("\u2212", "-").replace(",", ".");
-  if (!s || s === "—" || s.toLowerCase() === "nan") return null;
-  const n = Number(s.replace(/[^\d.+-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
-
-function compareVal(a: unknown, b: unknown): number {
-  if (a == null && b == null) return 0;
-  if (a == null || a === "" || a === "—") return 1;
-  if (b == null || b === "" || b === "—") return -1;
-  const na = parseSortableNumber(a);
-  const nb = parseSortableNumber(b);
-  if (na != null && nb != null) return na - nb;
-  return String(a).localeCompare(String(b), "ru", {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
 function SortHeader({
   label,
   sortKey,
@@ -395,10 +374,9 @@ function useSortableRows<T extends Record<string, unknown>>(
   return useMemo(() => {
     if (!sort) return rows;
     const next = [...rows];
-    next.sort((a, b) => {
-      const cmp = compareVal(a[sort.key], b[sort.key]);
-      return sort.asc ? cmp : -cmp;
-    });
+    next.sort((a, b) =>
+      compareSortEntries(a[sort.key], b[sort.key], sort.asc),
+    );
     return next;
   }, [rows, sort]);
 }

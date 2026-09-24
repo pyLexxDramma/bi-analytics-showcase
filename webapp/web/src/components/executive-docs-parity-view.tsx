@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   Text,
@@ -37,6 +37,8 @@ import {
 import { buildFilterChips } from "@/lib/filters-summary";
 import { useDeferredUrlFilters } from "@/lib/use-url-filter-state";
 import type { ExportCell, ExportTable } from "@/lib/table-export";
+import { compareSortEntries } from "@/lib/table-sort-compare";
+import { usePersistedTableSort } from "@/lib/use-persisted-table-sort";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { DashboardInsight } from "@/components/dashboard-insight";
 import {
@@ -66,6 +68,8 @@ const INITIAL: Filters = {
 };
 
 type TabId = "sum" | "detail" | "dyn";
+type SortState = { key: string; asc: boolean } | null;
+type DetailRow = ExecutiveDocsPayload["rows"][number];
 
 const DETAIL_COLS: Array<[string, string]> = [
   ["contractor", "Контрагент"],
@@ -102,6 +106,49 @@ function fmtLate(days: number | null | undefined): string {
   return `${days} дн.`;
 }
 
+function detailCellRaw(row: DetailRow, key: string): unknown {
+  if (key === "status_display") {
+    return row.status_display ?? row.status ?? null;
+  }
+  return row[key as keyof DetailRow];
+}
+
+function DetailSortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey: string;
+  sort: SortState;
+  onSort: (key: string) => void;
+}) {
+  const active = sort?.key === sortKey;
+  return (
+    <th className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle">
+      <button
+        type="button"
+        title="Сортировать по колонке"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex w-full items-center justify-center gap-1"
+      >
+        <span>{label}</span>
+        <span
+          className={
+            active
+              ? "font-bold text-emerald-700 dark:text-emerald-300"
+              : "opacity-70"
+          }
+          aria-hidden
+        >
+          {active ? (sort?.asc ? "↑" : "↓") : "⇅"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
 export function ExecutiveDocsParityView() {
   const refreshTick = useRefreshTick();
   const {
@@ -121,6 +168,23 @@ export function ExecutiveDocsParityView() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [tab, setTab] = useState<TabId>("sum");
   const [mobilePane, setMobilePane] = useState<"overdue" | "reports">("overdue");
+  const [detailSort, toggleDetailSort] = usePersistedTableSort(
+    "executive-docs:detail",
+  );
+
+  const detailRows = useMemo(() => {
+    const rows = data?.rows ?? [];
+    if (!detailSort) return rows;
+    const copy = [...rows];
+    copy.sort((a, b) =>
+      compareSortEntries(
+        detailCellRaw(a, detailSort.key),
+        detailCellRaw(b, detailSort.key),
+        detailSort.asc,
+      ),
+    );
+    return copy;
+  }, [data?.rows, detailSort]);
 
   const load = useCallback(async (next: Filters) => {
     setLoading(true);
@@ -194,11 +258,10 @@ export function ExecutiveDocsParityView() {
   );
 
   const exportDetail = useCallback((): ExportTable | null => {
-    const rows = data?.rows ?? [];
-    if (!rows.length) return null;
+    if (!detailRows.length) return null;
     return {
       header: [DETAIL_COLS.map(([, label]) => label)],
-      rows: rows.map((row) =>
+      rows: detailRows.map((row) =>
         DETAIL_COLS.map(([key]) => {
           if (key === "submit_late_days" || key === "agree_late_days") {
             return fmtLate(row[key as keyof typeof row] as number | null);
@@ -210,7 +273,7 @@ export function ExecutiveDocsParityView() {
         }),
       ),
     };
-  }, [data?.rows]);
+  }, [detailRows]);
 
   const kpis = data?.kpis;
   const tabBtn = (id: TabId, label: string) => (
@@ -568,9 +631,9 @@ export function ExecutiveDocsParityView() {
             <DashboardTableTitle>
               Детальный отчёт по сдаче и согласованию ИД
             </DashboardTableTitle>
-            <FullscreenPanel disabled={!data?.rows?.length} scroll={false}>
+            <FullscreenPanel disabled={!detailRows.length} scroll={false}>
               <div className="bi-table-scroll">
-                {!data?.rows?.length ? (
+                {!detailRows.length ? (
                   <DashboardEmptyState
                     message="Нет строк"
                     onReset={activeFilters.length ? reset : undefined}
@@ -580,17 +643,18 @@ export function ExecutiveDocsParityView() {
                     <thead>
                       <tr>
                         {DETAIL_COLS.map(([key, label]) => (
-                          <th
+                          <DetailSortHeader
                             key={key}
-                            className="whitespace-nowrap border-b border-tremor-border bg-tremor-background-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wide dark:border-dark-tremor-border dark:bg-dark-tremor-background-subtle"
-                          >
-                            {label}
-                          </th>
+                            label={label}
+                            sortKey={key}
+                            sort={detailSort}
+                            onSort={toggleDetailSort}
+                          />
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {(data?.rows ?? []).map((row, index) => (
+                      {detailRows.map((row, index) => (
                         <tr
                           key={`${row.doc_number}-${index}`}
                           className="bi-row-alt border-t border-tremor-border dark:border-dark-tremor-border"
@@ -631,7 +695,7 @@ export function ExecutiveDocsParityView() {
               <DownloadTableButton
                 getTable={exportDetail}
                 fileStem="executive_docs"
-                disabled={!data?.rows?.length}
+                disabled={!detailRows.length}
               />
             </DashboardTableActions>
             </Card>
@@ -639,14 +703,14 @@ export function ExecutiveDocsParityView() {
             <DashboardTableTitle className="mb-3 border-0 px-2 py-0">
               Детальный отчёт по сдаче и согласованию ИД
             </DashboardTableTitle>
-            {!data?.rows?.length ? (
+            {!detailRows.length ? (
               <DashboardEmptyState
                 message="Нет строк"
                 onReset={activeFilters.length ? reset : undefined}
               />
             ) : (
               <MobileCardStack compact>
-                {data.rows.map((row, index) => (
+                {detailRows.map((row, index) => (
                   <MobileEntityCard
                     key={`${row.doc_number}-${index}`}
                     title={row.doc_number || "—"}
@@ -689,7 +753,7 @@ export function ExecutiveDocsParityView() {
               </MobileCardStack>
             )}
             <DashboardTableActions className="mt-3 border-0 px-2 py-0">
-              <DownloadTableButton getTable={exportDetail} fileStem="executive_docs" disabled={!data?.rows?.length} />
+              <DownloadTableButton getTable={exportDetail} fileStem="executive_docs" disabled={!detailRows.length} />
             </DashboardTableActions>
             </div>
           </>
