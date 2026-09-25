@@ -8,6 +8,14 @@ from typing import Any
 
 import requests
 
+from bug_report.card_template import (
+    card_kind,
+    checklist_items,
+    format_board_title,
+    is_yanchurkin,
+    status_comment,
+    substance_line,
+)
 from bug_report.categories import category_display, priority_display, TrelloTarget
 from bug_report.settings import BugReportSettings, get_bug_report_settings
 
@@ -211,11 +219,14 @@ def create_bug_report_card(
             "Trello list_id is not configured (нужна открытая колонка «Анализ»)"
         )
     ensure_inbox_list_first(settings, list_id)
+    kind = card_kind(user_text, str(classification.get("category") or ""))
+    substance = substance_line(user_text, title)
+    board_title = format_board_title(context.get("user_seq"), kind, substance)
     # desc/name в body — иначе длинный текст даёт 414 Request-URI Too Large
     body: dict[str, Any] = {
         "idList": list_id,
         "pos": "top",
-        "name": title[:160],
+        "name": board_title,
         "desc": _format_description(
             user_text=user_text,
             context=context,
@@ -266,4 +277,43 @@ def create_bug_report_card(
                 card_id,
                 filename,
             )
+    if is_yanchurkin(context):
+        _attach_yanchurkin_template(
+            settings,
+            card_id,
+            checklist_items(user_text, substance),
+            status_comment("Анализ"),
+        )
     return TrelloCardResult(card_id=card_id, card_url=card_url)
+
+
+def _attach_yanchurkin_template(
+    settings: BugReportSettings,
+    card_id: str,
+    items: list[str],
+    comment: str,
+) -> None:
+    """Чеклист и последний статус. Ошибка здесь не отменяет уже созданную карточку."""
+    try:
+        created = requests.post(
+            f"{TRELLO_API}/cards/{card_id}/checklists",
+            params={**_auth_params(settings), "name": "Что сделать"},
+            timeout=(3.0, 12.0),
+        )
+        created.raise_for_status()
+        checklist_id = str((created.json() or {}).get("id") or "")
+        for item in items:
+            if not checklist_id:
+                break
+            requests.post(
+                f"{TRELLO_API}/checklists/{checklist_id}/checkItems",
+                params={**_auth_params(settings), "name": item},
+                timeout=(3.0, 12.0),
+            ).raise_for_status()
+        requests.post(
+            f"{TRELLO_API}/cards/{card_id}/actions/comments",
+            params={**_auth_params(settings), "text": comment},
+            timeout=(3.0, 12.0),
+        ).raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("bug_report card template for %s: %s", card_id, exc)
