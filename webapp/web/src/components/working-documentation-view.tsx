@@ -187,7 +187,10 @@ function DetailTable({
   fileStem: string;
   onReset?: () => void;
 }) {
-  const [sort, toggleSort] = usePersistedTableSort(`working-documentation:${fileStem}`);
+  const [sort, toggleSort] = usePersistedTableSort(
+    `working-documentation:${fileStem}`,
+    fileStem === "rd_detail" ? { key: "Статус", asc: true } : null,
+  );
   const [dark, setDark] = useState(false);
   const [listQuery, setListQuery] = useState("");
   const [detailRow, setDetailRow] = useState<Record<
