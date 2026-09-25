@@ -17695,6 +17695,14 @@ def _rd_plan_csv_pick_columns(df: pd.DataFrame) -> dict[str, str | None]:
                 return cols[n]
         return None
 
+    def _pick_ci(names: tuple[str, ...]) -> str | None:
+        by_cf = {str(k).casefold(): v for k, v in cols.items()}
+        for n in names:
+            hit = by_cf.get(str(n).casefold())
+            if hit is not None:
+                return hit
+        return None
+
     def _pick_fuzzy(must: tuple[str, ...]) -> str | None:
         lows = tuple(w.casefold() for w in must)
         best, best_len = None, 10**9
@@ -17725,7 +17733,8 @@ def _rd_plan_csv_pick_columns(df: pd.DataFrame) -> dict[str, str | None]:
         ),
         "status": _pick(("Статус РД", "Статус ПД", "Статус")),
         "full_cipher": _pick(("Шифр полный", "InternalID", "Internal Id")),
-        "contract": _pick(("№ Договора", "Договор")),
+        # После coalesce заголовок может стать «№ договора» (строчная «д»).
+        "contract": _pick_ci(("№ Договора", "Договор")),
     }
 
 
@@ -47853,6 +47862,10 @@ def _build_tessa_rd_detail_table(
                 _stage_by_card.get(str(_doc_id)) if _doc_id else None
             )
             _status = _fb or _RD_TESSA_STATUS_NOT_ISSUED
+        # Устаревший «На рассмотрении у ГИП» при валидной подписи ГИП → производство
+        # (только отображение в детальной таблице; pie/dynamics читают сырой Status).
+        if _status == _RD_TESSA_STATUS_REVIEW and _production_dt is not None:
+            _status = _RD_TESSA_STATUS_PRODUCTION
         rows.append(
             {
                 # Внутренние имена (их читают хелперы/фильтр/сопоставление секций);
