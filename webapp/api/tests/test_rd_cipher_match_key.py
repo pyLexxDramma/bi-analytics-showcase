@@ -32,6 +32,18 @@ def test_rd_cipher_match_key_aupt_block_and_hyphen_aliases() -> None:
         )
 
 
+def test_rd_cipher_match_key_dash_and_repeated_hyphen() -> None:
+    """Тире = дефис, несколько дефисов подряд = один. Чужую марку не угадываем."""
+    plain = _rd_cipher_match_key("65-ХСА-1/24-КЖ1-А")
+    assert _rd_cipher_match_key("65-ХСА-1/24--КЖ1-А") == plain
+    assert _rd_cipher_match_key("65-ХСА-1/24—КЖ1—А") == plain
+    assert _rd_cipher_match_key("65-ХСА-1/24–КЖ1–А") == plain
+    assert _rd_cipher_match_key("65—ХСА—1/24—КЖ1—А") == plain
+    assert _rd_cipher_match_key("65-ХСА-1/24-КМ1-А") != _rd_cipher_match_key(
+        "65-ХСА-1/24-КМ-A"
+    )
+
+
 def test_rd_cipher_match_key_keeps_different_blocks_apart() -> None:
     """Разные буквы блока (и АУПТ/АПТ с разным блоком) не схлопываются."""
     assert _rd_cipher_match_key("65-ХСА-1/24-ВК-В") != _rd_cipher_match_key(
