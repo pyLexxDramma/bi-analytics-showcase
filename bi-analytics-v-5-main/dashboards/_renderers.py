@@ -18276,6 +18276,11 @@ def _rd_cipher_match_key(val: Any) -> str:
     TESSA часто пишет суффикс Latin ``A`` (``…-АС5-A``), план other_*_rd.csv —
     Cyrillic ``А`` (``…-АС5-А``). Без нормализации join по полному шифру
     промахивается и падает на неоднозначный short-cipher fallback.
+
+    Дополнительно для join план↔TESSA (только ключ, отображаемый шифр не меняем):
+    - Cyrillic ``В`` → ``b`` (как визуальный lookalike Latin ``B``; Latin ``v`` остаётся);
+    - сегмент дисциплины ``-АУПТ-`` → ``-АПТ-`` после гомоглифов (``-ayпt-``→``-aпt-``);
+    - повторяющиеся дефисы схлопываются (``--``→``-``).
     """
     s = _rd_csv_cell_str(val)
     if not s:
@@ -18296,10 +18301,15 @@ def _rd_cipher_match_key(val: Any) -> str:
             "\u0442": "t",
             "\u0445": "x",
             "\u0443": "y",
-            "\u0432": "v",
+            "\u0432": "b",
         }
     )
-    return t.translate(_homo)
+    t = t.translate(_homo)
+    t = re.sub(r"-{2,}", "-", t)
+    # План: …-АУПТ-<блок>; TESSA InternalID: …-АПТ-<блок>. П (U+043F) не в
+    # гомоглиф-таблице — после translate сегмент «ayпt» vs «aпt».
+    t = t.replace("-ay\u043ft-", "-a\u043ft-")
+    return t
 
 
 def _rd_format_contract_no(val: Any) -> str:
