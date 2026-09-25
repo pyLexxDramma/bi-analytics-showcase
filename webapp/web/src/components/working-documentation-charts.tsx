@@ -219,7 +219,7 @@ export function RdDynamicsLineChart({
       y: Array<number | null>,
       name: string,
       color: string,
-      opts?: { dash?: string; width?: number },
+      opts?: { dash?: string; width?: number; textposition?: string | string[] },
     ): Record<string, unknown> => ({
       type: "scatter",
       mode: compact ? "lines+markers" : "lines+markers+text",
@@ -231,7 +231,7 @@ export function RdDynamicsLineChart({
         ? {}
         : {
             text: y.map((v) => (v == null ? "" : pointLabel(v))),
-            textposition: "top center",
+            textposition: opts?.textposition ?? "top center",
             textfont: { color, size: 10 },
           }),
       line: {
@@ -245,10 +245,15 @@ export function RdDynamicsLineChart({
     });
     const data: Array<Record<string, unknown>> = [];
     if (hasForecast) {
+      // На общей точке с фактом подпись снизу, иначе зелёная цифра её закрывает.
+      const forecastTextPos = forecast.map((v, i) =>
+        v != null && fact[i] != null && fact[i] === v ? "bottom center" : "top center",
+      );
       data.push(
         mk(forecast, CHART_RU.forecastRd, RD_FCST, {
           dash: "dash",
           width: 2.8,
+          textposition: forecastTextPos,
         }),
       );
     }

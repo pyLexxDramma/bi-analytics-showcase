@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""РД: обрыв плана, прогноз по явным датам (включая уже выданные)."""
+"""РД: обрыв плана, прогноз только по невыданным с явной датой."""
 from __future__ import annotations
 
 from datetime import date
@@ -49,7 +49,7 @@ def test_plan_slice_copies_forecast_date_not_contract() -> None:
 
 
 def test_forecast_includes_issued_es_and_rework_gp_in_august() -> None:
-    """Стенд: ЭС выдано 12.08 + ГП на доработке 03.08 → рыжая 2 в августе, не сентябре."""
+    """ЭС выдан — не в рыжей; ГП без выдачи — в рыжей, прижат к сентябрю (стык)."""
     detail = pd.DataFrame(
         {
             "Полный шифр": ["65-ХСА-1/24-ЭС", "65-ХСА-1/24-ГП", "65-ХСА-1/24-НСП"],
@@ -66,10 +66,10 @@ def test_forecast_includes_issued_es_and_rework_gp_in_august() -> None:
     out = _plan_slice_from_detail(detail, _Mod())
     assert int(out["_forecast_dyn_dt"].notna().sum()) == 2
     inc = _forecast_month_increments(out, junction=pd.Timestamp("2026-09-01"))
-    assert sum(inc.values()) == 2.0
-    assert pd.Timestamp("2026-08-01") in inc
-    assert pd.Timestamp("2026-09-01") not in inc
-    assert pd.Timestamp("2026-10-01") not in inc
+    assert sum(inc.values()) == 1.0
+    assert pd.Timestamp("2026-08-01") not in inc
+    assert pd.Timestamp("2026-09-01") in inc
+    assert inc[pd.Timestamp("2026-09-01")] == 1.0
 
     dyn = [
         {
@@ -96,13 +96,49 @@ def test_forecast_includes_issued_es_and_rework_gp_in_august() -> None:
     ]
     attached = _attach_forecast_from_fact(dyn, out, today=date(2026, 9, 23))
     by = {r["period"]: r for r in attached}
-    assert by["2026-08-01"]["forecast"] == 2.0
+    # До стыка рыжую по зелёной не рисуем.
+    assert by["2026-08-01"]["forecast"] is None
     assert by["2026-08-01"]["fact"] == 167.0
-    assert by["2026-09-01"]["forecast"] is None
+    # На стыке общая точка = факт; прирост ГП, прижатый к сентябрю, не поднимает стык.
+    assert by["2026-09-01"]["forecast"] == 170.0
     assert by["2026-09-01"]["fact"] == 170.0
     assert by["2025-05-01"]["forecast"] is None
     assert by["2025-05-01"]["plan"] == 198.0
     assert "2026-10-01" not in by
+
+
+def test_forecast_starts_at_fact_end_then_extends_right() -> None:
+    """Невыданный строго после последнего факта: стык = факт, дальше fact+1 без зелёной."""
+    plan_df = pd.DataFrame(
+        {
+            "_plan_dt": [pd.Timestamp("2026-10-31")],
+            "_tessa_production_dt": [pd.NaT],
+            "_forecast_dyn_dt": [pd.Timestamp("2026-10-15")],
+        }
+    )
+    dyn = [
+        {
+            "period": "2026-08-01",
+            "period_label": "Авг 2026",
+            "plan": None,
+            "fact": 64.0,
+            "forecast": None,
+        },
+        {
+            "period": "2026-09-01",
+            "period_label": "Сен 2026",
+            "plan": None,
+            "fact": 64.0,
+            "forecast": None,
+        },
+    ]
+    out = _attach_forecast_from_fact(dyn, plan_df, today=date(2026, 9, 23))
+    by = {r["period"]: r for r in out}
+    assert by["2026-08-01"]["forecast"] is None
+    assert by["2026-09-01"]["forecast"] == 64.0
+    assert by["2026-09-01"]["fact"] == 64.0
+    assert by["2026-10-01"]["forecast"] == 65.0
+    assert by["2026-10-01"]["fact"] is None
 
 
 def test_build_dynamics_plan_stops_at_last_plan_date() -> None:
@@ -124,7 +160,7 @@ def test_build_dynamics_plan_stops_at_last_plan_date() -> None:
 
 
 def test_forecast_survives_when_fact_line_missing() -> None:
-    """Без зелёной рыжая всё равно = 2 в августе."""
+    """Без зелёной рыжая всё равно = 2 в августе (только невыданные)."""
     plan_df = pd.DataFrame(
         {
             "_plan_dt": [pd.Timestamp("2026-10-31"), pd.Timestamp("2026-10-31")],
@@ -172,3 +208,63 @@ def test_forecast_skips_rows_without_date() -> None:
     ]
     out = _attach_forecast_from_fact(dyn, plan_df, today=date(2026, 9, 23))
     assert all(r.get("forecast") is None for r in out)
+
+
+def test_issued_forecast_month_does_not_hole_fact_line() -> None:
+    """Прогноз уже выданных (апр) между мартом и июнем факта не дырявит зелёную."""
+    plan_df = pd.DataFrame(
+        {
+            "_plan_dt": [
+                pd.Timestamp("2026-10-31"),
+                pd.Timestamp("2026-10-31"),
+                pd.Timestamp("2026-10-31"),
+            ],
+            "_tessa_production_dt": [
+                pd.Timestamp("2026-03-10"),
+                pd.Timestamp("2026-04-24"),
+                pd.NaT,
+            ],
+            "_forecast_dyn_dt": [
+                pd.Timestamp("2026-04-24"),
+                pd.Timestamp("2026-04-24"),
+                pd.Timestamp("2026-07-15"),
+            ],
+        }
+    )
+    # 10 выданных с прогнозом в апреле не должны попасть в прирост.
+    issued_only = plan_df.iloc[:2].copy()
+    dyn = [
+        {
+            "period": "2026-03-01",
+            "period_label": "Мар 2026",
+            "plan": None,
+            "fact": 100.0,
+            "forecast": None,
+        },
+        {
+            "period": "2026-06-01",
+            "period_label": "Июн 2026",
+            "plan": None,
+            "fact": 150.0,
+            "forecast": None,
+        },
+    ]
+    attached = _attach_forecast_from_fact(dyn, issued_only, today=date(2026, 9, 23))
+    by = {r["period"]: r for r in attached}
+    assert "2026-04-01" not in by
+    assert by["2026-03-01"]["fact"] == 100.0
+    assert by["2026-06-01"]["fact"] == 150.0
+    assert all(r.get("forecast") is None for r in attached)
+
+    # Один невыданный с прогнозом после последнего факта.
+    with_unissued = plan_df.copy()
+    attached2 = _attach_forecast_from_fact(dyn, with_unissued, today=date(2026, 9, 23))
+    by2 = {r["period"]: r for r in attached2}
+    assert by2["2026-03-01"]["fact"] == 100.0
+    assert by2["2026-06-01"]["fact"] == 150.0
+    assert by2["2026-06-01"]["forecast"] == 150.0
+    assert by2["2026-07-01"]["forecast"] == 151.0
+    assert by2["2026-07-01"]["fact"] is None
+    # Апрель выданных не вставлен как дырка.
+    if "2026-04-01" in by2:
+        assert by2["2026-04-01"]["fact"] is not None

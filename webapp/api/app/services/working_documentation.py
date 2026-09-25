@@ -838,16 +838,23 @@ def _forecast_date_series(plan_df: pd.DataFrame) -> pd.Series:
 def _forecast_month_increments(
     plan_df: pd.DataFrame, *, junction: pd.Timestamp | None = None
 ) -> dict[pd.Timestamp, float]:
-    """Все строки с явной прогнозной датой, в их месяце. Без clamp к факту и без договора."""
-    del junction
+    """Невыданные с явной прогнозной датой; месяц < junction прижимается к стыку."""
     if plan_df is None or plan_df.empty:
         return {}
     fcst = _forecast_date_series(plan_df)
     mask = fcst.notna()
+    if "_tessa_production_dt" in plan_df.columns:
+        prod = pd.to_datetime(plan_df["_tessa_production_dt"], errors="coerce")
+        mask = mask & prod.isna()
     if not mask.any():
         return {}
-    months = fcst.loc[mask].dt.to_period("M").dt.to_timestamp()
-    return {pd.Timestamp(k): float(v) for k, v in months.value_counts().items()}
+    increments: dict[pd.Timestamp, float] = {}
+    for raw in fcst.loc[mask]:
+        b = pd.Timestamp(raw).to_period("M").to_timestamp()
+        if junction is not None and b < junction:
+            b = junction
+        increments[b] = increments.get(b, 0.0) + 1.0
+    return increments
 
 
 def _attach_forecast_from_fact(
@@ -856,14 +863,30 @@ def _attach_forecast_from_fact(
     *,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Рыжая = число строк с явной прогнозной датой в их месяце. Не fact+N."""
+    """Рыжая от конца зелёной: только невыданные с прогнозом; синюю не протягивать."""
     del today
-    increments = _forecast_month_increments(plan_df)
+    last_fact_d: pd.Timestamp | None = None
+    last_fact_v = 0.0
+    for row in dynamics:
+        if row.get("fact") is None:
+            continue
+        try:
+            d = pd.Timestamp(str(row["period"])[:10]).normalize()
+        except Exception:
+            continue
+        last_fact_d = d
+        last_fact_v = float(row.get("fact") or 0.0)
+
+    increments = _forecast_month_increments(plan_df, junction=last_fact_d)
     if not increments:
         return [{**r, "forecast": None} for r in dynamics]
 
-    first_inc = min(increments)
-    last_inc = max(increments)
+    has_fact_line = last_fact_d is not None
+    junction = last_fact_d
+    if junction is None:
+        junction = min(increments)
+        last_fact_v = 0.0
+
     by_period: dict[str, dict[str, Any]] = {
         str(r["period"])[:10]: dict(r) for r in dynamics
     }
@@ -878,14 +901,35 @@ def _attach_forecast_from_fact(
                 "forecast": None,
             }
 
+    last_inc = max(increments)
     ordered = sorted(by_period.values(), key=lambda r: str(r["period"])[:10])
+    last_known_fact: float | None = None
     for r in ordered:
         d = pd.Timestamp(str(r["period"])[:10]).normalize()
-        if d < first_inc or d > last_inc:
+        fact_v = r.get("fact")
+        if fact_v is not None:
+            last_known_fact = float(fact_v)
+        elif d <= junction and last_known_fact is not None:
+            # Месяц, вставленный внутри диапазона факта, не должен рвать зелёную.
+            r["fact"] = last_known_fact
+            fact_v = last_known_fact
+
+        if d < junction:
+            # Рыжую вдоль зелёной не рисуем — только от общей точки стыка вправо.
+            r["forecast"] = None
+            continue
+        if d > last_inc:
             r["forecast"] = None
             continue
         cum_inc = sum(float(v) for m, v in increments.items() if pd.Timestamp(m) <= d)
-        r["forecast"] = float(round(cum_inc)) if cum_inc > 0 else None
+        if d == junction and has_fact_line:
+            # Общая точка с концом зелёной; прирост, прижатый к стыку, здесь не прибавляем.
+            r["forecast"] = float(round(last_fact_v))
+        else:
+            # Без зелёной на стыке и дальше — cum; после стыка с фактом — last_fact + cum.
+            r["forecast"] = float(round(last_fact_v + cum_inc))
+        if d > junction:
+            r["fact"] = None
     return ordered
 
 
@@ -1241,7 +1285,7 @@ def build_working_documentation_payload(
 
     cache_key = "|".join(
         [
-            "v45-rd-forecast-dated-month",
+            "v46-rd-forecast-from-fact-end",
             str(sel_projects),
             str(sel_sections),
             str(sel_statuses),
