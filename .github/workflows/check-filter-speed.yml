@@ -1,0 +1,23 @@
+# Ручной замер фильтров на ai.conall.ru. Не входит в деплой.
+name: Check filter speed
+
+on:
+  workflow_dispatch:
+
+jobs:
+  filter-speed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Filter code still avoids the slow path
+        run: python tools/check_report_filter_speed.py --static
+      - name: Time project and period filters on ai.conall.ru
+        env:
+          REPORT_PASSWORD: ${{ secrets.REPORT_PASSWORD }}
+          REPORT_USER: admin
+          REPORT_BASE_URL: https://ai.conall.ru
+          REPORT_SLOW_SEC: "10"
+        run: python tools/check_report_filter_speed.py --live
